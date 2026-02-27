@@ -2,12 +2,15 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+// PUBLIC PAGES
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 
+// MAIN APP PAGES
+import Dashboard from "./pages/Dashboard";
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
 import Vibe from "./pages/Vibe";
@@ -23,20 +26,21 @@ export default function AppRouter({ user }) {
       <Route
         path="/"
         element={
-          user ? <Navigate to="/app/gpt" replace /> : <Landing />
+          user ? <Navigate to="/app/dashboard" replace /> : <Landing />
         }
       />
 
       <Route
         path="/login"
         element={
-          user ? <Navigate to="/app/gpt" replace /> : <Login />
+          user ? <Navigate to="/app/dashboard" replace /> : <Login />
         }
       />
 
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
+      {/* PROTECTED */}
       <Route
         path="/app"
         element={
@@ -45,7 +49,9 @@ export default function AppRouter({ user }) {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="gpt" replace />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
+
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="gpt" element={<Gpt />} />
         <Route path="magic16" element={<Magic16 />} />
         <Route path="vibe" element={<Vibe />} />
