@@ -18,7 +18,7 @@ export default function Landing() {
     try {
       const user = authService?.getCurrentUser?.();
       if (user) {
-        navigate("/app/dashboard", { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     } catch (error) {
       console.error("Landing auth check failed:", error);
