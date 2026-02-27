@@ -11,7 +11,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 
 // MAIN APP PAGES
-import Dashboard from "./pages/Dashboard";
+
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
 import Vibe from "./pages/Vibe";
@@ -24,14 +24,7 @@ export default function AppRouter({ user }) {
     <Routes>
 
       {/* ================= PUBLIC ROUTES ================= */}
-      <Route
-        path="/"
-        element={
-          user ? <Navigate to="/app/dashboard" replace /> : <Landing />
-        }
-      />
-
-      <Route
+        <Route
         path="/login"
         element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
       />
