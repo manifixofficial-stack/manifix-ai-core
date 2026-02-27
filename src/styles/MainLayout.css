@@ -1,0 +1,252 @@
+/* src/styles/MainLayout.css */
+
+/* ===================== GLOBAL ===================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e, #162447);
+  color: #fff;
+}
+
+/* ===================== HEADER ===================== */
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: rgba(10, 10, 30, 0.9);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #333;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-logo {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+}
+
+.header-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffcc00;
+  text-shadow: 0 0 8px #ffcc00, 0 0 15px #ffcc00;
+}
+
+/* ===================== BODY ===================== */
+.main-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===================== LEFT SIDEBAR ===================== */
+.left-sidebar {
+  width: 80px;
+  background: rgba(15, 15, 40, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 1.5rem;
+  border-right: 1px solid #333;
+  gap: 1.5rem;
+}
+
+.side-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.side-btn img {
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 0 5px #ffcc00);
+}
+
+.side-btn span {
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.side-btn:hover {
+  transform: scale(1.1);
+  color: #ffcc00;
+}
+
+/* ===================== CENTER CONTENT ===================== */
+.center-content {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1rem 2rem;
+  overflow-y: auto;
+}
+
+/* STAR CENTER */
+.star-container {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.center-star {
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 0 20px #ffcc00) drop-shadow(0 0 40px #ffcc00);
+  animation: glow 2s infinite alternate;
+}
+
+@keyframes glow {
+  0% { filter: drop-shadow(0 0 20px #ffcc00) drop-shadow(0 0 40px #ffcc00); }
+  100% { filter: drop-shadow(0 0 40px #ffd633) drop-shadow(0 0 80px #ffd633); }
+}
+
+/* ===================== CHAT BAR ===================== */
+.chat-bar {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(20, 20, 50, 0.85);
+  padding: 0.5rem 1rem;
+  border-radius: 15px;
+  align-items: center;
+  margin-top: auto;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.chat-input::placeholder {
+  color: #aaa;
+}
+
+.send-btn {
+  background: #ffcc00;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.send-btn img {
+  width: 25px;
+  height: 25px;
+}
+
+.send-btn:hover {
+  transform: scale(1.1);
+}
+
+/* ===================== MAGIC16 BUTTON ===================== */
+.magic16-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: #ffcc00;
+  color: #000;
+  font-weight: 700;
+  font-size: 1rem;
+  border: none;
+  border-radius: 30px;
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  box-shadow: 0 0 10px #ffcc00, 0 0 20px #ffcc00;
+  transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 1000;
+}
+
+.magic16-btn img {
+  width: 30px;
+  height: 30px;
+}
+
+.magic16-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px #ffd633, 0 0 40px #ffd633;
+}
+
+/* ===================== MODAL ===================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 10, 30, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-box {
+  background: linear-gradient(135deg, #1a1a2e, #222248);
+  padding: 2rem 3rem;
+  border-radius: 15px;
+  border: 1px solid #ffcc00;
+  text-align: center;
+  box-shadow: 0 0 20px #ffcc00, 0 0 40px #ffcc00;
+}
+
+.modal-box h2 {
+  font-size: 1.8rem;
+  color: #ffcc00;
+  margin-bottom: 1rem;
+}
+
+.modal-box p {
+  font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.close-btn {
+  background: #ffcc00;
+  color: #000;
+  font-weight: 700;
+  padding: 0.5rem 1.2rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.close-btn:hover {
+  transform: scale(1.05);
+}

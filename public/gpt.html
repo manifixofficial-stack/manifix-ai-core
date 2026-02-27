@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ManifiX</title>
+<link rel="icon" href="assets/images/logo.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/supabase.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/themes/prism-tomorrow.css" rel="stylesheet"/>
+
+<!-- Prism Core -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/prism.js"></script>
+
+<!-- Popular Web / General Languages -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-html.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-css.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-typescript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-php.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-ruby.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-java.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-c.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-cpp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-csharp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-kotlin.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-swift.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-go.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-rust.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-dart.min.js"></script>
+
+<!-- Databases / Query Languages -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-sql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-mysql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-postgresql.min.js"></script>
+
+<!-- Scripting / Shell -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-bash.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-shell-session.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-perl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-lua.min.js"></script>
+
+<!-- Data Science / Statistical -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-r.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-julia.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-matlab.min.js"></script>
+
+<!-- Functional / Advanced -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-haskell.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-lisp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-clojure.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-erlang.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-elixir.min.js"></script>
+
+<!-- Markup / Config -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-json.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-yaml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-xml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-markdown.min.js"></script>
+
+<!-- Misc / Less common -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-graphql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-docker.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-sass.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-less.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-coffeescript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-objectivec.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-vbnet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-apex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-fortran.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-basic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-fsharp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-solidity.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-vhdl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-verilog.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-sml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/components/prism-prolog.min.js"></script>
+
+
+<style>
+/* ===== THEME ===== */
+:root {
+  --bg-image: url('assets/images/profile/placeholder.jpg');
+  --panel: #081339;
+  --accent1: #1E90FF;
+  --accent2: #0B3D91;
+  --user: #07245b;
+  --bot: #062f45;
+  --muted: #AAAAAA;
+  --text-light: #ffffff;
+  --text-muted: #cccccc;
+  --border-radius: 12px;
+  --font-family: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-image) no-repeat center center / cover;
+  font-family: var(--font-family);
+  color: var(--text-light);
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== HEADER ===== */
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border-bottom: 1px solid #3eb3c7;
+}
+
+header img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+header h1 {
+  font-size: 1.2rem;
+}
+
+/* ===== CHAT AREA ===== */
+main.chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+
+.msg-wrapper {
+  display: flex;
+  width: 100%;
+}
+
+.msg-wrapper.user {
+  justify-content: flex-end;
+}
+
+.msg-wrapper.bot {
+  justify-content: flex-start;
+}
+
+.msg-bubble {
+  max-width: 80%;
+  padding: 12px 14px;
+  border-radius: var(--border-radius);
+  background: var(--bot);
+  color: var(--text-light);
+  line-height: 1.5;
+  font-size: 15px;
+  word-break: break-word;
+  position: relative;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.25s ease;
+}
+
+.msg-wrapper.user .msg-bubble {
+  background: var(--user);
+}
+
+/* ===== COPY BUTTON ===== */
+.copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: 1px solid #222;
+  cursor: pointer;
+}
+
+.copy-btn:hover {
+  background: rgba(0,0,0,0.85);
+}
+
+/* ===== THINKING DOTS ===== */
+.thinking {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent1);
+  border-radius: 50%;
+  animation: jump 1.1s infinite ease-in-out;
+}
+
+.dot:nth-child(2) { animation-delay: 0.15s; }
+.dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes jump {
+  0%,100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== FOOTER ===== */
+footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  background: var(--panel);
+  border-top: 1px solid #444;
+}
+
+textarea {
+  flex: 1;
+  min-height: 48px;
+  padding: 12px;
+  border-radius: var(--border-radius);
+  border: 1px solid #333;
+  background: #060d11;
+  color: var(--text-light);
+  resize: none;
+  font-size: 15px;
+}
+
+button {
+  padding: 10px 14px;
+  border-radius: var(--border-radius);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.primary {
+  background: var(--accent1);
+  color: #111;
+}
+
+button.togglespeech {
+  background: var(--accent2);
+  color: #fff;
+}
+
+/* ===== MIC BUTTON ===== */
+#micBtn {
+  background: var(--accent2);
+  color: #fff;
+}
+
+#micBtn.recording {
+  background: #ff4b5c;
+}
+
+/* ===== CODE BLOCKS ===== */
+pre {
+  background: #1e1e2f;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+/* ===== MOBILE ===== */
+@media (max-width: 640px) {
+  .msg-bubble { max-width: 95%; }
+  header h1 { font-size: 1rem; }
+}
+</style>
+
+</head>
+
+<body>
+<div class="app">
+  <header>
+    <img src="assets/images/logo.png" alt="ManifiX Logo">
+    <h1>ManifiX</h1>
+  </header>
+  <main class="chat" id="chat-container"></main>
+  <footer>
+  <button id="micBtn">🎤</button>
+  <textarea id="user-input" placeholder="Ask Your ManifiX Anything …"></textarea>
+  <button id="sendBtn" class="primary">Send</button>
+  <button id="toggleVoiceBtn" class="togglespeech">🔊 Voice ON</button>
+</footer>
+
+</div>
+
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+
+  const chatContainer = document.getElementById("chat-container");
+  const inputEl = document.getElementById("user-input");
+  const sendBtn = document.getElementById("sendBtn");
+  const micBtn = document.getElementById("micBtn");
+  const toggleVoiceBtn = document.getElementById("toggleVoiceBtn");
+
+  const API_BASE = "http://localhost:5000";
+
+  let conversation = [];
+  let voiceEnabled = true;
+
+  function createBubble(content, who = "bot") {
+    const wrapper = document.createElement("div");
+    wrapper.className = `msg-wrapper ${who}`;
+
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble";
+
+    content.split("\n").forEach(line => {
+      if (!line.trim()) return;
+      const p = document.createElement("div");
+      p.className = "msg-text";
+      p.textContent = line;
+      bubble.appendChild(p);
+    });
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "Copy";
+    copyBtn.onclick = () => navigator.clipboard.writeText(content);
+
+    bubble.appendChild(copyBtn);
+    wrapper.appendChild(bubble);
+    chatContainer.appendChild(wrapper);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  function speak(text) {
+    if (!voiceEnabled || !window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-IN";
+    speechSynthesis.speak(u);
+  }
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  let recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+  if (recognition) {
+    recognition.lang = "en-IN";
+    recognition.onresult = e => {
+      inputEl.value = e.results[0][0].transcript;
+    };
+    recognition.onend = () => micBtn && (micBtn.textContent = "🎤");
+  }
+
+  if (micBtn) {
+    micBtn.onclick = () => {
+      if (!recognition) return alert("STT not supported");
+      recognition.start();
+      micBtn.textContent = "🎙";
+    };
+  }
+
+  async function sendMessage(msg) {
+    if (!msg.trim()) return;
+
+    createBubble(msg, "user");
+    inputEl.value = "";
+
+    const thinking = document.createElement("div");
+    thinking.className = "thinking";
+    thinking.textContent = "ManifiX is thinking...";
+    chatContainer.appendChild(thinking);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg })
+      });
+
+      const data = await res.json();
+      thinking.remove();
+
+      const reply = data.reply || "I’m here with you 🤍";
+      createBubble(reply, "bot");
+      speak(reply);
+
+    } catch {
+      thinking.remove();
+      createBubble("❌ Backend not reachable", "bot");
+    }
+  }
+
+  sendBtn.onclick = () => sendMessage(inputEl.value);
+
+  inputEl.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+
+  if (toggleVoiceBtn) {
+    toggleVoiceBtn.onclick = () => {
+      voiceEnabled = !voiceEnabled;
+      toggleVoiceBtn.textContent = voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF";
+    };
+  }
+
+  createBubble("Hi 👋 I’m ManifiX. How can I help you today ❤️", "bot");
+  inputEl.focus();
+});
+</script>

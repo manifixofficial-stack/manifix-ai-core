@@ -1,0 +1,110 @@
+/* src/styles/Billing666.css */
+.billing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  background-size: cover;
+  background-position: center;
+}
+
+.billing-header {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.billing-logo {
+  width: 80px;
+  margin-bottom: 1rem;
+}
+
+.billing-header h1 {
+  font-size: 2.5rem;
+  text-shadow: 0 0 10px #ff80ab;
+  margin-bottom: 0.5rem;
+}
+
+.billing-header p {
+  font-size: 1.2rem;
+  color: #e0e0e0;
+}
+
+.billing-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem 1rem;
+}
+
+.billing-card {
+  background: rgba(0,0,0,0.7);
+  padding: 2rem 1.5rem;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 0 20px #ff80ab;
+  max-width: 400px;
+}
+
+.premium-icon {
+  width: 80px;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 0 5px #ff80ab);
+}
+
+.billing-card h2 {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.billing-card p {
+  font-size: 1rem;
+  color: #e0e0e0;
+  margin-bottom: 1rem;
+}
+
+.price {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  display: block;
+  color: #ff80ab;
+}
+
+.btn-primary {
+  background: #ff80ab;
+  color: #000;
+  font-weight: 600;
+  padding: 0.8rem 2rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background: #ff5fa3;
+  transform: scale(1.05);
+}
+
+.success-msg {
+  color: #00ffcc;
+  margin-top: 1rem;
+}
+
+.error-msg {
+  color: #ff4d6d;
+  margin-top: 1rem;
+}
+
+.billing-footer {
+  text-align: center;
+  padding: 1.5rem;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255,255,255,0.2);
+}

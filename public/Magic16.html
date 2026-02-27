@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Magic16</title>
+<link rel="icon" href="assets/images/logo.png" />
+
+<!-- Supabase (ESM shim works via window.supabase.createClient below) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/supabase.min.js"></script>
+
+<!-- face-api.js -->
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+<style>
+:root{
+  --bg:#05060a;
+  --card:#071427;
+  --glass: rgba(255,255,255,0.03);
+  --accent1: #8b5cf6;
+  --accent2: #06b6d4;
+  --muted:#94a3b8;
+  --neon: linear-gradient(90deg,var(--accent1),var(--accent2));
+}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,#02030a 0%,#071427 100%);color:#e6eef8;font-family:Inter,Segoe UI,Roboto,system-ui,Arial}
+.app{max-width:1100px;margin:20px auto;padding:20px}
+.header{display:flex;align-items:center;gap:14px}
+.logo{width:56px;height:56px;border-radius:12px;background:var(--neon);display:flex;align-items:center;justify-content:center;font-weight:800;color:#021125}
+.title{line-height:1}
+.title h1{margin:0;font-size:20px}
+.title p{margin:4px 0 0;color:var(--muted);font-size:13px}
+
+/* grid */
+.grid{display:grid;grid-template-columns:360px 1fr;gap:18px;margin-top:18px}
+.card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 8px 36px rgba(2,6,23,0.6)}
+.preview{position:relative;height:420px;border-radius:8px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
+video#camera{width:100%;height:100%;object-fit:cover;background:#000}
+canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+.controls{display:flex;gap:8px;align-items:center;margin-top:12px}
+.btn{cursor:pointer;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted)}
+.btn.big{background:var(--neon);color:#021125;border:none;padding:12px 18px}
+.small{padding:6px 8px;font-size:13px}
+.session{display:flex;flex-direction:column;gap:12px}
+.tabs{display:flex;gap:8px}
+.tab{padding:8px 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.04);cursor:pointer;color:var(--muted)}
+.tab.active{background:var(--neon);color:#021125}
+.panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:12px;border-radius:10px}
+.timer{font-size:28px;font-weight:700}
+.progress{height:10px;background:rgba(255,255,255,0.05);border-radius:6px;overflow:hidden}
+.progress > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#ffd166,#ef476f)}
+.steps{display:flex;flex-direction:column;gap:8px;margin-top:8px;max-height:260px;overflow:auto}
+.step{padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);display:flex;justify-content:space-between;align-items:center}
+.step.active{border:1px solid rgba(139,92,246,0.9);background:rgba(139,92,246,0.06)}
+.muted{color:var(--muted);font-size:13px}
+.footer{color:var(--muted);font-size:12px;margin-top:12px;text-align:center}
+@media (max-width:980px){.grid{grid-template-columns:1fr}.preview{height:320px}}
+.visually-hidden{position:absolute!important;clip:rect(1px,1px,1px,1px);padding:0;border:0;height:1px;width:1px;overflow:hidden}
+</style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Magic16 guided session (ManifiX)">
+    <div class="header">
+      <div class="logo" aria-hidden="true">M</div>
+      <div class="title">
+        <h1>Magic16 — ManifiX Guided 16</h1>
+        <p>Neon theme • 8min Yoga → 8min Meditation • Live camera + emotion detection</p>
+      </div>
+    </div>
+
+    <div class="grid" role="main">
+      <!-- LEFT: camera + controls -->
+      <div class="card" aria-label="Camera & controls">
+        <div class="preview" id="preview">
+          <video id="camera" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <div style="position:absolute;left:10px;top:10px;color:var(--muted);font-size:13px">Camera <span id="camStatus" style="margin-left:8px;color:#8bf">• init</span></div>
+          <div style="position:absolute;right:10px;top:10px;color:var(--muted);font-size:13px">Emotion: <strong id="emotion">—</strong></div>
+        </div>
+
+        <div class="controls" style="margin-top:12px">
+          <button id="recordBtn" class="btn big" title="Record 16s clip">REC 16s</button>
+          <button id="snapshotBtn" class="btn small">Snapshot</button>
+          <button id="toggleCamBtn" class="btn small">Toggle Camera</button>
+          <button id="useAudioBtn" class="btn small">Voice: On</button>
+          <div style="margin-left:auto;color:var(--muted)" id="status">Ready</div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button id="startSessionBtn" class="btn big">Start Session</button>
+          <button id="pauseResume" class="btn small">Pause</button>
+          <button id="markMoment" class="btn small">Mark Moment</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: session flow -->
+      <div class="session card" aria-label="Session flow">
+        <div class="tabs" role="tablist">
+          <div class="tab active" data-type="full" role="tab">Full 16-min</div>
+          <div class="tab" data-type="yoga" role="tab">8m Yoga</div>
+          <div class="tab" data-type="med" role="tab">8m Meditation</div>
+        </div>
+
+        <div class="panel" role="region" aria-live="polite">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="muted">Session</div>
+              <div class="timer" id="timer">16:00</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end">
+              <div class="muted">Progress</div>
+              <div class="progress" style="width:240px"><i id="progressBar"></i></div>
+            </div>
+          </div>
+
+          <div class="steps" id="steps" aria-live="polite"></div>
+
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button id="prevStep" class="btn small">Prev</button>
+            <button id="nextStep" class="btn small">Next</button>
+            <button id="exportMoments" class="btn small" style="margin-left:auto">Export Moments</button>
+          </div>
+
+          <div class="muted" style="margin-top:10px">How it works: face-api.js detects face & expressions. Voice uses browser speechSynthesis. Optional OpenRouter/Coqui/Supabase hooks are available — add your keys below.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="max-width:1100px;margin:18px auto;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap">
+      <button id="generateHighlight" class="btn small">Generate Magic16 Highlight (16s)</button>
+      <div id="out" class="muted" aria-live="polite"></div>
+    </div>
+
+    <div class="footer">© 2025 ManifiX • Demo — run over HTTPS. Models load from public CDN; for production host /models yourself.</div>
+  </div>
+
+<script>
+/* ================== CONFIG — REPLACE THESE WITH YOUR KEYS ================== */
+/* If you don't have some services, leave empty: the page will fallback to browser TTS and local behavior. */
+const SUPABASE_URL = " https://sxzltwqufjsjcbsihwcr.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4emx0d3F1ZmpzamNic2lod2NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNDE5MTQsImV4cCI6MjA3NjcxNzkxNH0.c53Wqu8CEhr3vDCs_Z8qKGV4S1BxGhIToo4WtBGE5fk";
+const OPENROUTER_KEY = "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";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const VOSK_API_URL = "https://manifix-backend.com/api/vosk";
+const COQUI_TTS_URL = "https://manifix-backend.com/api/tts";
+
+
+/* ================== Minimal safety checks ================== */
+const useSupabase = !!SUPABASE_URL && !!SUPABASE_KEY;
+const useOpenRouter = !!OPENROUTER_KEY;
+const useCoqui = !!COQUI_TTS_URL;
+const useVosk = !!VOSK_API_URL;
+
+/* ================== Supabase client (if configured) ================== */
+let supabase = null;
+if (useSupabase && window.supabase) {
+  try { supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }
+  catch(e){ console.warn('Supabase init failed', e); supabase = null; }
+}
+
+/* ========== UI elements ========== */
+const video = document.getElementById('camera');
+const overlay = document.getElementById('overlay');
+const camStatus = document.getElementById('camStatus');
+const emotionEl = document.getElementById('emotion');
+const statusEl = document.getElementById('status');
+const timerEl = document.getElementById('timer');
+const stepsEl = document.getElementById('steps');
+const progressBar = document.getElementById('progressBar');
+const out = document.getElementById('out');
+
+const recordBtn = document.getElementById('recordBtn');
+const snapshotBtn = document.getElementById('snapshotBtn');
+const toggleCamBtn = document.getElementById('toggleCamBtn');
+const useAudioBtn = document.getElementById('useAudioBtn');
+const startSessionBtn = document.getElementById('startSessionBtn');
+const pauseResumeBtn = document.getElementById('pauseResume');
+const markMomentBtn = document.getElementById('markMoment');
+const generateHighlightBtn = document.getElementById('generateHighlight');
+const exportMomentsBtn = document.getElementById('exportMoments');
+
+const tabEls = Array.from(document.querySelectorAll('.tab'));
+const prevStepBtn = document.getElementById('prevStep');
+const nextStepBtn = document.getElementById('nextStep');
+
+/* ========== State ========== */
+let stream = null, usingFront = true;
+let snapshots = []; // {t, dataUrl, emotion}
+let mediaRecorder = null, recordedChunks = [];
+let faceModelsLoaded = false;
+
+let session = {
+  type: 'full', // full | yoga | med
+  totalSeconds: 16*60,
+  remaining: 16*60,
+  steps: [],
+  running: false,
+  intervalId: null,
+  snapshotIntervalId: null,
+  currentStepIndex: 0,
+  voicePrompts: true,
+  lastSpokenStep: null
+};
+
+/* ========== Camera init ========== */
+async function initCamera(){
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode: usingFront? 'user':'environment'}, audio:false});
+    video.srcObject = stream;
+    camStatus.textContent = '• live';
+  } catch (e){
+    camStatus.textContent = '• camera denied';
+    alert("⚠️ Camera access failed. Please enable camera permissions in your browser settings and reload.");
+    console.warn('camera init failed', e);
+  }
+}
+
+initCamera();
+
+toggleCamBtn.addEventListener('click', async ()=>{
+  usingFront = !usingFront;
+  await initCamera();
+});
+
+/* ========== face-api models ========== */
+/* Using CDN-hosted weights may fail; for production host weights locally (/models) */
+const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+
+async function loadFaceModels(){
+  statusEl.textContent = 'Loading face models...';
+  try{
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+    faceModelsLoaded = true;
+    statusEl.textContent = 'Face models loaded';
+    startFaceLoop();
+  }catch(err){
+    console.error('face model load failed', err);
+    statusEl.textContent = 'Face models failed to load';
+  }
+}
+loadFaceModels();
+
+/* Resize overlay */
+function resizeOverlay(){
+  overlay.width = video.videoWidth || 640;
+  overlay.height = video.videoHeight || 480;
+}
+video.addEventListener('loadedmetadata', resizeOverlay);
+window.addEventListener('resize', resizeOverlay);
+
+/* ========== face detection loop ========== */
+let faceLoopRunning = false;
+async function startFaceLoop(){
+  if(!faceModelsLoaded || faceLoopRunning) return;
+  faceLoopRunning = true;
+  const ctx = overlay.getContext('2d');
+  const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+
+  async function loop(){
+    if(!video || video.readyState < 2){ requestAnimationFrame(loop); return; }
+    resizeOverlay();
+    const detections = await faceapi.detectAllFaces(video, options).withFaceLandmarks().withFaceExpressions();
+    ctx.clearRect(0,0,overlay.width,overlay.height);
+    if(detections && detections.length){
+      detections.forEach((det, i) => {
+        const box = det.detection.box;
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        // expression
+        const expressions = det.expressions || {};
+        const entries = Object.entries(expressions).sort((a,b)=>b[1]-a[1]);
+        const [best,score] = entries[0] || ['neutral', 0];
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px Inter, Roboto, sans-serif';
+        ctx.fillText(`${best} ${(score*100).toFixed(0)}%`, box.x + 6, box.y + box.height + 18);
+        if(i===0) emotionEl.textContent = best;
+      });
+    } else {
+      emotionEl.textContent = 'no-face';
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+/* ========== snapshot & analysis ========== */
+const snapCanvas = document.createElement('canvas');
+async function takeSnapshot(){
+  if(!video || video.readyState < 2) return;
+  snapCanvas.width = video.videoWidth || 640;
+  snapCanvas.height = video.videoHeight || 480;
+  const sctx = snapCanvas.getContext('2d');
+  sctx.drawImage(video,0,0,snapCanvas.width,snapCanvas.height);
+  const dataUrl = snapCanvas.toDataURL('image/jpeg',0.8);
+
+  // do quick face-api expression detection on the snapshot (if models loaded)
+  let emoLabel = 'unknown';
+  try{
+    if(faceModelsLoaded){
+      const detections = await faceapi.detectAllFaces(snapCanvas, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+      if(detections && detections[0] && detections[0].expressions){
+        const entries = Object.entries(detections[0].expressions).sort((a,b)=>b[1]-a[1]);
+        emoLabel = entries[0][0];
+      }
+    }
+    // fallback brightness heuristic:
+    if(!emoLabel || emoLabel==='unknown'){
+      const imgd = sctx.getImageData(0,0,snapCanvas.width,snapCanvas.height).data;
+      let sum=0; for(let i=0;i<imgd.length;i+=4) sum+=(imgd[i]+imgd[i+1]+imgd[i+2])/3;
+      const avg = sum/(imgd.length/4);
+      emoLabel = avg < 70 ? 'relaxed' : avg < 140 ? 'neutral' : 'alert';
+    }
+  }catch(e){ console.warn('snapshot analysis failed', e); emoLabel='unknown'; }
+
+  const t = session.totalSeconds - session.remaining;
+  const moment = { t, dataUrl, emotion: { label: emoLabel } };
+  snapshots.push(moment);
+
+  // optional Supabase insert
+  if(supabase){
+    try{
+      await supabase.from('magic16_moments').insert([{
+        session_type: session.type,
+        t,
+        emotion: emoLabel,
+        created_at: new Date().toISOString()
+      }]);
+    }catch(e){ console.warn('supabase insert failed', e); }
+  }
+  return moment;
+}
+snapshotBtn.addEventListener('click', async ()=>{ await takeSnapshot(); statusEl.textContent='Snapshot taken'; setTimeout(()=>statusEl.textContent='',1500); });
+
+/* ========== Recording 16s clip ========== */
+recordBtn.addEventListener('click', async ()=>{
+  if(!stream){ statusEl.textContent='Camera not available'; return; }
+  recordedChunks = [];
+  try { mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' }); }
+  catch(e){ statusEl.textContent='Recording not supported'; return; }
+  mediaRecorder.ondataavailable = e => { if(e.data.size) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = ()=>{
+    const blob = new Blob(recordedChunks, { type:'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'magic16.webm'; a.textContent='Download clip'; a.style.color='#fff';
+    out.innerHTML = ''; out.appendChild(a);
+  };
+  mediaRecorder.start();
+  recordBtn.textContent = 'REC ●';
+  setTimeout(()=>{ if(mediaRecorder && mediaRecorder.state==='recording') mediaRecorder.stop(); recordBtn.textContent='REC'; },16000);
+});
+
+/* ========== Build session steps (yoga + meditation) ========== */
+function buildSteps(type){
+  const yoga = [
+    { title: 'Centering Breath', dur: 60, desc: 'Slow deep breaths. Stand tall.' },
+    { title: 'Neck Rolls', dur: 40, desc: 'Gentle circles, 20s each side.' },
+    { title: 'Sun Salutation (x3)', dur: 180, desc: 'Flow slowly through 3 rounds.' },
+    { title: 'Warrior II (each side)', dur: 120, desc: 'Hold and breathe.' },
+    { title: 'Forward Fold', dur: 40, desc: 'Release the back.' },
+    { title: 'Tree Pose', dur: 60, desc: 'Balance and focus.' },
+    { title: 'Seated Twist', dur: 60, desc: 'Twist gently each side.' },
+    { title: 'Savasana Prep', dur: 60, desc: 'Lie down and relax.' }
+  ];
+  const med = [
+    { title: 'Get Comfortable', dur: 60, desc: 'Sit or lie down.' },
+    { title: 'Body Scan', dur: 120, desc: 'Scan from head to toe.' },
+    { title: 'Breath Awareness', dur: 180, desc: 'Anchor on breath.' },
+    { title: 'Guided Imagery', dur: 120, desc: 'Visualize a calming scene.' },
+    { title: 'Mantra', dur: 60, desc: 'Repeat a gentle phrase.' },
+    { title: 'Open Awareness', dur: 120, desc: 'Rest in wide attention.' },
+    { title: 'Return', dur: 120, desc: 'Wiggle fingers & open eyes.' }
+  ];
+  if(type === 'yoga') return yoga;
+  if(type === 'med') return med;
+  // full: yoga then med
+  return [...yoga, ...med];
+}
+
+function setSessionType(t){
+  session.type = t;
+  session.totalSeconds = (t === 'full') ? 16*60 : 8*60;
+  session.remaining = session.totalSeconds;
+  session.steps = buildSteps(t);
+  session.currentStepIndex = 0;
+  renderSteps();
+  updateTimerDisplay();
+}
+
+/* ========== Render steps UI ========== */
+function renderSteps(){
+  stepsEl.innerHTML = '';
+  session.steps.forEach((s,i)=>{
+    const div = document.createElement('div');
+    div.className = 'step' + (i === session.currentStepIndex ? ' active' : '');
+    div.innerHTML = `<div><strong>${i+1}. ${s.title}</strong><div style="font-size:12px;color:var(--muted)">${s.desc}</div></div><div style="text-align:right">${formatTime(s.dur)}</div>`;
+    stepsEl.appendChild(div);
+  });
+}
+function formatTime(sec){ const m=Math.floor(sec/60); const s=sec%60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+function updateTimerDisplay(){ timerEl.textContent = formatTime(session.remaining); const pct = ((session.totalSeconds - session.remaining)/session.totalSeconds)*100; progressBar.style.width = pct + '%'; }
+function highlightStep(i){ Array.from(stepsEl.children).forEach((c,idx)=>{ c.className = 'step' + (idx===i ? ' active' : ''); }); }
+
+/* ========== Voice helpers ==========
+   Primary: browser SpeechSynthesis (fast).
+   Fallback/optional: Coqui TTS endpoint (if COQUI_TTS_URL set).
+*/
+function browserSpeak(text){
+  if(!session.voicePrompts) return Promise.resolve();
+  if(!('speechSynthesis' in window)) return Promise.resolve();
+  return new Promise((res)=>{
+    try{
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 0.98;
+      u.pitch = 1.05;
+      u.onend = ()=>res();
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }catch(e){ console.warn('speechSynthesis failed',e); res(); }
+  });
+}
+
+async function coquiSpeak(text){
+  if(!useCoqui) return browserSpeak(text);
+  try{
+    const r = await fetch(COQUI_TTS_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text }) });
+    if(!r.ok) return browserSpeak(text);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = new Audio(url);
+    await a.play();
+    a.onended = ()=>URL.revokeObjectURL(url);
+  }catch(e){
+    console.warn('Coqui TTS failed', e);
+    await browserSpeak(text);
+  }
+}
+
+async function speakStepWithCountdown(step){
+  // short 3..2..1 countdown spoken, then step
+  for(let i=3;i>0;i--){
+    await browserSpeak(`${i}`);
+    await new Promise(r=>setTimeout(r,250));
+  }
+  await coquiSpeak(`Now: ${step.title}. ${step.desc}. Stay calm and focus.`);
+}
+
+/* ========== Session control logic ==========
+   - takes snapshot every 30s
+   - speaks when step begins (once per step)
+*/
+async function startSession(){
+  if(session.running) return;
+  session.running = true;
+  // first snapshot immediately
+  await takeSnapshot();
+  session.snapshotIntervalId = setInterval(()=>takeSnapshot(), 30000);
+
+  session.intervalId = setInterval(async ()=>{
+    if(session.remaining <= 0){
+      stopSession();
+      await coquiSpeak('Your session is complete. Well done. Take a deep breath and relax.');
+      statusEl.textContent = 'Session complete';
+      return;
+    }
+    session.remaining -= 1;
+    updateTimerDisplay();
+
+    // compute current step index by accumulated durations
+    let elapsed = session.totalSeconds - session.remaining;
+    let acc = 0, idx = 0;
+    for(const step of session.steps){
+      acc += step.dur;
+      if(elapsed < acc) break;
+      idx++;
+    }
+    session.currentStepIndex = Math.min(idx, session.steps.length - 1);
+    highlightStep(session.currentStepIndex);
+
+    const step = session.steps[session.currentStepIndex];
+    if(session.voicePrompts && session.lastSpokenStep !== step.title){
+      session.lastSpokenStep = step.title;
+      await speakStepWithCountdown(step);
+      // quick one-off analysis after speaking
+      analyzeEmotionOnce();
+      // optionally ask OpenRouter for a motivating micro-line (non-blocking)
+      if(useOpenRouter) fetchOpenRouterMotivation(step.title).then(line=>{
+        if(line) coquiSpeak(line);
+      }).catch(()=>{});
+    }
+  }, 1000);
+
+  statusEl.textContent = 'Running...';
+  startSessionBtn.textContent = 'Running...';
+}
+
+function pauseSession(){
+  if(!session.running) return;
+  session.running = false;
+  clearInterval(session.intervalId);
+  clearInterval(session.snapshotIntervalId);
+  statusEl.textContent = 'Paused';
+  if(session.voicePrompts) browserSpeak('Session paused.');
+}
+
+function resumeSession(){ startSession(); }
+
+function stopSession(){
+  session.running = false;
+  clearInterval(session.intervalId);
+  clearInterval(session.snapshotIntervalId);
+  session.remaining = session.totalSeconds;
+  updateTimerDisplay();
+  statusEl.textContent = 'Stopped';
+  startSessionBtn.textContent = 'Start Session';
+  if(session.voicePrompts) browserSpeak('Session finished. Well done.');
+}
+
+pauseResumeBtn.addEventListener('click', (e) => {
+  if(session.running){ pauseSession(); e.target.textContent = 'Resume'; }
+  else { resumeSession(); e.target.textContent = 'Pause'; }
+});
+startSessionBtn.addEventListener('click', ()=>{ if(!session.running) startSession(); else pauseSession(); });
+
+prevStepBtn.addEventListener('click', ()=>{ session.currentStepIndex = Math.max(0, session.currentStepIndex - 1); highlightStep(session.currentStepIndex); });
+nextStepBtn.addEventListener('click', ()=>{ session.currentStepIndex = Math.min(session.steps.length - 1, session.currentStepIndex + 1); highlightStep(session.currentStepIndex); });
+
+markMomentBtn.addEventListener('click', ()=>{ const t = session.totalSeconds - session.remaining; snapshots.push({ t, dataUrl: null, emotion: { label: 'manual-mark', score: 1 } }); statusEl.textContent = 'Moment marked'; setTimeout(()=>statusEl.textContent = '', 1400); });
+
+exportMomentsBtn.addEventListener('click', ()=>{ const data = { createdAt: new Date().toISOString(), sessionType: session.type, totalSeconds: session.totalSeconds, moments: snapshots }; const blob = new Blob([JSON.stringify(data,null,2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'magic16_moments.json'; a.click(); });
+
+generateHighlightBtn.addEventListener('click', ()=>{
+  if(snapshots.length === 0){ out.textContent = 'No moments captured'; setTimeout(()=>out.textContent = '',2000); return; }
+  let m = snapshots.find(s=>s.emotion && s.emotion.label === 'manual-mark') || snapshots[snapshots.length-1];
+  const startT = Math.max(0, (m.t || 0) - 8);
+  const meta = { sessionType: session.type, startT, length: 16, chosenMoment: m };
+  const blob = new Blob([JSON.stringify(meta,null,2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'magic16_clip_meta.json'; a.click();
+  out.textContent = 'Magic16 meta exported';
+  setTimeout(()=>out.textContent = '',3000);
+});
+
+/* Tabs */
+tabEls.forEach(t=>t.addEventListener('click',(e)=>{ tabEls.forEach(x=>x.classList.remove('active')); e.target.classList.add('active'); setSessionType(e.target.dataset.type); }));
+
+/* initialize default session */
+setSessionType('full');
+
+/* ========== quick single analysis helper ========== */
+async function analyzeEmotionOnce(){
+  try{
+    if(!video || video.readyState < 2 || !faceModelsLoaded) return;
+    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+    if(detections && detections[0] && detections[0].expressions){
+      const entries = Object.entries(detections[0].expressions).sort((a,b)=>b[1]-a[1]);
+      const [best,score] = entries[0];
+      statusEl.textContent = `Detected ${best} ${(score*100).toFixed(0)}%`;
+      setTimeout(()=>statusEl.textContent = '', 1400);
+      return best;
+    } else {
+      statusEl.textContent = 'No face detected';
+      setTimeout(()=>statusEl.textContent = '', 900);
+    }
+  }catch(e){ console.warn('analyzeOnce failed', e); }
+}
+
+/* ========== OpenRouter motivational micro-line (optional) ========= */
+async function fetchOpenRouterMotivation(stepTitle){
+  if(!useOpenRouter) return null;
+  try{
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a brief motivational coach. Provide a single 6-12 word encouragement line in friendly tone.' },
+          { role: 'user', content: `Short encouragement for this step: ${stepTitle}` }
+        ],
+        max_tokens: 40
+      })
+    });
+    if(!res.ok) return null;
+    const data = await res.json();
+    const reply = data?.choices?.[0]?.message?.content || null;
+    return reply && reply.replace(/\n/g,' ');
+  }catch(e){ console.warn('openrouter error', e); return null; }
+}
+
+/* ========== Optional Vosk voice commands (requires backend) ==========
+   The page listens to microphone via MediaRecorder and periodically sends audio chunks to your Vosk backend for speech-to-text.
+   The backend & route must accept raw audio or webm chunks and return recognized text.
+*/
+let commandRecorder = null, commandChunks = [];
+async function startCommandListening(){
+  if(!useVosk) return;
+  try{
+    const cmdStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    commandRecorder = new MediaRecorder(cmdStream);
+    commandRecorder.ondataavailable = e => { if(e.data.size) commandChunks.push(e.data); };
+    commandRecorder.onstop = async ()=>{
+      const blob = new Blob(commandChunks, { type: 'audio/webm' });
+      commandChunks = [];
+      try{
+        const form = new FormData();
+        form.append('file', blob, 'cmd.webm');
+        const r = await fetch(VOSK_API_URL + '/recognize', { method:'POST', body: form });
+        if(!r.ok) return;
+        const j = await r.json();
+        const text = j.text || '';
+        handleCommandText(text);
+      }catch(e){ console.warn('vosk request failed', e); }
+    };
+    // record short chunks every 4 seconds for recognition
+    commandRecorder.start();
+    setInterval(()=>{ if(commandRecorder && commandRecorder.state === 'recording'){ commandRecorder.requestData(); } }, 4000);
+  }catch(e){ console.warn('command mic failed', e); }
+}
+function handleCommandText(text){
+  if(!text) return;
+  text = text.toLowerCase();
+  if(text.includes('pause')) pauseSession();
+  else if(text.includes('start') || text.includes('resume')) resumeSession();
+  else if(text.includes('next')) { session.currentStepIndex = Math.min(session.steps.length-1, session.currentStepIndex + 1); highlightStep(session.currentStepIndex); }
+  else if(text.includes('stop') || text.includes('finish')) stopSession();
+}
+
+/* start command listening only if configured */
+if(useVosk) startCommandListening();
+
+/* ========== Cleanup on unload ========= */
+window.addEventListener('beforeunload', ()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
+
+</script>
+</body>
+</html>

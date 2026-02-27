@@ -1,0 +1,160 @@
+/* ===============================
+   DASHBOARD - MANIFIX
+   Premium Glass UI
+================================= */
+
+/* Global Smoothness */
+.dashboard-container {
+  position: relative;
+  padding: 40px 20px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ================= HEADER ================= */
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+.dashboard-logo {
+  width: 90px;
+  height: auto;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 0 15px rgba(99, 102, 241, 0.6));
+}
+
+.dashboard-title {
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.dashboard-subtitle {
+  font-size: 1rem;
+  opacity: 0.8;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ================= MAIN GRID ================= */
+
+.dashboard-main {
+  display: flex;
+  justify-content: center;
+}
+
+.dashboard-cards {
+  width: 100%;
+  max-width: 1100px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 28px;
+}
+
+/* ================= CARD ================= */
+
+.dashboard-card {
+  text-decoration: none;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 28px 20px;
+  text-align: center;
+  transition: all 0.35s ease;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+}
+
+.dashboard-card:hover {
+  transform: translateY(-8px);
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+}
+
+.card-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  transition: transform 0.3s ease;
+}
+
+.dashboard-card:hover .card-icon {
+  transform: scale(1.15);
+}
+
+.dashboard-card h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dashboard-card p {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+/* ================= FOOTER ================= */
+
+.dashboard-footer {
+  margin-top: 60px;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.footer-links {
+  margin-bottom: 12px;
+}
+
+.footer-links a {
+  color: #a5b4fc;
+  text-decoration: none;
+  margin: 0 12px;
+  transition: opacity 0.3s ease;
+}
+
+.footer-links a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 768px) {
+  .dashboard-title {
+    font-size: 1.8rem;
+  }
+
+  .dashboard-cards {
+    gap: 20px;
+  }
+
+  .dashboard-card {
+    padding: 22px 16px;
+  }
+}
+
+/* ================= ANIMATION ================= */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dashboard-card {
+  animation: fadeInUp 0.6s ease forwards;
+}

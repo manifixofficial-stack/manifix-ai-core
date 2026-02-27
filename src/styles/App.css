@@ -1,0 +1,144 @@
+/* ===== Layout Container ===== */
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0f0f12;
+  color: white;
+  font-family: Inter, sans-serif;
+}
+
+/* ===== Header ===== */
+.main-header {
+  display: flex;
+  align-items: center;
+  padding: 15px 25px;
+  border-bottom: 1px solid #222;
+}
+
+.header-logo {
+  width: 40px;
+  margin-right: 10px;
+}
+
+.header-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* ===== Body ===== */
+.main-body {
+  display: flex;
+  flex: 1;
+}
+
+/* ===== Sidebar ===== */
+.left-sidebar {
+  width: 140px;
+  border-right: 1px solid #222;
+  padding: 20px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.side-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.side-btn img {
+  width: 20px;
+}
+
+/* ===== Center ===== */
+.center-content {
+  flex: 1;
+  position: relative;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Star */
+.star-container {
+  text-align: center;
+  margin-top: 40px;
+}
+
+.center-star {
+  width: 80px;
+  opacity: 0.8;
+}
+
+/* ===== Chat Bar ===== */
+.chat-bar {
+  display: flex;
+  background: #1c1c22;
+  padding: 10px;
+  border-radius: 12px;
+  align-items: center;
+}
+
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  font-size: 14px;
+}
+
+.send-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.send-btn img {
+  width: 22px;
+}
+
+/* ===== Magic Button ===== */
+.magic16-btn {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: #ff4d6d;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 30px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(255, 77, 109, 0.4);
+}
+
+.magic16-btn img {
+  width: 18px;
+}
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-box {
+  background: #1c1c22;
+  padding: 30px;
+  border-radius: 12px;
+  text-align: center;
+}

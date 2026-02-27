@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ManifiX — Login</title>
+
+  <style>
+    body {
+      background: #0d0d0d;
+      color: white;
+      font-family: Inter, system-ui, sans-serif;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 380px;
+      margin: auto;
+      padding: 20px;
+      margin-top: 60px;
+      background: #1a1a1a;
+      border-radius: 20px;
+      border: 1px solid #333;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    .logo {
+      display: block;
+      margin: auto;
+      width: 55px;
+      height: 55px;
+      border-radius: 12px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 6px;
+      border-radius: 12px;
+      background: #111;
+      border: 1px solid #333;
+      color: white;
+      font-size: 15px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-main {
+      background: white;
+      color: black;
+    }
+
+    .btn-main:hover {
+      background: #dcdcdc;
+    }
+
+    .btn-google {
+      background: #151515;
+      color: white;
+      border: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .divider {
+      text-align: center;
+      margin: 20px 0;
+      color: #777;
+      font-size: 13px;
+    }
+
+    .feedback {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 10px;
+      color: #bbb;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <img src="assets/logo.png" class="logo" alt="ManifiX Logo">
+
+    <h2 style="text-align:center; margin-top:15px;">Welcome to ManifiX</h2>
+    <p style="text-align:center; color:#aaa; font-size:14px;">
+      Sign in to your AI world
+    </p>
+
+    <form id="login-form">
+
+      <label>Email</label>
+      <input type="email" id="email" required />
+
+      <label>Password</label>
+      <input type="password" id="password" minlength="6" required />
+
+      <button type="submit" class="btn-main">Continue</button>
+
+    </form>
+
+    <div class="divider">OR</div>
+
+    <button id="google-btn" class="btn-google">
+      <img src="https://www.svgrepo.com/show/475656/google-color.svg" width="18" />
+      Continue with Google
+    </button>
+
+    <p id="feedback" class="feedback"></p>
+
+  </div>
+
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+const supabase = createClient(
+  "https://sxzltwqufjsjcbsihwcr.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4emx0d3F1ZmpzamNic2lod2NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNDE5MTQsImV4cCI6MjA3NjcxNzkxNH0.c53Wqu8CEhr3vDCs_Z8qKGV4S1BxGhIToo4WtBGE5fk"
+);
+
+const form = document.getElementById("login-form");
+const googleBtn = document.getElementById("google-btn");
+const feedback = document.getElementById("feedback");
+
+// EMAIL LOGIN
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  feedback.textContent = "Signing in...";
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    feedback.textContent = error.message;
+    feedback.style.color = "red";
+    return;
+  }
+
+  window.location.href = "gpt.html";
+});
+
+// GOOGLE LOGIN
+googleBtn.addEventListener("click", async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: "https://magix-09.netlify.app/gpt.html"
+    }
+  });
+
+  if (error) {
+    feedback.textContent = error.message;
+    feedback.style.color = "red";
+  }
+});
+
+// AUTO REDIRECT
+supabase.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    window.location.href = "gpt.html";
+  }
+});
+</script>
+
+</body>
+</html>
