@@ -168,84 +168,109 @@ export default function Gpt() {
     }
   };
 
-  return (
-    <div
-      className="gpt-app theme-purple"
-      style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
-    >
-      {toast && <Toast message={toast} onClose={() => setToast("")} />}
+return (
+  <div
+    className="gpt-app theme-purple"
+    style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
+  >
+    {toast && <Toast message={toast} onClose={() => setToast("")} />}
 
-      <header className="gpt-header">
-        <img src={Icons.chat} alt="ManifiX Logo" className="gpt-logo" />
-        <h1>ManifiX</h1>
-      </header>
+    <header className="gpt-header">
+      <img src={Icons.chat} alt="ManifiX Logo" className="gpt-logo" />
+      <h1>ManifiX</h1>
+    </header>
 
     <main className="gpt-main" ref={chatContainer}>
-  {messages.map(msg => (
-    <div key={msg.timestamp} className={`message-row ${msg.role}`}>
-      <div className="message-bubble fade-in">
-        {msg.type === "file" ? (
-          <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-            📎 {msg.content.split("/").pop()}
-          </a>
-        ) : msg.type === "thinking" ? (
-          <div role="status" aria-live="polite" className="typing-indicator">
-            {msg.content}<span className="dots">...</span>
+      {messages.map(msg => (
+        <div key={msg.timestamp} className={`message-row ${msg.role}`}>
+          <div className="message-bubble fade-in">
+            {msg.type === "file" ? (
+              <a
+                href={msg.content}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="file-link"
+              >
+                📎 {msg.content.split("/").pop()}
+              </a>
+            ) : msg.type === "thinking" ? (
+              <div role="status" aria-live="polite" className="typing-indicator">
+                {msg.content}
+                <span className="dots">...</span>
+              </div>
+            ) : (
+              <ReactMarkdown
+                children={msg.content}
+                components={{
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    return !inline && match ? (
+                      <SyntaxHighlighter
+                        style={oneDark}
+                        language={match[1]}
+                        PreTag="div"
+                        children={String(children).replace(/\n$/, "")}
+                        {...props}
+                      />
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              />
+            )}
           </div>
-        ) : (
-          <ReactMarkdown
-            children={msg.content}
-            components={{
-              code({node, inline, className, children, ...props}) {
-                const match = /language-(\w+)/.exec(className || '');
-                return !inline && match ? (
-                  <SyntaxHighlighter
-                    style={oneDark}
-                    language={match[1]}
-                    PreTag="div"
-                    children={String(children).replace(/\n$/, '')}
-                    {...props}
-                  />
-                ) : (
-                  <code className={className} {...props}>{children}</code>
-                );
-              }
-            }}
-          />
-        )}
-      </div>
-    </div>
-  ))}
-</main>
+        </div>
+      ))}
+    </main>
 
-<footer className="gpt-footer">
-  <button id="micBtn" onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-    <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
-  </button>
+    <footer className="gpt-footer">
+      <button
+        id="micBtn"
+        onClick={handleMic}
+        className={listening ? "recording" : ""}
+        aria-label={listening ? "Stop Recording" : "Start Recording"}
+      >
+        <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
+      </button>
 
-  <textarea
-    rows={1}
-    style={{ resize: "none", overflowY: "hidden" }}
-    value={input}
-    onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
-    onKeyDown={handleKeyDown}
-    placeholder="Ask Your ManifiX Anything…"
-    aria-label="Chat input"
-  />
+      <textarea
+        rows={1}
+        style={{ resize: "none", overflowY: "hidden" }}
+        value={input}
+        onChange={e => {
+          setInput(e.target.value);
+          e.target.style.height = "auto";
+          e.target.style.height = `${e.target.scrollHeight}px`;
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder="Ask Your ManifiX Anything…"
+        aria-label="Chat input"
+      />
 
-  <label className="upload-btn" aria-label="Upload File">
-    📎
-    <input type="file" onChange={handleUpload} disabled={uploading} />
-  </label>
+      <label className="upload-btn" aria-label="Upload File">
+        📎
+        <input type="file" onChange={handleUpload} disabled={uploading} />
+      </label>
 
-  <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
-    <img src={Icons.send} alt="Send" />
-  </button>
+      <button
+        onClick={() => sendMessage(input.trim())}
+        disabled={!input.trim()}
+        className="primary"
+        aria-label="Send Message"
+      >
+        <img src={Icons.send} alt="Send" />
+      </button>
 
-  <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
-    {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
-  </button>
-</footer>
-      </div> 
-    
-);
+      <button
+        className="toggle-voice"
+        onClick={() => setVoiceEnabled(prev => !prev)}
+        aria-label="Toggle Voice"
+      >
+        {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+      </button>
+    </footer>
+  </div> // <-- this closes outer div
+); // <-- closes return
