@@ -1,11 +1,12 @@
 // src/components/Layout/MainLayout.jsx
 import React, { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import icons from "../../assets/icons";
-import Logo from "../../assets/logo.png"; // Make sure logo.png is in src/assets
+import Logo from "../../assets/logo.png";
 import "../../styles/MainLayout.css";
 
 export default function MainLayout() {
+  const navigate = useNavigate();
   const [showMagic, setShowMagic] = useState(false);
   const [chatInput, setChatInput] = useState("");
 
@@ -25,14 +26,19 @@ export default function MainLayout() {
 
         {/* Left Sidebar */}
         <aside className="left-sidebar">
-          <button className="side-btn">
+          <button className="side-btn" onClick={() => navigate("/app/profile")}>
             <img src={icons.profile} alt="Profile" />
             <span>Profile</span>
           </button>
 
-          <button className="side-btn">
+          <button className="side-btn" onClick={() => navigate("/app/vibe")}>
             <img src={icons.feed} alt="Vibe" />
             <span>Vibe</span>
+          </button>
+
+          <button className="side-btn" onClick={() => navigate("/app/gpt")}>
+            <img src={icons.chat} alt="GPT" />
+            <span>GPT</span>
           </button>
         </aside>
 
@@ -42,6 +48,7 @@ export default function MainLayout() {
             <img src={icons.starFilled} alt="Star" className="center-star" />
           </div>
 
+          {/* Render nested routes */}
           <Outlet />
 
           {/* Chat Bar */}
@@ -84,7 +91,6 @@ export default function MainLayout() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
