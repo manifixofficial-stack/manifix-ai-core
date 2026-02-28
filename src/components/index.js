@@ -5,7 +5,6 @@ export { default as TopBar } from "./Layout/TopBar";
 export { default as BottomNav } from "./Layout/BottomNav";
 
 // Chat
-export { default as ChatBox } from "./Chat/ChatBox";
 export { default as ChatInput } from "./Chat/ChatInput";
 export { default as ChatMessage } from "./Chat/ChatMessage";
 
