@@ -26,8 +26,7 @@ export default function MainLayout() {
   const [magicOpen, setMagicOpen] = useState(false);
 
   const menuItems = [
-    { name: "GPT", path: "/app/gpt", icon: "chat" },
-    { name: "Vibe", path: "/app/vibe", icon: "feed" },
+    { name: "Gpt", path: "/app/gpt", icon: "chat" },
     { name: "Magic16", path: "/app/magic16", icon: "magic16" },
     { name: "Profile", path: "/app/profile", icon: "profile" },
     { name: "Settings", path: "/app/settings", icon: "settings" },
