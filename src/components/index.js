@@ -14,11 +14,6 @@ export { default as Magic16Timer } from "./Magic16/Magic16Timer";
 
 // Vibe
 export { default as ProfileCard } from "./Profile/ProfileCard";
-export { default as VibeCreate } from "./Vibe/VibeCreate";
-export { default as VibeFeed } from "./Vibe/VibeFeed";
-export { default as VibeItem } from "./Vibe/VibeItem";
-export { default as VibePrivacyToggle } from "./Vibe/VibePrivacyToggle";
-export { default as VibeStoryPlayer } from "./Vibe/VibeStoryPlayer";
 
 // Camera / Vision
 export { default as CameraView } from "./Camera/CameraView";
