@@ -4,7 +4,7 @@ import supabase from "./services/supabase";
 import AppRouter from "./AppRouter";
 
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(undefined); // undefined until we know session
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
