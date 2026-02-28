@@ -4,10 +4,10 @@ export { default as MobileLayout } from "./Layout/MobileLayout";
 export { default as TopBar } from "./Layout/TopBar";
 export { default as BottomNav } from "./Layout/BottomNav";
 
-// Chat
+// Chat (inside Chat folder)
+export { default as ChatBox } from "./Chat/ChatBox";
 export { default as ChatInput } from "./Chat/ChatInput";
 export { default as ChatMessage } from "./Chat/ChatMessage";
-
 // Magic16
 export { default as Magic16Controls } from "./Magic16/Magic16Controls";
 export { default as Magic16Timer } from "./Magic16/Magic16Timer";
