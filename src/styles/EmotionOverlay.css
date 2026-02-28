@@ -1,0 +1,28 @@
+/* src/styles/EmotionOverlay.css */
+
+.emotion-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: rgba(255, 255, 255, 0.85);
+  padding: 8px 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 220px;
+  font-size: 0.875rem;
+  color: #111827;
+}
+
+.emotion-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.emotion-name {
+  font-weight: 600;
+}
+
+.emotion-score {
+  font-weight: 500;
+}
