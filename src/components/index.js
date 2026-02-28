@@ -12,6 +12,10 @@ export { default as ChatMessage } from "./Chat/ChatMessage";
 // Magic16
 export { default as Magic16Controls } from "./Magic16/Magic16Controls";
 export { default as Magic16Timer } from "./Magic16/Magic16Timer";
+// Common
+export { default as Button } from "./Common/Button";
+export { default as Loader } from "./Common/Loader";
+export { default as Modal } from "./Common/Modal";   // ✅ Add this line
 
 // Vibe
 export { default as VibeCreate } from "./Vibe/VibeCreate";
