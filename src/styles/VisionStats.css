@@ -1,0 +1,27 @@
+/* src/styles/VisionStats.css */
+
+.vision-stats {
+  background-color: #fef3c7;
+  padding: 1rem;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  max-width: 320px;
+  margin: 1rem auto;
+  color: #92400e;
+  font-family: 'Inter', sans-serif;
+}
+
+.vision-stats h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.vision-stats ul {
+  padding-left: 1.2rem;
+}
+
+.vision-stats li {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
