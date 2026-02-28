@@ -33,6 +33,7 @@ export default function Gpt() {
   const chatContainer = useRef(null);
   const recognitionRef = useRef(null);
   const ttsRef = useRef(null);
+  const { user, setUser } = useApp();
 
   // -------------------- Speech Recognition --------------------
   useEffect(() => {
@@ -162,14 +163,6 @@ export default function Gpt() {
       sendMessage(input.trim());
     }
   };
-
-  // -------------------- Markdown Renderer --------------------
-  const renderers = {
-    code({ language, value }) {
-      return <SyntaxHighlighter style={oneDark} language={language} children={value} />;
-    }
-  };
-
 return (
   <div
     className="gpt-app theme-purple"
