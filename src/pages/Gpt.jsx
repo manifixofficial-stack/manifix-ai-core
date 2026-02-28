@@ -7,6 +7,8 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
 import Icons from "../assets/icons";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+import { useApp } from "../context/AppContext";
+
 
 // Toast Component
 const Toast = ({ message, onClose }) => (
