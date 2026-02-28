@@ -2,9 +2,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AppProvider } from "./context/AppContext"; // <-- your file
 import Login from "./pages/Login";
-import GPTPage from "./pages/GPT";
-import Magic16Page from "./pages/Magic16e";
-import VibePage from "./pages/VibeP";
+import GPTPage from "./pages/Gpt";
+import Magic16Page from "./pages/Magic16";
+import VibePage from "./pages/Vibe";
 import ProfilePage from "./pages/Profile";
 import ProtectedRoute from "./components/ProtectedRoute";
 
