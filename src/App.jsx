@@ -1,3 +1,4 @@
+// src/App.jsx
 import { useEffect, useState } from "react";
 import supabase from "./services/supabase";
 import AppRouter from "./AppRouter";
