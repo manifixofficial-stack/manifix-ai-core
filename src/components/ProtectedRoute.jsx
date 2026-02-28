@@ -1,51 +1,59 @@
-// src/components/ProtectedRoute.jsx
+// src/pages/Landing.jsx
+
 import React from "react";
-import { Navigate } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+import { useNavigate } from "react-router-dom";
 
-export default function ProtectedRoute({ children }) {
-  const { user, loading } = useApp();
+import logo from "../assets/logo.png";
+import bgImage from "../assets/backgrounds/dark-gradient.jpg";
 
-  // 🔄 Show loading screen while checking auth
-  if (loading) {
-    return (
-      <div style={styles.loaderContainer}>
-        <div style={styles.spinner}></div>
-        <p style={styles.text}>Checking your identity...</p>
-      </div>
-    );
-  }
+import "../styles/Landing.css";
 
-  // 🚫 Not logged in
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+export default function Landing() {
+  const navigate = useNavigate();
 
-  // ✅ Authorized
-  return children;
+  return (
+    <div
+      className="landing-container"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
+      <div className="overlay" />
+
+      <section className="landing-top">
+        <img src={logo} alt="ManifiX Logo" className="main-logo" />
+        <h1 className="brand-name">ManifiX</h1>
+        <p className="brand-tagline">
+          Master Your Mind. Elevate Your Energy. Transform Your Life.
+        </p>
+      </section>
+
+      <section className="landing-hero">
+        <h2 className="hero-title">16 Minutes. Infinite Power.</h2>
+
+        <p className="hero-description">
+          Unlock clarity, discipline, and abundance using AI-guided rituals
+          designed for high performers and future leaders.
+        </p>
+
+        <div className="cta-container">
+          <button
+            className="landing-button primary"
+            onClick={() => navigate("/login")}
+          >
+            Start Free →
+          </button>
+
+          <button
+            className="landing-button secondary"
+            onClick={() => navigate("/login")}
+          >
+            Already a Member?
+          </button>
+        </div>
+      </section>
+
+      <footer className="landing-footer">
+        © {new Date().getFullYear()} ManifiX. All rights reserved.
+      </footer>
+    </div>
+  );
 }
-
-const styles = {
-  loaderContainer: {
-    height: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0d0d0d",
-    color: "#fff",
-  },
-  spinner: {
-    width: "40px",
-    height: "40px",
-    border: "4px solid #6e00ff",
-    borderTop: "4px solid #00f0ff",
-    borderRadius: "50%",
-    animation: "spin 1s linear infinite",
-  },
-  text: {
-    marginTop: "15px",
-    fontSize: "14px",
-    opacity: 0.8,
-  },
-};
