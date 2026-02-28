@@ -247,4 +247,3 @@ export default function Gpt() {
   </button>
 </footer>
       </div>   
-);
