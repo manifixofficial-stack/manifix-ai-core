@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
+import { useApp } from "../context/AppContext";
 
 import logo from "../assets/logo.svg";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
