@@ -274,3 +274,4 @@ return (
     </footer>
   </div> // <-- this closes outer div
 ); // <-- closes return
+}
