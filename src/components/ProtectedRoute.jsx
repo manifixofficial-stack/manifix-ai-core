@@ -7,5 +7,5 @@ export default function ProtectedRoute() {
 
   if (loading) return <p>Loading...</p>; // or spinner
 
-  return user ? <Outlet /> : <Navigate to="/Landing" replace />;
+  return user ? <Outlet /> : <Navigate to="/Login" replace />;
 }
