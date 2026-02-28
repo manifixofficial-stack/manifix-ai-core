@@ -10,16 +10,16 @@ export { default as TopBar } from "./Layout/TopBar";
 export { default as BottomNav } from "./Layout/BottomNav";
 
 // Magic16
-export { default as Magic16Controls } from "./Magic16Controls";
-export { default as Magic16Timer } from "./Magic16Timer";
+export { default as Magic16Controls } from "./Magic16/Magic16Controls";
+export { default as Magic16Timer } from "./Magic16/Magic16Timer";
 
 // Vibe
-export { default as ProfileCard } from "./ProfileCard";
-export { default as VibeCreate } from "./VibeCreate";
-export { default as VibeFeed } from "./VibeFeed";
-export { default as VibeItem } from "./VibeItem";
-export { default as VibePrivacyToggle } from "./VibePrivacyToggle";
-export { default as VibeStoryPlayer } from "./VibeStoryPlayer";
+export { default as ProfileCard } from "./Vibe/ProfileCard";
+export { default as VibeCreate } from "./Vibe/VibeCreate";
+export { default as VibeFeed } from "./Vibe/VibeFeed";
+export { default as VibeItem } from "./Vibe/VibeItem";
+export { default as VibePrivacyToggle } from "./Vibe/VibePrivacyToggle";
+export { default as VibeStoryPlayer } from "./VIbe/VibeStoryPlayer";
 
 // Camera / Vision
 export { default as CameraView } from "./Camera/CameraView";
