@@ -1,6 +1,10 @@
 // src/components/Layout/MainLayout.jsx
 import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useApp } from "../../context/AppContext";
+import "../../styles/MainLayout.css";
+
+// Optional components – make sure they exist
 import {
   TopBar,
   BottomNav,
@@ -10,15 +14,16 @@ import {
   Magic16Timer,
   Modal,
 } from "../index";
-import "../../styles/MainLayout.css";
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useApp();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [magicOpen, setMagicOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const menuItems = [
     { name: "GPT", path: "/app/gpt", icon: "chat" },
@@ -28,6 +33,11 @@ export default function MainLayout() {
     { name: "Settings", path: "/app/settings", icon: "settings" },
     { name: "Billing", path: "/app/billing", icon: "billing" },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
   return (
     <div className="app-layout flex h-screen bg-gray-50">
@@ -56,20 +66,29 @@ export default function MainLayout() {
               }`}
               onClick={() => navigate(item.path)}
             >
-              <span className="sidebar-icon">{/* icon here */}</span>
+              <span className="sidebar-icon">{/* icon placeholder */}</span>
               {!sidebarCollapsed && <span>{item.name}</span>}
             </button>
           ))}
         </div>
+
+        <button
+          className="logout-btn m-4 p-2 bg-red-500 text-white rounded hover:bg-red-600"
+          onClick={handleLogout}
+        >
+          Logout
+        </button>
       </aside>
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* TopBar */}
-        <TopBar
-          onMagicClick={() => setMagicOpen(true)}
-          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
+        {TopBar && (
+          <TopBar
+            onMagicClick={() => setMagicOpen(true)}
+            onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto p-4">
@@ -77,31 +96,28 @@ export default function MainLayout() {
         </main>
 
         {/* Chat Section */}
-        {chatOpen && (
+        {chatOpen && ChatBox && ChatInput && (
           <div className="chat-container fixed bottom-20 right-6 w-80 md:w-96 bg-white border shadow-lg rounded-lg flex flex-col overflow-hidden">
             <ChatBox />
             <ChatInput
               value={chatInput}
               onChange={setChatInput}
-              onSend={() => {
-                console.log("Send:", chatInput);
-                setChatInput("");
-              }}
+              onSend={() => setChatInput("")}
             />
           </div>
         )}
 
         {/* Mobile Bottom Navigation */}
-        <BottomNav menuItems={menuItems} />
+        {BottomNav && <BottomNav menuItems={menuItems} />}
       </div>
 
       {/* Magic16 Modal */}
-      {magicOpen && (
+      {magicOpen && Modal && (
         <Modal onClose={() => setMagicOpen(false)}>
           <h2 className="text-xl font-bold mb-2">Magic16 Ritual</h2>
           <p className="mb-4">8 Minutes Yoga + 8 Minutes Meditation</p>
-          <Magic16Controls />
-          <Magic16Timer />
+          {Magic16Controls && <Magic16Controls />}
+          {Magic16Timer && <Magic16Timer />}
         </Modal>
       )}
 
