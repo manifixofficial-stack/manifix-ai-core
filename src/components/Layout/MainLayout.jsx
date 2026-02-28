@@ -4,7 +4,6 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import "../../styles/MainLayout.css";
 
-// Optional components – make sure they exist
 import {
   TopBar,
   BottomNav,
@@ -18,7 +17,7 @@ import {
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useApp();
+  const { logout, user } = useApp();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -26,11 +25,11 @@ export default function MainLayout() {
   const [magicOpen, setMagicOpen] = useState(false);
 
   const menuItems = [
-    { name: "Gpt", path: "/app/gpt", icon: "chat" },
-    { name: "Magic16", path: "/app/magic16", icon: "magic16" },
-    { name: "Profile", path: "/app/profile", icon: "profile" },
-    { name: "Settings", path: "/app/settings", icon: "settings" },
-    { name: "Billing", path: "/app/billing", icon: "billing" },
+    { name: "GPT", path: "/app/gpt" },
+    { name: "Magic16", path: "/app/magic16" },
+    { name: "Profile", path: "/app/profile" },
+    { name: "Settings", path: "/app/settings" },
+    { name: "Billing", path: "/app/billing" },
   ];
 
   const handleLogout = async () => {
@@ -39,94 +38,115 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="app-layout flex h-screen bg-gray-50">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+
+      {/* SIDEBAR */}
       <aside
-        className={`sidebar bg-white shadow-md flex flex-col transition-width duration-300 ${
-          sidebarCollapsed ? "w-20" : "w-60"
-        } hidden md:flex`}
+        className={`bg-white shadow-xl border-r flex flex-col transition-all duration-300 ${
+          sidebarCollapsed ? "w-20" : "w-64"
+        }`}
       >
-        <div className="sidebar-header p-4 flex justify-between items-center">
-          {!sidebarCollapsed && <span className="text-xl font-bold">ManifiX</span>}
+        {/* Logo */}
+        <div className="p-5 flex items-center justify-between border-b">
+          {!sidebarCollapsed && (
+            <h1 className="text-2xl font-bold tracking-tight text-gray-800">
+              ManifiX
+            </h1>
+          )}
           <button
-            className="text-gray-500 hover:text-gray-800"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="text-gray-400 hover:text-gray-700"
           >
             {sidebarCollapsed ? "→" : "←"}
           </button>
         </div>
 
-        <div className="sidebar-menu flex-1 flex flex-col mt-4">
-          {menuItems.map((item) => (
-            <button
-              key={item.name}
-              className={`sidebar-btn flex items-center gap-2 p-3 rounded-md m-1 hover:bg-gray-100 transition-colors ${
-                location.pathname === item.path ? "bg-blue-100 font-semibold" : ""
-              }`}
-              onClick={() => navigate(item.path)}
-            >
-              <span className="sidebar-icon">{/* icon placeholder */}</span>
-              {!sidebarCollapsed && <span>{item.name}</span>}
-            </button>
-          ))}
+        {/* Menu */}
+        <div className="flex-1 mt-6 px-2">
+          {menuItems.map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <button
+                key={item.name}
+                onClick={() => navigate(item.path)}
+                className={`w-full text-left px-4 py-3 rounded-xl mb-2 transition-all duration-200 ${
+                  active
+                    ? "bg-black text-white shadow-md"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {item.name}
+              </button>
+            );
+          })}
         </div>
 
-        <button
-          className="logout-btn m-4 p-2 bg-red-500 text-white rounded hover:bg-red-600"
-          onClick={handleLogout}
-        >
-          Logout
-        </button>
+        {/* Logout */}
+        <div className="p-4 border-t">
+          <button
+            onClick={handleLogout}
+            className="w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+          >
+            Logout
+          </button>
+        </div>
       </aside>
 
-      {/* Main Content */}
+      {/* MAIN AREA */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* TopBar */}
+
+        {/* TOPBAR */}
         {TopBar && (
           <TopBar
+            user={user}
             onMagicClick={() => setMagicOpen(true)}
-            onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
           />
         )}
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto p-4">
+        {/* PAGE CONTENT */}
+        <main className="flex-1 overflow-auto p-8">
           <Outlet />
         </main>
 
-        {/* Chat Section */}
-        {chatOpen && ChatBox && ChatInput && (
-          <div className="chat-container fixed bottom-20 right-6 w-80 md:w-96 bg-white border shadow-lg rounded-lg flex flex-col overflow-hidden">
-            <ChatBox />
-            <ChatInput
-              value={chatInput}
-              onChange={setChatInput}
-              onSend={() => setChatInput("")}
-            />
-          </div>
+        {/* MOBILE NAV */}
+        {BottomNav && (
+          <BottomNav
+            items={menuItems}
+          />
         )}
-
-        {/* Mobile Bottom Navigation */}
-        {BottomNav && <BottomNav menuItems={menuItems} />}
       </div>
 
-      {/* Magic16 Modal */}
+      {/* MAGIC16 MODAL */}
       {magicOpen && Modal && (
         <Modal onClose={() => setMagicOpen(false)}>
-          <h2 className="text-xl font-bold mb-2">Magic16 Ritual</h2>
-          <p className="mb-4">8 Minutes Yoga + 8 Minutes Meditation</p>
+          <h2 className="text-xl font-bold mb-3">Magic16 Ritual</h2>
+          <p className="mb-4 text-gray-600">
+            8 Minutes Yoga + 8 Minutes Meditation
+          </p>
           {Magic16Controls && <Magic16Controls />}
           {Magic16Timer && <Magic16Timer />}
         </Modal>
       )}
 
-      {/* Chat Toggle Button */}
+      {/* CHAT FLOAT BUTTON */}
       <button
-        className="chat-toggle-btn fixed bottom-24 right-6 p-3 bg-blue-500 rounded-full shadow-lg text-white hover:bg-blue-600 transition-colors"
         onClick={() => setChatOpen(!chatOpen)}
+        className="fixed bottom-6 right-6 bg-black text-white px-5 py-3 rounded-full shadow-xl hover:scale-105 transition-transform"
       >
         {chatOpen ? "Close Chat" : "Open Chat"}
       </button>
+
+      {/* CHAT BOX */}
+      {chatOpen && ChatBox && ChatInput && (
+        <div className="fixed bottom-20 right-6 w-96 bg-white shadow-2xl rounded-2xl overflow-hidden border">
+          <ChatBox />
+          <ChatInput
+            value={chatInput}
+            onChange={setChatInput}
+            onSend={() => setChatInput("")}
+          />
+        </div>
+      )}
     </div>
   );
 }
