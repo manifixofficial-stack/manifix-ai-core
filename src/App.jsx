@@ -1,33 +1,31 @@
 // src/App.jsx
-import { useEffect, useState } from "react";
-import supabase from "./services/supabase";
-import AppRouter from "./AppRouter";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { AppProvider } from "./context/AppContext"; // <-- your file
+import Login from "./pages/Login";
+import GPTPage from "./pages/GPT";
+import Magic16Page from "./pages/Magic16e";
+import VibePage from "./pages/VibeP";
+import ProfilePage from "./pages/Profile";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
-  const [user, setUser] = useState(undefined); // undefined until we know session
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setUser(data?.session?.user ?? null);
-      setLoading(false);
-    };
-
-    getSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loading) return <div>Loading...</div>;
-
-  return <AppRouter user={user} />;
+  return (
+    <AppProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          
+          {/* Protected app pages */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/app/gpt" element={<Gpt />} />
+            <Route path="/app/magic16" element={<Magic16 />} />
+            <Route path="/app/vibe" element={<Vibe/>} />
+            <Route path="/app/profile" element={<Profile />} />
+          </Route>
+        </Routes>
+      </Router>
+    </AppProvider>
+  );
 }
 
 export default App;
