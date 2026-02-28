@@ -1,18 +1,15 @@
-// src/components/ProtectedRoute.jsx
 import React from "react";
 import { Navigate } from "react-router-dom";
 
-export default function ProtectedRoute({ user, children }) {
-  // Wait until user state is checked (user is null during initial auth load)
-  if (user === undefined || user === null) {
-    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>;
+const ProtectedRoute = ({ children }) => {
+  // Check if user is logged in
+  const isAuthenticated = !!localStorage.getItem("token"); // Or any auth flag you use
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />; // redirect to Landing if not logged in
   }
 
-  // If not logged in, redirect to login
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  return children; // render the protected page
+};
 
-  // If logged in, render the protected content
-  return children;
-}
+export default ProtectedRoute;
