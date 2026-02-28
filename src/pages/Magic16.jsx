@@ -46,8 +46,8 @@ export default function Magic16() {
 
 // ---------------- STATE ----------------
   const [stepIndex, setStepIndex] = useState(0);
-  const [stepTime, setStepTime] = useState(60);
-  const [totalTime, setTotalTime] = useState(0);
+  const [stepTime, setStepTime] = useState(steps[0].duration);
+  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
   const [playing, setPlaying] = useState(false);
   const [scoreSamples, setScoreSamples] = useState([]);
   const [liveScore, setLiveScore] = useState(0);
@@ -211,7 +211,7 @@ const detect = useCallback(async () => {
 // -------- TIMER --------
 const start = () => {
   if (playing) return;
-
+speak(steps[stepIndex]?.text); // ✅ add this
   setPlaying(true);
 
   if (detectRef.current) clearInterval(detectRef.current);
