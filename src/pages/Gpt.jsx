@@ -246,3 +246,5 @@ export default function Gpt() {
     {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
   </button>
 </footer>
+      </div>   {/* <-- THIS WAS MISSING */}
+);
