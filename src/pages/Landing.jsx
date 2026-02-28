@@ -1,5 +1,4 @@
 // src/pages/Landing.jsx
-
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -18,7 +17,7 @@ export default function Landing() {
     try {
       const user = authService?.getCurrentUser?.();
       if (user) {
-        navigate("/dashboard", { replace: true });
+        navigate("/app/gpt", { replace: true }); // <-- changed from /dashboard
       }
     } catch (error) {
       console.error("Landing auth check failed:", error);
@@ -35,9 +34,7 @@ export default function Landing() {
       {/* ---------------- HERO SECTION ---------------- */}
       <section className="landing-top">
         <img src={logo} alt="ManifiX Logo" className="main-logo" />
-
         <h1 className="brand-name">ManifiX</h1>
-
         <p className="brand-tagline">
           Master Your Mind. Elevate Your Energy. Transform Your Life.
         </p>
@@ -45,17 +42,13 @@ export default function Landing() {
 
       {/* ---------------- CORE VALUE SECTION ---------------- */}
       <section className="landing-hero">
-        <h2 className="hero-title">
-          16 Minutes. Infinite Power.
-        </h2>
-
+        <h2 className="hero-title">16 Minutes. Infinite Power.</h2>
         <p className="hero-description">
           Unlock clarity, discipline, and abundance using AI-guided rituals
           designed for high performers and future leaders.
         </p>
 
         <div className="hero-features">
-
           <div className="feature">
             <h3>Magic16 Ritual</h3>
             <p>
@@ -77,7 +70,6 @@ export default function Landing() {
               Monitor your energy, patterns, and growth trajectory.
             </p>
           </div>
-
         </div>
 
         {/* CTA SECTION */}
@@ -104,9 +96,7 @@ export default function Landing() {
 
       {/* ---------------- FOOTER ---------------- */}
       <footer className="landing-footer">
-        <span>
-          © {new Date().getFullYear()} ManifiX. All rights reserved.
-        </span>
+        <span>© {new Date().getFullYear()} ManifiX. All rights reserved.</span>
       </footer>
     </div>
   );
