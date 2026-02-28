@@ -4,14 +4,14 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// PUBLIC PAGES
+// Public Pages
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 
-// MAIN APP PAGES
+// App Pages
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
 import Vibe from "./pages/Vibe";
@@ -23,7 +23,7 @@ export default function AppRouter({ user }) {
   return (
     <Routes>
 
-      {/* ROOT */}
+      {/* Root */}
       <Route
         path="/"
         element={
@@ -41,7 +41,7 @@ export default function AppRouter({ user }) {
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
-      {/* PROTECTED */}
+      {/* Protected App */}
       <Route
         path="/app"
         element={
