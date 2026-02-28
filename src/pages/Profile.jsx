@@ -1,172 +1,195 @@
 // src/pages/Profile.jsx
+
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import supabase from "../services/supabase.js";
-import VibeService from "../services/vibe.service.js";
-import "../styles/profile.css";
-import Icons from "../assets/icons"; // like, share icons
+import supabase from "../services/supabase";
 
 export default function Profile() {
   const navigate = useNavigate();
+
   const [user, setUser] = useState(null);
   const [username, setUsername] = useState("");
-  const [gallery, setGallery] = useState([]);
-  const [vibes, setVibes] = useState([]);
+  const [avatarUrl, setAvatarUrl] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initProfile();
+    initialize();
   }, []);
 
-  const initProfile = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+  const initialize = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       navigate("/login");
       return;
     }
+
     setUser(user);
-    await loadProfile(user.id);
-    await loadGallery(user.id);
-    await loadUserVibes();
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", user.id)
+      .single();
+
+    if (data) {
+      setUsername(data.username || "");
+      setAvatarUrl(data.avatar_url || null);
+    }
+
     setLoading(false);
   };
 
-  const loadProfile = async (userId) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", userId)
-      .single();
-    if (data?.username) setUsername(data.username);
-  };
+  const handleSave = async () => {
+    if (!user) return;
 
-  const loadGallery = async (userId) => {
-    const { data } = await supabase
-      .from("gallery")
-      .select("id, url")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
-    setGallery(data || []);
-  };
-
-  const loadUserVibes = async () => {
-    const userVibes = await VibeService.getUserVibes();
-    setVibes(userVibes || []);
-  };
-
-  const updateUsername = async () => {
-    if (!username.trim() || !user) return;
     await supabase.from("profiles").upsert({
       id: user.id,
       username,
+      avatar_url: avatarUrl,
       email: user.email,
       updated_at: new Date().toISOString(),
     });
-    alert("Profile updated ✨");
+
+    alert("Profile updated ✅");
+  };
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file || !user) return;
+
+    const filePath = `avatars/${user.id}-${Date.now()}`;
+
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, file, { upsert: true });
+
+    if (error) {
+      alert("Upload failed");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+
+    setAvatarUrl(data.publicUrl);
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem("chatMessages");
     navigate("/login");
   };
 
-  if (loading) return <div className="page-loading">Loading profile…</div>;
+  if (loading) return <div style={{ padding: 30 }}>Loading...</div>;
 
   return (
-    <div className="profile-page">
-      {/* Header */}
-      <header className="profile-header">
-        <img
-          src="/assets/logo.png"
-          alt="ManifiX Logo"
-          className="profile-logo"
-          onClick={() => navigate("/chat")}
+    <div style={{ maxWidth: 600, margin: "40px auto" }}>
+      <h1 style={{ marginBottom: 30 }}>Profile Settings</h1>
+
+      {/* Avatar Section */}
+      <div style={cardStyle}>
+        <h3>Profile Photo</h3>
+
+        <div style={{ marginBottom: 15 }}>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Avatar"
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: "50%",
+                objectFit: "cover",
+              }}
+            />
+          ) : (
+            <div style={avatarPlaceholder}>
+              {username?.charAt(0)?.toUpperCase() ||
+                user?.email?.charAt(0)?.toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        <input type="file" accept="image/*" onChange={handleAvatarUpload} />
+      </div>
+
+      {/* Account Info */}
+      <div style={cardStyle}>
+        <h3>Account</h3>
+        <p><strong>Email:</strong> {user.email}</p>
+      </div>
+
+      {/* Username */}
+      <div style={cardStyle}>
+        <h3>Username</h3>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          style={inputStyle}
         />
-        <h1>ManifiX Profile</h1>
-      </header>
+        <button onClick={handleSave} style={buttonStyle}>
+          Save Changes
+        </button>
+      </div>
 
-      <main className="profile-main">
-        {/* Avatar & Info */}
-        <section className="profile-info neon-card">
-          <div className="avatar neon-glow">
-            {username?.charAt(0)?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
-          </div>
-          <h2 className="neon-text">{username || "Your Identity"}</h2>
-          <p className="email">{user?.email}</p>
-          <a
-            href="https://instagram.com/ManifiXApp"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="profile-social"
-          >
-            📸 Follow us on Instagram
-          </a>
-        </section>
-
-        {/* Edit Username */}
-        <section className="profile-edit neon-card">
-          <label>Username</label>
-          <input
-            type="text"
-            placeholder="Choose your identity"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            maxLength={20}
-          />
-          <button className="btn neon-btn" onClick={updateUsername}>
-            Save
-          </button>
-        </section>
-
-        {/* Gallery */}
-        <section className="profile-gallery">
-          <h3>Your Gallery</h3>
-          {gallery.length === 0 && <p className="empty">No photos yet 🌙</p>}
-          <div className="gallery-grid">
-            {gallery.map((img) => (
-              <div key={img.id} className="gallery-card neon-border">
-                <img src={img.url} alt="User Upload" />
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* User Vibes */}
-        <section className="profile-vibes">
-          <h3>Your Vibes</h3>
-          {vibes.length === 0 && <p className="empty">No vibes yet ✨</p>}
-          <div className="card-list">
-            {vibes.slice(0, 6).map((v) => (
-              <div
-                key={v.id}
-                className="mini-card neon-card"
-                style={{ fontFamily: v.font || "Poppins" }}
-              >
-                <p>{v.text}</p>
-                {v.music && (
-                  <audio controls src={v.music}>
-                    Your browser does not support audio
-                  </audio>
-                )}
-                <span>{v.privacy}</span>
-                <div className="card-icons">
-                  <img src={Icons.like} alt="Like" />
-                  <img src={Icons.share} alt="Share" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Logout */}
-        <section className="profile-logout-section">
-          <button className="profile-logout neon-btn" onClick={handleLogout}>
-            🔓 Logout
-          </button>
-        </section>
-      </main>
+      {/* Logout */}
+      <div style={cardStyle}>
+        <h3>Security</h3>
+        <button onClick={handleLogout} style={logoutStyle}>
+          Logout
+        </button>
+      </div>
     </div>
   );
 }
+
+const cardStyle = {
+  background: "#ffffff",
+  padding: "20px",
+  borderRadius: "8px",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+  marginBottom: "20px",
+};
+
+const avatarPlaceholder = {
+  width: 120,
+  height: 120,
+  borderRadius: "50%",
+  background: "#6366f1",
+  color: "white",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 40,
+};
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px",
+  marginTop: "10px",
+  marginBottom: "10px",
+  borderRadius: "6px",
+  border: "1px solid #ddd",
+};
+
+const buttonStyle = {
+  padding: "8px 16px",
+  background: "#2563eb",
+  color: "#fff",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer",
+};
+
+const logoutStyle = {
+  padding: "8px 16px",
+  background: "#dc2626",
+  color: "#fff",
+  border: "none",
+  borderRadius: "6px",
+  cursor: "pointer",
+};
