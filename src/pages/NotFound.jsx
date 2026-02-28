@@ -22,7 +22,7 @@ export default function NotFound() {
         <div className="notfound-actions">
           <button
             className="primary-btn"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/app/gpt")}
           >
             Go to Dashboard
           </button>
