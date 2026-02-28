@@ -3,6 +3,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useApp } from "./context/AppContext";
 
 // Public Pages
 import Landing from "./pages/Landing";
@@ -19,7 +20,9 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 
-export default function AppRouter({ user }) {
+export default function AppRouter() {
+  const { user } = useApp(); // ✅ Use context directly
+
   return (
     <Routes>
       {/* Public Routes */}
@@ -41,7 +44,7 @@ export default function AppRouter({ user }) {
       <Route
         path="/app"
         element={
-          <ProtectedRoute user={user}>
+          <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
         }
