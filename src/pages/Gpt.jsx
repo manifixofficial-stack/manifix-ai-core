@@ -1,5 +1,5 @@
 // src/pages/Gpt.jsx
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -7,7 +7,6 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
 import Icons from "../assets/icons";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-import { useApp } from "../context/AppContext";
 
 // Toast Component
 const Toast = ({ message, onClose }) => (
@@ -20,8 +19,6 @@ const Toast = ({ message, onClose }) => (
 const API_BASE = "https://manifix.up.railway.app";
 
 export default function Gpt() {
-  const { user, setUser } = useApp();
-
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("chatMessages");
     return saved ? JSON.parse(saved) : [];
@@ -49,8 +46,8 @@ export default function Gpt() {
       rec.onresult = (e) => setInput(e.results[0][0].transcript);
       rec.onerror = (e) => {
         setListening(false);
-        showToast(`STT Error: ${e?.error}`);
-        if (voiceEnabled) speak(`Speech recognition failed. ${e?.error}`);
+        showToast(`STT Error: ${e.error}`);
+        if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
       };
       rec.onend = () => setListening(false);
     }
@@ -65,7 +62,7 @@ export default function Gpt() {
   }, [messages]);
 
   // -------------------- TTS --------------------
-  const speak = useCallback((text) => {
+  const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -74,7 +71,7 @@ export default function Gpt() {
     utterance.pitch = 1;
     window.speechSynthesis.speak(utterance);
     ttsRef.current = utterance;
-  }, [voiceEnabled]);
+  };
 
   const stopSpeaking = () => {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -94,7 +91,7 @@ export default function Gpt() {
   };
 
   // -------------------- Send Message --------------------
-  const sendMessage = useCallback(async (msg, isFile = false) => {
+  const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
     stopSpeaking();
 
@@ -106,7 +103,7 @@ export default function Gpt() {
     setMessages(prev => [...prev, thinkingMsg]);
 
     try {
-      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg, userId: user?.id }, { timeout: 15000 });
+      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg }, { timeout: 15000 });
       const replyText = response.data.reply || "I’m here with you 🤍";
 
       setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
@@ -118,27 +115,25 @@ export default function Gpt() {
 
       const interval = setInterval(() => {
         if (idx < replyText.length) {
-          const newReply = { ...replyMsg, content: replyMsg.content + replyText[idx] };
-          setMessages(prev => [...prev.filter(m => m.timestamp !== replyMsg.timestamp), newReply]);
+          replyMsg.content += replyText[idx];
+          setMessages(prev => [...prev.filter(m => m.timestamp !== replyMsg.timestamp), replyMsg]);
           idx++;
         } else {
           clearInterval(interval);
           speak(replyText);
         }
       }, 25);
-
-    } catch(err) {
-      console.error("Chat API Error:", err);
+    } catch {
       setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
       const errorMsg = "❌ Backend not reachable. Try again.";
       setMessages(prev => [...prev, { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }]);
       showToast(errorMsg);
       if (voiceEnabled) speak(errorMsg);
     }
-  }, [voiceEnabled, user, speak]);
+  };
 
   // -------------------- File Upload --------------------
-  const handleUpload = useCallback(async (e) => {
+  const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
@@ -149,21 +144,27 @@ export default function Gpt() {
       const res = await axios.post(`${API_BASE}/api/upload`, formData, { headers: { "Content-Type": "multipart/form-data" } });
       const fileUrl = res.data.url;
       sendMessage(fileUrl, true);
-    } catch(err) {
-      console.error("File Upload Error:", err);
+    } catch {
       showToast("❌ File upload failed");
       if (voiceEnabled) speak("File upload failed");
     } finally {
       setUploading(false);
       e.target.value = null;
     }
-  }, [voiceEnabled, sendMessage]);
+  };
 
   // -------------------- Enter Key --------------------
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage(input.trim());
+    }
+  };
+
+  // -------------------- Markdown Renderer --------------------
+  const renderers = {
+    code({ language, value }) {
+      return <SyntaxHighlighter style={oneDark} language={language} children={value} />;
     }
   };
 
@@ -183,41 +184,32 @@ export default function Gpt() {
         {messages.map(msg => (
           <div key={msg.timestamp} className={`message-row ${msg.role}`}>
             <div className="message-bubble fade-in">
-              {msg.type === "file" ? (
-                <a
-                  href={msg.content}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="file-link"
-                >
+              {msg.isFile ? (
+                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
                   📎 {msg.content.split("/").pop()}
                 </a>
               ) : msg.type === "thinking" ? (
                 <div role="status" aria-live="polite" className="typing-indicator">
-                  {msg.content}
-                  <span className="dots">...</span>
+                  {msg.content}<span className="dots">...</span>
                 </div>
               ) : (
                 <ReactMarkdown
                   children={msg.content}
                   components={{
-                    code({ node, inline, className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || "");
+                    code({node, inline, className, children, ...props}) {
+                      const match = /language-(\w+)/.exec(className || '');
                       return !inline && match ? (
                         <SyntaxHighlighter
                           style={oneDark}
                           language={match[1]}
                           PreTag="div"
+                          children={String(children).replace(/\n$/, '')}
                           {...props}
-                        >
-                          {String(children).replace(/\n$/, "")}
-                        </SyntaxHighlighter>
+                        />
                       ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
+                        <code className={className} {...props}>{children}</code>
                       );
-                    },
+                    }
                   }}
                 />
               )}
@@ -227,24 +219,15 @@ export default function Gpt() {
       </main>
 
       <footer className="gpt-footer">
-        <button
-          id="micBtn"
-          onClick={handleMic}
-          className={listening ? "recording" : ""}
-          aria-label={listening ? "Stop Recording" : "Start Recording"}
-        >
+        <button id="micBtn" onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
           <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
         </button>
 
         <textarea
           rows={1}
-          style={{ resize: "none", overflowY: "hidden", minHeight: "40px" }}
+          style={{ resize: "none", overflowY: "hidden" }}
           value={input}
-          onChange={e => {
-            setInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = `${e.target.scrollHeight}px`;
-          }}
+          onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
           onKeyDown={handleKeyDown}
           placeholder="Ask Your ManifiX Anything…"
           aria-label="Chat input"
@@ -255,20 +238,11 @@ export default function Gpt() {
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button
-          onClick={() => sendMessage(input.trim())}
-          disabled={!input.trim()}
-          className="primary"
-          aria-label="Send Message"
-        >
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
           <img src={Icons.send} alt="Send" />
         </button>
 
-        <button
-          className="toggle-voice"
-          onClick={() => setVoiceEnabled(prev => !prev)}
-          aria-label="Toggle Voice"
-        >
+        <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
         </button>
       </footer>
