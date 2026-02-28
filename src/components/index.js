@@ -27,7 +27,6 @@ export { default as EmotionOverlay } from "./Camera/EmotionOverlay";
 export { default as VisionStats } from "./Camera/VisionStats";
 
 // Common
-export { default as Button } from "./Common/Button";
 export { default as Loader } from "./Common/Loader";
 export { default as Modal } from "./Common/Modal";
 export { default as ProfileCard } from "./Common/ProfileCard";
