@@ -6,7 +6,7 @@ import "@tensorflow/tfjs-backend-webgl";
 import "../styles/magic16.css";
 import { useApp } from "../context/AppContext";
 import confetti from "canvas-confetti";
-
+import * as tf from "@tensorflow/tfjs";
 import logo from "../assets/logo.png";
 
 // Audio
@@ -123,7 +123,8 @@ useEffect(() => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-
+await tf.ready();
+await tf.setBackend("webgl");
       detectorRef.current = await posedetection.createDetector(
         posedetection.SupportedModels.MoveNet,
         {
