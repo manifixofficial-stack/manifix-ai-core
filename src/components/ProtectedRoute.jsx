@@ -1,11 +1,25 @@
 // src/components/ProtectedRoute.jsx
-import { Navigate, Outlet } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useApp } from "../../context/AppContext";
 
-export default function ProtectedRoute() {
+export default function ProtectedRoute({ children }) {
   const { user, loading } = useApp();
 
-  if (loading) return <p>Loading...</p>; // or spinner
+  // Show a loading indicator while checking auth
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", marginTop: "50px" }}>
+        Loading...
+      </div>
+    );
+  }
 
-  return user ? <Outlet /> : <Navigate to="/Login" replace />;
+  // If no user, redirect to login
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Authenticated, render children
+  return <>{children}</>;
 }
