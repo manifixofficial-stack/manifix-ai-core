@@ -1,5 +1,5 @@
 // src/AppRouter.jsx
-
+import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -22,26 +22,19 @@ import Billing from "./pages/Billing";
 export default function AppRouter({ user }) {
   return (
     <Routes>
-
-      {/* Root */}
+      {/* Public Routes */}
       <Route
         path="/"
-        element={
-          user ? <Navigate to="/app/gpt" replace /> : <Landing />
-        }
+        element={user ? <Navigate to="/app/gpt" replace /> : <Landing />}
       />
-
       <Route
         path="/login"
-        element={
-          user ? <Navigate to="/app/gpt" replace /> : <Login />
-        }
+        element={user ? <Navigate to="/app/gpt" replace /> : <Login />}
       />
-
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
-      {/* Protected App */}
+      {/* Protected App Routes */}
       <Route
         path="/app"
         element={
@@ -59,8 +52,8 @@ export default function AppRouter({ user }) {
         <Route path="billing" element={<Billing />} />
       </Route>
 
+      {/* Catch-all */}
       <Route path="*" element={<NotFound />} />
-
     </Routes>
   );
 }
