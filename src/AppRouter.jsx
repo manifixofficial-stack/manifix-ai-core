@@ -1,3 +1,4 @@
+// src/AppRouter.jsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
@@ -18,10 +19,6 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 
-/**
- * AppRouter handles all routes with proper auth protection
- * @param {object|null} user - Current authenticated user
- */
 export default function AppRouter({ user }) {
   return (
     <Routes>
@@ -38,10 +35,7 @@ export default function AppRouter({ user }) {
         path="/signup"
         element={user ? <Navigate to="/app/gpt" replace /> : <Signup />}
       />
-      <Route
-        path="/forgot-password"
-        element={user ? <Navigate to="/app/gpt" replace /> : <ForgotPassword />}
-      />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Protected App Routes */}
       <Route
@@ -52,7 +46,6 @@ export default function AppRouter({ user }) {
           </ProtectedRoute>
         }
       >
-        {/* Nested App Pages */}
         <Route index element={<Navigate to="gpt" replace />} />
         <Route path="gpt" element={<Gpt />} />
         <Route path="magic16" element={<Magic16 />} />
@@ -62,7 +55,7 @@ export default function AppRouter({ user }) {
         <Route path="billing" element={<Billing />} />
       </Route>
 
-      {/* Catch-all 404 */}
+      {/* Catch-all */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
