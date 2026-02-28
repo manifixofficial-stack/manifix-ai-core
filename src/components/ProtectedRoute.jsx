@@ -1,17 +1,15 @@
+// src/components/ProtectedRoute.jsx
 import React from "react";
 import { Navigate } from "react-router-dom";
 
-/**
- * ProtectedRoute ensures only authenticated users can access children.
- * @param {ReactNode} children - Protected component(s)
- * @param {object|null} user - Current user object (from App state)
- */
-const ProtectedRoute = ({ children, user }) => {
-  if (!user) {
-    // User not logged in → redirect to landing
-    return <Navigate to="/" replace />;
-  }
-  // User logged in → render the protected page
+const ProtectedRoute = ({ user, children }) => {
+  // If we don’t know auth state yet, show nothing
+  if (user === undefined) return null;
+
+  // If user is not logged in, redirect to login
+  if (!user) return <Navigate to="/login" replace />;
+
+  // Otherwise render the protected content
   return children;
 };
 
