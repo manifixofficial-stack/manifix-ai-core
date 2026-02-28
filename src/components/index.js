@@ -16,7 +16,7 @@ export { default as Magic16Controls } from "./Magic16Controls";
 export { default as Magic16Timer } from "./Magic16Timer";
 
 // Vibe
-export { default as ManifestList } from "./ManifestList";
+
 export { default as ProfileCard } from "./ProfileCard";
 export { default as VibeCreate } from "./VibeCreate";
 export { default as VibeFeed } from "./VibeFeed";
