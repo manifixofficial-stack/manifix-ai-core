@@ -44,19 +44,7 @@ export default function Magic16() {
   const audioRef = useRef(null);
   const lastVoiceRef = useRef(0);
 
-// ---------------- STATE ----------------
-  const [stepIndex, setStepIndex] = useState(0);
-  const [stepTime, setStepTime] = useState(steps[0].duration);
-  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
-  const [playing, setPlaying] = useState(false);
-  const [scoreSamples, setScoreSamples] = useState([]);
-  const [liveScore, setLiveScore] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState(0);
-
-
+  // ✅ DEFINE STEPS FIRST
   const steps = [
     { img: yoga1, text: "Mountain Pose. Stand tall.", duration: 60 },
     { img: yoga2, text: "Forward Fold.", duration: 60 },
@@ -74,10 +62,24 @@ export default function Magic16() {
     { img: med6, text: "Stay present.", duration: 60 },
     { img: med7, text: "Visualize success.", duration: 60 },
   ];
-const TOTAL_DURATION = steps.reduce(
-  (sum, step) => sum + step.duration,
-  0
-);
+
+  // ✅ THEN calculate total
+  const TOTAL_DURATION = steps.reduce(
+    (sum, step) => sum + step.duration,
+    0
+  );
+
+  // ---------------- STATE ----------------
+  const [stepIndex, setStepIndex] = useState(0);
+  const [stepTime, setStepTime] = useState(steps[0].duration);
+  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
+  const [playing, setPlaying] = useState(false);
+  const [scoreSamples, setScoreSamples] = useState([]);
+  const [liveScore, setLiveScore] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
  // -------- VOICE --------
 const speak = (text) => {
   if (!("speechSynthesis" in window)) return;
