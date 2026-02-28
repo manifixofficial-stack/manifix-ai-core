@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import icons from "../../assets/icons";
+import Logo from "../../assets/logo.png"; // Make sure logo.png is in src/assets
 import "../../styles/MainLayout.css";
 
 export default function MainLayout() {
@@ -11,34 +12,39 @@ export default function MainLayout() {
   return (
     <div className="layout-container">
 
+      {/* Header */}
       <header className="main-header">
         <div className="header-left">
-          <img src="/logo.png" alt="ManifiX Logo" className="header-logo" />
+          <img src={Logo} alt="ManifiX Logo" className="header-logo" />
           <h1 className="header-title">ManifiX</h1>
         </div>
       </header>
 
+      {/* Main Body */}
       <div className="main-body">
 
+        {/* Left Sidebar */}
         <aside className="left-sidebar">
           <button className="side-btn">
-            <img src={Icons.profile} alt="Profile" />
+            <img src={icons.profile} alt="Profile" />
             <span>Profile</span>
           </button>
 
           <button className="side-btn">
-            <img src={Icons.feed} alt="Vibe" />
+            <img src={icons.feed} alt="Vibe" />
             <span>Vibe</span>
           </button>
         </aside>
 
+        {/* Center Content */}
         <main className="center-content">
           <div className="star-container">
-            <img src={Icons.starFilled} alt="Star" className="center-star" />
+            <img src={icons.starFilled} alt="Star" className="center-star" />
           </div>
 
           <Outlet />
 
+          {/* Chat Bar */}
           <div className="chat-bar">
             <input
               type="text"
@@ -48,20 +54,22 @@ export default function MainLayout() {
               onChange={(e) => setChatInput(e.target.value)}
             />
             <button className="send-btn">
-              <img src={Icons.send} alt="Send" />
+              <img src={icons.send} alt="Send" />
             </button>
           </div>
         </main>
       </div>
 
+      {/* Magic16 Button */}
       <button
         className="magic16-btn"
         onClick={() => setShowMagic(true)}
       >
-        <img src={Icons.magic16} alt="Magic16" />
+        <img src={icons.magic16} alt="Magic16" />
         Magic16
       </button>
 
+      {/* Magic16 Modal */}
       {showMagic && (
         <div className="modal-overlay">
           <div className="modal-box">
