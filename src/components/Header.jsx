@@ -1,22 +1,21 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import Logo from "../assets/logo.png";
+import "../styles/Header.css";
 
 export default function Header() {
   const navigate = useNavigate();
 
   return (
     <header className="gpt-header">
-      <img src={Logo} alt="ManifiX Logo" className="gpt-logo" />
-      <h1>ManifiX</h1>
+      <h1 className="header-title">ManifiX</h1>
 
-      {/* Magic16 "+" button */}
       <button
-        className="magic16-add"
-        title="New Magic16 Connection"
+        className="new-chat-circle"
         onClick={() => navigate("/app/magic16")}
+        title="Magic16"
+        aria-label="Open Magic16"
       >
-        ➕
+        +
       </button>
     </header>
   );
