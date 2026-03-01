@@ -178,7 +178,7 @@ export default function Gpt() {
 
   if (voiceEnabled) speak(errorMsg);
 }
-
+  };
   // ---------- File Upload ----------
   const handleUpload = async (e) => {
     const file = e.target.files[0];
