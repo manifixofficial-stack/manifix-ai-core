@@ -21,7 +21,3 @@ export { default as CameraStats } from "./Camera/CameraStats";
 export { default as EmotionOverlay } from "./Camera/EmotionOverlay";
 export { default as VisionStats } from "./Camera/VisionStats";
 
-// Utilities / Standalone
-export { default as Button } from "./Button";
-export { default as Loader } from "./Loader";
-export { default as Modal } from "./Modal";
