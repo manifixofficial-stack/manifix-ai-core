@@ -1,5 +1,4 @@
 // src/pages/Magic16.jsx
-
 import { useRef, useEffect, useState, useCallback } from "react";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
@@ -11,17 +10,19 @@ import logo from "../assets/logo.png";
 // Audio
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-// Yoga Images
+// Yoga step images
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
 import yoga3 from "../assets/steps/yoga-03.png";
 import yoga4 from "../assets/steps/yoga-04.png";
 import yoga5 from "../assets/steps/yoga-05.png";
 import yoga6 from "../assets/steps/yoga-06.png";
-import yoga7 from "../assets/steps/yoga-07-1.png";
+import yoga71 from "../assets/steps/yoga-07-1.png";
+import yoga72 from "../assets/steps/yoga-07-2.png";
+import yoga73 from "../assets/steps/yoga-07-3.png";
 import yoga8 from "../assets/steps/yoga-08.png";
 
-// Meditation Images
+// Meditation step images
 import med1 from "../assets/steps/med-01.png";
 import med2 from "../assets/steps/med-02.png";
 import med3 from "../assets/steps/med-03.png";
@@ -39,28 +40,34 @@ export default function Magic16() {
   const audioRef = useRef(null);
   const lastVoiceRef = useRef(0);
 
-  // 16-minute flow: 8 min yoga, 8 min meditation
-  const steps = [
-    { img: yoga1, text: "Mountain Pose. Stand tall.", duration: 60 },
-    { img: yoga2, text: "Forward Fold. Relax.", duration: 60 },
-    { img: yoga3, text: "Half Lift.", duration: 60 },
-    { img: yoga4, text: "Plank Pose.", duration: 60 },
-    { img: yoga5, text: "Cobra Pose.", duration: 60 },
-    { img: yoga6, text: "Downward Dog.", duration: 60 },
-    { img: yoga7, text: "Warrior Pose.", duration: 60 },
-    { img: yoga8, text: "Tree Pose.", duration: 60 },
-    { img: med1, text: "Close your eyes.", duration: 60 },
-    { img: med2, text: "Focus on breath.", duration: 60 },
-    { img: med3, text: "Release tension.", duration: 120 },
-    { img: med4, text: "Calm energy.", duration: 60 },
-    { img: med5, text: "Let thoughts pass.", duration: 60 },
-    { img: med6, text: "Stay present.", duration: 60 },
-    { img: med7, text: "Visualize success.", duration: 60 },
+  // -------------------- Steps --------------------
+  const yogaSteps = [
+    { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
+    { img: yoga2, text: "Forward Fold. Relax your neck and shoulders.", duration: 40 },
+    { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 60 },
+    { img: yoga4, text: "Plank Pose. Engage your core.", duration: 60 },
+    { img: yoga5, text: "Cobra Pose. Open your chest gently.", duration: 40 },
+    { img: yoga6, text: "Downward Dog. Stretch fully.", duration: 60 },
+    { img: yoga71, text: "Warrior Pose 1. Strong and balanced.", duration: 40 },
+    { img: yoga72, text: "Warrior Pose 2. Focus on stability.", duration: 40 },
+    { img: yoga73, text: "Warrior Pose 3. Deepen the stance.", duration: 40 },
+    { img: yoga8, text: "Tree Pose. Focus and stability.", duration: 60 },
   ];
 
+  const meditationSteps = [
+    { img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
+    { img: med2, text: "Focus on your breath.", duration: 60 },
+    { img: med3, text: "Release all tension.", duration: 120 },
+    { img: med4, text: "Feel calm energy flowing.", duration: 60 },
+    { img: med5, text: "Let thoughts pass gently.", duration: 60 },
+    { img: med6, text: "Stay present in this moment.", duration: 60 },
+    { img: med7, text: "Visualize success and abundance.", duration: 60 },
+  ];
+
+  const steps = [...yogaSteps, ...meditationSteps];
   const TOTAL_DURATION = steps.reduce((sum, step) => sum + step.duration, 0);
 
-  // ---------------- STATE ----------------
+  // -------------------- State --------------------
   const [stepIndex, setStepIndex] = useState(0);
   const [stepTime, setStepTime] = useState(steps[0].duration);
   const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
@@ -71,10 +78,9 @@ export default function Magic16() {
   const [cameraError, setCameraError] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // -------- VOICE --------
+  // -------------------- Voice Guidance --------------------
   const speak = (text) => {
     if (!("speechSynthesis" in window)) return;
-
     const now = Date.now();
     if (now - lastVoiceRef.current < 4000) return;
     lastVoiceRef.current = now;
@@ -85,15 +91,13 @@ export default function Magic16() {
     window.speechSynthesis.speak(utter);
   };
 
-  // -------- AUDIO SYSTEM --------
+  // -------------------- Audio Playback --------------------
   const playAudio = (src) => {
     if (!src) return;
-
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
     }
-
     const audio = new Audio(src);
     audio.loop = true;
     audio.volume = 0.5;
@@ -101,20 +105,16 @@ export default function Magic16() {
     audioRef.current = audio;
   };
 
-  // -------- CAMERA INIT --------
+  // -------------------- Camera & Detector --------------------
   useEffect(() => {
     const init = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
 
         await tf.ready();
         await tf.setBackend("webgl");
-
         detectorRef.current = await posedetection.createDetector(
           posedetection.SupportedModels.MoveNet,
           { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
@@ -126,13 +126,10 @@ export default function Magic16() {
         setCameraError(true);
       }
     };
-
     init();
 
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
+      if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       clearInterval(timerRef.current);
       clearInterval(detectRef.current);
       if (audioRef.current) audioRef.current.pause();
@@ -140,7 +137,7 @@ export default function Magic16() {
     };
   }, []);
 
-  // -------- SAFE ANGLE --------
+  // -------------------- Angle Calculator --------------------
   const angle = (A, B, C) => {
     const AB = { x: A.x - B.x, y: A.y - B.y };
     const CB = { x: C.x - B.x, y: C.y - B.y };
@@ -152,24 +149,18 @@ export default function Magic16() {
     return (Math.acos(Math.min(Math.max(dot / denom, -1), 1)) * 180) / Math.PI;
   };
 
-  // -------- DETECTION --------
+  // -------------------- Pose Detection --------------------
   const detect = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current) return;
-
     try {
       const poses = await detectorRef.current.estimatePoses(videoRef.current);
       if (!poses?.length) return;
 
-      const currentStep = stepIndex;
-
-      // Only detect certain yoga poses (Plank, Downward Dog, Warrior Pose)
-      if ([3, 5, 6].includes(currentStep)) {
+      if ([3,5,6].includes(stepIndex)) {
         const kp = poses[0].keypoints;
-
         const hip = kp.find((k) => k.name === "left_hip");
         const knee = kp.find((k) => k.name === "left_knee");
         const ankle = kp.find((k) => k.name === "left_ankle");
-
         if (hip && knee && ankle) {
           const a = angle(hip, knee, ankle);
           const score = Math.max(0, 100 - Math.abs(a - 90));
@@ -184,10 +175,9 @@ export default function Magic16() {
     }
   }, [stepIndex]);
 
-  // -------- TIMER --------
+  // -------------------- Timer --------------------
   const start = () => {
     if (playing) return;
-
     speak(steps[stepIndex]?.text);
     setPlaying(true);
 
@@ -209,7 +199,7 @@ export default function Magic16() {
               finish();
               return i;
             }
-            if (next >= 8 && meditationAudio) playAudio(meditationAudio);
+            if (next >= yogaSteps.length && meditationAudio) playAudio(meditationAudio);
             setStepTime(steps[next]?.duration || 60);
             speak(steps[next]?.text);
             return next;
@@ -242,8 +232,6 @@ export default function Magic16() {
 
   const finish = () => {
     stop();
-
-    // Completion beep
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audioCtx.createOscillator();
     oscillator.type = "sine";
@@ -252,15 +240,13 @@ export default function Magic16() {
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + 0.2);
 
-    // Confetti
     confetti({ particleCount: 200, spread: 90, origin: { y: 0.6 } });
-
     setCompleted(true);
   };
 
-  const format = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const format = (s) => `${String(Math.floor(s / 60)).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
 
-  // ---------------- RESULT ----------------
+  // -------------------- Result Overlay --------------------
   if (completed) {
     return (
       <div className="result-overlay fade-in">
@@ -274,7 +260,7 @@ export default function Magic16() {
     );
   }
 
-  // ---------------- MAIN UI ----------------
+  // -------------------- Main UI --------------------
   return (
     <div className="magic16-container">
       {loading && <div className="loading-screen"><h2>Initializing AI Ritual...</h2></div>}
