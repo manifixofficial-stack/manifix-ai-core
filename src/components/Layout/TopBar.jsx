@@ -11,10 +11,12 @@ const TopBar = () => {
 
   return (
     <header style={styles.header}>
+      {/* Left: Logo */}
       <div style={styles.left}>
         <h1 style={styles.logo}>ManifiX</h1>
       </div>
 
+      {/* Right: User Info */}
       <div style={styles.right}>
         <span style={styles.username}>@{username}</span>
         <div style={styles.avatar}>
@@ -30,40 +32,56 @@ const styles = {
     position: "sticky",
     top: 0,
     zIndex: 100,
-    height: "60px",
+    height: "64px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "0 1rem",
-    backdropFilter: "blur(12px)",
-    background: "rgba(255,255,255,0.8)",
+    padding: "0 1.5rem",
+    background: "rgba(255,255,255,0.95)",
+    backdropFilter: "blur(16px)",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
     borderBottom: "1px solid #e5e7eb",
+    transition: "background 0.3s ease, box-shadow 0.3s ease",
+    fontFamily: "'Inter', sans-serif",
   },
   logo: {
-    fontSize: "1.4rem",
+    fontSize: "1.6rem",
     fontWeight: 800,
-    letterSpacing: "-0.5px",
+    letterSpacing: "-1px",
+    color: "#4f46e5", // vibrant, premium purple
+    cursor: "pointer",
+    userSelect: "none",
+    transition: "transform 0.2s ease",
+  },
+  left: {
+    display: "flex",
+    alignItems: "center",
   },
   right: {
     display: "flex",
     alignItems: "center",
-    gap: "0.6rem",
+    gap: "0.8rem",
   },
   username: {
-    fontSize: "0.85rem",
+    fontSize: "0.9rem",
     color: "#6b7280",
+    fontWeight: 500,
+    whiteSpace: "nowrap",
   },
   avatar: {
-    width: "32px",
-    height: "32px",
+    width: "36px",
+    height: "36px",
     borderRadius: "50%",
     background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
     color: "#fff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontWeight: 600,
-    fontSize: "0.9rem",
+    fontWeight: 700,
+    fontSize: "1rem",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+    cursor: "pointer",
   },
 };
 
