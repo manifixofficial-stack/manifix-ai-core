@@ -1,7 +1,7 @@
 // src/components/Layout/MainLayout.jsx
 import React from "react";
 import { Outlet, NavLink } from "react-router-dom";
-import "../styles/MainLayout.css";
+import "../../styles/MainLayout.css";
 import Logo from "../../assets/logo.png";
 
 export default function MainLayout() {
