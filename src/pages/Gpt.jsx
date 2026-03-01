@@ -5,7 +5,15 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
-import Icons from "../assets/icons";
+// Direct icon imports
+import ChatIcon from "../assets/icons/chat_icon.png";
+import SendIcon from "../assets/icons/send.png";
+import MicIcon from "../assets/icons/mic.png";
+import StopIcon from "../assets/icons/stop.png";
+import UploadIcon from "../assets/icons/feed_icon.png"; // or your paperclip icon
+import Magic16Icon from "../assets/icons/magic16.png";
+import ProfileIcon from "../assets/icons/profile_icon.png";
+import Logo from "../assets/logo.png"; // ManifiX logo
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 
 // Toast Component
@@ -176,9 +184,10 @@ export default function Gpt() {
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
 
       <header className="gpt-header">
-        <img src={Icons.chat} alt="ManifiX Logo" className="gpt-logo" />
-        <h1>ManifiX</h1>
-      </header>
+  <img src={Logo} alt="ManifiX Logo" className="gpt-logo" />
+  <h1>ManifiX</h1>
+</header>
+
 
       <main className="gpt-main" ref={chatContainer}>
         {messages.map(msg => (
@@ -219,33 +228,31 @@ export default function Gpt() {
       </main>
 
       <footer className="gpt-footer">
-        <button id="micBtn" onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
-        </button>
+  <button id="micBtn" onClick={handleMic} className={listening ? "recording" : ""}>
+    <img src={listening ? StopIcon : MicIcon} alt="Mic Icon" />
+  </button>
 
-        <textarea
-          rows={1}
-          style={{ resize: "none", overflowY: "hidden" }}
-          value={input}
-          onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Your ManifiX Anything…"
-          aria-label="Chat input"
-        />
+       <textarea
+    rows={1}
+    value={input}
+    onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
+    onKeyDown={handleKeyDown}
+    placeholder="Ask Your ManifiX Anything…"
+  />
 
-        <label className="upload-btn" aria-label="Upload File">
-          📎
-          <input type="file" onChange={handleUpload} disabled={uploading} />
-        </label>
+       <label className="footer-btn upload-btn" aria-label="Upload File">
+  <img src={UploadIcon} alt="Upload File" />
+  <input type="file" onChange={handleUpload} disabled={uploading} />
+</label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
-          <img src={Icons.send} alt="Send" />
-        </button>
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary">
+    <img src={SendIcon} alt="Send" />
+  </button>
 
-        <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
-          {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
-        </button>
-      </footer>
+  <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)}>
+    {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+  </button>
+</footer>
     </div>
   );
 }
