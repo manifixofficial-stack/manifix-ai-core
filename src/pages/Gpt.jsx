@@ -7,6 +7,7 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
 import Icons from "../assets/icons"; // mic, send, stop, upload icons
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+import Logo from "../assets/logo.png"; // at the top of your file
 
 // -------------------- Toast Component --------------------
 const Toast = ({ message, onClose }) => (
@@ -208,15 +209,11 @@ export default function Gpt() {
         ))}
       </main>
 
-      <footer className="gpt-footer">
-        <button
-          id="micBtn"
-          onClick={handleMic}
-          className={listening ? "recording" : ""}
-          aria-label={listening ? "Stop Recording" : "Start Recording"}
-        >
-          <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
-        </button>
+    {/* Footer with emojis */}
+<footer className="gpt-footer">
+  <button onClick={handleMic} className={listening ? "recording" : ""} aria-label="Mic">
+    {listening ? "🛑" : "🎤"}
+  </button>
 
         <textarea
           rows={1}
@@ -228,14 +225,15 @@ export default function Gpt() {
           aria-label="Chat input"
         />
 
-       <label className="upload-btn" aria-label="Upload File">
-  <img src={Icons.upload} alt="Upload File" />
-  <input type="file" onChange={handleUpload} disabled={uploading} />
-</label>
+      <label className="upload-btn" aria-label="Upload File">
+    📤
+    <input type="file" onChange={handleUpload} disabled={uploading} />
+  </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
-          <img src={Icons.send} alt="Send" />
-        </button>
+       <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">
+    ➤
+  </button>
+
 
         <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
