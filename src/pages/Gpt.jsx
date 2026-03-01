@@ -119,66 +119,86 @@ export default function Gpt() {
   };
 
   // ---------- Send Message ----------
-  const sendMessage = async (msg, isFile = false) => {
-    if (!msg) return;
-    stopSpeaking();
+const sendMessage = async (msg, isFile = false) => {
+  if (!msg) return;
+  stopSpeaking();
 
-    const userMsg = { content: msg, role: "user", timestamp: Date.now(), type: isFile ? "file" : "text" };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-
-    const thinkingMsg = { content: "ManifiX is thinking...", role: "bot", type: "thinking", timestamp: Date.now() };
-    setMessages(prev => [...prev, thinkingMsg]);
-
-    try {
-      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg }, { timeout: 15000 });
-      const replyText = response.data.reply || "I’m here with you 🤍";
-
-      setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
-
-      // Typing animation
-      let idx = 0;
-      const replyMsg = { content: "", role: "bot", timestamp: Date.now(), type: "text" };
-      setMessages(prev => [...prev, replyMsg]);
-
-      const interval = setInterval(() => {
-        if (idx < replyText.length) {
-          replyMsg.content += replyText[idx];
-          setMessages(prev => [...prev.filter(m => m.timestamp !== replyMsg.timestamp), replyMsg]);
-          idx++;
-        } else {
-          clearInterval(interval);
-          speak(replyText);
-        }
-      }, 25);
-    } catch (error) {
-  setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
-
-  console.error("CHAT ERROR:", error);
-
-  let errorMsg = "❌ Backend not reachable.";
-
-  if (error.response) {
-    // Server responded with error status
-    errorMsg = `❌ Server Error: ${error.response.status}`;
-  } else if (error.request) {
-    // Request made but no response
-    errorMsg = "❌ No response from backend.";
-  } else {
-    // Something else
-    errorMsg = `❌ Error: ${error.message}`;
-  }
-
-  showToast(errorMsg, () => sendMessage(msg, isFile));
-
-  setMessages(prev => [
-    ...prev,
-    { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }
-  ]);
-
-  if (voiceEnabled) speak(errorMsg);
-}
+  const userMsg = {
+    content: msg,
+    role: "user",
+    timestamp: Date.now(),
+    type: isFile ? "file" : "text",
   };
+
+  setMessages(prev => [...prev, userMsg]);
+  setInput("");
+
+  const thinkingMsg = {
+    content: "ManifiX is thinking...",
+    role: "bot",
+    type: "thinking",
+    timestamp: Date.now(),
+  };
+
+  setMessages(prev => [...prev, thinkingMsg]);
+
+  try {
+    // 🔥 CALL YOUR BACKEND (NOT OPENROUTER DIRECTLY)
+    const response = await axios.post(
+      "https://YOUR-RAILWAY-URL.up.railway.app/chat", // 👈 CHANGE THIS
+      { message: msg }
+    );
+
+    const replyText = response.data.reply;
+
+    // Remove thinking message
+    setMessages(prev =>
+      prev.filter(m => m.timestamp !== thinkingMsg.timestamp)
+    );
+
+    // Typing animation
+    let idx = 0;
+    const replyMsg = {
+      content: "",
+      role: "bot",
+      timestamp: Date.now(),
+      type: "text",
+    };
+
+    setMessages(prev => [...prev, replyMsg]);
+
+    const interval = setInterval(() => {
+      if (idx < replyText.length) {
+        replyMsg.content += replyText[idx];
+        setMessages(prev => [
+          ...prev.filter(m => m.timestamp !== replyMsg.timestamp),
+          { ...replyMsg }
+        ]);
+        idx++;
+      } else {
+        clearInterval(interval);
+        if (voiceEnabled) speak(replyText);
+      }
+    }, 25);
+
+  } catch (error) {
+    console.error("Chat error:", error);
+
+    const errorMsg = "❌ Server Error. Please try again.";
+
+    setMessages(prev => [
+      ...prev.filter(m => m.timestamp !== thinkingMsg.timestamp),
+      {
+        content: errorMsg,
+        role: "bot",
+        type: "text",
+        timestamp: Date.now(),
+      },
+    ]);
+
+    if (voiceEnabled) speak(errorMsg);
+  }
+};
   // ---------- File Upload ----------
   const handleUpload = async (e) => {
     const file = e.target.files[0];
