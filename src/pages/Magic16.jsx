@@ -295,7 +295,6 @@ export default function Magic16() {
           <button className="start-btn" onClick={start} disabled={loading}>Start</button>
         ) : (
           <button className="pause-btn" onClick={stop}>Pause</button>
-      <button onClick={() => copySessionLink()} title="Share Magic16 Session">🔗 Share</button>
         )}
       </div>
 
