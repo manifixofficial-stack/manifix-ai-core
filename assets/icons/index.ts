@@ -4,7 +4,6 @@ export const icons = {
 };
 const PngIcons = {
   // Core
-  manifix: require('./ManifiX_icon.png'),
   home: require('./home_icon.png'),
   feed: require('./feed_icon.png'),
   profile: require('./profile_icon.png'),
@@ -13,7 +12,7 @@ const PngIcons = {
   // Chat
   chat: require('./chat_icon.png'),
   send: require('./send.png'),
-  microphone: require('./microphone_icon.png'),
+  microphone: require('./microphone_.png'),
   stop: require('./stop.png'),
   warning: require('./warning.png'),
 
