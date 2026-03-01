@@ -1,0 +1,158 @@
+/* src/styles/BottomNav.css */
+
+/* =======================
+   MOBILE NAV CONTAINER
+   ======================= */
+nav.md\\:hidden {
+  display: flex;
+  justify-content: center;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+}
+
+/* =======================
+   GLASS FLOATING DOCK
+   ======================= */
+.bottom-dock {
+  position: relative;
+  width: 95%;
+  max-width: 400px;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 1.875rem; /* rounded-3xl */
+  backdrop-filter: blur(24px);
+  background-color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  transition: all 0.3s ease-in-out;
+}
+
+.dark .bottom-dock {
+  background-color: rgba(39, 39, 42, 0.8);
+  border: 1px solid rgba(55, 55, 55, 0.4);
+}
+
+/* =======================
+   NAV ITEM
+   ======================= */
+.bottom-dock a {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  font-size: 11px;
+  transition: all 0.3s ease-in-out;
+}
+
+.bottom-dock a img {
+  height: 24px;
+  width: 24px;
+  transition: all 0.3s ease-in-out;
+}
+
+.bottom-dock a span {
+  margin-top: 0.25rem;
+  transition: all 0.3s ease-in-out;
+}
+
+/* =======================
+   ACTIVE ITEM GLOW
+   ======================= */
+.bottom-dock a.active::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem;
+  border-radius: 1rem;
+  background-color: rgba(99, 102, 241, 0.1); /* indigo-500/10 */
+  filter: blur(8px);
+  z-index: 0;
+}
+
+.bottom-dock a.active img {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.bottom-dock a.active span {
+  color: #4f46e5; /* indigo-600 */
+  font-weight: 600;
+}
+
+.dark .bottom-dock a.active span {
+  color: #818cf8; /* indigo-400 */
+}
+
+/* =======================
+   INACTIVE ITEM
+   ======================= */
+.bottom-dock a img {
+  opacity: 0.6;
+}
+
+.dark .bottom-dock a img {
+  opacity: 0.7;
+}
+
+.bottom-dock a span {
+  color: #6b7280; /* gray-500 */
+}
+
+.dark .bottom-dock a span {
+  color: #9ca3af; /* gray-400 */
+}
+
+/* =======================
+   CENTER FLOATING GPT BUTTON
+   ======================= */
+.center-btn {
+  position: absolute;
+  top: -2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 4rem;
+  width: 4rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom right, #6366f1, #4f46e5);
+  box-shadow: 0 8px 25px rgba(79,70,229,0.6);
+  transition: all 0.3s ease-in-out;
+}
+
+.center-btn img {
+  height: 1.75rem;
+  width: 1.75rem;
+  filter: brightness(0) invert(1);
+}
+
+.center-btn:hover {
+  transform: translateX(-50%) scale(1.1);
+}
+
+.center-btn:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+/* =======================
+   DARK MODE BUTTON
+   ======================= */
+.dark .center-btn {
+  background: linear-gradient(to bottom right, #818cf8, #4f46e5);
+}
+
+/* =======================
+   RESPONSIVE
+   ======================= */
+@media(min-width: 768px) {
+  nav.md\\:hidden {
+    display: none;
+  }
+}
