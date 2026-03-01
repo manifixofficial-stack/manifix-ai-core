@@ -1,68 +1,137 @@
-// src/components/Layout/MainLayout.jsx
-import React from "react";
-import { Outlet, NavLink } from "react-router-dom";
-import "../styles/MainLayout.css";
-import Logo from "../../assets/logo.png";
+/* src/styles/MainLayout.css */
 
-export default function MainLayout() {
-  return (
-    <div className="main-layout">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-top">
-          <img src={Logo} alt="ManifiX Logo" className="sidebar-logo" />
-          <h2>ManifiX</h2>
-        </div>
+/* -------------------- Base Layout -------------------- */
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: #1e1e2f; /* dark premium background */
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+}
 
-        <nav className="sidebar-nav">
-          <NavLink
-            to="/billing"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            💳 Billing
-          </NavLink>
-          <NavLink
-            to="/gpt"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            💬 GPT
-          </NavLink>
-          <NavLink
-            to="/magic16"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            🔮 Magic16
-          </NavLink>
-          <NavLink
-            to="/profile"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            👤 Profile
-          </NavLink>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            ⚙️ Settings
-          </NavLink>
-        </nav>
+/* -------------------- Sidebar -------------------- */
+.sidebar {
+  width: 220px;
+  background-color: #2c2c3a; /* darker sidebar */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.5rem 1rem;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+  transition: width 0.3s ease;
+}
 
-        {/* Sidebar bottom: optional share / extra */}
-        <div className="sidebar-bottom">
-          <button
-            className="share-btn"
-            onClick={() => navigator.clipboard.writeText(window.location.href)}
-            title="Share Current Page"
-          >
-            🔗 Share
-          </button>
-        </div>
-      </aside>
+.sidebar-logo {
+  width: 50px;
+  margin-bottom: 0.5rem;
+  border-radius: 10px;
+}
 
-      {/* Main content */}
-      <main className="layout-content">
-        <Outlet />
-      </main>
-    </div>
-  );
+.sidebar-top h2 {
+  font-size: 1.2rem;
+  margin-bottom: 2rem;
+  font-weight: 600;
+}
+
+/* -------------------- Navigation Buttons -------------------- */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  border-radius: 0.6rem;
+  text-decoration: none;
+  color: #c0c0c0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+.nav-btn:hover {
+  background-color: #4f4f7a;
+  color: #fff;
+  transform: translateX(3px);
+}
+
+.nav-btn.active {
+  background-color: #6e6eb5;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 0 10px #6e6eb5aa;
+}
+
+/* -------------------- Sidebar Bottom -------------------- */
+.sidebar-bottom {
+  margin-top: auto;
+}
+
+.share-btn {
+  width: 100%;
+  padding: 0.6rem 0;
+  border-radius: 0.6rem;
+  border: none;
+  background-color: #6e6eb5;
+  color: #fff;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.share-btn:hover {
+  background-color: #8c8cd9;
+  box-shadow: 0 0 8px #8c8cd9aa;
+}
+
+/* -------------------- Main Content -------------------- */
+.layout-content {
+  flex: 1;
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #1e1e2f, #14141f);
+}
+
+/* -------------------- Scrollbar Styling -------------------- */
+.layout-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.layout-content::-webkit-scrollbar-thumb {
+  background-color: #5a5a7f;
+  border-radius: 4px;
+}
+
+.layout-content::-webkit-scrollbar-track {
+  background-color: #1e1e2f;
+}
+
+/* -------------------- Responsive -------------------- */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 60px;
+    padding: 1rem 0.5rem;
+  }
+
+  .sidebar-top h2 {
+    display: none;
+  }
+
+  .nav-btn {
+    justify-content: center;
+    padding: 0.7rem 0;
+    gap: 0;
+  }
+
+  .nav-btn span {
+    display: none;
+  }
+
+  .share-btn {
+    display: none;
+  }
 }
