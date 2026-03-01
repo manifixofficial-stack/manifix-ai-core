@@ -131,7 +131,7 @@ export default function Gpt() {
     setMessages(prev => [...prev, thinkingMsg]);
 
     try {
-      const response = await axios.post(`${API_BASE}/chat`, { message: msg }, { timeout: 15000 });
+      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg }, { timeout: 15000 });
       const replyText = response.data.reply || "I’m here with you 🤍";
 
       setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
