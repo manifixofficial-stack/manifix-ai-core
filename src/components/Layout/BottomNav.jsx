@@ -1,64 +1,57 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
+import Icons from "../../assets/icons";
 
 const navItems = [
-  { path: "/dashboard", label: "Home", icon: "🏠" },
-  { path: "/magic16", label: "Magic16", icon: "✨" },
-  { path: "/gpt", label: "GPT", icon: "🤖" },
-  { path: "/vibe", label: "Vibe", icon: "🌊" },
-  { path: "/profile", label: "Profile", icon: "👤" },
+  { path: "/app/dashboard", label: "Home", icon: Icons.home },
+  { path: "/app/magic16", label: "Magic16", icon: Icons.magic16 },
+  { path: "/app/gpt", label: "GPT", icon: Icons.chat },
+  { path: "/app/profile", label: "Profile", icon: Icons.profile },
 ];
 
-const BottomNav = () => {
+export default function BottomNav() {
+  const location = useLocation();
+
   return (
-    <nav style={styles.nav}>
-      {navItems.map((item) => (
-        <NavLink
-          key={item.path}
-          to={item.path}
-          style={({ isActive }) => ({
-            ...styles.link,
-            color: isActive ? "#6366f1" : "#6b7280",
-            fontWeight: isActive ? 600 : 500,
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+      <div className="backdrop-blur-xl bg-white/90 border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        <div className="flex justify-around items-center h-16 px-4 pb-safe">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className="flex flex-col items-center justify-center text-xs transition-all duration-300"
+              >
+                {/* Active Indicator */}
+                {isActive && (
+                  <span className="absolute top-0 h-1 w-8 rounded-full bg-indigo-600" />
+                )}
+
+                <img
+                  src={item.icon}
+                  alt={item.label}
+                  className={`h-6 w-6 transition-all duration-300 ${
+                    isActive ? "opacity-100 scale-110" : "opacity-60"
+                  }`}
+                />
+
+                <span
+                  className={`mt-1 text-[11px] ${
+                    isActive
+                      ? "text-indigo-600 font-semibold"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </NavLink>
+            );
           })}
-        >
-          <span style={styles.icon}>{item.icon}</span>
-          <span style={styles.label}>{item.label}</span>
-        </NavLink>
-      ))}
+        </div>
+      </div>
     </nav>
   );
-};
-
-const styles = {
-  nav: {
-    position: "fixed",
-    bottom: 0,
-    width: "100%",
-    height: "70px",
-    display: "flex",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backdropFilter: "blur(15px)",
-    background: "rgba(255,255,255,0.9)",
-    borderTop: "1px solid #e5e7eb",
-    paddingBottom: "env(safe-area-inset-bottom)",
-  },
-  link: {
-    textDecoration: "none",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    fontSize: "0.75rem",
-    transition: "all 0.2s ease",
-  },
-  icon: {
-    fontSize: "1.4rem",
-    marginBottom: "2px",
-  },
-  label: {
-    fontSize: "0.7rem",
-  },
-};
-
-export default BottomNav;
+}
