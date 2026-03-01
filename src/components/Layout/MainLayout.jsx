@@ -1,68 +1,72 @@
-// src/components/Layout/MainLayout.jsx
-import React from "react";
-import { Outlet, NavLink } from "react-router-dom";
-import "../../styles/MainLayout.css";
-import Logo from "../../assets/logo.png";
+import React, { useState } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import "../../styles/MainLayout.css"; // Correct path
 
 export default function MainLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [showOptions, setShowOptions] = useState(false);
+  const [groupChatOpen, setGroupChatOpen] = useState(false);
+
+  const isChatPage = location.pathname === "/gpt";
+  const isBillingPage = location.pathname === "/billing";
+  const isMagic16Page = location.pathname === "/magic16";
+
   return (
     <div className="main-layout">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-top">
-          <img src={Logo} alt="ManifiX Logo" className="sidebar-logo" />
-          <h2>ManifiX</h2>
-        </div>
+      {/* Top Header */}
+      <header className="main-header">
+        <h1 className="logo" onClick={() => navigate("/")}>
+          ManifiX
+        </h1>
 
-        <nav className="sidebar-nav">
-          <NavLink
-            to="/billing"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            💳 Billing
-          </NavLink>
-          <NavLink
-            to="/gpt"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            💬 GPT
-          </NavLink>
-          <NavLink
-            to="/magic16"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            🔮 Magic16
-          </NavLink>
-          <NavLink
-            to="/profile"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            👤 Profile
-          </NavLink>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-          >
-            ⚙️ Settings
-          </NavLink>
-        </nav>
-
-        {/* Sidebar bottom: optional share / extra */}
-        <div className="sidebar-bottom">
-          <button
-            className="share-btn"
-            onClick={() => navigator.clipboard.writeText(window.location.href)}
-            title="Share Current Page"
-          >
-            🔗 Share
-          </button>
+        {/* Contextual right buttons */}
+        <div className="header-actions">
+          {isChatPage && (
+            <button className="add-chat-btn" title="New Chat">
+              ➕
+            </button>
+          )}
+          {isBillingPage && (
+            <>
+              <button className="premium-btn">⭐ Premium</button>
+              <div className="more-options">
+                <button
+                  onClick={() => setShowOptions(prev => !prev)}
+                  aria-label="More options"
+                >
+                  ⋮
+                </button>
+                {showOptions && (
+                  <div className="dropdown">
+                    <button onClick={() => alert("Share Chat")}>📤 Share</button>
+                    <button onClick={() => alert("Start Group Chat")}>
+                      👥 Group Chat
+                    </button>
+                    <button onClick={() => alert("Delete Chat")}>🗑 Delete</button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {isMagic16Page && (
+            <button className="magic16-btn" title="Magic16">
+              ✨ Magic16
+            </button>
+          )}
         </div>
-      </aside>
+      </header>
 
       {/* Main content */}
-      <main className="layout-content">
+      <main className="main-content">
         <Outlet />
       </main>
+
+      {/* Optional footer */}
+      <footer className="main-footer">
+        <span>© {new Date().getFullYear()} ManifiX</span>
+      </footer>
     </div>
   );
 }
