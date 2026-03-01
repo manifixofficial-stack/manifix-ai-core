@@ -5,17 +5,10 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
-
-// Direct icon imports
-import ChatIcon from "../assets/icons/chat_icon.png";
-import SendIcon from "../assets/icons/send.png";
-import MicIcon from "../assets/icons/mic.png";
-import StopIcon from "../assets/icons/stop.png";
-import UploadIcon from "../assets/icons/feed_icon.png";
-import Logo from "../assets/logo.png";
+import Icons from "../assets/icons"; // mic, send, stop, upload icons
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 
-// Toast component
+// -------------------- Toast Component --------------------
 const Toast = ({ message, onClose }) => (
   <div className="toast">
     {message}
@@ -43,7 +36,6 @@ export default function Gpt() {
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
-
     const rec = new SpeechRecognition();
     rec.lang = "en-IN";
     rec.interimResults = false;
@@ -55,7 +47,7 @@ export default function Gpt() {
     rec.onerror = (e) => {
       setListening(false);
       showToast(`STT Error: ${e.error}`);
-      if (voiceEnabled) speak(`Speech recognition failed: ${e.error}`);
+      if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
     };
     rec.onend = () => setListening(false);
   }, [voiceEnabled]);
@@ -79,7 +71,6 @@ export default function Gpt() {
     window.speechSynthesis.speak(utterance);
     ttsRef.current = utterance;
   };
-
   const stopSpeaking = () => {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   };
@@ -115,7 +106,6 @@ export default function Gpt() {
 
       setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
 
-      // Typing animation
       let idx = 0;
       const replyMsg = { content: "", role: "bot", timestamp: Date.now(), type: "text" };
       setMessages(prev => [...prev, replyMsg]);
@@ -168,13 +158,6 @@ export default function Gpt() {
     }
   };
 
-  // -------------------- Markdown Renderer --------------------
-  const renderers = {
-    code({ language, value }) {
-      return <SyntaxHighlighter style={oneDark} language={language} children={value} />;
-    }
-  };
-
   return (
     <div
       className="gpt-app theme-purple"
@@ -182,30 +165,28 @@ export default function Gpt() {
     >
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
 
-      {/* Header */}
       <header className="gpt-header">
-        <img src={Logo} alt="ManifiX Logo" className="gpt-logo" />
+        <img src={Icons.chat} alt="ManifiX Logo" className="gpt-logo" />
         <h1>ManifiX</h1>
       </header>
 
-      {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map(msg => (
           <div key={msg.timestamp} className={`message-row ${msg.role}`}>
-            <div className={`message-bubble ${msg.role === "bot" ? "bot-bubble" : "user-bubble"} fade-in`}>
-              {msg.isFile ? (
-                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  📎 {msg.content.split("/").pop()}
-                </a>
-              ) : msg.type === "thinking" ? (
+            <div className="message-bubble fade-in">
+              {msg.type === "thinking" ? (
                 <div role="status" aria-live="polite" className="typing-indicator">
                   {msg.content}<span className="dots">...</span>
                 </div>
+              ) : msg.isFile ? (
+                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
+                  📎 {msg.content.split("/").pop()}
+                </a>
               ) : (
                 <ReactMarkdown
                   children={msg.content}
                   components={{
-                    code({node, inline, className, children, ...props}) {
+                    code({ node, inline, className, children, ...props }) {
                       const match = /language-(\w+)/.exec(className || '');
                       return !inline && match ? (
                         <SyntaxHighlighter
@@ -227,33 +208,36 @@ export default function Gpt() {
         ))}
       </main>
 
-      {/* Footer */}
       <footer className="gpt-footer">
-        <button id="micBtn" onClick={handleMic} className={`footer-btn ${listening ? "recording" : ""}`}>
-          <img src={listening ? StopIcon : MicIcon} alt="Mic Icon" />
-          <span>Mic</span>
+        <button
+          id="micBtn"
+          onClick={handleMic}
+          className={listening ? "recording" : ""}
+          aria-label={listening ? "Stop Recording" : "Start Recording"}
+        >
+          <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
         </button>
 
         <textarea
           rows={1}
+          style={{ resize: "none", overflowY: "hidden" }}
           value={input}
           onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
           onKeyDown={handleKeyDown}
           placeholder="Ask Your ManifiX Anything…"
+          aria-label="Chat input"
         />
 
-        <label className="footer-btn upload-btn" aria-label="Upload File">
-          <img src={UploadIcon} alt="Upload File" />
-          <span>Upload</span>
+        <label className="upload-btn" aria-label="Upload File">
+          📎
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="footer-btn primary">
-          <img src={SendIcon} alt="Send" />
-          <span>Send</span>
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
+          <img src={Icons.send} alt="Send" />
         </button>
 
-        <button className="footer-btn toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)}>
+        <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
         </button>
       </footer>
