@@ -228,10 +228,10 @@ export default function Gpt() {
           aria-label="Chat input"
         />
 
-        <label className="upload-btn" aria-label="Upload File">
-          📎
-          <input type="file" onChange={handleUpload} disabled={uploading} />
-        </label>
+       <label className="upload-btn" aria-label="Upload File">
+  <img src={Icons.upload} alt="Upload File" />
+  <input type="file" onChange={handleUpload} disabled={uploading} />
+</label>
 
         <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
           <img src={Icons.send} alt="Send" />
