@@ -23,12 +23,17 @@ const Toast = ({ message, onClose, retry }) => (
 );
 
 const API_BASE = "https://manifix.up.railway.app";
-
+const defaultWelcome = {
+  content: `Hii ❤️ I’m ManifiX,I’m here with you ✨`,
+  role: "bot",
+  timestamp: Date.now(),
+  type: "text"
+};
 export default function Gpt() {
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("chatMessages");
-    return saved ? JSON.parse(saved) : [];
-  });
+ const [messages, setMessages] = useState(() => {
+  const saved = localStorage.getItem("chatMessages");
+  return saved ? JSON.parse(saved) : [defaultWelcome];
+});
   const [input, setInput] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [listening, setListening] = useState(false);
