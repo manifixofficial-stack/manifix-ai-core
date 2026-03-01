@@ -5,18 +5,17 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
+
 // Direct icon imports
 import ChatIcon from "../assets/icons/chat_icon.png";
 import SendIcon from "../assets/icons/send.png";
 import MicIcon from "../assets/icons/mic.png";
 import StopIcon from "../assets/icons/stop.png";
-import UploadIcon from "../assets/icons/feed_icon.png"; // or your paperclip icon
-import Magic16Icon from "../assets/icons/magic16.png";
-import ProfileIcon from "../assets/icons/profile_icon.png";
-import Logo from "../assets/logo.png"; // ManifiX logo
+import UploadIcon from "../assets/icons/feed_icon.png";
+import Logo from "../assets/logo.png";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 
-// Toast Component
+// Toast component
 const Toast = ({ message, onClose }) => (
   <div className="toast">
     {message}
@@ -43,22 +42,22 @@ export default function Gpt() {
   // -------------------- Speech Recognition --------------------
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const rec = new SpeechRecognition();
-      rec.lang = "en-IN";
-      rec.interimResults = false;
-      rec.continuous = false;
-      recognitionRef.current = rec;
+    if (!SpeechRecognition) return;
 
-      rec.onstart = () => setListening(true);
-      rec.onresult = (e) => setInput(e.results[0][0].transcript);
-      rec.onerror = (e) => {
-        setListening(false);
-        showToast(`STT Error: ${e.error}`);
-        if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
-      };
-      rec.onend = () => setListening(false);
-    }
+    const rec = new SpeechRecognition();
+    rec.lang = "en-IN";
+    rec.interimResults = false;
+    rec.continuous = false;
+    recognitionRef.current = rec;
+
+    rec.onstart = () => setListening(true);
+    rec.onresult = (e) => setInput(e.results[0][0].transcript);
+    rec.onerror = (e) => {
+      setListening(false);
+      showToast(`STT Error: ${e.error}`);
+      if (voiceEnabled) speak(`Speech recognition failed: ${e.error}`);
+    };
+    rec.onend = () => setListening(false);
   }, [voiceEnabled]);
 
   // -------------------- Scroll & Persist --------------------
@@ -183,16 +182,17 @@ export default function Gpt() {
     >
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
 
+      {/* Header */}
       <header className="gpt-header">
-  <img src={Logo} alt="ManifiX Logo" className="gpt-logo" />
-  <h1>ManifiX</h1>
-</header>
+        <img src={Logo} alt="ManifiX Logo" className="gpt-logo" />
+        <h1>ManifiX</h1>
+      </header>
 
-
+      {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map(msg => (
           <div key={msg.timestamp} className={`message-row ${msg.role}`}>
-            <div className="message-bubble fade-in">
+            <div className={`message-bubble ${msg.role === "bot" ? "bot-bubble" : "user-bubble"} fade-in`}>
               {msg.isFile ? (
                 <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
                   📎 {msg.content.split("/").pop()}
@@ -227,32 +227,36 @@ export default function Gpt() {
         ))}
       </main>
 
+      {/* Footer */}
       <footer className="gpt-footer">
-  <button id="micBtn" onClick={handleMic} className={listening ? "recording" : ""}>
-    <img src={listening ? StopIcon : MicIcon} alt="Mic Icon" />
-  </button>
+        <button id="micBtn" onClick={handleMic} className={`footer-btn ${listening ? "recording" : ""}`}>
+          <img src={listening ? StopIcon : MicIcon} alt="Mic Icon" />
+          <span>Mic</span>
+        </button>
 
-       <textarea
-    rows={1}
-    value={input}
-    onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
-    onKeyDown={handleKeyDown}
-    placeholder="Ask Your ManifiX Anything…"
-  />
+        <textarea
+          rows={1}
+          value={input}
+          onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask Your ManifiX Anything…"
+        />
 
-       <label className="footer-btn upload-btn" aria-label="Upload File">
-  <img src={UploadIcon} alt="Upload File" />
-  <input type="file" onChange={handleUpload} disabled={uploading} />
-</label>
+        <label className="footer-btn upload-btn" aria-label="Upload File">
+          <img src={UploadIcon} alt="Upload File" />
+          <span>Upload</span>
+          <input type="file" onChange={handleUpload} disabled={uploading} />
+        </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary">
-    <img src={SendIcon} alt="Send" />
-  </button>
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="footer-btn primary">
+          <img src={SendIcon} alt="Send" />
+          <span>Send</span>
+        </button>
 
-  <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)}>
-    {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
-  </button>
-</footer>
+        <button className="footer-btn toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)}>
+          {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+        </button>
+      </footer>
     </div>
   );
 }
