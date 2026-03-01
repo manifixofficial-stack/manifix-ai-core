@@ -1,224 +1,258 @@
-/* ===============================
-   GLOBAL CONTAINER
-================================ */
-
+/* -------------------- Global -------------------- */
 .magic16-container {
   position: relative;
   width: 100%;
   height: 100vh;
-  background: radial-gradient(circle at top, #0f0f0f, #000);
-  color: white;
-  overflow: hidden;
+  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   font-family: 'Inter', sans-serif;
-  text-align: center;
+  overflow: hidden;
 }
 
-/* ===============================
-   LOGO
-================================ */
-
-.magic16-logo {
-  width: 140px;
-  margin-top: 20px;
-  opacity: 0.9;
-}
-
-/* ===============================
-   CAMERA
-================================ */
-
-.camera-feed {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.15;
-  z-index: 0;
-}
-
-/* ===============================
-   PROGRESS BAR
-================================ */
-
-.progress-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 6px;
-  width: 100%;
-  background: rgba(255,255,255,0.1);
-  z-index: 5;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, gold, orange);
-  transition: width 0.4s ease;
-}
-
-/* ===============================
-   STEP DISPLAY
-================================ */
-
-.step-display {
-  position: relative;
-  margin-top: 80px;
-  z-index: 2;
-}
-
-.step-display img {
-  width: 220px;
-  margin-bottom: 20px;
-  filter: drop-shadow(0 0 20px rgba(255,215,0,0.4));
-}
-
-.step-display h2 {
-  font-weight: 500;
-  letter-spacing: 1px;
-  opacity: 0.9;
-}
-
-/* ===============================
-   STEP COUNTER
-================================ */
-
-.step-counter {
-  margin-top: 15px;
-  font-size: 14px;
-  opacity: 0.7;
-}
-
-/* ===============================
-   LIVE SCORE
-================================ */
-
-.live-score {
-  margin-top: 20px;
-  z-index: 2;
-}
-
-.live-score h1 {
-  font-size: 50px;
-  color: gold;
-  text-shadow: 0 0 20px gold;
-}
-
-/* ===============================
-   TIMER
-================================ */
-
-.timer {
-  margin-top: 30px;
-  font-size: 28px;
-  font-weight: bold;
-  letter-spacing: 2px;
-}
-
-/* ===============================
-   BUTTONS
-================================ */
-
-.controls {
-  margin-top: 30px;
-}
-
-.start-btn,
-.pause-btn,
-.result-card button {
-  padding: 12px 28px;
-  border-radius: 30px;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: linear-gradient(135deg, gold, orange);
-  color: black;
-  font-weight: 600;
-}
-
-.start-btn:hover,
-.pause-btn:hover,
-.result-card button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(255,215,0,0.6);
-}
-
-/* ===============================
-   LOADING & ERROR
-================================ */
-
+/* -------------------- Loading / Error -------------------- */
 .loading-screen,
 .error-screen {
   position: absolute;
   inset: 0;
-  background: #000;
+  background: rgba(255,255,255,0.95);
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   z-index: 100;
+  text-align: center;
 }
 
-/* ===============================
-   RESULT OVERLAY
-================================ */
+.loading-screen h2,
+.error-screen h2 {
+  font-size: 1.8rem;
+  color: #6366f1;
+  margin-bottom: 1rem;
+}
 
+.error-screen p {
+  font-size: 1rem;
+  color: #374151;
+}
+
+/* -------------------- Logo -------------------- */
+.magic16-logo {
+  width: 80px;
+  height: 80px;
+  margin: 1rem 0;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: transform 0.3s ease;
+}
+
+.magic16-logo:hover {
+  transform: scale(1.1);
+}
+
+/* -------------------- Video Feed -------------------- */
+.camera-feed {
+  width: 90%;
+  max-width: 480px;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  margin: 1rem 0;
+  transform: scaleX(-1); /* mirror effect */
+  background: #000;
+}
+
+/* -------------------- Progress Bar -------------------- */
+.progress-bar {
+  width: 90%;
+  max-width: 480px;
+  height: 10px;
+  background: rgba(0,0,0,0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+/* -------------------- Step Counter & Display -------------------- */
+.step-counter {
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 0.25rem;
+}
+
+.step-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0.5rem 0 1rem 0;
+}
+
+.step-display img {
+  width: 200px;
+  max-width: 90vw;
+  border-radius: 16px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+  margin-bottom: 0.5rem;
+  transition: transform 0.3s ease;
+}
+
+.step-display img:hover {
+  transform: scale(1.05);
+}
+
+.step-display h2 {
+  font-size: 1.2rem;
+  text-align: center;
+  color: #111827;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* -------------------- Timer -------------------- */
+.timer h3 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #6366f1;
+  margin: 0.5rem 0;
+}
+
+/* -------------------- Controls -------------------- */
+.controls {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.start-btn,
+.pause-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(99,102,241,0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.start-btn:hover,
+.pause-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99,102,241,0.4);
+}
+
+/* -------------------- Live Score -------------------- */
+.live-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.live-score h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.live-score h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+/* -------------------- Result Overlay -------------------- */
 .result-overlay {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at center, #111, #000);
+  background: rgba(255,255,255,0.95);
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   z-index: 200;
+  flex-direction: column;
 }
-
-/* ===============================
-   RESULT CARD
-================================ */
 
 .result-card {
-  background: linear-gradient(135deg, #111, #1c1c1c);
-  border: 1px solid rgba(255,255,255,0.1);
-  box-shadow: 0 0 60px rgba(255,215,0,0.4);
-  border-radius: 24px;
-  padding: 50px 60px;
+  background: #fff;
+  padding: 2rem;
+  border-radius: 20px;
   text-align: center;
-  min-width: 320px;
-}
-
-.result-card h1 {
-  font-size: 80px;
-  margin: 10px 0;
-  color: gold;
-  text-shadow: 0 0 25px gold;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  animation: scaleUp 0.4s ease forwards;
 }
 
 .result-card h2 {
-  opacity: 0.8;
-  font-weight: 500;
+  font-size: 1.8rem;
+  color: #6366f1;
+  margin-bottom: 1rem;
 }
 
-/* ===============================
-   ANIMATIONS
-================================ */
-
-.fade-in {
-  animation: fadeIn 0.6s ease forwards;
+.result-card h1 {
+  font-size: 3rem;
+  color: #ef4444;
+  margin-bottom: 0.5rem;
 }
 
-.scale-up {
-  animation: scaleUp 0.6s ease forwards;
+.result-card p {
+  font-size: 1rem;
+  color: #4b5563;
+  margin-bottom: 1rem;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.result-card button {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
+.result-card button:hover {
+  transform: translateY(-2px);
+}
+
+/* -------------------- Animations -------------------- */
 @keyframes scaleUp {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* -------------------- Responsive -------------------- */
+@media (max-width: 768px) {
+  .step-display img {
+    width: 150px;
+  }
+
+  .timer h3 {
+    font-size: 1.2rem;
+  }
+
+  .start-btn,
+  .pause-btn {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .result-card h1 {
+    font-size: 2.2rem;
+  }
+
+  .result-card h2 {
+    font-size: 1.4rem;
+  }
 }
