@@ -151,14 +151,33 @@ export default function Gpt() {
           speak(replyText);
         }
       }, 25);
-    } catch {
-      setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
-      const errorMsg = "❌ Backend not reachable. Try again.";
-      showToast(errorMsg, () => sendMessage(msg, isFile));
-      setMessages(prev => [...prev, { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }]);
-      if (voiceEnabled) speak(errorMsg);
-    }
-  };
+    } catch (error) {
+  setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
+
+  console.error("CHAT ERROR:", error);
+
+  let errorMsg = "❌ Backend not reachable.";
+
+  if (error.response) {
+    // Server responded with error status
+    errorMsg = `❌ Server Error: ${error.response.status}`;
+  } else if (error.request) {
+    // Request made but no response
+    errorMsg = "❌ No response from backend.";
+  } else {
+    // Something else
+    errorMsg = `❌ Error: ${error.message}`;
+  }
+
+  showToast(errorMsg, () => sendMessage(msg, isFile));
+
+  setMessages(prev => [
+    ...prev,
+    { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }
+  ]);
+
+  if (voiceEnabled) speak(errorMsg);
+};
 
   // ---------- File Upload ----------
   const handleUpload = async (e) => {
