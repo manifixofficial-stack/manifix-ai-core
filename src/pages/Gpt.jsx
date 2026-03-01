@@ -5,14 +5,14 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
-import Icons from "../assets/icons"; // mic, send, stop, upload icons
+import Logo from "../assets/logo.png"; 
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-import Logo from "../assets/logo.png"; // at the top of your file
 
-// -------------------- Toast Component --------------------
-const Toast = ({ message, onClose }) => (
+// Toast Component
+const Toast = ({ message, onClose, retry }) => (
   <div className="toast">
-    {message}
+    <span>{message}</span>
+    {retry && <button onClick={retry} className="retry-btn">↻ Retry</button>}
     <button onClick={onClose} aria-label="Close Notification">×</button>
   </div>
 );
@@ -29,11 +29,13 @@ export default function Gpt() {
   const [listening, setListening] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState("");
+  const [retryMsg, setRetryMsg] = useState(null);
+
   const chatContainer = useRef(null);
   const recognitionRef = useRef(null);
   const ttsRef = useRef(null);
 
-  // -------------------- Speech Recognition --------------------
+  // Speech Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
@@ -53,7 +55,7 @@ export default function Gpt() {
     rec.onend = () => setListening(false);
   }, [voiceEnabled]);
 
-  // -------------------- Scroll & Persist --------------------
+  // Scroll & Persist
   useEffect(() => {
     if (chatContainer.current) {
       chatContainer.current.scrollTo({ top: chatContainer.current.scrollHeight, behavior: "smooth" });
@@ -61,7 +63,7 @@ export default function Gpt() {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  // -------------------- TTS --------------------
+  // TTS
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -72,24 +74,23 @@ export default function Gpt() {
     window.speechSynthesis.speak(utterance);
     ttsRef.current = utterance;
   };
-  const stopSpeaking = () => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-  };
+  const stopSpeaking = () => window.speechSynthesis?.cancel();
 
-  // -------------------- Toast --------------------
-  const showToast = (msg) => {
+  // Toast
+  const showToast = (msg, retryFn = null) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 4000);
+    setRetryMsg(() => retryFn);
+    setTimeout(() => setToast(""), 5000);
   };
 
-  // -------------------- Mic --------------------
+  // Mic
   const handleMic = () => {
     const rec = recognitionRef.current;
-    if (!rec) return showToast("STT not supported on this device");
+    if (!rec) return showToast("STT not supported");
     listening ? rec.stop() : rec.start();
   };
 
-  // -------------------- Send Message --------------------
+  // Send Message
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
     stopSpeaking();
@@ -107,6 +108,7 @@ export default function Gpt() {
 
       setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
 
+      // Typing animation
       let idx = 0;
       const replyMsg = { content: "", role: "bot", timestamp: Date.now(), type: "text" };
       setMessages(prev => [...prev, replyMsg]);
@@ -124,13 +126,13 @@ export default function Gpt() {
     } catch {
       setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
       const errorMsg = "❌ Backend not reachable. Try again.";
+      showToast(errorMsg, () => sendMessage(msg, isFile));
       setMessages(prev => [...prev, { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }]);
-      showToast(errorMsg);
       if (voiceEnabled) speak(errorMsg);
     }
   };
 
-  // -------------------- File Upload --------------------
+  // File Upload
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -151,7 +153,7 @@ export default function Gpt() {
     }
   };
 
-  // -------------------- Enter Key --------------------
+  // Enter Key
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -160,29 +162,26 @@ export default function Gpt() {
   };
 
   return (
-    <div
-      className="gpt-app theme-purple"
-      style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
-    >
-      {toast && <Toast message={toast} onClose={() => setToast("")} />}
+    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
+      {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
+      {/* Header */}
       <header className="gpt-header">
-        <img src={Icons.chat} alt="ManifiX Logo" className="gpt-logo" />
+        <img src={Logo} alt="ManifiX Logo" className="gpt-logo" />
         <h1>ManifiX</h1>
       </header>
 
+      {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map(msg => (
           <div key={msg.timestamp} className={`message-row ${msg.role}`}>
-            <div className="message-bubble fade-in">
+            <div className="message-bubble">
               {msg.type === "thinking" ? (
                 <div role="status" aria-live="polite" className="typing-indicator">
                   {msg.content}<span className="dots">...</span>
                 </div>
               ) : msg.isFile ? (
-                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  📎 {msg.content.split("/").pop()}
-                </a>
+                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">📎 {msg.content.split("/").pop()}</a>
               ) : (
                 <ReactMarkdown
                   children={msg.content}
@@ -190,13 +189,7 @@ export default function Gpt() {
                     code({ node, inline, className, children, ...props }) {
                       const match = /language-(\w+)/.exec(className || '');
                       return !inline && match ? (
-                        <SyntaxHighlighter
-                          style={oneDark}
-                          language={match[1]}
-                          PreTag="div"
-                          children={String(children).replace(/\n$/, '')}
-                          {...props}
-                        />
+                        <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, '')} {...props} />
                       ) : (
                         <code className={className} {...props}>{children}</code>
                       );
@@ -209,11 +202,9 @@ export default function Gpt() {
         ))}
       </main>
 
-    {/* Footer with emojis */}
-<footer className="gpt-footer">
-  <button onClick={handleMic} className={listening ? "recording" : ""} aria-label="Mic">
-    {listening ? "🛑" : "🎤"}
-  </button>
+      {/* Footer */}
+      <footer className="gpt-footer">
+        <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}> {listening ? "🛑" : "🎤"} </button>
 
         <textarea
           rows={1}
@@ -225,15 +216,12 @@ export default function Gpt() {
           aria-label="Chat input"
         />
 
-      <label className="upload-btn" aria-label="Upload File">
-    📤
-    <input type="file" onChange={handleUpload} disabled={uploading} />
-  </label>
+        <label className="upload-btn" aria-label="Upload File">
+          📎
+          <input type="file" onChange={handleUpload} disabled={uploading} />
+        </label>
 
-       <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">
-    ➤
-  </button>
-
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
 
         <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
