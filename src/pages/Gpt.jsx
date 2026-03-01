@@ -188,8 +188,10 @@ export default function Gpt() {
     <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
-      {/* Header */}
-      <Header />
+     <Header onNewChat={() => {
+  localStorage.removeItem("chatMessages");
+  setMessages([]);
+}} />
 
       {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
