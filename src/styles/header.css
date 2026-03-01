@@ -1,0 +1,70 @@
+/* =========================
+   Header Container
+========================= */
+.gpt-header {
+  position: relative;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* keeps title centered */
+  backdrop-filter: blur(14px);
+  background: rgba(15, 15, 25, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* =========================
+   Title
+========================= */
+.header-title {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+/* =========================
+   + Circle Button
+========================= */
+.new-chat-circle {
+  position: absolute;
+  right: 16px;
+
+  width: 38px;
+  height: 38px;
+
+  border-radius: 50%;
+  border: none;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+
+  font-size: 22px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition: all 0.25s ease;
+  backdrop-filter: blur(8px);
+}
+
+/* Hover effect */
+.new-chat-circle:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08);
+}
+
+/* Click effect */
+.new-chat-circle:active {
+  transform: scale(0.95);
+}
+
+/* Focus accessibility */
+.new-chat-circle:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
