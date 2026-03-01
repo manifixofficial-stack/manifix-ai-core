@@ -14,7 +14,7 @@ export default function Header() {
       <button
         className="magic16-add"
         title="New Magic16 Connection"
-        onClick={() => navigate("/magic16")}
+        onClick={() => navigate("/app/magic16")}
       >
         ➕
       </button>
