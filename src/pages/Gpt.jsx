@@ -145,7 +145,7 @@ const sendMessage = async (msg, isFile = false) => {
   try {
     // 🔥 CALL YOUR BACKEND (NOT OPENROUTER DIRECTLY)
     const response = await axios.post(
-      "https://manifix.up.railway.app/api/chat", // 👈 CHANGE THIS
+      "https://manifix.up.railway.app/chat", // 👈 CHANGE THIS
       { message: msg }
     );
 
