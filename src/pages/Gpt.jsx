@@ -193,9 +193,9 @@ export default function Gpt() {
     <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
-     <Header onNewChat={() => {
+    <Header onNewChat={() => {
   localStorage.removeItem("chatMessages");
-  setMessages([]);
+  setMessages([defaultWelcome]);
 }} />
 
       {/* Chat Messages */}
