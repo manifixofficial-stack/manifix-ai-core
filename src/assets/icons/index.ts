@@ -13,6 +13,7 @@ import StarFilled666Icon from "./star-filled-666.png";
 import StopIcon from "./stop.png";
 import TargetIcon from "./target.png";
 import WarningIcon from "./warning.png";
+import MicIcon from "./mic.png";
 
 const Icons = {
   ChatIcon,
@@ -30,6 +31,7 @@ const Icons = {
   StopIcon,
   TargetIcon,
   WarningIcon,
+  MicIcon,
 };
 
 export default Icons;
