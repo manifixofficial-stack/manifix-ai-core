@@ -143,12 +143,7 @@ const sendMessage = async (msg, isFile = false) => {
   setMessages(prev => [...prev, thinkingMsg]);
 
   try {
-    // 🔥 CALL YOUR BACKEND (NOT OPENROUTER DIRECTLY)
-    const response = await axios.post(
-      "https://manifix.up.railway.app/chat", // 👈 CHANGE THIS
-      { message: msg }
-    );
-
+   const response = await axios.post(`${API_BASE}/api/chat`, { message: msg });
     const replyText = response.data.reply;
 
     // Remove thinking message
