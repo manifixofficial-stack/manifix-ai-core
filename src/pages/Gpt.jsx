@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import Confetti from "react-confetti";
-import "../styles/GptPremium.css";
+import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 import Header from "../components/Header";
 
