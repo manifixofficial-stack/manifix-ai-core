@@ -1,3 +1,4 @@
+// src/pages/Gpt.jsx
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -23,17 +24,19 @@ const Toast = ({ message, onClose, retry }) => (
 );
 
 const API_BASE = "https://manifix.up.railway.app";
+
 const defaultWelcome = {
-  content: `Hii ❤️ I’m ManifiX,I’m here with you ✨`,
+  content: `Hii ❤️ I’m ManifiX, I’m here with you ✨`,
   role: "bot",
-  timestamp: Date.now(),
-  type: "text"
+  id: "welcome",
+  type: "text",
 };
+
 export default function Gpt() {
- const [messages, setMessages] = useState(() => {
-  const saved = localStorage.getItem("chatMessages");
-  return saved ? JSON.parse(saved) : [defaultWelcome];
-});
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem("chatMessages");
+    return saved ? JSON.parse(saved) : [defaultWelcome];
+  });
   const [input, setInput] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [listening, setListening] = useState(false);
@@ -45,7 +48,7 @@ export default function Gpt() {
   const recognitionRef = useRef(null);
   const ttsRef = useRef(null);
 
-  // ---------- Speech Recognition ----------
+  // ---------------- Speech Recognition ----------------
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
@@ -65,7 +68,7 @@ export default function Gpt() {
     rec.onend = () => setListening(false);
   }, [voiceEnabled]);
 
-  // ---------- Scroll & Persist ----------
+  // ---------------- Scroll & Persist ----------------
   useEffect(() => {
     if (chatContainer.current) {
       chatContainer.current.scrollTo({ top: chatContainer.current.scrollHeight, behavior: "smooth" });
@@ -73,7 +76,7 @@ export default function Gpt() {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  // ---------- TTS ----------
+  // ---------------- Text-to-Speech ----------------
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -86,31 +89,29 @@ export default function Gpt() {
   };
   const stopSpeaking = () => window.speechSynthesis?.cancel();
 
-  // ---------- Toast ----------
+  // ---------------- Toast ----------------
   const showToast = (msg, retryFn = null) => {
     setToast(msg);
     setRetryMsg(() => retryFn);
     setTimeout(() => setToast(""), 5000);
   };
 
-  // ---------- Mic ----------
+  // ---------------- Mic ----------------
   const handleMic = () => {
     const rec = recognitionRef.current;
     if (!rec) return showToast("STT not supported");
     listening ? rec.stop() : rec.start();
   };
 
-  // ---------- Copy / Share / Delete ----------
+  // ---------------- Copy / Share / Delete ----------------
   const copyMessage = (text) => {
     navigator.clipboard.writeText(text);
     showToast("✅ Copied to clipboard");
   };
-
-  const deleteMessage = (timestamp) => {
-    setMessages(prev => prev.filter(msg => msg.timestamp !== timestamp));
+  const deleteMessage = (id) => {
+    setMessages(prev => prev.filter(msg => msg.id !== id));
     showToast("🗑️ Message deleted");
   };
-
   const shareMessage = (text) => {
     navigator.share?.({ text }).catch(() => {
       copyMessage(text);
@@ -118,83 +119,74 @@ export default function Gpt() {
     });
   };
 
-  // ---------- Send Message ----------
-const sendMessage = async (msg, isFile = false) => {
-  if (!msg) return;
-  stopSpeaking();
+  // ---------------- Send Message ----------------
+  const sendMessage = async (msg, isFile = false) => {
+    if (!msg) return;
+    stopSpeaking();
 
-  const userMsg = {
-    content: msg,
-    role: "user",
-    timestamp: Date.now(),
-    type: isFile ? "file" : "text",
-  };
-
-  setMessages(prev => [...prev, userMsg]);
-  setInput("");
-
-  const thinkingMsg = {
-    content: "ManifiX is thinking...",
-    role: "bot",
-    type: "thinking",
-    timestamp: Date.now(),
-  };
-
-  setMessages(prev => [...prev, thinkingMsg]);
-
-  try {
-   const response = await axios.post(`${API_BASE}/api/chat`, { message: msg });
-    const replyText = response.data.reply;
-
-    // Remove thinking message
-    setMessages(prev =>
-      prev.filter(m => m.timestamp !== thinkingMsg.timestamp)
-    );
-
-    // Typing animation
-    let idx = 0;
-    const replyMsg = {
-      content: "",
-      role: "bot",
-      timestamp: Date.now(),
-      type: "text",
+    const userMsg = {
+      content: msg,
+      role: "user",
+      id: Math.random().toString(36).substring(2),
+      type: isFile ? "file" : "text",
     };
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
 
-    setMessages(prev => [...prev, replyMsg]);
+    const thinkingMsg = {
+      content: "ManifiX is thinking...",
+      role: "bot",
+      type: "thinking",
+      id: Math.random().toString(36).substring(2),
+    };
+    setMessages(prev => [...prev, thinkingMsg]);
 
-    const interval = setInterval(() => {
-      if (idx < replyText.length) {
-        replyMsg.content += replyText[idx];
-        setMessages(prev => [
-          ...prev.filter(m => m.timestamp !== replyMsg.timestamp),
-          { ...replyMsg }
-        ]);
-        idx++;
-      } else {
-        clearInterval(interval);
-        if (voiceEnabled) speak(replyText);
-      }
-    }, 25);
+    try {
+      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg });
+      const replyText = response.data.reply || "Hmm… I have no response.";
 
-  } catch (error) {
-    console.error("Chat error:", error);
+      // Remove thinking message
+      setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
 
-    const errorMsg = "❌ Server Error. Please try again.";
-
-    setMessages(prev => [
-      ...prev.filter(m => m.timestamp !== thinkingMsg.timestamp),
-      {
-        content: errorMsg,
+      // Typing animation
+      let idx = 0;
+      const replyMsg = {
+        content: "",
         role: "bot",
+        id: Math.random().toString(36).substring(2),
         type: "text",
-        timestamp: Date.now(),
-      },
-    ]);
+      };
+      setMessages(prev => [...prev, replyMsg]);
 
-    if (voiceEnabled) speak(errorMsg);
-  }
-};
-  // ---------- File Upload ----------
+      const interval = setInterval(() => {
+        if (idx < replyText.length) {
+          replyMsg.content += replyText[idx];
+          setMessages(prev => [
+            ...prev.filter(m => m.id !== replyMsg.id),
+            { ...replyMsg },
+          ]);
+          idx++;
+        } else {
+          clearInterval(interval);
+          if (voiceEnabled) speak(replyText);
+        }
+      }, 25);
+    } catch (error) {
+      console.error("Chat error:", error);
+      setMessages(prev => [
+        ...prev.filter(m => m.id !== thinkingMsg.id),
+        {
+          content: "❌ Server Error. Please try again.",
+          role: "bot",
+          id: Math.random().toString(36).substring(2),
+          type: "text",
+        },
+      ]);
+      if (voiceEnabled) speak("❌ Server Error. Please try again.");
+    }
+  };
+
+  // ---------------- File Upload ----------------
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -203,9 +195,10 @@ const sendMessage = async (msg, isFile = false) => {
     formData.append("file", file);
 
     try {
-      const res = await axios.post(`${API_BASE}/api/upload`, formData, { headers: { "Content-Type": "multipart/form-data" } });
-      const fileUrl = res.data.url;
-      sendMessage(fileUrl, true);
+      const res = await axios.post(`${API_BASE}/api/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      sendMessage(res.data.url, true);
     } catch {
       showToast("❌ File upload failed");
       if (voiceEnabled) speak("File upload failed");
@@ -215,7 +208,7 @@ const sendMessage = async (msg, isFile = false) => {
     }
   };
 
-  // ---------- Enter Key ----------
+  // ---------------- Enter Key ----------------
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -224,18 +217,22 @@ const sendMessage = async (msg, isFile = false) => {
   };
 
   return (
-    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
+    <div
+      className="gpt-app theme-purple"
+      style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
+    >
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
-
-    <Header onNewChat={() => {
-  localStorage.removeItem("chatMessages");
-  setMessages([defaultWelcome]);
-}} />
+      <Header
+        onNewChat={() => {
+          localStorage.removeItem("chatMessages");
+          setMessages([defaultWelcome]);
+        }}
+      />
 
       {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
-        {messages.map(msg => (
-          <div key={msg.timestamp} className={`message-row ${msg.role}`}>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`message-row ${msg.role}`}>
             <div className="message-bubble">
               {msg.type === "thinking" ? (
                 <div role="status" aria-live="polite" className="typing-indicator">
@@ -251,20 +248,27 @@ const sendMessage = async (msg, isFile = false) => {
                     children={msg.content}
                     components={{
                       code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || '');
+                        const match = /language-(\w+)/.exec(className || "");
                         return !inline && match ? (
-                          <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, '')} {...props} />
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={match[1]}
+                            PreTag="div"
+                            children={String(children).replace(/\n$/, "")}
+                            {...props}
+                          />
                         ) : (
-                          <code className={className} {...props}>{children}</code>
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
                         );
-                      }
+                      },
                     }}
                   />
-                  {/* Action Buttons */}
                   <div className="message-actions">
                     <button className="copy-msg" onClick={() => copyMessage(msg.content)} title="Copy">📋</button>
                     <button className="share-msg" onClick={() => shareMessage(msg.content)} title="Share">🔗</button>
-                    <button className="delete-msg" onClick={() => deleteMessage(msg.timestamp)} title="Delete">🗑️</button>
+                    <button className="delete-msg" onClick={() => deleteMessage(msg.id)} title="Delete">🗑️</button>
                   </div>
                 </>
               )}
@@ -283,7 +287,11 @@ const sendMessage = async (msg, isFile = false) => {
           rows={1}
           style={{ resize: "none", overflowY: "hidden" }}
           value={input}
-          onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
+          onChange={(e) => {
+            setInput(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = `${e.target.scrollHeight}px`;
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Ask Your ManifiX Anything…"
           aria-label="Chat input"
@@ -294,9 +302,16 @@ const sendMessage = async (msg, isFile = false) => {
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
+        <button
+          onClick={() => sendMessage(input.trim())}
+          disabled={!input.trim()}
+          className="primary"
+          aria-label="Send"
+        >
+          ➤
+        </button>
 
-        <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
+        <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
         </button>
       </footer>
