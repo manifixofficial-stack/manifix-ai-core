@@ -22,7 +22,7 @@ const Toast = ({ message, onClose, retry }) => (
   </div>
 );
 
-const API_BASE = "https://manifixai.com";
+const API_BASE = "https://manifix.up.railway.app";
 const defaultWelcome = {
   content: `Hii ❤️ I’m ManifiX,I’m here with you ✨`,
   role: "bot",
