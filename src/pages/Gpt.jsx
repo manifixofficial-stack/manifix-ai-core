@@ -33,10 +33,17 @@ const defaultWelcome = {
 };
 
 export default function Gpt() {
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("chatMessages");
-    return saved ? JSON.parse(saved) : [defaultWelcome];
-  });
+ const [messages, setMessages] = useState(() => {
+  const saved = localStorage.getItem("chatMessages");
+
+  if (!saved) return [defaultWelcome];
+
+  const parsed = JSON.parse(saved);
+
+  const hasWelcome = parsed.some(m => m.id === "welcome");
+
+  return hasWelcome ? parsed : [defaultWelcome, ...parsed];
+});
   const [input, setInput] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [listening, setListening] = useState(false);
