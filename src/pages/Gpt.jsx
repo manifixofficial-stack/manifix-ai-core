@@ -150,7 +150,7 @@ export default function Gpt() {
 
     try {
     const conversation = messages
-  .slice(-10)
+  .slice(-6)
   .filter(m => m.role === "user" || m.role === "bot")
   .filter(m => m.id !== "welcome") // remove welcome message
   .map(m => ({
