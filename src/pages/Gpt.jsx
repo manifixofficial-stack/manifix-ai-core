@@ -142,9 +142,10 @@ export default function Gpt() {
     setMessages(prev => [...prev, thinkingMsg]);
 
     try {
-     const conversation = messages
+    const conversation = messages
   .slice(-10)
   .filter(m => m.role === "user" || m.role === "bot")
+  .filter(m => m.id !== "welcome") // remove welcome message
   .map(m => ({
     role: m.role === "bot" ? "assistant" : "user",
     content: m.content
