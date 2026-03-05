@@ -142,7 +142,18 @@ export default function Gpt() {
     setMessages(prev => [...prev, thinkingMsg]);
 
     try {
-      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg });
+     const conversation = messages
+  .slice(-10)
+  .filter(m => m.role === "user" || m.role === "bot")
+  .map(m => ({
+    role: m.role === "bot" ? "assistant" : "user",
+    content: m.content
+  }));
+
+const response = await axios.post(`${API_BASE}/api/chat`, {
+  message: msg,
+  conversation
+});
       const replyText = response.data.reply || "Hmm… I have no response.";
 
       // Remove thinking message
