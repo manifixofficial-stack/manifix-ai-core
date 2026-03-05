@@ -33,16 +33,16 @@ const defaultWelcome = {
 };
 
 export default function Gpt() {
- const [messages, setMessages] = useState(() => {
+const [messages, setMessages] = useState(() => {
   const saved = localStorage.getItem("chatMessages");
 
   if (!saved) return [defaultWelcome];
 
-  const parsed = JSON.parse(saved);
+  let parsed = JSON.parse(saved);
 
-  const hasWelcome = parsed.some(m => m.id === "welcome");
+  parsed = parsed.filter(m => m.id !== "welcome");
 
-  return hasWelcome ? parsed : [defaultWelcome, ...parsed];
+  return [defaultWelcome, ...parsed];
 });
   const [input, setInput] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -146,13 +146,22 @@ export default function Gpt() {
       type: "thinking",
       id: Math.random().toString(36).substring(2),
     };
-    setMessages(prev => [...prev, thinkingMsg]);
+   const replyMsg = {
+  content: "",
+  role: "bot",
+  id: Math.random().toString(36).substring(2),
+  type: "text"
+};
+
+setMessages(prev => [...prev, replyMsg]);
 
     try {
-    const conversation = messages
+  const updatedMessages = [...messages, userMsg];
+
+const conversation = updatedMessages
   .slice(-6)
   .filter(m => m.role === "user" || m.role === "bot")
-  .filter(m => m.id !== "welcome") // remove welcome message
+  .filter(m => m.id !== "welcome")
   .map(m => ({
     role: m.role === "bot" ? "assistant" : "user",
     content: m.content
@@ -162,34 +171,31 @@ const response = await axios.post(`${API_BASE}/api/chat`, {
   message: msg,
   conversation
 });
-      const replyText = response.data.reply || "Hmm… I have no response.";
-
+      const replyText =
+  response.data.reply ||
+  response.data.choices?.[0]?.message?.content ||
+  "Hmm… I have no response.";
       // Remove thinking message
       setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
 
-      // Typing animation
-      let idx = 0;
-      const replyMsg = {
-        content: "",
-        role: "bot",
-        id: Math.random().toString(36).substring(2),
-        type: "text",
-      };
-      setMessages(prev => [...prev, replyMsg]);
+     let idx = 0;
 
-      const interval = setInterval(() => {
-        if (idx < replyText.length) {
-          replyMsg.content += replyText[idx];
-          setMessages(prev => [
-            ...prev.filter(m => m.id !== replyMsg.id),
-            { ...replyMsg },
-          ]);
-          idx++;
-        } else {
-          clearInterval(interval);
-          if (voiceEnabled) speak(replyText);
-        }
-      }, 25);
+const interval = setInterval(() => {
+  idx++;
+
+  const partial = replyText.slice(0, idx);
+
+  setMessages(prev =>
+    prev.map(m =>
+      m.id === replyMsg.id ? { ...m, content: partial } : m
+    )
+  );
+
+  if (idx >= replyText.length) {
+    clearInterval(interval);
+    if (voiceEnabled) speak(replyText);
+  }
+}, 25);
     } catch (error) {
       console.error("Chat error:", error);
       setMessages(prev => [
@@ -263,19 +269,21 @@ const response = await axios.post(`${API_BASE}/api/chat`, {
                 </a>
               ) : (
                 <>
-                  <ReactMarkdown
-                    children={msg.content}
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
+             <ReactMarkdown
+  components={{
+    code({ inline, className, children, ...props }) {
+
                         const match = /language-(\w+)/.exec(className || "");
+
                         return !inline && match ? (
                           <SyntaxHighlighter
                             style={oneDark}
                             language={match[1]}
                             PreTag="div"
-                            children={String(children).replace(/\n$/, "")}
                             {...props}
-                          />
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
                         ) : (
                           <code className={className} {...props}>
                             {children}
@@ -284,56 +292,63 @@ const response = await axios.post(`${API_BASE}/api/chat`, {
                       },
                     }}
                   />
-                  <div className="message-actions">
-                    <button className="copy-msg" onClick={() => copyMessage(msg.content)} title="Copy">📋</button>
-                    <button className="share-msg" onClick={() => shareMessage(msg.content)} title="Share">🔗</button>
-                    <button className="delete-msg" onClick={() => deleteMessage(msg.id)} title="Delete">🗑️</button>
-                  </div>
+
+                  {msg.role === "bot" && (
+                    <div className="message-actions">
+                    <button aria-label="Copy message" onClick={() => copyMessage(msg.content)}>📋</button>
+<button aria-label="Share message" onClick={() => shareMessage(msg.content)}>🔗</button>
+<button aria-label="Delete message" onClick={() => deleteMessage(msg.id)}>🗑️</button>
+                    </div>
+                  )}
+
                 </>
               )}
+
             </div>
+
           </div>
+
         ))}
+
       </main>
 
-      {/* Footer */}
       <footer className="gpt-footer">
-        <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          {listening ? "🛑" : "🎤"}
-        </button>
+
+      <button
+  onClick={handleMic}
+  className={listening ? "recording" : ""}
+  aria-label="Toggle microphone"
+>
+  {listening ? "🛑" : "🎤"}
+</button>
 
         <textarea
-          rows={1}
-          style={{ resize: "none", overflowY: "hidden" }}
           value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = `${e.target.scrollHeight}px`;
-          }}
-          onKeyDown={handleKeyDown}
           placeholder="Ask Your ManifiX Anything…"
-          aria-label="Chat input"
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage(input.trim());
+            }
+          }}
         />
 
-        <label className="upload-btn" aria-label="Upload File">
+        <label className="upload-btn">
           📎
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button
-          onClick={() => sendMessage(input.trim())}
-          disabled={!input.trim()}
-          className="primary"
-          aria-label="Send"
-        >
+        <button onClick={() => sendMessage(input.trim())}>
           ➤
         </button>
 
-        <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
+        <button onClick={() => setVoiceEnabled(v => !v)}>
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
         </button>
+
       </footer>
+
     </div>
   );
 }
