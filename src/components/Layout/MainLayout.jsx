@@ -1,60 +1,27 @@
 import React, { useState } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import "../../styles/MainLayout.css"; // Correct path
+import { Link, Outlet } from "react-router-dom";
+import logo from "../assets/logo.png";
+import "../styles/MainLayout.css";
 
 export default function MainLayout() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const [showOptions, setShowOptions] = useState(false);
-  const [groupChatOpen, setGroupChatOpen] = useState(false);
-
-  const isChatPage = location.pathname === "/gpt";
-  const isBillingPage = location.pathname === "/billing";
-  const isMagic16Page = location.pathname === "/magic16";
+  const [theme, setTheme] = useState("dark");
 
   return (
-    <div className="main-layout">
-      {/* Top Header */}
+    <div className={`main-layout ${theme}`}>
+      {/* Sidebar / Topbar */}
       <header className="main-header">
-        <h1 className="logo" onClick={() => navigate("/")}>
-          ManifiX
-        </h1>
-
-        {/* Contextual right buttons */}
+        <div className="logo-container">
+          <img src={logo} alt="ManifiX Logo" className="logo"/>
+          <h1>ManifiX</h1>
+        </div>
+        <nav className="nav-links">
+          <Link to="/gpt">💬 Chat</Link>
+          <Link to="/magic16">🧘 Magic16</Link>
+        </nav>
         <div className="header-actions">
-          {isChatPage && (
-            <button className="add-chat-btn" title="New Chat">
-              ➕
-            </button>
-          )}
-          {isBillingPage && (
-            <>
-              <button className="premium-btn">⭐ Premium</button>
-              <div className="more-options">
-                <button
-                  onClick={() => setShowOptions(prev => !prev)}
-                  aria-label="More options"
-                >
-                  ⋮
-                </button>
-                {showOptions && (
-                  <div className="dropdown">
-                    <button onClick={() => alert("Share Chat")}>📤 Share</button>
-                    <button onClick={() => alert("Start Group Chat")}>
-                      👥 Group Chat
-                    </button>
-                    <button onClick={() => alert("Delete Chat")}>🗑 Delete</button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-          {isMagic16Page && (
-            <button className="magic16-btn" title="Magic16">
-              ✨ Magic16
-            </button>
-          )}
+          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            🌓
+          </button>
         </div>
       </header>
 
@@ -62,11 +29,6 @@ export default function MainLayout() {
       <main className="main-content">
         <Outlet />
       </main>
-
-      {/* Optional footer */}
-      <footer className="main-footer">
-        <span>© {new Date().getFullYear()} ManifiX</span>
-      </footer>
     </div>
   );
 }
