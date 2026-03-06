@@ -1,64 +1,72 @@
-// src/layouts/MainLayout.jsx
 import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import "../../styles/MainLayout.css"; // Make sure CSS is updated for this layout
+import "../../styles/MainLayout.css"; // Correct path
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [showOptions, setShowOptions] = useState(false);
+  const [groupChatOpen, setGroupChatOpen] = useState(false);
 
-  // Determine current page
-  const currentPath = location.pathname;
-  const isChatPage = currentPath === "/gpt";
-  const isMagic16Page = currentPath === "/magic16";
+  const isChatPage = location.pathname === "/gpt";
+  const isBillingPage = location.pathname === "/billing";
+  const isMagic16Page = location.pathname === "/magic16";
 
   return (
     <div className="main-layout">
-      {/* Top Bar */}
-      <header className="top-bar">
-        <div className="logo" onClick={() => navigate("/")}>
+      {/* Top Header */}
+      <header className="main-header">
+        <h1 className="logo" onClick={() => navigate("/")}>
           ManifiX
-        </div>
-        <div className="top-actions">
-          <input
-            type="text"
-            placeholder="Search..."
-            className="top-search"
-          />
-          <button title="Voice AI">🎤</button>
-          <button title="Notifications">🔔</button>
-          <div className="profile">👤</div>
+        </h1>
+
+        {/* Contextual right buttons */}
+        <div className="header-actions">
+          {isChatPage && (
+            <button className="add-chat-btn" title="New Chat">
+              ➕
+            </button>
+          )}
+          {isBillingPage && (
+            <>
+              <button className="premium-btn">⭐ Premium</button>
+              <div className="more-options">
+                <button
+                  onClick={() => setShowOptions(prev => !prev)}
+                  aria-label="More options"
+                >
+                  ⋮
+                </button>
+                {showOptions && (
+                  <div className="dropdown">
+                    <button onClick={() => alert("Share Chat")}>📤 Share</button>
+                    <button onClick={() => alert("Start Group Chat")}>
+                      👥 Group Chat
+                    </button>
+                    <button onClick={() => alert("Delete Chat")}>🗑 Delete</button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {isMagic16Page && (
+            <button className="magic16-btn" title="Magic16">
+              ✨ Magic16
+            </button>
+          )}
         </div>
       </header>
 
-      <div className="layout-body">
-        {/* Sidebar */}
-        <aside className="sidebar">
-          <button onClick={() => navigate("/gpt")}>➕ New Chat</button>
-          <button onClick={() => navigate("/gpt")}>💬 Chats</button>
-          <button onClick={() => navigate("/magic16")}>✨ Magic16</button>
-          <button onClick={() => navigate("/dashboard")}>📊 Dashboard</button>
-          <button onClick={() => navigate("/journal")}>📓 Journal</button>
-          <button onClick={() => navigate("/settings")}>⚙️ Settings</button>
-        </aside>
+      {/* Main content */}
+      <main className="main-content">
+        <Outlet />
+      </main>
 
-        {/* Main Workspace */}
-        <main className="main-workspace">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* Bottom Input Bar: Only for GPT */}
-      {isChatPage && (
-        <footer className="bottom-input-bar">
-          <button>📎</button>
-          <button>🎤</button>
-          <input type="text" placeholder="Type a message..." />
-          <button>➤</button>
-        </footer>
-      )}
+      {/* Optional footer */}
+      <footer className="main-footer">
+        <span>© {new Date().getFullYear()} ManifiX</span>
+      </footer>
     </div>
   );
 }
