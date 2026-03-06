@@ -216,15 +216,6 @@ export default function Gpt() {
       />
 
       <main className="gpt-main" ref={chatContainer}>
-        {/* Only show default welcome visually if chat is empty */}
-        {messages.length === 0 && (
-          <div className="message-row bot">
-            <div className="message-bubble">
-              Hii ❤️ I’m ManifiX, I’m here with you ✨
-            </div>
-          </div>
-        )}
-
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role}`}>
             <div className="message-bubble">
