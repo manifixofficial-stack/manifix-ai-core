@@ -40,7 +40,7 @@ export default function Gpt() {
   const chatContainer = useRef(null);
   const recognitionRef = useRef(null);
 
-  // ---------------- Scroll + Save ----------------
+  // Scroll + Save
   useEffect(() => {
     if (chatContainer.current) {
       chatContainer.current.scrollTo({
@@ -51,7 +51,7 @@ export default function Gpt() {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  // ---------------- Speech Recognition ----------------
+  // Speech Recognition
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -61,7 +61,6 @@ export default function Gpt() {
     rec.lang = "en-IN";
     rec.interimResults = false;
     rec.continuous = false;
-
     recognitionRef.current = rec;
 
     rec.onstart = () => setListening(true);
@@ -106,7 +105,7 @@ export default function Gpt() {
     navigator.share?.({ text }).catch(() => copyMessage(text));
   };
 
-  // ---------------- Send Message ----------------
+  // Send Message to OpenRouter backend
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
 
@@ -128,8 +127,9 @@ export default function Gpt() {
     setInput("");
 
     try {
+      // Filter out any greeting to prevent sending default welcome
       const conversation = [...messages, userMsg]
-        .filter((m) => !m.content.includes("ManifiX, I’m here with you"))
+        .filter((m) => m.type !== "welcome")
         .slice(-12)
         .map((m) => ({
           role: m.role === "bot" ? "assistant" : "user",
@@ -141,8 +141,7 @@ export default function Gpt() {
         conversation,
       });
 
-      const replyText =
-        res.data.reply || "Hmm… I have no response.";
+      const replyText = res.data.reply || "Hmm… I have no response.";
 
       setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
 
@@ -155,12 +154,15 @@ export default function Gpt() {
 
       setMessages((prev) => [...prev, replyMsg]);
 
+      // Typing animation
       let i = 0;
       const interval = setInterval(() => {
         i++;
         const partial = replyText.slice(0, i);
         setMessages((prev) =>
-          prev.map((m) => (m.id === replyMsg.id ? { ...m, content: partial } : m))
+          prev.map((m) =>
+            m.id === replyMsg.id ? { ...m, content: partial } : m
+          )
         );
         if (i >= replyText.length) {
           clearInterval(interval);
@@ -181,7 +183,7 @@ export default function Gpt() {
     }
   };
 
-  // ---------------- Upload ----------------
+  // Upload file
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -200,13 +202,15 @@ export default function Gpt() {
     }
   };
 
-  // ---------------- Render ----------------
+  // Render
   return (
     <div
       className="gpt-app theme-purple"
       style={{ backgroundImage: `url(${backgroundPurple})` }}
     >
-      {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
+      {toast && (
+        <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />
+      )}
 
       <Header
         onNewChat={() => {
