@@ -1,78 +1,72 @@
-// src/components/MainLayout.jsx
 import React, { useState } from "react";
-import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
-import "../../styles/MainLayout.css"; // Make sure your CSS matches this layout
-import logo from "../../../assets/logo.png"; // Replace with your actual logo path
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import "../../styles/MainLayout.css"; // Correct path
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [theme, setTheme] = useState("dark");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const [showOptions, setShowOptions] = useState(false);
+  const [groupChatOpen, setGroupChatOpen] = useState(false);
 
   const isChatPage = location.pathname === "/gpt";
+  const isBillingPage = location.pathname === "/billing";
   const isMagic16Page = location.pathname === "/magic16";
 
   return (
-    <div className={`main-layout ${theme}`}>
-      {/* ───────────── TopBar ───────────── */}
-      <header className="top-bar">
-        <div className="top-left">
-          <img
-            src={logo}
-            alt="ManifiX Logo"
-            className="logo"
-            onClick={() => navigate("/")}
-          />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="top-search"
-          />
-        </div>
+    <div className="main-layout">
+      {/* Top Header */}
+      <header className="main-header">
+        <h1 className="logo" onClick={() => navigate("/")}>
+          ManifiX
+        </h1>
 
-        <div className="top-right">
-          <button className="voice-ai-btn" title="Voice AI">🎤</button>
-          <button className="notifications-btn" title="Notifications">🔔</button>
-          <button className="profile-btn" title="Profile">👤</button>
-          <button
-            className="theme-toggle"
-            title="Toggle Theme"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            🌓
-          </button>
+        {/* Contextual right buttons */}
+        <div className="header-actions">
+          {isChatPage && (
+            <button className="add-chat-btn" title="New Chat">
+              ➕
+            </button>
+          )}
+          {isBillingPage && (
+            <>
+              <button className="premium-btn">⭐ Premium</button>
+              <div className="more-options">
+                <button
+                  onClick={() => setShowOptions(prev => !prev)}
+                  aria-label="More options"
+                >
+                  ⋮
+                </button>
+                {showOptions && (
+                  <div className="dropdown">
+                    <button onClick={() => alert("Share Chat")}>📤 Share</button>
+                    <button onClick={() => alert("Start Group Chat")}>
+                      👥 Group Chat
+                    </button>
+                    <button onClick={() => alert("Delete Chat")}>🗑 Delete</button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {isMagic16Page && (
+            <button className="magic16-btn" title="Magic16">
+              ✨ Magic16
+            </button>
+          )}
         </div>
       </header>
 
-      <div className="layout-body">
-        {/* ───────────── Sidebar ───────────── */}
-        <aside className={`sidebar ${sidebarOpen ? "open" : "collapsed"}`}>
-          <button className="new-chat-btn" onClick={() => navigate("/gpt")}>➕ New Chat</button>
+      {/* Main content */}
+      <main className="main-content">
+        <Outlet />
+      </main>
 
-          <nav className="sidebar-nav">
-            <Link to="/gpt" className={isChatPage ? "active" : ""}>💬 GPT Chat</Link>
-            <Link to="/magic16" className={isMagic16Page ? "active" : ""}>🧘 Magic16</Link>
-            <Link to="/dashboard">📊 Dashboard</Link>
-            <Link to="/settings">⚙️ Settings</Link>
-          </nav>
-        </aside>
-
-        {/* ───────────── Main Workspace ───────────── */}
-        <main className="main-workspace">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* ───────────── Bottom Input Bar (for GPT chat) ───────────── */}
-      {isChatPage && (
-        <footer className="bottom-input-bar">
-          <button className="attach-btn">📎</button>
-          <button className="voice-btn">🎤</button>
-          <input type="text" placeholder="Type a message..." className="chat-input" />
-          <button className="send-btn">➤</button>
-        </footer>
-      )}
+      {/* Optional footer */}
+      <footer className="main-footer">
+        <span>© {new Date().getFullYear()} ManifiX</span>
+      </footer>
     </div>
   );
 }
