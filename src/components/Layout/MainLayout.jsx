@@ -1,44 +1,31 @@
 import React, { useState } from "react";
-import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
-import logo from "../../../assets/logo.png"; // Make sure logo path is correct
-import "../../styles/MainLayout.css";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import "../../styles/MainLayout.css"; // Correct path
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [theme, setTheme] = useState("dark");
   const [showOptions, setShowOptions] = useState(false);
+  const [groupChatOpen, setGroupChatOpen] = useState(false);
 
   const isChatPage = location.pathname === "/gpt";
-  const isMagic16Page = location.pathname === "/magic16";
   const isBillingPage = location.pathname === "/billing";
+  const isMagic16Page = location.pathname === "/magic16";
 
   return (
-    <div className={`main-layout ${theme}`}>
+    <div className="main-layout">
       {/* Top Header */}
       <header className="main-header">
-        <div className="logo-container" onClick={() => navigate("/")}>
-          <img src={logo} alt="ManifiX Logo" className="logo" />
-          <h1>ManifiX</h1>
-        </div>
+        <h1 className="logo" onClick={() => navigate("/")}>
+          ManifiX
+        </h1>
 
-        {/* Navigation Links */}
-        <nav className="nav-links">
-          <Link to="/gpt">💬 Chat</Link>
-          <Link to="/magic16">🧘 Magic16</Link>
-        </nav>
-
-        {/* Right Actions */}
+        {/* Contextual right buttons */}
         <div className="header-actions">
           {isChatPage && (
             <button className="add-chat-btn" title="New Chat">
               ➕
-            </button>
-          )}
-          {isMagic16Page && (
-            <button className="magic16-btn" title="Magic16">
-              ✨ Magic16
             </button>
           )}
           {isBillingPage && (
@@ -63,24 +50,20 @@ export default function MainLayout() {
               </div>
             </>
           )}
-
-          {/* Theme Toggle */}
-          <button
-            className="theme-toggle"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            title="Toggle Theme"
-          >
-            🌓
-          </button>
+          {isMagic16Page && (
+            <button className="magic16-btn" title="Magic16">
+              ✨ Magic16
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main content */}
       <main className="main-content">
         <Outlet />
       </main>
 
-      {/* Footer */}
+      {/* Optional footer */}
       <footer className="main-footer">
         <span>© {new Date().getFullYear()} ManifiX</span>
       </footer>
