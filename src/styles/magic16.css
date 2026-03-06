@@ -1,177 +1,248 @@
-/* Base layout */
+/* -------------------- magic16.css -------------------- */
+
+/* -------------------- Body & Container -------------------- */
 .magic16-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Poppins', sans-serif;
-  color: #fff;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #6a0dad, #9b59b6, #8e44ad);
-  background-size: 400% 400%;
-  animation: gradientBG 15s ease infinite;
+  max-width: 400px;
+  margin: 40px auto;
+  padding: 20px;
+  background: linear-gradient(135deg, #0f0f2f, #020617);
+  border-radius: 20px;
+  color: #e5e7eb;
+  font-family: 'Inter', system-ui, sans-serif;
+  text-align: center;
+  box-shadow: 0 15px 50px rgba(0,0,0,0.4);
   position: relative;
   overflow: hidden;
-  padding: 20px;
 }
 
-/* Animated gradient background */
-@keyframes gradientBG {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* -------------------- Logo -------------------- */
+.magic16-logo {
+  width: 80px;
+  margin-bottom: 20px;
+  animation: logo-bounce 2s infinite alternate;
 }
 
-/* Loading and Error screens */
-.magic16-loading,
-.magic16-error {
-  font-size: 1.8rem;
-  text-align: center;
-  margin-top: 25vh;
-  font-weight: 600;
-  text-shadow: 0 0 15px rgba(0,0,0,0.5);
+@keyframes logo-bounce {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-10px) scale(1.05); }
 }
 
-/* Main Sections: Intro, Yoga, Meditation, Result */
-.magic16-intro,
-.magic16-yoga,
-.magic16-meditation,
-.magic16-result {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  background: rgba(0,0,0,0.3);
-  padding: 25px 40px;
-  border-radius: 25px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+/* -------------------- Step Display -------------------- */
+.step-display {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 12px;
+  margin-bottom: 20px;
   backdrop-filter: blur(10px);
-  transition: all 0.4s ease;
 }
 
-/* Intro section button */
-.magic16-intro button {
-  padding: 12px 30px;
-  font-size: 1.3rem;
+.step-display img {
+  width: 100%;
+  height: 220px;
+  object-fit: contain;
   border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  margin-top: 20px;
-  background: linear-gradient(135deg,#fff,#f3e5ff);
-  color: #6a0dad;
-  font-weight: 700;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-  transition: all 0.3s ease;
-}
-
-.magic16-intro button:hover {
-  transform: scale(1.05);
-  background: linear-gradient(135deg,#f3e5ff,#fff);
-}
-
-/* Step images */
-.step-image {
-  width: 220px;
-  max-width: 90%;
-  margin: 15px 0;
-  border-radius: 20px;
-  border: 2px solid rgba(255,255,255,0.5);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  margin-bottom: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
   transition: transform 0.3s ease;
 }
 
-.step-image:hover {
-  transform: scale(1.05);
+.step-display img:hover {
+  transform: scale(1.02);
 }
 
-/* Section headers */
-.magic16-yoga h2,
-.magic16-meditation h2,
-.magic16-result h2 {
-  font-size: 2rem;
-  margin-bottom: 10px;
-  text-shadow: 0 0 15px rgba(0,0,0,0.6);
-}
-
-/* Scores */
-.magic16-yoga h1,
-.magic16-result h1 {
-  font-size: 3rem;
-  margin: 10px 0;
-  color: #ffdd59;
-  text-shadow: 0 0 15px #ffdd59aa;
-  animation: glowText 2s infinite alternate;
-}
-
-/* Glow animation */
-@keyframes glowText {
-  0% { text-shadow: 0 0 5px #fff, 0 0 10px #ffdd59; }
-  100% { text-shadow: 0 0 20px #fff, 0 0 40px #ffdd59; }
-}
-
-/* Breathing animation */
-.breathing {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  margin: 15px 0;
-  background: rgba(255,255,255,0.4);
-  animation: pulse 4s infinite;
-  box-shadow: 0 0 15px rgba(255,255,255,0.3);
-}
-
-.breathing.inhale { animation-duration: 4s; }
-.breathing.hold { animation-duration: 4s; }
-.breathing.exhale { animation-duration: 4s; }
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.5); opacity: 1; }
-}
-
-/* Video camera */
-.camera {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 160px;
-  height: 160px;
-  opacity: 0.2;
-  border-radius: 15px;
-  border: 2px solid rgba(255,255,255,0.3);
-  box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-}
-
-/* Complete result card */
-.magic16-result p {
+.step-display h2 {
   font-size: 1.2rem;
-  margin: 5px 0;
-  text-shadow: 0 0 8px rgba(0,0,0,0.5);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-/* Buttons inside yoga/meditation */
-.magic16-yoga button,
-.magic16-meditation button {
-  padding: 10px 25px;
-  font-size: 1.1rem;
-  border-radius: 12px;
+/* -------------------- Timer & Progress -------------------- */
+.timer-progress {
+  margin-bottom: 20px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff6ec4, #7873f5);
+  border-radius: 8px 0 0 8px;
+  transition: width 0.3s ease;
+}
+
+.timer {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+/* -------------------- Live Score -------------------- */
+.live-score {
+  background: rgba(255,255,255,0.05);
+  border-radius: 16px;
+  padding: 12px 0;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+.live-score h3 {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #facc15;
+  margin-bottom: 4px;
+}
+
+.live-score h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ff6ec4;
+}
+
+/* -------------------- Controls -------------------- */
+.controls button {
+  width: 120px;
+  padding: 10px 0;
+  font-size: 1rem;
+  font-weight: 600;
   border: none;
-  background: linear-gradient(135deg,#fff,#f3e5ff);
-  color: #6a0dad;
+  border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
   transition: all 0.3s ease;
 }
 
-.magic16-yoga button:hover,
-.magic16-meditation button:hover {
-  transform: scale(1.05);
-  background: linear-gradient(135deg,#f3e5ff,#fff);
+.start-btn {
+  background: linear-gradient(135deg, #6EE7B7, #3B82F6);
+  color: #020617;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .step-image { width: 160px; }
-  .magic16-yoga h1, .magic16-result h1 { font-size: 2.5rem; }
-  .magic16-container { padding: 15px; }
+.start-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+
+.pause-btn {
+  background: linear-gradient(135deg, #F87171, #EF4444);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+}
+
+.pause-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+
+/* -------------------- Loading & Error Screens -------------------- */
+.loading-screen,
+.error-screen {
+  position: absolute;
+  inset: 0;
+  background: rgba(2,6,23,0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 20px;
+  z-index: 100;
+  animation: fadeIn 0.8s ease forwards;
+}
+
+.loading-screen h2,
+.error-screen h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.error-screen p {
+  font-size: 0.95rem;
+  color: #fca5a5;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* -------------------- Result Overlay -------------------- */
+.result-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 200;
+  animation: fade-in 0.8s ease forwards;
+}
+
+.result-card {
+  background: linear-gradient(135deg, #6EE7B7, #3B82F6);
+  border-radius: 20px;
+  padding: 30px 40px;
+  text-align: center;
+  color: #020617;
+  box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+  transform: scale(0.7);
+  animation: scale-up 0.5s forwards;
+}
+
+.result-card h2 {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+}
+
+.result-card h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.result-card p {
+  font-size: 1rem;
+  margin-bottom: 20px;
+}
+
+.result-card button {
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 16px;
+  background: #fbbf24;
+  color: #020617;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.result-card button:hover {
+  transform: translateY(-3px) scale(1.05);
+}
+
+/* -------------------- Animations -------------------- */
+@keyframes scale-up {
+  to { transform: scale(1); }
+}
+
+/* -------------------- Camera Feed (hidden) -------------------- */
+.camera-feed {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  display: none;
+}
+
+/* -------------------- Misc -------------------- */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
