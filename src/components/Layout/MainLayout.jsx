@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, Outlet } from "react-router-dom";
-import "../styles/MainLayout.css";
+import "../../styles/MainLayout.css";
 
 export default function MainLayout() {
   const [theme, setTheme] = useState("dark");
