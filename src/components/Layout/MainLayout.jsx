@@ -3,134 +3,88 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import "../../styles/MainLayout.css";
 
 export default function MainLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-const navigate = useNavigate();
-const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showOptions, setShowOptions] = useState(false);
 
-const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isChatPage = location.pathname === "/gpt";
 
-return (
+  return (
+    <div className="layout">
 
-```
-<div className="app-container">
+      {/* TopBar */}
+      <header className="topbar">
 
-  {/* TOP BAR */}
+        <div className="topbar-left">
+          <button
+            className="menu-btn"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            ☰
+          </button>
 
-  <header className="topbar">
+          <h1 className="logo" onClick={() => navigate("/gpt")}>
+            ManifiX
+          </h1>
+        </div>
 
-    <div className="topbar-left">
-      <button
-        className="menu-btn"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-      >
-        ☰
-      </button>
+        <div className="topbar-right">
+          {isChatPage && (
+            <button className="new-chat-btn">
+              ➕ New Chat
+            </button>
+          )}
 
-      <h1
-        className="logo"
-        onClick={() => navigate("/")}
-      >
-        ManifiX
-      </h1>
+          <div className="more-options">
+            <button onClick={() => setShowOptions(!showOptions)}>⋮</button>
+
+            {showOptions && (
+              <div className="dropdown">
+                <button>📤 Share</button>
+                <button>👥 Group Chat</button>
+                <button>🗑 Delete</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </header>
+
+      {/* Body */}
+      <div className="layout-body">
+
+        {/* Sidebar */}
+        {sidebarOpen && (
+          <aside className="sidebar">
+
+            <button onClick={() => navigate("/gpt")}>
+              💬 GPT Chat
+            </button>
+
+            <button onClick={() => navigate("/magic16")}>
+              ✨ Magic16
+            </button>
+
+            <button onClick={() => navigate("/dashboard")}>
+              📊 Dashboard
+            </button>
+
+            <button onClick={() => navigate("/billing")}>
+              ⭐ Premium
+            </button>
+
+          </aside>
+        )}
+
+        {/* Workspace */}
+        <main className="workspace">
+          <Outlet />
+        </main>
+
+      </div>
+
     </div>
-
-    <div className="topbar-center">
-
-      <input
-        className="search"
-        placeholder="Search chats..."
-      />
-
-    </div>
-
-    <div className="topbar-right">
-
-      <button className="icon-btn">
-        🎤
-      </button>
-
-      <button className="icon-btn">
-        🔔
-      </button>
-
-      <button className="profile-btn">
-        👤
-      </button>
-
-    </div>
-
-  </header>
-
-
-  <div className="layout-body">
-
-    {/* SIDEBAR */}
-
-    {sidebarOpen && (
-
-      <aside className="sidebar">
-
-        <button
-          className="new-chat"
-          onClick={() => navigate("/gpt")}
-        >
-          + New Chat
-        </button>
-
-        <nav className="sidebar-nav">
-
-          <button
-            className={location.pathname === "/gpt" ? "active" : ""}
-            onClick={() => navigate("/gpt")}
-          >
-            💬 Chats
-          </button>
-
-          <button
-            className={location.pathname === "/magic16" ? "active" : ""}
-            onClick={() => navigate("/magic16")}
-          >
-            ✨ Magic16
-          </button>
-
-          <button
-            onClick={() => navigate("/dashboard")}
-          >
-            📊 Dashboard
-          </button>
-
-          <button
-            onClick={() => navigate("/journal")}
-          >
-            📓 Journal
-          </button>
-
-          <button
-            onClick={() => navigate("/settings")}
-          >
-            ⚙ Settings
-          </button>
-
-        </nav>
-
-      </aside>
-
-    )}
-
-
-    {/* MAIN WORKSPACE */}
-
-    <main className="workspace">
-
-      <Outlet />
-
-    </main>
-
-  </div>
-
-</div>
-```
-
-);
-
+  );
 }
