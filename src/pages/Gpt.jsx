@@ -1,291 +1,221 @@
-// src/pages/Gpt.jsx
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
-import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-import Header from "../components/Header";
+import logo from "../assets/logo.png"; // ManifiX App Logo
+import background from "../assets/backgrounds/purple-vibe.jpg";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-// Toast Component
-const Toast = ({ message, onClose, retry }) => (
-  <div className="toast">
-    <span>{message}</span>
-    {retry && (
-      <button onClick={retry} className="retry-btn" aria-label="Retry">
-        ↻ Retry
-      </button>
-    )}
-    <button onClick={onClose} aria-label="Close Notification">
-      ×
-    </button>
-  </div>
-);
-
-const defaultWelcome = {
-  content: `Hii ❤️ I’m ManifiX, I’m here with you ✨`,
-  role: "bot",
-  id: "welcome",
-  type: "text",
-};
-
-export default function Gpt({ userId }) {
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("chatMessages");
-    return saved ? JSON.parse(saved) : [defaultWelcome];
-  });
+export default function Gpt() {
+  const [messages, setMessages] = useState([
+    { id: 1, role: "assistant", content: "Hi 👋 I'm ManifiX. Ask me anything." }
+  ]);
   const [input, setInput] = useState("");
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [listening, setListening] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [toast, setToast] = useState("");
-  const [retryMsg, setRetryMsg] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [voice, setVoice] = useState(true);
+  const [streaming, setStreaming] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const chatContainer = useRef(null);
+  const chatRef = useRef(null);
+  const controllerRef = useRef(null);
   const recognitionRef = useRef(null);
-  const ttsRef = useRef(null);
 
-  // ---------------- Speech Recognition ----------------
+  // Auto-scroll
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  // Speech recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     const rec = new SpeechRecognition();
-    rec.lang = "en-IN";
-    rec.interimResults = false;
+    rec.lang = "en-US";
     rec.continuous = false;
-    recognitionRef.current = rec;
-
-    rec.onstart = () => setListening(true);
     rec.onresult = (e) => setInput(e.results[0][0].transcript);
-    rec.onerror = (e) => {
-      setListening(false);
-      showToast(`STT Error: ${e.error}`);
-      if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
-    };
-    rec.onend = () => setListening(false);
-  }, [voiceEnabled]);
+    recognitionRef.current = rec;
+  }, []);
 
-  // ---------------- Scroll & Persist ----------------
-  useEffect(() => {
-    if (chatContainer.current) {
-      chatContainer.current.scrollTo({ top: chatContainer.current.scrollHeight, behavior: "smooth" });
-    }
-    localStorage.setItem("chatMessages", JSON.stringify(messages));
-  }, [messages]);
-
-  // ---------------- Text-to-Speech ----------------
+  // Text-to-speech
   const speak = (text) => {
-    if (!voiceEnabled || !window.speechSynthesis) return;
+    if (!voice) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-IN";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
-    ttsRef.current = utterance;
-  };
-  const stopSpeaking = () => window.speechSynthesis?.cancel();
-
-  // ---------------- Toast ----------------
-  const showToast = (msg, retryFn = null) => {
-    setToast(msg);
-    setRetryMsg(() => retryFn);
-    setTimeout(() => setToast(""), 5000);
+    window.speechSynthesis.speak(utter);
   };
 
-  // ---------------- Mic ----------------
-  const handleMic = () => {
-    const rec = recognitionRef.current;
-    if (!rec) return showToast("STT not supported");
-    listening ? rec.stop() : rec.start();
-  };
+  // Send message
+  const sendMessage = async () => {
+    if (!input.trim()) return;
 
-  // ---------------- Copy / Share / Delete ----------------
-  const copyMessage = (text) => {
-    navigator.clipboard.writeText(text);
-    showToast("✅ Copied to clipboard");
-  };
-  const deleteMessage = (id) => {
-    setMessages(prev => prev.filter(msg => msg.id !== id));
-    showToast("🗑️ Message deleted");
-  };
-  const shareMessage = (text) => {
-    navigator.share?.({ text }).catch(() => {
-      copyMessage(text);
-      showToast("🔗 Copied link for sharing");
-    });
-  };
-
-  // ---------------- Send Message ----------------
-  const sendMessage = async (msg, isFile = false) => {
-    if (!msg) return;
-    stopSpeaking();
-
-    const userMsg = {
-      content: msg,
-      role: "user",
-      id: Math.random().toString(36).substring(2),
-      type: isFile ? "file" : "text",
-    };
+    const userMsg = { id: Date.now(), role: "user", content: input };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
-
-    const thinkingMsg = {
-      content: "ManifiX is thinking...",
-      role: "bot",
-      type: "thinking",
-      id: Math.random().toString(36).substring(2),
-    };
-    setMessages(prev => [...prev, thinkingMsg]);
-
-    const attempt = async () => {
-      try {
-        const response = await axios.post(`${API_BASE}/api/chat`, { message: msg, userId });
-        const replyText = response.data.reply || "Hmm… I have no response.";
-
-        setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
-
-        // Typing animation
-        let idx = 0;
-        const replyMsg = { content: "", role: "bot", id: Math.random().toString(36).substring(2), type: "text" };
-        setMessages(prev => [...prev, replyMsg]);
-
-        const interval = setInterval(() => {
-          if (idx < replyText.length) {
-            replyMsg.content += replyText[idx];
-            setMessages(prev => [...prev.filter(m => m.id !== replyMsg.id), { ...replyMsg }]);
-            idx++;
-          } else {
-            clearInterval(interval);
-            if (voiceEnabled) speak(replyText);
-          }
-        }, 25);
-
-      } catch (error) {
-        console.error("Chat error:", error);
-        setMessages(prev => [
-          ...prev.filter(m => m.id !== thinkingMsg.id),
-          { content: "❌ Server Error. Please try again.", role: "bot", id: Math.random().toString(36).substring(2), type: "text" },
-        ]);
-        showToast("❌ Server Error. Tap retry to try again.", attempt);
-        if (voiceEnabled) speak("❌ Server Error. Please try again.");
-      }
-    };
-
-    attempt();
-  };
-
-  // ---------------- File Upload ----------------
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
+    setLoading(true);
+    setStreaming(true);
 
     try {
-      const res = await axios.post(`${API_BASE}/api/upload`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      sendMessage(res.data.url, true);
-    } catch {
-      showToast("❌ File upload failed", () => handleUpload(e));
-      if (voiceEnabled) speak("File upload failed");
-    } finally {
-      setUploading(false);
-      e.target.value = null;
+      controllerRef.current = new AbortController();
+      const res = await axios.post(`${API_BASE}/api/chat`, { message: userMsg.content });
+      const reply = res.data.reply || "Hmm… I have no response.";
+
+      let i = 0;
+      const botMsg = { id: Date.now() + 1, role: "assistant", content: "" };
+      setMessages(prev => [...prev, botMsg]);
+
+      const interval = setInterval(() => {
+        if (i < reply.length) {
+          botMsg.content += reply[i];
+          setMessages(prev => [...prev.filter(m => m.id !== botMsg.id), { ...botMsg }]);
+          i++;
+        } else {
+          clearInterval(interval);
+          setStreaming(false);
+          setLoading(false);
+          speak(reply);
+        }
+      }, 15);
+
+    } catch (err) {
+      setMessages(prev => [
+        ...prev,
+        { id: Date.now() + 2, role: "assistant", content: "⚠️ Server error" }
+      ]);
+      setLoading(false);
+      setStreaming(false);
     }
   };
 
-  // ---------------- Enter Key ----------------
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input.trim());
+  // Stop streaming
+  const stopGeneration = () => {
+    controllerRef.current?.abort();
+    setStreaming(false);
+    setLoading(false);
+  };
+
+  // Regenerate last user message
+  const regenerate = () => {
+    const lastUser = [...messages].reverse().find(m => m.role === "user");
+    if (lastUser) {
+      setInput(lastUser.content);
+      sendMessage();
     }
   };
+
+  // Copy code snippet
+  const copyCode = (code) => navigator.clipboard.writeText(code);
+
+  // Edit message
+  const editMessage = (id, text) => {
+    const newText = prompt("Edit message", text);
+    if (!newText) return;
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, content: newText } : m));
+  };
+
+  // Drag & Drop file upload
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await axios.post(`${API_BASE}/api/upload`, form);
+    sendMessage(res.data.url);
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const keyHandler = (e) => {
+      if (e.ctrlKey && e.key === "Enter") sendMessage();
+      if (e.key === "Escape") stopGeneration();
+    };
+    window.addEventListener("keydown", keyHandler);
+    return () => window.removeEventListener("keydown", keyHandler);
+  }, [input]);
+
+  const filteredMessages = messages.filter(m => m.content.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
-      {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
-      <Header
-        onNewChat={() => {
-          localStorage.removeItem("chatMessages");
-          setMessages([defaultWelcome]);
-        }}
-      />
+    <div
+      className="gpt-app dark"
+      style={{ backgroundImage: `url(${background})`, backgroundSize: "cover" }}
+      onDragOver={e => e.preventDefault()}
+      onDrop={handleDrop}
+    >
 
-      <main className="gpt-main" ref={chatContainer}>
-        {messages.map((msg) => (
-          <div key={msg.id} className={`message-row ${msg.role}`}>
-            <div className="message-bubble">
-              {msg.type === "thinking" ? (
-                <div role="status" aria-live="polite" className="typing-indicator">
-                  {msg.content}<span className="dots">...</span>
-                </div>
-              ) : msg.type === "file" ? (
-                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  📎 {msg.content.split("/").pop()}
-                </a>
-              ) : (
-                <>
-                  <ReactMarkdown
-                    children={msg.content}
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        return !inline && match ? (
-                          <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, "")} {...props} />
-                        ) : (
-                          <code className={className} {...props}>{children}</code>
-                        );
-                      },
-                    }}
-                  />
-                  <div className="message-actions">
-                    <button className="copy-msg" onClick={() => copyMessage(msg.content)} title="Copy">📋</button>
-                    <button className="share-msg" onClick={() => shareMessage(msg.content)} title="Share">🔗</button>
-                    <button className="delete-msg" onClick={() => deleteMessage(msg.id)} title="Delete">🗑️</button>
-                  </div>
-                </>
-              )}
+      {/* Header with logo + new chat */}
+      <header className="gpt-header">
+        <div className="logo-container">
+          <img src={logo} alt="ManifiX Logo" className="logo"/>
+          <h1>ManifiX AI</h1>
+        </div>
+
+        <input
+          placeholder="Search chat..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+
+        <button className="new-chat" title="New Chat" onClick={() => setMessages([{ id:1, role:"assistant", content:"Hi 👋 I'm ManifiX. Ask me anything." }])}>
+          ➕
+        </button>
+      </header>
+
+      {/* Chat messages */}
+      <main className="chat-container" ref={chatRef}>
+        {filteredMessages.map(msg => (
+          <div key={msg.id} className={`msg ${msg.role}`}>
+            <div className="bubble">
+              <ReactMarkdown
+                components={{
+                  code({ inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const code = String(children);
+                    return !inline && match ? (
+                      <div className="code-block">
+                        <button className="copy-code" onClick={() => copyCode(code)}>copy</button>
+                        <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>{code}</SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      <code>{children}</code>
+                    );
+                  }
+                }}
+              >
+                {msg.content}
+              </ReactMarkdown>
+
+              <div className="msg-actions">
+                <button onClick={() => editMessage(msg.id, msg.content)}>✏️</button>
+                <button onClick={() => navigator.clipboard.writeText(msg.content)}>📋</button>
+                <button onClick={() => setMessages(prev => prev.filter(m => m.id !== msg.id))}>🗑️</button>
+                <button>👍</button>
+                <button>👎</button>
+              </div>
             </div>
           </div>
         ))}
+
+        {loading && <div className="typing">AI typing...</div>}
       </main>
 
-      <footer className="gpt-footer">
-        <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          {listening ? "🛑" : "🎤"}
-        </button>
-
+      {/* Footer / Input */}
+      <footer className="chat-input">
         <textarea
-          rows={1}
-          style={{ resize: "none", overflowY: "hidden" }}
           value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = `${e.target.scrollHeight}px`;
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Your ManifiX Anything…"
-          aria-label="Chat input"
+          placeholder="Ask anything..."
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
         />
-
-        <label className="upload-btn" aria-label="Upload File">
-          📎
-          <input type="file" onChange={handleUpload} disabled={uploading} />
-        </label>
-
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
-
-        <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
-          {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
-        </button>
+        <button onClick={sendMessage}>➤</button>
+        {streaming && <button onClick={stopGeneration}>⏹ Stop</button>}
+        <button onClick={regenerate}>🔄</button>
       </footer>
     </div>
   );
