@@ -10,7 +10,7 @@ import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 import Header from "../components/Header";
 
-const API_BASE = "https://manifixai.com";
+const API_BASE = "https://manifix.up.railway.app";
 
 // Default welcome message (shown in UI only)
 const defaultWelcome = {
