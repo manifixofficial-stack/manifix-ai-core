@@ -184,31 +184,31 @@ export default function Magic16() {
     if (detectRef.current) clearInterval(detectRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
 
-    timerRef.current = setInterval(() => {
-      setTotalTime((t) => {
-        const newTime = t > 0 ? t - 1 : 0;
-        setProgress(Math.round(((TOTAL_DURATION - newTime) / TOTAL_DURATION) * 100));
-        return newTime;
-      });
-
-      setStepTime((prev) => {
-        if (prev <= 1) {
-          setStepIndex((i) => {
-            const next = i + 1;
-            if (next >= steps.length) {
-              finish();
-              return i;
-            }
-            if (next >= yogaSteps.length && meditationAudio) playAudio(meditationAudio);
-            setStepTime(steps[next]?.duration || 60);
-            speak(steps[next]?.text);
-            return next;
-          });
-          return 0;
+   timerRef.current = setInterval(() => {
+  setStepTime((prev) => {
+    if (prev <= 1) {
+      setStepIndex((i) => {
+        const next = i + 1;
+        if (next >= steps.length) {
+          finish();
+          return i;
         }
-        return prev - 1;
+        if (next >= yogaSteps.length && meditationAudio) playAudio(meditationAudio);
+        speak(steps[next]?.text);
+        return next;
       });
-    }, 1000);
+      return steps[stepIndex + 1]?.duration || 0; // Set next step duration immediately
+    }
+    return prev - 1;
+  });
+
+  setTotalTime((t) => {
+    if (t <= 1) return 0; // stop at 0 exactly
+    return t - 1;
+  });
+
+  setProgress(Math.round(((TOTAL_DURATION - (totalTime - 1)) / TOTAL_DURATION) * 100));
+}, 1000);
 
     detectRef.current = setInterval(detect, 400);
   };
