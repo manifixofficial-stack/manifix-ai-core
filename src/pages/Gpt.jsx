@@ -4,7 +4,7 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-import backgroundBlue from "../assets/backgrounds/blue-vibe.jpg";
+
 
 // Toast Component
 const Toast = ({ message, onClose }) => (
