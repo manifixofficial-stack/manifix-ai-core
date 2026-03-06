@@ -1,335 +1,184 @@
 // src/pages/Gpt.jsx
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import "../styles/Gpt.css"; // Neon chat styling
 
-import "../styles/Gpt.css";
-import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-import Header from "../components/Header";
+// Import your icons & background
+import { icons } from "../assets/icons"; // mic, stop
+import PngIcons from "../assets/PngIcons"; // chat, send, microphone, etc.
+import background from "../assets/backgrounds/purple-vibe.jpg";
 
 const API_BASE = "https://manifix.up.railway.app";
-
-const defaultWelcome = {
-  id: "welcome",
-  role: "bot",
-  type: "text",
-  content: "Hii ❤️ I’m ManifiX, I’m here with you ✨",
-};
-
-const Toast = ({ message, onClose, retry }) => (
-  <div className="toast">
-    <span>{message}</span>
-
-    {retry && (
-      <button onClick={retry} className="retry-btn">
-        ↻ Retry
-      </button>
-    )}
-
-    <button onClick={onClose}>×</button>
-  </div>
-);
 
 export default function Gpt() {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("chatMessages");
-
-    if (!saved) return [defaultWelcome];
-
-    let parsed = JSON.parse(saved);
-
-    parsed = parsed.filter((m) => m.id !== "welcome");
-
-    return [defaultWelcome, ...parsed];
+    return saved ? JSON.parse(saved) : [];
   });
-
   const [input, setInput] = useState("");
-  const [listening, setListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [listening, setListening] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  const [toast, setToast] = useState("");
-  const [retryMsg, setRetryMsg] = useState(null);
-
   const chatContainer = useRef(null);
+
+  // Ref for Speech Recognition
   const recognitionRef = useRef(null);
-
-  // ---------------- Scroll + Save ----------------
-
-  useEffect(() => {
-    if (chatContainer.current) {
-      chatContainer.current.scrollTo({
-        top: chatContainer.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-
-    localStorage.setItem("chatMessages", JSON.stringify(messages));
-  }, [messages]);
-
-  // ---------------- Speech Recognition ----------------
 
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.lang = "en-IN";
+      recognitionRef.current = rec;
 
-    if (!SpeechRecognition) return;
-
-    const rec = new SpeechRecognition();
-
-    rec.lang = "en-IN";
-    rec.interimResults = false;
-    rec.continuous = false;
-
-    recognitionRef.current = rec;
-
-    rec.onstart = () => setListening(true);
-
-    rec.onresult = (e) => {
-      setInput(e.results[0][0].transcript);
-    };
-
-    rec.onerror = () => {
-      setListening(false);
-      showToast("Speech recognition error");
-    };
-
-    rec.onend = () => setListening(false);
+      rec.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        setInput(transcript);
+      };
+      rec.onend = () => setListening(false);
+    }
   }, []);
 
-  // ---------------- Toast ----------------
+  // Scroll chat to bottom and save messages
+  useEffect(() => {
+    if (chatContainer.current) {
+      chatContainer.current.scrollTop = chatContainer.current.scrollHeight;
+    }
+    localStorage.setItem("chatMessages", JSON.stringify(messages));
+  }, [messages]);
 
-  const showToast = (msg, retry = null) => {
-    setToast(msg);
-    setRetryMsg(() => retry);
-
-    setTimeout(() => setToast(""), 4000);
-  };
-
-  // ---------------- Voice ----------------
-
+  // Text-to-Speech
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
-
     window.speechSynthesis.cancel();
-
-    const utter = new SpeechSynthesisUtterance(text);
-
-    utter.lang = "en-IN";
-
-    window.speechSynthesis.speak(utter);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-IN";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
   };
 
-  // ---------------- Mic ----------------
-
+  // Mic button handler
   const handleMic = () => {
     const rec = recognitionRef.current;
+    if (!rec) return alert("STT not supported on this device");
 
-    if (!rec) return showToast("Voice not supported");
-
-    listening ? rec.stop() : rec.start();
+    if (listening) {
+      rec.stop();
+      setListening(false);
+    } else {
+      rec.start();
+      setListening(true);
+    }
   };
 
-  // ---------------- Copy / Share / Delete ----------------
-
-  const copyMessage = (text) => {
-    navigator.clipboard.writeText(text);
-    showToast("Copied");
-  };
-
-  const deleteMessage = (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-  };
-
-  const shareMessage = (text) => {
-    navigator.share?.({ text }).catch(() => copyMessage(text));
-  };
-
-  // ---------------- Send Message ----------------
-
+  // Send a message
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
 
-    const userMsg = {
-      id: crypto.randomUUID(),
-      role: "user",
-      type: isFile ? "file" : "text",
-      content: msg,
-    };
-
-    const thinkingMsg = {
-      id: crypto.randomUUID(),
-      role: "bot",
-      type: "thinking",
-      content: "ManifiX is thinking...",
-    };
-
-    setMessages((prev) => [...prev, userMsg, thinkingMsg]);
-
+    const userMsg = { content: msg, role: "user", timestamp: Date.now(), isFile };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
+    const thinkingMsg = { content: "ManifiX is thinking...", role: "bot", type: "thinking", timestamp: Date.now() };
+    setMessages((prev) => [...prev, thinkingMsg]);
+
     try {
-      const conversation = [...messages, userMsg]
-        .slice(-12)
-        .filter((m) => m.role === "user" || m.role === "bot")
-        .map((m) => ({
-          role: m.role === "bot" ? "assistant" : "user",
-          content: m.content,
-        }));
+      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg }, { timeout: 10000 });
+      const replyText = response.data.reply || "I’m here with you 🤍";
 
-      const res = await axios.post(`${API_BASE}/api/chat`, {
-        message: msg,
-        conversation,
-      });
+      setMessages((prev) => prev.filter((m) => m !== thinkingMsg));
 
-      const replyText =
-        res.data.reply ||
-        res.data.choices?.[0]?.message?.content ||
-        "Hmm… I have no response.";
-
-      setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
-
-      const replyMsg = {
-        id: crypto.randomUUID(),
-        role: "bot",
-        type: "text",
-        content: "",
-      };
-
+      // Typing effect
+      let idx = 0;
+      const replyMsg = { content: "", role: "bot", timestamp: Date.now(), type: "text" };
       setMessages((prev) => [...prev, replyMsg]);
 
-      let i = 0;
-
       const interval = setInterval(() => {
-        i++;
-
-        const partial = replyText.slice(0, i);
-
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === replyMsg.id ? { ...m, content: partial } : m
-          )
-        );
-
-        if (i >= replyText.length) {
+        if (idx < replyText.length) {
+          replyMsg.content += replyText[idx];
+          setMessages((prev) => [...prev.filter((m) => m !== replyMsg), replyMsg]);
+          idx++;
+        } else {
           clearInterval(interval);
-
-          if (voiceEnabled) speak(replyText);
+          speak(replyText);
         }
-      }, 15);
-    } catch (err) {
-      console.error(err);
-
+      }, 25);
+    } catch {
+      setMessages((prev) => prev.filter((m) => m !== thinkingMsg));
       setMessages((prev) => [
-        ...prev.filter((m) => m.id !== thinkingMsg.id),
-        {
-          id: crypto.randomUUID(),
-          role: "bot",
-          type: "text",
-          content: "❌ Server error. Try again.",
-        },
+        ...prev,
+        { content: "❌ Backend not reachable. Try again.", role: "bot", timestamp: Date.now() },
       ]);
     }
   };
 
-  // ---------------- Upload ----------------
-
+  // File upload
   const handleUpload = async (e) => {
     const file = e.target.files[0];
-
     if (!file) return;
-
     setUploading(true);
-
-    const form = new FormData();
-    form.append("file", file);
+    const formData = new FormData();
+    formData.append("file", file);
 
     try {
-      const res = await axios.post(`${API_BASE}/api/upload`, form);
-
-      sendMessage(res.data.url, true);
+      const res = await axios.post(`${API_BASE}/api/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const fileUrl = res.data.url;
+      sendMessage(fileUrl, true);
     } catch {
-      showToast("Upload failed");
+      alert("❌ File upload failed");
     } finally {
       setUploading(false);
+      e.target.value = null;
     }
   };
 
-  // ---------------- Render ----------------
+  // Enter key sends message
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input.trim());
+    }
+  };
 
   return (
     <div
-      className="gpt-app theme-purple"
-      style={{ backgroundImage: `url(${backgroundPurple})` }}
+      className="gpt-app"
+      style={{ backgroundImage: `url(${background})`, backgroundSize: "cover" }}
     >
-      {toast && (
-        <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />
-      )}
-
-      <Header
-        onNewChat={() => {
-          localStorage.removeItem("chatMessages");
-          setMessages([defaultWelcome]);
-        }}
-      />
+      <header className="gpt-header">
+        <img src={PngIcons.chat} alt="ManifiX Logo" className="gpt-logo" />
+        <h1>ManifiX GPT</h1>
+      </header>
 
       <main className="gpt-main" ref={chatContainer}>
-        {messages.map((msg) => (
-          <div key={msg.id} className={`message-row ${msg.role}`}>
+        {messages.map((msg, idx) => (
+          <div key={idx} className={`message-row ${msg.role}`}>
             <div className="message-bubble">
-              {msg.type === "thinking" ? (
-                <div className="typing-indicator">
-                  {msg.content}
-                  <span className="dots">...</span>
-                </div>
-              ) : msg.type === "file" ? (
-                <a href={msg.content} target="_blank" rel="noreferrer">
+              {msg.isFile ? (
+                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
                   📎 {msg.content.split("/").pop()}
                 </a>
               ) : (
                 <>
-                  <ReactMarkdown
-                    components={{
-                      code({ inline, className, children, ...props }) {
-                        const match =
-                          /language-(\w+)/.exec(className || "");
-
-                        return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            {...props}
-                          >
-                            {String(children).replace(/\n$/, "")}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code {...props}>{children}</code>
-                        );
-                      },
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-
-                  {msg.role === "bot" && (
-                    <div className="message-actions">
-                      <button onClick={() => copyMessage(msg.content)}>
-                        📋
-                      </button>
-
-                      <button onClick={() => shareMessage(msg.content)}>
-                        🔗
-                      </button>
-
-                      <button onClick={() => deleteMessage(msg.id)}>
-                        🗑️
-                      </button>
-                    </div>
-                  )}
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  {msg.role === "bot" &&
+                    msg.type !== "thinking" &&
+                    [...Array(5)].map((_, i) => (
+                      <span
+                        key={i}
+                        className="twinkle-star"
+                        style={{
+                          top: `${Math.random() * 80}%`,
+                          left: `${Math.random() * 80}%`,
+                          animationDelay: `${Math.random()}s`,
+                        }}
+                      />
+                    ))}
                 </>
               )}
             </div>
@@ -338,37 +187,34 @@ export default function Gpt() {
       </main>
 
       <footer className="gpt-footer">
-        <button onClick={handleMic} className={listening ? "recording" : ""}>
-          {listening ? "🛑" : "🎤"}
+        <button
+          id="micBtn"
+          onClick={handleMic}
+          className={listening ? "recording" : ""}
+          aria-label={listening ? "Stop Recording" : "Start Recording"}
+        >
+          <img src={listening ? icons.stop : icons.mic} alt="Mic Icon" />
         </button>
 
         <textarea
           value={input}
-          placeholder="Ask Your ManifiX Anything…"
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage(input.trim());
-            }
-          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask Your ManifiX Anything…"
+          aria-label="Chat input"
         />
 
-        <label className="upload-btn">
+        <label className="upload-btn" aria-label="Upload File">
           📎
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button
-          className="primary"
-          onClick={() => sendMessage(input.trim())}
-          disabled={!input.trim()}
-        >
-          ➤
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
+          <img src={PngIcons.send} alt="Send" />
         </button>
 
-        <button onClick={() => setVoiceEnabled((v) => !v)}>
-          {voiceEnabled ? "🔊" : "🔇"}
+        <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
+          {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
         </button>
       </footer>
     </div>
