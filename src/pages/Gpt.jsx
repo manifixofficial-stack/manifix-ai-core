@@ -12,7 +12,7 @@ import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-// Welcome message (shown once at the top)
+// Default welcome message (shown in UI only)
 const defaultWelcome = {
   id: "welcome",
   role: "bot",
@@ -20,15 +20,11 @@ const defaultWelcome = {
   content: "Hii ❤️ I’m ManifiX, I’m here with you ✨",
 };
 
-// Toast component for notifications
+// Toast notification
 const Toast = ({ message, onClose, retry }) => (
   <div className="toast">
     <span>{message}</span>
-    {retry && (
-      <button onClick={retry} className="retry-btn">
-        ↻ Retry
-      </button>
-    )}
+    {retry && <button onClick={retry} className="retry-btn">↻ Retry</button>}
     <button onClick={onClose}>×</button>
   </div>
 );
@@ -38,11 +34,7 @@ export default function Gpt() {
     const saved = localStorage.getItem("chatMessages");
     if (!saved) return [defaultWelcome];
 
-    let parsed = JSON.parse(saved);
-
-    // Remove old welcome duplicates
-    parsed = parsed.filter((m) => m.id !== "welcome");
-
+    const parsed = JSON.parse(saved).filter((m) => m.id !== "welcome");
     return [defaultWelcome, ...parsed];
   });
 
@@ -50,7 +42,6 @@ export default function Gpt() {
   const [listening, setListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [uploading, setUploading] = useState(false);
-
   const [toast, setToast] = useState("");
   const [retryMsg, setRetryMsg] = useState(null);
 
@@ -65,23 +56,18 @@ export default function Gpt() {
         behavior: "smooth",
       });
     }
-
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
   // ---------------- Speech Recognition ----------------
   useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
     const rec = new SpeechRecognition();
-
     rec.lang = "en-IN";
     rec.interimResults = false;
     rec.continuous = false;
-
     recognitionRef.current = rec;
 
     rec.onstart = () => setListening(true);
@@ -93,122 +79,73 @@ export default function Gpt() {
     rec.onend = () => setListening(false);
   }, []);
 
-  // ---------------- Toast ----------------
   const showToast = (msg, retry = null) => {
     setToast(msg);
     setRetryMsg(() => retry);
     setTimeout(() => setToast(""), 4000);
   };
 
-  // ---------------- Voice ----------------
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
-
     window.speechSynthesis.cancel();
-
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
     window.speechSynthesis.speak(utter);
   };
 
-  // ---------------- Mic ----------------
   const handleMic = () => {
     const rec = recognitionRef.current;
     if (!rec) return showToast("Voice not supported");
-
     listening ? rec.stop() : rec.start();
   };
 
-  // ---------------- Copy / Share / Delete ----------------
-  const copyMessage = (text) => {
-    navigator.clipboard.writeText(text);
-    showToast("Copied");
-  };
-
-  const deleteMessage = (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-  };
-
-  const shareMessage = (text) => {
-    navigator.share?.({ text }).catch(() => copyMessage(text));
-  };
+  const copyMessage = (text) => { navigator.clipboard.writeText(text); showToast("Copied"); };
+  const deleteMessage = (id) => { setMessages((prev) => prev.filter((m) => m.id !== id)); };
+  const shareMessage = (text) => { navigator.share?.({ text }).catch(() => copyMessage(text)); };
 
   // ---------------- Send Message ----------------
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
 
-    const userMsg = {
-      id: crypto.randomUUID(),
-      role: "user",
-      type: isFile ? "file" : "text",
-      content: msg,
-    };
-
-    const thinkingMsg = {
-      id: crypto.randomUUID(),
-      role: "bot",
-      type: "thinking",
-      content: "ManifiX is thinking...",
-    };
+    const userMsg = { id: crypto.randomUUID(), role: "user", type: isFile ? "file" : "text", content: msg };
+    const thinkingMsg = { id: crypto.randomUUID(), role: "bot", type: "thinking", content: "ManifiX is thinking..." };
 
     setMessages((prev) => [...prev, userMsg, thinkingMsg]);
     setInput("");
 
     try {
-      // Only send real messages to backend (exclude default welcome)
+      // Remove default welcome before sending
       const conversation = [...messages, userMsg]
-        .filter((m) => m.id !== "welcome") // FIX repeated greeting
+        .filter((m) => m.id !== "welcome") // <--- REMOVE default welcome
         .slice(-12)
-        .map((m) => ({
-          role: m.role === "bot" ? "assistant" : "user",
-          content: m.content,
-        }));
+        .map((m) => ({ role: m.role === "bot" ? "assistant" : "user", content: m.content }));
 
-      const res = await axios.post(`${API_BASE}/api/chat`, {
-        message: msg,
-        conversation,
-      });
-
-      const replyText =
-        res.data.reply ||
-        res.data.choices?.[0]?.message?.content ||
-        "Hmm… I have no response.";
+      const res = await axios.post(`${API_BASE}/api/chat`, { message: msg, conversation });
+      const replyText = res.data.reply || res.data.choices?.[0]?.message?.content || "Hmm… I have no response.";
 
       // Remove thinking message
       setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
 
       // Add bot reply with typing effect
-      const replyMsg = {
-        id: crypto.randomUUID(),
-        role: "bot",
-        type: "text",
-        content: "",
-      };
-
+      const replyMsg = { id: crypto.randomUUID(), role: "bot", type: "text", content: "" };
       setMessages((prev) => [...prev, replyMsg]);
 
       let i = 0;
       const interval = setInterval(() => {
         i++;
         const partial = replyText.slice(0, i);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === replyMsg.id ? { ...m, content: partial } : m))
-        );
+        setMessages((prev) => prev.map((m) => m.id === replyMsg.id ? { ...m, content: partial } : m));
         if (i >= replyText.length) {
           clearInterval(interval);
           if (voiceEnabled) speak(replyText);
         }
       }, 15);
+
     } catch (err) {
       console.error(err);
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== thinkingMsg.id),
-        {
-          id: crypto.randomUUID(),
-          role: "bot",
-          type: "text",
-          content: "❌ Server error. Try again.",
-        },
+        { id: crypto.randomUUID(), role: "bot", type: "text", content: "❌ Server error. Try again." },
       ]);
     }
   };
@@ -234,55 +171,27 @@ export default function Gpt() {
 
   // ---------------- Render ----------------
   return (
-    <div
-      className="gpt-app theme-purple"
-      style={{ backgroundImage: `url(${backgroundPurple})` }}
-    >
+    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})` }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
-      <Header
-        onNewChat={() => {
-          localStorage.removeItem("chatMessages");
-          setMessages([defaultWelcome]);
-        }}
-      />
+      <Header onNewChat={() => { localStorage.removeItem("chatMessages"); setMessages([defaultWelcome]); }} />
 
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role}`}>
             <div className="message-bubble">
               {msg.type === "thinking" ? (
-                <div className="typing-indicator">
-                  {msg.content}
-                  <span className="dots">...</span>
-                </div>
+                <div className="typing-indicator">{msg.content}<span className="dots">...</span></div>
               ) : msg.type === "file" ? (
-                <a href={msg.content} target="_blank" rel="noreferrer">
-                  📎 {msg.content.split("/").pop()}
-                </a>
+                <a href={msg.content} target="_blank" rel="noreferrer">📎 {msg.content.split("/").pop()}</a>
               ) : (
                 <>
-                  <ReactMarkdown
-                    components={{
-                      code({ inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            {...props}
-                          >
-                            {String(children).replace(/\n$/, "")}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code {...props}>{children}</code>
-                        );
-                      },
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
+                  <ReactMarkdown components={{
+                    code({ inline, className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      return !inline && match ? <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>{String(children).replace(/\n$/, "")}</SyntaxHighlighter> : <code {...props}>{children}</code>;
+                    },
+                  }}>{msg.content}</ReactMarkdown>
 
                   {msg.role === "bot" && (
                     <div className="message-actions">
@@ -299,38 +208,11 @@ export default function Gpt() {
       </main>
 
       <footer className="gpt-footer">
-        <button onClick={handleMic} className={listening ? "recording" : ""}>
-          {listening ? "🛑" : "🎤"}
-        </button>
-
-        <textarea
-          value={input}
-          placeholder="Ask Your ManifiX Anything…"
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage(input.trim());
-            }
-          }}
-        />
-
-        <label className="upload-btn">
-          📎
-          <input type="file" onChange={handleUpload} disabled={uploading} />
-        </label>
-
-        <button
-          className="primary"
-          onClick={() => sendMessage(input.trim())}
-          disabled={!input.trim()}
-        >
-          ➤
-        </button>
-
-        <button onClick={() => setVoiceEnabled((v) => !v)}>
-          {voiceEnabled ? "🔊" : "🔇"}
-        </button>
+        <button onClick={handleMic} className={listening ? "recording" : ""}>{listening ? "🛑" : "🎤"}</button>
+        <textarea value={input} placeholder="Ask Your ManifiX Anything…" onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input.trim()); } }} />
+        <label className="upload-btn">📎<input type="file" onChange={handleUpload} disabled={uploading} /></label>
+        <button className="primary" onClick={() => sendMessage(input.trim())} disabled={!input.trim()}>➤</button>
+        <button onClick={() => setVoiceEnabled((v) => !v)}>{voiceEnabled ? "🔊" : "🔇"}</button>
       </footer>
     </div>
   );
