@@ -1,16 +1,24 @@
-// src/pages/Gpt.jsx
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-
+import Header from "../components/Header";
 
 // Toast Component
-const Toast = ({ message, onClose }) => (
+const Toast = ({ message, onClose, retry }) => (
   <div className="toast">
-    {message}
-    <button onClick={onClose} aria-label="Close Notification">×</button>
+    <span>{message}</span>
+    {retry && (
+      <button onClick={retry} className="retry-btn" aria-label="Retry">
+        ↻ Retry
+      </button>
+    )}
+    <button onClick={onClose} aria-label="Close Notification">
+      ×
+    </button>
   </div>
 );
 
@@ -26,33 +34,33 @@ export default function Gpt() {
   const [listening, setListening] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState("");
-  const [theme, setTheme] = useState("purple");
+  const [retryMsg, setRetryMsg] = useState(null);
+
   const chatContainer = useRef(null);
   const recognitionRef = useRef(null);
+  const ttsRef = useRef(null);
 
-  // -------------------- Speech Recognition --------------------
+  // ---------- Speech Recognition ----------
   useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const rec = new SpeechRecognition();
-      rec.lang = "en-IN";
-      rec.interimResults = false;
-      rec.continuous = false;
-      recognitionRef.current = rec;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const rec = new SpeechRecognition();
+    rec.lang = "en-IN";
+    rec.interimResults = false;
+    rec.continuous = false;
+    recognitionRef.current = rec;
 
-      rec.onstart = () => setListening(true);
-      rec.onresult = (e) => setInput(e.results[0][0].transcript);
-      rec.onerror = (e) => {
-        setListening(false);
-        showToast(`STT Error: ${e.error}`);
-        if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
-      };
-      rec.onend = () => setListening(false);
-    }
+    rec.onstart = () => setListening(true);
+    rec.onresult = (e) => setInput(e.results[0][0].transcript);
+    rec.onerror = (e) => {
+      setListening(false);
+      showToast(`STT Error: ${e.error}`);
+      if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
+    };
+    rec.onend = () => setListening(false);
   }, [voiceEnabled]);
 
-  // -------------------- Scroll & Persist --------------------
+  // ---------- Scroll & Persist ----------
   useEffect(() => {
     if (chatContainer.current) {
       chatContainer.current.scrollTo({ top: chatContainer.current.scrollHeight, behavior: "smooth" });
@@ -60,7 +68,7 @@ export default function Gpt() {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  // -------------------- TTS --------------------
+  // ---------- TTS ----------
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -69,47 +77,69 @@ export default function Gpt() {
     utterance.rate = 1;
     utterance.pitch = 1;
     window.speechSynthesis.speak(utterance);
+    ttsRef.current = utterance;
   };
+  const stopSpeaking = () => window.speechSynthesis?.cancel();
 
-  // -------------------- Toast --------------------
-  const showToast = (msg) => {
+  // ---------- Toast ----------
+  const showToast = (msg, retryFn = null) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 4000);
+    setRetryMsg(() => retryFn);
+    setTimeout(() => setToast(""), 5000);
   };
 
-  // -------------------- Mic --------------------
+  // ---------- Mic ----------
   const handleMic = () => {
     const rec = recognitionRef.current;
-    if (!rec) return showToast("STT not supported on this device");
+    if (!rec) return showToast("STT not supported");
     listening ? rec.stop() : rec.start();
   };
 
-  // -------------------- Send Message --------------------
+  // ---------- Copy / Share / Delete ----------
+  const copyMessage = (text) => {
+    navigator.clipboard.writeText(text);
+    showToast("✅ Copied to clipboard");
+  };
+
+  const deleteMessage = (timestamp) => {
+    setMessages(prev => prev.filter(msg => msg.timestamp !== timestamp));
+    showToast("🗑️ Message deleted");
+  };
+
+  const shareMessage = (text) => {
+    navigator.share?.({ text }).catch(() => {
+      copyMessage(text);
+      showToast("🔗 Copied link for sharing");
+    });
+  };
+
+  // ---------- Send Message ----------
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
+    stopSpeaking();
 
     const userMsg = { content: msg, role: "user", timestamp: Date.now(), type: isFile ? "file" : "text" };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInput("");
 
     const thinkingMsg = { content: "ManifiX is thinking...", role: "bot", type: "thinking", timestamp: Date.now() };
-    setMessages((prev) => [...prev, thinkingMsg]);
+    setMessages(prev => [...prev, thinkingMsg]);
 
     try {
       const response = await axios.post(`${API_BASE}/api/chat`, { message: msg }, { timeout: 15000 });
       const replyText = response.data.reply || "I’m here with you 🤍";
 
-      setMessages((prev) => prev.filter((m) => m.timestamp !== thinkingMsg.timestamp));
+      setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
 
-      // Typing effect
+      // Typing animation
       let idx = 0;
       const replyMsg = { content: "", role: "bot", timestamp: Date.now(), type: "text" };
-      setMessages((prev) => [...prev, replyMsg]);
+      setMessages(prev => [...prev, replyMsg]);
 
       const interval = setInterval(() => {
         if (idx < replyText.length) {
           replyMsg.content += replyText[idx];
-          setMessages((prev) => [...prev.filter((m) => m.timestamp !== replyMsg.timestamp), replyMsg]);
+          setMessages(prev => [...prev.filter(m => m.timestamp !== replyMsg.timestamp), replyMsg]);
           idx++;
         } else {
           clearInterval(interval);
@@ -117,15 +147,15 @@ export default function Gpt() {
         }
       }, 25);
     } catch {
-      setMessages((prev) => prev.filter((m) => m.timestamp !== thinkingMsg.timestamp));
+      setMessages(prev => prev.filter(m => m.timestamp !== thinkingMsg.timestamp));
       const errorMsg = "❌ Backend not reachable. Try again.";
-      setMessages((prev) => [...prev, { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }]);
-      showToast(errorMsg);
+      showToast(errorMsg, () => sendMessage(msg, isFile));
+      setMessages(prev => [...prev, { content: errorMsg, role: "bot", type: "text", timestamp: Date.now() }]);
       if (voiceEnabled) speak(errorMsg);
     }
   };
 
-  // -------------------- File Upload --------------------
+  // ---------- File Upload ----------
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -146,7 +176,7 @@ export default function Gpt() {
     }
   };
 
-  // -------------------- Enter Key --------------------
+  // ---------- Enter Key ----------
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -155,44 +185,48 @@ export default function Gpt() {
   };
 
   return (
-    <div
-      className={`gpt-app theme-${theme}`}
-      style={{ backgroundImage: `url(${theme === "purple" ? backgroundPurple : backgroundBlue})`, backgroundSize: "cover" }}
-    >
-      {toast && <Toast message={toast} onClose={() => setToast("")} />}
+    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
+      {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
-      <header className="gpt-header">
-        <img src={Icons.chat} alt="ManifiX Logo" className="gpt-logo" />
-        <h1>ManifiX</h1>
-        <button className="theme-toggle" onClick={() => setTheme(theme === "purple" ? "blue" : "purple")} aria-label="Toggle Theme">
-          {theme === "purple" ? "💙 Blue" : "💜 Purple"}
-        </button>
-      </header>
+     <Header onNewChat={() => {
+  localStorage.removeItem("chatMessages");
+  setMessages([]);
+}} />
 
+      {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
-        {messages.map((msg) => (
+        {messages.map(msg => (
           <div key={msg.timestamp} className={`message-row ${msg.role}`}>
-            <div className="message-bubble fade-in">
-              {msg.isFile ? (
+            <div className="message-bubble">
+              {msg.type === "thinking" ? (
+                <div role="status" aria-live="polite" className="typing-indicator">
+                  {msg.content}<span className="dots">...</span>
+                </div>
+              ) : msg.type === "file" ? (
                 <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
                   📎 {msg.content.split("/").pop()}
                 </a>
-              ) : msg.type === "thinking" ? (
-                <div role="status" aria-live="polite" className="typing-indicator">
-                  {msg.content}
-                  <span className="dots">...</span>
-                </div>
               ) : (
                 <>
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  {msg.role === "bot" &&
-                    [...Array(5)].map((_, i) => (
-                      <span
-                        key={i}
-                        className="twinkle-star"
-                        style={{ top: `${Math.random() * 80}%`, left: `${Math.random() * 80}%`, animationDelay: `${Math.random()}s` }}
-                      />
-                    ))}
+                  <ReactMarkdown
+                    children={msg.content}
+                    components={{
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        return !inline && match ? (
+                          <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, '')} {...props} />
+                        ) : (
+                          <code className={className} {...props}>{children}</code>
+                        );
+                      }
+                    }}
+                  />
+                  {/* Action Buttons */}
+                  <div className="message-actions">
+                    <button className="copy-msg" onClick={() => copyMessage(msg.content)} title="Copy">📋</button>
+                    <button className="share-msg" onClick={() => shareMessage(msg.content)} title="Share">🔗</button>
+                    <button className="delete-msg" onClick={() => deleteMessage(msg.timestamp)} title="Delete">🗑️</button>
+                  </div>
                 </>
               )}
             </div>
@@ -200,16 +234,17 @@ export default function Gpt() {
         ))}
       </main>
 
+      {/* Footer */}
       <footer className="gpt-footer">
-        <button id="micBtn" onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          <img src={listening ? Icons.stop : Icons.mic} alt="Mic Icon" />
+        <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
+          {listening ? "🛑" : "🎤"}
         </button>
 
         <textarea
           rows={1}
           style={{ resize: "none", overflowY: "hidden" }}
           value={input}
-          onChange={(e) => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
+          onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${e.target.scrollHeight}px`; }}
           onKeyDown={handleKeyDown}
           placeholder="Ask Your ManifiX Anything…"
           aria-label="Chat input"
@@ -220,9 +255,7 @@ export default function Gpt() {
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send Message">
-          <img src={Icons.send} alt="Send" />
-        </button>
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
 
         <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
