@@ -8,6 +8,8 @@ import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 import Header from "../components/Header";
 
+const API_BASE = "https://manifix.up.railway.app";
+
 // Toast Component
 const Toast = ({ message, onClose, retry }) => (
   <div className="toast">
@@ -23,8 +25,6 @@ const Toast = ({ message, onClose, retry }) => (
   </div>
 );
 
-const API_BASE = "https://manifix.up.railway.app";
-
 const defaultWelcome = {
   content: `Hii ❤️ I’m ManifiX, I’m here with you ✨`,
   role: "bot",
@@ -32,7 +32,7 @@ const defaultWelcome = {
   type: "text",
 };
 
-export default function Gpt() {
+export default function Gpt({ userId }) {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("chatMessages");
     return saved ? JSON.parse(saved) : [defaultWelcome];
@@ -141,49 +141,41 @@ export default function Gpt() {
     };
     setMessages(prev => [...prev, thinkingMsg]);
 
-    try {
-      const response = await axios.post(`${API_BASE}/api/chat`, { message: msg });
-      const replyText = response.data.reply || "Hmm… I have no response.";
+    const attempt = async () => {
+      try {
+        const response = await axios.post(`${API_BASE}/api/chat`, { message: msg, userId });
+        const replyText = response.data.reply || "Hmm… I have no response.";
 
-      // Remove thinking message
-      setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
+        setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
 
-      // Typing animation
-      let idx = 0;
-      const replyMsg = {
-        content: "",
-        role: "bot",
-        id: Math.random().toString(36).substring(2),
-        type: "text",
-      };
-      setMessages(prev => [...prev, replyMsg]);
+        // Typing animation
+        let idx = 0;
+        const replyMsg = { content: "", role: "bot", id: Math.random().toString(36).substring(2), type: "text" };
+        setMessages(prev => [...prev, replyMsg]);
 
-      const interval = setInterval(() => {
-        if (idx < replyText.length) {
-          replyMsg.content += replyText[idx];
-          setMessages(prev => [
-            ...prev.filter(m => m.id !== replyMsg.id),
-            { ...replyMsg },
-          ]);
-          idx++;
-        } else {
-          clearInterval(interval);
-          if (voiceEnabled) speak(replyText);
-        }
-      }, 25);
-    } catch (error) {
-      console.error("Chat error:", error);
-      setMessages(prev => [
-        ...prev.filter(m => m.id !== thinkingMsg.id),
-        {
-          content: "❌ Server Error. Please try again.",
-          role: "bot",
-          id: Math.random().toString(36).substring(2),
-          type: "text",
-        },
-      ]);
-      if (voiceEnabled) speak("❌ Server Error. Please try again.");
-    }
+        const interval = setInterval(() => {
+          if (idx < replyText.length) {
+            replyMsg.content += replyText[idx];
+            setMessages(prev => [...prev.filter(m => m.id !== replyMsg.id), { ...replyMsg }]);
+            idx++;
+          } else {
+            clearInterval(interval);
+            if (voiceEnabled) speak(replyText);
+          }
+        }, 25);
+
+      } catch (error) {
+        console.error("Chat error:", error);
+        setMessages(prev => [
+          ...prev.filter(m => m.id !== thinkingMsg.id),
+          { content: "❌ Server Error. Please try again.", role: "bot", id: Math.random().toString(36).substring(2), type: "text" },
+        ]);
+        showToast("❌ Server Error. Tap retry to try again.", attempt);
+        if (voiceEnabled) speak("❌ Server Error. Please try again.");
+      }
+    };
+
+    attempt();
   };
 
   // ---------------- File Upload ----------------
@@ -200,7 +192,7 @@ export default function Gpt() {
       });
       sendMessage(res.data.url, true);
     } catch {
-      showToast("❌ File upload failed");
+      showToast("❌ File upload failed", () => handleUpload(e));
       if (voiceEnabled) speak("File upload failed");
     } finally {
       setUploading(false);
@@ -217,10 +209,7 @@ export default function Gpt() {
   };
 
   return (
-    <div
-      className="gpt-app theme-purple"
-      style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
-    >
+    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
       <Header
         onNewChat={() => {
@@ -229,7 +218,6 @@ export default function Gpt() {
         }}
       />
 
-      {/* Chat Messages */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role}`}>
@@ -250,17 +238,9 @@ export default function Gpt() {
                       code({ node, inline, className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || "");
                         return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            children={String(children).replace(/\n$/, "")}
-                            {...props}
-                          />
+                          <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, "")} {...props} />
                         ) : (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
+                          <code className={className} {...props}>{children}</code>
                         );
                       },
                     }}
@@ -277,7 +257,6 @@ export default function Gpt() {
         ))}
       </main>
 
-      {/* Footer */}
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
           {listening ? "🛑" : "🎤"}
@@ -302,14 +281,7 @@ export default function Gpt() {
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button
-          onClick={() => sendMessage(input.trim())}
-          disabled={!input.trim()}
-          className="primary"
-          aria-label="Send"
-        >
-          ➤
-        </button>
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
 
         <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
