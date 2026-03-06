@@ -1,208 +1,304 @@
 /* src/styles/Gpt.css */
 
-/* ────────── Root Styles ────────── */
+/* ---------------- Global ---------------- */
 .gpt-app {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  width: 100%;
   font-family: 'Inter', sans-serif;
-  color: #fff;
+  color: #f1f1f1;
+  background-color: #1a0f3d;
   background-size: cover;
   background-position: center;
-  transition: background 0.3s, color 0.3s;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-/* Themes */
-.gpt-app.dark {
-  background-color: #1e1e2f;
+/* ---------------- Toast ---------------- */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(30, 0, 60, 0.95);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  animation: fadeIn 0.3s ease;
+}
+
+.toast .retry-btn {
+  background: #7f5af0;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #fff;
+  font-weight: bold;
+  transition: background 0.2s ease;
+}
+
+.toast .retry-btn:hover {
+  background: #9955ff;
+}
+
+.toast button[aria-label="Close Notification"] {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* ---------------- Header ---------------- */
+.gpt-app header,
+.gpt-app .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: rgba(40, 10, 70, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.gpt-app header h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
   color: #fff;
 }
 
-.gpt-app.light {
-  background-color: #f4f4f8;
-  color: #111;
+.header-actions button {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  margin-left: 12px;
+  cursor: pointer;
+  color: #fff;
+  transition: transform 0.2s ease;
 }
 
-/* ────────── Header ────────── */
-.gpt-header {
+.header-actions button:hover {
+  transform: scale(1.2);
+}
+
+/* ---------------- Main Chat ---------------- */
+.gpt-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+
+/* Message Rows */
+.message-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+}
+
+.message-row.user {
+  align-self: flex-end;
+}
+
+.message-row.bot {
+  align-self: flex-start;
+}
+
+.message-bubble {
+  background: rgba(50, 15, 90, 0.8);
+  padding: 12px 16px;
+  border-radius: 20px;
+  position: relative;
+  color: #fff;
+  font-size: 1rem;
+  word-wrap: break-word;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  transition: background 0.3s ease;
+}
+
+/* ---------------- Typing Indicator ---------------- */
+.typing-indicator {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2rem;
-  backdrop-filter: blur(10px);
-  background-color: rgba(30, 30, 50, 0.7);
+  gap: 4px;
+  font-style: italic;
+  color: #ddd;
+}
+
+.dots::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: #fff;
+  animation: blink 1s infinite alternate;
+}
+
+@keyframes blink {
+  0%, 20% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------------- Code Block ---------------- */
+.code-block {
+  position: relative;
+  margin: 12px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(20, 0, 40, 0.9);
+}
+
+.code-block .copy-code {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #7f5af0;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
   z-index: 10;
 }
 
-.gpt-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
+.code-block .copy-code:hover {
+  background: #9955ff;
 }
 
-.gpt-header input {
-  flex: 1;
-  margin: 0 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: none;
-  outline: none;
-  font-size: 1rem;
-}
-
-.gpt-header .header-actions button {
-  background: none;
-  border: none;
-  color: inherit;
-  font-size: 1.2rem;
-  margin-left: 0.5rem;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.gpt-header .header-actions button:hover {
-  transform: scale(1.2);
-}
-
-/* ────────── Chat Container ────────── */
-.chat-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem 2rem;
+/* ---------------- Message Actions ---------------- */
+.message-actions {
+  margin-top: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(5px);
+  gap: 8px;
 }
 
-/* Message Row */
-.msg {
-  display: flex;
-}
-
-.msg.assistant {
-  justify-content: flex-start;
-}
-
-.msg.user {
-  justify-content: flex-end;
-}
-
-.bubble {
-  max-width: 70%;
-  padding: 0.8rem 1rem;
-  border-radius: 15px;
-  position: relative;
-  word-break: break-word;
-  font-size: 1rem;
-  line-height: 1.4;
-  background-color: rgba(50, 50, 80, 0.8);
-  transition: background 0.3s;
-}
-
-.msg.user .bubble {
-  background-color: rgba(0, 150, 250, 0.8);
-}
-
-/* Message Actions */
-.msg-actions {
-  display: flex;
-  gap: 0.3rem;
-  margin-top: 0.3rem;
-}
-
-.msg-actions button {
-  background: none;
+.message-actions button {
+  background: transparent;
   border: none;
-  font-size: 0.9rem;
   cursor: pointer;
-  color: inherit;
-  transition: transform 0.2s;
-}
-
-.msg-actions button:hover {
-  transform: scale(1.2);
-}
-
-/* Code block */
-.code-block {
-  position: relative;
-  margin-top: 0.5rem;
-}
-
-.copy-code {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background: rgba(0,0,0,0.5);
-  border: none;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  border-radius: 4px;
   color: #fff;
-  transition: background 0.2s;
+  font-size: 1.1rem;
+  transition: transform 0.2s ease;
 }
 
-.copy-code:hover {
-  background: rgba(0,0,0,0.8);
+.message-actions button:hover {
+  transform: scale(1.3);
 }
 
-/* Typing indicator */
-.typing {
-  font-style: italic;
-  opacity: 0.8;
-}
-
-/* ────────── Footer Input ────────── */
-.chat-input {
+/* ---------------- Footer ---------------- */
+.gpt-footer {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.8rem 2rem;
-  background: rgba(30, 30, 50, 0.7);
+  gap: 12px;
+  padding: 12px 24px;
+  background: rgba(40, 10, 70, 0.85);
+  border-top: 1px solid rgba(255,255,255,0.1);
   backdrop-filter: blur(10px);
 }
 
-.chat-input textarea {
+.gpt-footer textarea {
   flex: 1;
-  resize: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  padding: 10px 16px;
+  border-radius: 16px;
   border: none;
   outline: none;
   font-size: 1rem;
-  max-height: 100px;
+  background: rgba(60, 20, 100, 0.6);
+  color: #fff;
+  resize: none;
+  transition: background 0.3s ease;
 }
 
-.chat-input button {
-  background-color: #0096fa;
+.gpt-footer textarea::placeholder {
+  color: #ccc;
+}
+
+.gpt-footer .primary {
+  background: #7f5af0;
   border: none;
   color: #fff;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  font-size: 1.3rem;
+  padding: 10px 16px;
+  border-radius: 16px;
   cursor: pointer;
-  font-size: 1.2rem;
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.3s ease, transform 0.2s ease;
 }
 
-.chat-input button:hover {
-  background-color: #007acc;
-  transform: scale(1.1);
+.gpt-footer .primary:hover {
+  background: #9955ff;
+  transform: scale(1.05);
 }
 
-/* Responsive adjustments */
+.gpt-footer .toggle-voice {
+  background: #444;
+  border: none;
+  color: #fff;
+  border-radius: 16px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.gpt-footer .toggle-voice:hover {
+  background: #7f5af0;
+}
+
+/* ---------------- Upload Button ---------------- */
+.upload-btn {
+  position: relative;
+  background: #555;
+  border-radius: 16px;
+  padding: 8px 12px;
+  cursor: pointer;
+  overflow: hidden;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  color: #fff;
+}
+
+.upload-btn input[type="file"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+/* ---------------- Mic ---------------- */
+.gpt-footer button.recording {
+  color: #ff5555;
+  animation: pulse 1s infinite alternate;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ---------------- Animations ---------------- */
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------- Responsive ---------------- */
 @media (max-width: 768px) {
-  .bubble {
-    max-width: 90%;
-  }
-
-  .gpt-header input {
-    display: none;
-  }
-
-  .chat-input {
-    padding: 0.5rem 1rem;
-  }
+  .message-bubble { max-width: 90%; }
+  .gpt-footer { flex-direction: column; gap: 8px; padding: 16px; }
+  .gpt-footer textarea { width: 100%; }
 }
