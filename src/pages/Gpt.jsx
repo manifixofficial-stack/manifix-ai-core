@@ -1,4 +1,4 @@
-new version:// src/pages/Gpt.jsx
+// src/pages/Gpt.jsx
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
