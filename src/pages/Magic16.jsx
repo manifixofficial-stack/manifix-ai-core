@@ -4,7 +4,7 @@ import "@tensorflow/tfjs-backend-webgl";
 import * as tf from "@tensorflow/tfjs";
 import confetti from "canvas-confetti";
 import "../styles/magic16.css";
-
+import logo from "../assets/logo.png"; 
 /* Audio */
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
