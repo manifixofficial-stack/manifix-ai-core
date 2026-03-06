@@ -1,248 +1,71 @@
-/* -------------------- magic16.css -------------------- */
-
-/* -------------------- Body & Container -------------------- */
 .magic16-container {
-  max-width: 400px;
-  margin: 40px auto;
-  padding: 20px;
-  background: linear-gradient(135deg, #0f0f2f, #020617);
-  border-radius: 20px;
-  color: #e5e7eb;
-  font-family: 'Inter', system-ui, sans-serif;
-  text-align: center;
-  box-shadow: 0 15px 50px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Poppins', sans-serif;
+  color: #fff;
+  min-height: 100vh;
+  background: linear-gradient(135deg,#6a0dad,#9b59b6);
   position: relative;
   overflow: hidden;
 }
 
-/* -------------------- Logo -------------------- */
-.magic16-logo {
-  width: 80px;
-  margin-bottom: 20px;
-  animation: logo-bounce 2s infinite alternate;
+.magic16-loading, .magic16-error {
+  font-size: 1.5rem;
+  text-align: center;
+  margin-top: 20vh;
 }
 
-@keyframes logo-bounce {
-  0% { transform: translateY(0) scale(1); }
-  100% { transform: translateY(-10px) scale(1.05); }
-}
-
-/* -------------------- Step Display -------------------- */
-.step-display {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 12px;
-  margin-bottom: 20px;
-  backdrop-filter: blur(10px);
-}
-
-.step-display img {
-  width: 100%;
-  height: 220px;
-  object-fit: contain;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-  transition: transform 0.3s ease;
-}
-
-.step-display img:hover {
-  transform: scale(1.02);
-}
-
-.step-display h2 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-/* -------------------- Timer & Progress -------------------- */
-.timer-progress {
-  margin-bottom: 20px;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 12px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #ff6ec4, #7873f5);
-  border-radius: 8px 0 0 8px;
-  transition: width 0.3s ease;
-}
-
-.timer {
-  display: flex;
-  justify-content: space-between;
-  font-weight: 500;
-  font-size: 0.9rem;
-  color: #cbd5e1;
-}
-
-/* -------------------- Live Score -------------------- */
-.live-score {
-  background: rgba(255,255,255,0.05);
-  border-radius: 16px;
-  padding: 12px 0;
-  margin-bottom: 20px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-}
-
-.live-score h3 {
-  font-weight: 500;
-  font-size: 0.95rem;
-  color: #facc15;
-  margin-bottom: 4px;
-}
-
-.live-score h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #ff6ec4;
-}
-
-/* -------------------- Controls -------------------- */
-.controls button {
-  width: 120px;
-  padding: 10px 0;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.start-btn {
-  background: linear-gradient(135deg, #6EE7B7, #3B82F6);
-  color: #020617;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-}
-
-.start-btn:hover {
-  transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-}
-
-.pause-btn {
-  background: linear-gradient(135deg, #F87171, #EF4444);
-  color: #fff;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-}
-
-.pause-btn:hover {
-  transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-}
-
-/* -------------------- Loading & Error Screens -------------------- */
-.loading-screen,
-.error-screen {
-  position: absolute;
-  inset: 0;
-  background: rgba(2,6,23,0.9);
+.magic16-intro, .magic16-yoga, .magic16-meditation, .magic16-result {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  border-radius: 20px;
-  z-index: 100;
-  animation: fadeIn 0.8s ease forwards;
-}
-
-.loading-screen h2,
-.error-screen h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.error-screen p {
-  font-size: 0.95rem;
-  color: #fca5a5;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* -------------------- Result Overlay -------------------- */
-.result-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(2,6,23,0.95);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 200;
-  animation: fade-in 0.8s ease forwards;
-}
-
-.result-card {
-  background: linear-gradient(135deg, #6EE7B7, #3B82F6);
-  border-radius: 20px;
-  padding: 30px 40px;
   text-align: center;
-  color: #020617;
-  box-shadow: 0 15px 50px rgba(0,0,0,0.5);
-  transform: scale(0.7);
-  animation: scale-up 0.5s forwards;
 }
 
-.result-card h2 {
-  font-size: 1.8rem;
-  margin-bottom: 10px;
-}
-
-.result-card h1 {
-  font-size: 3rem;
-  font-weight: 700;
-  margin-bottom: 5px;
-}
-
-.result-card p {
-  font-size: 1rem;
-  margin-bottom: 20px;
-}
-
-.result-card button {
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-weight: 600;
+.magic16-intro button, .magic16-yoga button {
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  border-radius: 10px;
   border: none;
-  border-radius: 16px;
-  background: #fbbf24;
-  color: #020617;
   cursor: pointer;
-  transition: all 0.3s ease;
+  margin-top: 20px;
+  background: #fff;
+  color: #6a0dad;
+  font-weight: bold;
 }
 
-.result-card button:hover {
-  transform: translateY(-3px) scale(1.05);
+.step-image {
+  width: 200px;
+  margin: 10px 0;
+  border-radius: 15px;
 }
 
-/* -------------------- Animations -------------------- */
-@keyframes scale-up {
-  to { transform: scale(1); }
+.camera {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 150px;
+  height: 150px;
+  opacity: 0.2;
+  border-radius: 10px;
 }
 
-/* -------------------- Camera Feed (hidden) -------------------- */
-.camera-feed {
-  width: 100%;
-  height: auto;
-  border-radius: 16px;
-  display: none;
+.breathing {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin: 10px 0;
+  animation: pulse 4s infinite;
+  background: rgba(255,255,255,0.5);
 }
 
-/* -------------------- Misc -------------------- */
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.breathing.inhale { animation-duration: 4s; }
+.breathing.hold { animation-duration: 4s; }
+.breathing.exhale { animation-duration: 4s; }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.5); opacity: 1; }
 }
