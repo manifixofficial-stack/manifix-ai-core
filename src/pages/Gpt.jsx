@@ -1,5 +1,4 @@
 // src/pages/Gpt.jsx
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -12,15 +11,6 @@ import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-// Default welcome message (shown in UI only)
-const defaultWelcome = {
-  id: "welcome",
-  role: "bot",
-  type: "text",
-  content: "Hii ❤️ I’m ManifiX, I’m here with you ✨",
-};
-
-// Toast notification
 const Toast = ({ message, onClose, retry }) => (
   <div className="toast">
     <span>{message}</span>
@@ -30,14 +20,7 @@ const Toast = ({ message, onClose, retry }) => (
 );
 
 export default function Gpt() {
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("chatMessages");
-    if (!saved) return [defaultWelcome];
-
-    const parsed = JSON.parse(saved).filter((m) => m.id !== "welcome");
-    return [defaultWelcome, ...parsed];
-  });
-
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -48,18 +31,18 @@ export default function Gpt() {
   const chatContainer = useRef(null);
   const recognitionRef = useRef(null);
 
-  // ---------------- Scroll + Save ----------------
+  useEffect(() => {
+    const saved = localStorage.getItem("chatMessages");
+    setMessages(saved ? JSON.parse(saved) : []);
+  }, []);
+
   useEffect(() => {
     if (chatContainer.current) {
-      chatContainer.current.scrollTo({
-        top: chatContainer.current.scrollHeight,
-        behavior: "smooth",
-      });
+      chatContainer.current.scrollTo({ top: chatContainer.current.scrollHeight, behavior: "smooth" });
     }
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  // ---------------- Speech Recognition ----------------
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
@@ -72,10 +55,7 @@ export default function Gpt() {
 
     rec.onstart = () => setListening(true);
     rec.onresult = (e) => setInput(e.results[0][0].transcript);
-    rec.onerror = () => {
-      setListening(false);
-      showToast("Speech recognition error");
-    };
+    rec.onerror = () => { setListening(false); showToast("Speech recognition error"); };
     rec.onend = () => setListening(false);
   }, []);
 
@@ -87,7 +67,6 @@ export default function Gpt() {
 
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
     window.speechSynthesis.speak(utter);
@@ -99,11 +78,6 @@ export default function Gpt() {
     listening ? rec.stop() : rec.start();
   };
 
-  const copyMessage = (text) => { navigator.clipboard.writeText(text); showToast("Copied"); };
-  const deleteMessage = (id) => { setMessages((prev) => prev.filter((m) => m.id !== id)); };
-  const shareMessage = (text) => { navigator.share?.({ text }).catch(() => copyMessage(text)); };
-
-  // ---------------- Send Message ----------------
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
 
@@ -114,19 +88,17 @@ export default function Gpt() {
     setInput("");
 
     try {
-      // Remove default welcome before sending
       const conversation = [...messages, userMsg]
-        .filter((m) => m.id !== "welcome") // <--- REMOVE default welcome
+        .filter((m) => !m.content.includes("ManifiX, I’m here with you")) // remove default welcome
         .slice(-12)
         .map((m) => ({ role: m.role === "bot" ? "assistant" : "user", content: m.content }));
 
       const res = await axios.post(`${API_BASE}/api/chat`, { message: msg, conversation });
-      const replyText = res.data.reply || res.data.choices?.[0]?.message?.content || "Hmm… I have no response.";
 
-      // Remove thinking message
+      const replyText = res.data.reply || "Hmm… I have no response.";
+
       setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
 
-      // Add bot reply with typing effect
       const replyMsg = { id: crypto.randomUUID(), role: "bot", type: "text", content: "" };
       setMessages((prev) => [...prev, replyMsg]);
 
@@ -134,28 +106,20 @@ export default function Gpt() {
       const interval = setInterval(() => {
         i++;
         const partial = replyText.slice(0, i);
-        setMessages((prev) => prev.map((m) => m.id === replyMsg.id ? { ...m, content: partial } : m));
-        if (i >= replyText.length) {
-          clearInterval(interval);
-          if (voiceEnabled) speak(replyText);
-        }
+        setMessages((prev) => prev.map((m) => (m.id === replyMsg.id ? { ...m, content: partial } : m)));
+        if (i >= replyText.length) { clearInterval(interval); if (voiceEnabled) speak(replyText); }
       }, 15);
-
     } catch (err) {
       console.error(err);
-      setMessages((prev) => [
-        ...prev.filter((m) => m.id !== thinkingMsg.id),
-        { id: crypto.randomUUID(), role: "bot", type: "text", content: "❌ Server error. Try again." },
-      ]);
+      setMessages((prev) => [...prev.filter((m) => m.id !== thinkingMsg.id), { id: crypto.randomUUID(), role: "bot", type: "text", content: "❌ Server error. Try again." }]);
     }
   };
 
-  // ---------------- Upload ----------------
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     setUploading(true);
+
     const form = new FormData();
     form.append("file", file);
 
@@ -164,44 +128,29 @@ export default function Gpt() {
       sendMessage(res.data.url, true);
     } catch {
       showToast("Upload failed");
-    } finally {
-      setUploading(false);
-    }
+    } finally { setUploading(false); }
   };
 
-  // ---------------- Render ----------------
   return (
     <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})` }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
-
-      <Header onNewChat={() => { localStorage.removeItem("chatMessages"); setMessages([defaultWelcome]); }} />
+      <Header onNewChat={() => { localStorage.removeItem("chatMessages"); setMessages([]); }} />
 
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role}`}>
             <div className="message-bubble">
-              {msg.type === "thinking" ? (
-                <div className="typing-indicator">{msg.content}<span className="dots">...</span></div>
-              ) : msg.type === "file" ? (
-                <a href={msg.content} target="_blank" rel="noreferrer">📎 {msg.content.split("/").pop()}</a>
-              ) : (
-                <>
-                  <ReactMarkdown components={{
-                    code({ inline, className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || "");
-                      return !inline && match ? <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>{String(children).replace(/\n$/, "")}</SyntaxHighlighter> : <code {...props}>{children}</code>;
-                    },
-                  }}>{msg.content}</ReactMarkdown>
-
-                  {msg.role === "bot" && (
-                    <div className="message-actions">
-                      <button onClick={() => copyMessage(msg.content)}>📋</button>
-                      <button onClick={() => shareMessage(msg.content)}>🔗</button>
-                      <button onClick={() => deleteMessage(msg.id)}>🗑️</button>
-                    </div>
-                  )}
-                </>
-              )}
+              {msg.type === "thinking" ? <div className="typing-indicator">{msg.content}<span className="dots">...</span></div> :
+                msg.type === "file" ? <a href={msg.content} target="_blank" rel="noreferrer">📎 {msg.content.split("/").pop()}</a> :
+                  <>
+                    <ReactMarkdown components={{
+                      code({ inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        return !inline && match ? <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>{String(children).replace(/\n$/, "")}</SyntaxHighlighter> : <code {...props}>{children}</code>;
+                      }
+                    }}>{msg.content}</ReactMarkdown>
+                  </>
+              }
             </div>
           </div>
         ))}
