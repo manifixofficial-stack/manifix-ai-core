@@ -12,6 +12,7 @@ import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
 
+// Welcome message (shown once at the top)
 const defaultWelcome = {
   id: "welcome",
   role: "bot",
@@ -19,16 +20,15 @@ const defaultWelcome = {
   content: "Hii ❤️ I’m ManifiX, I’m here with you ✨",
 };
 
+// Toast component for notifications
 const Toast = ({ message, onClose, retry }) => (
   <div className="toast">
     <span>{message}</span>
-
     {retry && (
       <button onClick={retry} className="retry-btn">
         ↻ Retry
       </button>
     )}
-
     <button onClick={onClose}>×</button>
   </div>
 );
@@ -36,11 +36,11 @@ const Toast = ({ message, onClose, retry }) => (
 export default function Gpt() {
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("chatMessages");
-
     if (!saved) return [defaultWelcome];
 
     let parsed = JSON.parse(saved);
 
+    // Remove old welcome duplicates
     parsed = parsed.filter((m) => m.id !== "welcome");
 
     return [defaultWelcome, ...parsed];
@@ -58,7 +58,6 @@ export default function Gpt() {
   const recognitionRef = useRef(null);
 
   // ---------------- Scroll + Save ----------------
-
   useEffect(() => {
     if (chatContainer.current) {
       chatContainer.current.scrollTo({
@@ -71,7 +70,6 @@ export default function Gpt() {
   }, [messages]);
 
   // ---------------- Speech Recognition ----------------
-
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -87,54 +85,41 @@ export default function Gpt() {
     recognitionRef.current = rec;
 
     rec.onstart = () => setListening(true);
-
-    rec.onresult = (e) => {
-      setInput(e.results[0][0].transcript);
-    };
-
+    rec.onresult = (e) => setInput(e.results[0][0].transcript);
     rec.onerror = () => {
       setListening(false);
       showToast("Speech recognition error");
     };
-
     rec.onend = () => setListening(false);
   }, []);
 
   // ---------------- Toast ----------------
-
   const showToast = (msg, retry = null) => {
     setToast(msg);
     setRetryMsg(() => retry);
-
     setTimeout(() => setToast(""), 4000);
   };
 
   // ---------------- Voice ----------------
-
   const speak = (text) => {
     if (!voiceEnabled || !window.speechSynthesis) return;
 
     window.speechSynthesis.cancel();
 
     const utter = new SpeechSynthesisUtterance(text);
-
     utter.lang = "en-IN";
-
     window.speechSynthesis.speak(utter);
   };
 
   // ---------------- Mic ----------------
-
   const handleMic = () => {
     const rec = recognitionRef.current;
-
     if (!rec) return showToast("Voice not supported");
 
     listening ? rec.stop() : rec.start();
   };
 
   // ---------------- Copy / Share / Delete ----------------
-
   const copyMessage = (text) => {
     navigator.clipboard.writeText(text);
     showToast("Copied");
@@ -149,7 +134,6 @@ export default function Gpt() {
   };
 
   // ---------------- Send Message ----------------
-
   const sendMessage = async (msg, isFile = false) => {
     if (!msg) return;
 
@@ -168,13 +152,13 @@ export default function Gpt() {
     };
 
     setMessages((prev) => [...prev, userMsg, thinkingMsg]);
-
     setInput("");
 
     try {
+      // Only send real messages to backend (exclude default welcome)
       const conversation = [...messages, userMsg]
+        .filter((m) => m.id !== "welcome") // FIX repeated greeting
         .slice(-12)
-        .filter((m) => m.role === "user" || m.role === "bot")
         .map((m) => ({
           role: m.role === "bot" ? "assistant" : "user",
           content: m.content,
@@ -190,8 +174,10 @@ export default function Gpt() {
         res.data.choices?.[0]?.message?.content ||
         "Hmm… I have no response.";
 
+      // Remove thinking message
       setMessages((prev) => prev.filter((m) => m.id !== thinkingMsg.id));
 
+      // Add bot reply with typing effect
       const replyMsg = {
         id: crypto.randomUUID(),
         role: "bot",
@@ -202,27 +188,19 @@ export default function Gpt() {
       setMessages((prev) => [...prev, replyMsg]);
 
       let i = 0;
-
       const interval = setInterval(() => {
         i++;
-
         const partial = replyText.slice(0, i);
-
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === replyMsg.id ? { ...m, content: partial } : m
-          )
+          prev.map((m) => (m.id === replyMsg.id ? { ...m, content: partial } : m))
         );
-
         if (i >= replyText.length) {
           clearInterval(interval);
-
           if (voiceEnabled) speak(replyText);
         }
       }, 15);
     } catch (err) {
       console.error(err);
-
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== thinkingMsg.id),
         {
@@ -236,20 +214,16 @@ export default function Gpt() {
   };
 
   // ---------------- Upload ----------------
-
   const handleUpload = async (e) => {
     const file = e.target.files[0];
-
     if (!file) return;
 
     setUploading(true);
-
     const form = new FormData();
     form.append("file", file);
 
     try {
       const res = await axios.post(`${API_BASE}/api/upload`, form);
-
       sendMessage(res.data.url, true);
     } catch {
       showToast("Upload failed");
@@ -259,15 +233,12 @@ export default function Gpt() {
   };
 
   // ---------------- Render ----------------
-
   return (
     <div
       className="gpt-app theme-purple"
       style={{ backgroundImage: `url(${backgroundPurple})` }}
     >
-      {toast && (
-        <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />
-      )}
+      {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
       <Header
         onNewChat={() => {
@@ -294,9 +265,7 @@ export default function Gpt() {
                   <ReactMarkdown
                     components={{
                       code({ inline, className, children, ...props }) {
-                        const match =
-                          /language-(\w+)/.exec(className || "");
-
+                        const match = /language-(\w+)/.exec(className || "");
                         return !inline && match ? (
                           <SyntaxHighlighter
                             style={oneDark}
@@ -317,17 +286,9 @@ export default function Gpt() {
 
                   {msg.role === "bot" && (
                     <div className="message-actions">
-                      <button onClick={() => copyMessage(msg.content)}>
-                        📋
-                      </button>
-
-                      <button onClick={() => shareMessage(msg.content)}>
-                        🔗
-                      </button>
-
-                      <button onClick={() => deleteMessage(msg.id)}>
-                        🗑️
-                      </button>
+                      <button onClick={() => copyMessage(msg.content)}>📋</button>
+                      <button onClick={() => shareMessage(msg.content)}>🔗</button>
+                      <button onClick={() => deleteMessage(msg.id)}>🗑️</button>
                     </div>
                   )}
                 </>
