@@ -6,6 +6,9 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
 
+// Background image
+import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+
 const API = "https://manifix.up.railway.app/api/chat";
 
 export default function Gpt() {
@@ -14,15 +17,16 @@ export default function Gpt() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [voice, setVoice] = useState(true);
   const [streaming, setStreaming] = useState(false);
+  const [voice, setVoice] = useState(true);
+  const [theme, setTheme] = useState("dark");
   const [search, setSearch] = useState("");
 
   const chatRef = useRef(null);
   const controllerRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Auto scroll on new messages
+  // Auto scroll to bottom
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
@@ -30,10 +34,8 @@ export default function Gpt() {
     });
   }, [messages]);
 
-  // Speech recognition setup (browser safe)
+  // Speech Recognition
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -41,23 +43,21 @@ export default function Gpt() {
     rec.lang = "en-US";
     rec.continuous = false;
 
-    rec.onresult = (e) => {
-      setInput(e.results[0][0].transcript);
-    };
+    rec.onresult = (e) => setInput(e.results[0][0].transcript);
 
     recognitionRef.current = rec;
   }, []);
 
-  // Text-to-speech helper (browser safe)
+  // Text to speech
   const speak = (text) => {
-    if (!voice || typeof window === "undefined") return;
+    if (!voice) return;
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   };
 
-  // Send message to API
+  // Send message
   const sendMessage = async () => {
     if (!input.trim()) return;
 
@@ -69,8 +69,7 @@ export default function Gpt() {
 
     try {
       controllerRef.current = new AbortController();
-
-      const res = await axios.post(API, { message: userMsg.content }, { signal: controllerRef.current.signal });
+      const res = await axios.post(API, { message: userMsg.content });
       const reply = res.data.reply || "No response";
 
       let i = 0;
@@ -80,9 +79,7 @@ export default function Gpt() {
       const interval = setInterval(() => {
         if (i < reply.length) {
           botMsg.content += reply[i];
-          setMessages((prev) =>
-            prev.map((m) => (m.id === botMsg.id ? { ...botMsg } : m))
-          );
+          setMessages((prev) => [...prev.filter((m) => m.id !== botMsg.id), { ...botMsg }]);
           i++;
         } else {
           clearInterval(interval);
@@ -92,23 +89,18 @@ export default function Gpt() {
         }
       }, 15);
     } catch (e) {
-      setMessages((prev) => [
-        ...prev,
-        { id: Date.now(), role: "assistant", content: "⚠️ Server error" },
-      ]);
+      setMessages((prev) => [...prev, { id: Date.now(), role: "assistant", content: "⚠️ Server error" }]);
       setLoading(false);
       setStreaming(false);
     }
   };
 
-  // Stop generation safely
   const stopGeneration = () => {
     controllerRef.current?.abort();
     setStreaming(false);
     setLoading(false);
   };
 
-  // Regenerate last user message
   const regenerate = () => {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (lastUser) {
@@ -117,22 +109,13 @@ export default function Gpt() {
     }
   };
 
-  // Copy code from message
   const copyCode = (code) => navigator.clipboard.writeText(code);
-
-  // Edit message
   const editMessage = (id, text) => {
     const newText = prompt("Edit message", text);
     if (!newText) return;
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content: newText } : m)));
   };
 
-  // Delete message
-  const deleteMessage = (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-  };
-
-  // Drag & drop file upload
   const handleDrop = async (e) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -140,16 +123,10 @@ export default function Gpt() {
 
     const form = new FormData();
     form.append("file", file);
-
-    try {
-      const res = await axios.post("https://manifix.up.railway.app/api/upload", form);
-      sendMessage(res.data.url);
-    } catch (err) {
-      console.error("File upload failed:", err);
-    }
+    const res = await axios.post("https://manifix.up.railway.app/api/upload", form);
+    sendMessage(res.data.url);
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const keyHandler = (e) => {
       if (e.ctrlKey && e.key === "Enter") sendMessage();
@@ -159,13 +136,17 @@ export default function Gpt() {
     return () => window.removeEventListener("keydown", keyHandler);
   }, [input]);
 
-  // Filtered messages for search
   const filteredMessages = messages.filter((m) =>
     m.content.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="gpt-app dark" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+    <div
+      className={`gpt-app ${theme}`}
+      style={{ backgroundImage: `url(${backgroundPurple})` }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
+    >
       <header className="gpt-header">
         <h2>ManifiX AI</h2>
         <input
@@ -174,14 +155,9 @@ export default function Gpt() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="header-actions">
+          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>🌓</button>
+          <button onClick={() => recognitionRef.current?.start()}>🎤</button>
           <button onClick={() => setVoice((v) => !v)}>{voice ? "🔊" : "🔇"}</button>
-          <button
-            onClick={() => {
-              recognitionRef.current?.start();
-            }}
-          >
-            🎤
-          </button>
         </div>
       </header>
 
@@ -214,15 +190,14 @@ export default function Gpt() {
 
               <div className="msg-actions">
                 <button onClick={() => editMessage(msg.id, msg.content)}>✏️</button>
-                <button onClick={() => copyCode(msg.content)}>📋</button>
-                <button onClick={() => deleteMessage(msg.id)}>🗑</button>
+                <button onClick={() => navigator.clipboard.writeText(msg.content)}>📋</button>
+                <button onClick={() => setMessages((prev) => prev.filter((m) => m.id !== msg.id))}>🗑</button>
                 <button>👍</button>
                 <button>👎</button>
               </div>
             </div>
           </div>
         ))}
-
         {loading && <div className="typing">AI typing...</div>}
       </main>
 
