@@ -10,7 +10,7 @@ import logo from "../assets/logo.png";
 // Audio
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-// Yoga step images
+// Yoga steps
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
 import yoga3 from "../assets/steps/yoga-03.png";
@@ -22,7 +22,7 @@ import yoga72 from "../assets/steps/yoga-07-2.png";
 import yoga73 from "../assets/steps/yoga-07-3.png";
 import yoga8 from "../assets/steps/yoga-08.png";
 
-// Meditation step images
+// Meditation steps
 import med1 from "../assets/steps/med-01.png";
 import med2 from "../assets/steps/med-02.png";
 import med3 from "../assets/steps/med-03.png";
@@ -156,6 +156,7 @@ export default function Magic16() {
       const poses = await detectorRef.current.estimatePoses(videoRef.current);
       if (!poses?.length) return;
 
+      // Evaluate posture for specific steps
       if ([3,5,6].includes(stepIndex)) {
         const kp = poses[0].keypoints;
         const hip = kp.find((k) => k.name === "left_hip");
@@ -175,7 +176,7 @@ export default function Magic16() {
     }
   }, [stepIndex]);
 
-  // -------------------- Timer --------------------
+  // -------------------- Timer & Progress --------------------
   const start = () => {
     if (playing) return;
     speak(steps[stepIndex]?.text);
@@ -184,31 +185,31 @@ export default function Magic16() {
     if (detectRef.current) clearInterval(detectRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
 
-   timerRef.current = setInterval(() => {
-  setStepTime((prev) => {
-    if (prev <= 1) {
-      setStepIndex((i) => {
-        const next = i + 1;
-        if (next >= steps.length) {
-          finish();
-          return i;
-        }
-        if (next >= yogaSteps.length && meditationAudio) playAudio(meditationAudio);
-        speak(steps[next]?.text);
-        return next;
+    timerRef.current = setInterval(() => {
+      setTotalTime((t) => {
+        const newTime = t > 0 ? t - 1 : 0;
+        setProgress(Math.round(((TOTAL_DURATION - newTime) / TOTAL_DURATION) * 100));
+        return newTime;
       });
-      return steps[stepIndex + 1]?.duration || 0; // Set next step duration immediately
-    }
-    return prev - 1;
-  });
 
-  setTotalTime((t) => {
-    if (t <= 1) return 0; // stop at 0 exactly
-    return t - 1;
-  });
-
-  setProgress(Math.round(((TOTAL_DURATION - (totalTime - 1)) / TOTAL_DURATION) * 100));
-}, 1000);
+      setStepTime((prev) => {
+        if (prev <= 1) {
+          setStepIndex((i) => {
+            const next = i + 1;
+            if (next >= steps.length) {
+              finish();
+              return i;
+            }
+            if (next >= yogaSteps.length && meditationAudio) playAudio(meditationAudio);
+            setStepTime(steps[next]?.duration || 60);
+            speak(steps[next]?.text);
+            return next;
+          });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
     detectRef.current = setInterval(detect, 400);
   };
@@ -240,13 +241,13 @@ export default function Magic16() {
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + 0.2);
 
-    confetti({ particleCount: 200, spread: 90, origin: { y: 0.6 } });
+    confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
     setCompleted(true);
   };
 
   const format = (s) => `${String(Math.floor(s / 60)).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
 
-  // -------------------- Result Overlay --------------------
+  // -------------------- Completed Overlay --------------------
   if (completed) {
     return (
       <div className="result-overlay fade-in">
@@ -263,16 +264,18 @@ export default function Magic16() {
   // -------------------- Main UI --------------------
   return (
     <div className="magic16-container">
-      {loading && <div className="loading-screen"><h2>Initializing AI Ritual...</h2></div>}
+      {loading && <div className="loading-screen"><h2>Welcome to Magic16❤️</h2></div>}
       {cameraError && <div className="error-screen"><h2>Camera Access Required</h2><p>Please allow camera permission.</p></div>}
 
       <img src={logo} alt="ManifiX Logo" className="magic16-logo" />
 
+      {/* Step display */}
       <div className="step-display">
-        <img src={steps[stepIndex]?.img} alt="step" />
-        <h2>{steps[stepIndex]?.text}</h2>
+        <img src={steps[stepIndex]?.img} alt="Step" className="step-img" />
+        <h2 className="step-text">{steps[stepIndex]?.text}</h2>
       </div>
 
+      {/* Progress */}
       <div className="timer-progress">
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -283,6 +286,7 @@ export default function Magic16() {
         </div>
       </div>
 
+      {/* Live posture score */}
       {([3,5,6].includes(stepIndex) && playing) && (
         <div className="live-score">
           <h3>Posture Score</h3>
@@ -290,6 +294,7 @@ export default function Magic16() {
         </div>
       )}
 
+      {/* Controls */}
       <div className="controls">
         {!playing ? (
           <button className="start-btn" onClick={start} disabled={loading}>Start</button>
