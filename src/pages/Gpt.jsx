@@ -8,6 +8,13 @@ import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 import Header from "../components/Header";
 
+// PNG icons
+import binIcon from "../assets/bin.png";
+import copyIcon from "../assets/copy.png";
+import micIcon from "../assets/mic.png";
+import shareIcon from "../assets/share.png";
+import uploadIcon from "../assets/upload.png";
+
 const API_BASE = "https://manifix.up.railway.app";
 
 // Toast Notification Component
@@ -108,16 +115,16 @@ export default function Gpt({ userId }) {
   // ---------------- Copy / Share / Delete ----------------
   const copyMessage = (text) => {
     navigator.clipboard.writeText(text);
-    showToast("✅ Copied to clipboard");
+    showToast("Copied to clipboard");
   };
   const deleteMessage = (id) => {
     setMessages(prev => prev.filter(msg => msg.id !== id));
-    showToast("🗑️ Message deleted");
+    showToast("Message deleted");
   };
   const shareMessage = (text) => {
     navigator.share?.({ text }).catch(() => {
       copyMessage(text);
-      showToast("🔗 Copied link for sharing");
+      showToast("Link copied for sharing");
     });
   };
 
@@ -150,7 +157,6 @@ export default function Gpt({ userId }) {
 
         setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
 
-        // Typing animation
         let idx = 0;
         const replyMsg = { content: "", role: "bot", id: Math.random().toString(36).substring(2), type: "text" };
         setMessages(prev => [...prev, replyMsg]);
@@ -164,16 +170,16 @@ export default function Gpt({ userId }) {
             clearInterval(interval);
             if (voiceEnabled) speak(replyText);
           }
-        }, 20); // faster, smooth typing
+        }, 20);
 
       } catch (error) {
         console.error("Chat error:", error);
         setMessages(prev => [
           ...prev.filter(m => m.id !== thinkingMsg.id),
-          { content: "❌ Server Error. Please try again.", role: "bot", id: Math.random().toString(36).substring(2), type: "text" },
+          { content: "Server Error. Please try again.", role: "bot", id: Math.random().toString(36).substring(2), type: "text" },
         ]);
-        showToast("❌ Server Error. Tap retry to try again.", attempt);
-        if (voiceEnabled) speak("❌ Server Error. Please try again.");
+        showToast("Server Error. Tap retry to try again.", attempt);
+        if (voiceEnabled) speak("Server Error. Please try again.");
       }
     };
 
@@ -194,7 +200,7 @@ export default function Gpt({ userId }) {
       });
       sendMessage(res.data.url, true);
     } catch {
-      showToast("❌ File upload failed", () => handleUpload(e));
+      showToast("File upload failed", () => handleUpload(e));
       if (voiceEnabled) speak("File upload failed");
     } finally {
       setUploading(false);
@@ -212,7 +218,7 @@ export default function Gpt({ userId }) {
   };
 
   return (
-    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
+    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})` }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
       <Header
         onNewChat={() => {
@@ -231,7 +237,7 @@ export default function Gpt({ userId }) {
                 </div>
               ) : msg.type === "file" ? (
                 <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  📎 {msg.content.split("/").pop()}
+                  <img src={uploadIcon} alt="File" className="icon-small" /> {msg.content.split("/").pop()}
                 </a>
               ) : (
                 <>
@@ -242,7 +248,9 @@ export default function Gpt({ userId }) {
                         const match = /language-(\w+)/.exec(className || "");
                         return !inline && match ? (
                           <div className="code-block">
-                            <button className="copy-code" onClick={() => copyMessage(String(children))}>📋 Copy</button>
+                            <button className="copy-code" onClick={() => copyMessage(String(children))}>
+                              <img src={copyIcon} alt="Copy" className="icon-small" />
+                            </button>
                             <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, "")} {...props} />
                           </div>
                         ) : (
@@ -252,9 +260,15 @@ export default function Gpt({ userId }) {
                     }}
                   />
                   <div className="message-actions">
-                    <button onClick={() => copyMessage(msg.content)} title="Copy">📋</button>
-                    <button onClick={() => shareMessage(msg.content)} title="Share">🔗</button>
-                    <button onClick={() => deleteMessage(msg.id)} title="Delete">🗑️</button>
+                    <button onClick={() => copyMessage(msg.content)} title="Copy">
+                      <img src={copyIcon} alt="Copy" className="icon-small" />
+                    </button>
+                    <button onClick={() => shareMessage(msg.content)} title="Share">
+                      <img src={shareIcon} alt="Share" className="icon-small" />
+                    </button>
+                    <button onClick={() => deleteMessage(msg.id)} title="Delete">
+                      <img src={binIcon} alt="Delete" className="icon-small" />
+                    </button>
                   </div>
                 </>
               )}
@@ -265,7 +279,7 @@ export default function Gpt({ userId }) {
 
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          {listening ? "🛑" : "🎤"}
+          <img src={micIcon} alt="Mic" className="icon-small" />
         </button>
 
         <textarea
@@ -283,14 +297,14 @@ export default function Gpt({ userId }) {
         />
 
         <label className="upload-btn" aria-label="Upload File">
-          📎
+          <img src={uploadIcon} alt="Upload" className="icon-small" />
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
         <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
 
-        <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
-          {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+        <button className="toggle-voice" onClick={() => setVoiceEnabled(prev => !prev)} aria-label="Toggle Voice">
+          {voiceEnabled ? <img src={micIcon} alt="Voice On" className="icon-small" /> : <img src={micIcon} alt="Voice Off" className="icon-small" />}
         </button>
       </footer>
     </div>
