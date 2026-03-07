@@ -1,19 +1,20 @@
 // src/components/ProtectedRoute.jsx
-import React, { useEffect } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import React from "react";
+import { Navigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useApp();
-  const location = useLocation();
 
-  // Show loading while checking auth
+  // Show a loading state while checking auth
   if (loading) {
     return (
       <div
         style={{
-          textAlign: "center",
-          marginTop: "50px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "80vh",
           fontSize: "1.2rem",
           color: "#fff",
         }}
@@ -23,17 +24,11 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
-  // If user is NOT logged in
+  // If no user, redirect to login
   if (!user) {
-    // Prevent access to protected pages
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/Landing" replace />;
   }
 
-  // If user is logged in and tries to access public pages (Landing/Login)
-  if (user && (location.pathname === "/" || location.pathname === "/login")) {
-    return <Navigate to="/app/gpt" replace />;
-  }
-
-  // Authenticated & allowed, render children
+  // Authenticated, render the protected content
   return <>{children}</>;
 }
