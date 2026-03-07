@@ -26,7 +26,7 @@ export default function ProtectedRoute({ children }) {
 
   // If no user, redirect to login
   if (!user) {
-    return <Navigate to="/Landing" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // Authenticated, render the protected content
