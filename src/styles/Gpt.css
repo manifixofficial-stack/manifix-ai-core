@@ -1,335 +1,246 @@
 /* src/styles/Gpt.css */
 
-/* ---------------- FONTS ---------------- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
-
-:root {
-  --primary-color: #a855f7;
-  --secondary-color: #facc15;
-  --bg-color: #1a1a2e;
-  --text-color: #fff;
-  --accent-color: #ff6a85;
-  --font-primary: 'Inter', sans-serif;
-  --font-accent: 'Playfair Display', serif;
-}
-
-/* ---------------- GLOBAL ---------------- */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body, html, #root {
-  height: 100%;
-  font-family: var(--font-primary);
-  color: var(--text-color);
-  scroll-behavior: smooth;
-  background: var(--bg-color);
-}
-
-/* ---------------- GPT APP ---------------- */
-.gpt-app {
+/* ---------------- Global ---------------- */
+.gpt-workspace {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   background-size: cover;
   background-position: center;
-  position: relative;
+  font-family: 'Inter', sans-serif;
+  color: #f0f0f0;
 }
 
-/* ---------------- Toast ---------------- */
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: rgba(0,0,0,0.8);
-  padding: 12px 20px;
-  border-radius: 12px;
-  color: #fff;
-  z-index: 999;
+/* ---------------- Header (Search + Voice) ---------------- */
+.chat-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  animation: fadeIn 0.4s ease forwards;
-}
-
-.toast .retry-btn {
-  background: var(--secondary-color);
-  border: none;
-  padding: 4px 10px;
-  border-radius: 8px;
-  color: #000;
-  cursor: pointer;
-}
-
-.toast button[aria-label="Close Notification"] {
-  background: transparent;
-  border: none;
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-
-/* ---------------- HEADER ---------------- */
-.gpt-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 25px;
-  background: rgba(0,0,0,0.35);
+  padding: 1rem;
+  gap: 0.5rem;
   backdrop-filter: blur(12px);
+  background: rgba(0,0,0,0.35);
   border-bottom: 1px solid rgba(255,255,255,0.1);
-  position: sticky;
-  top: 0;
-  z-index: 5;
 }
 
-.gpt-header h2 {
-  font-family: var(--font-accent);
-  font-size: 1.8rem;
-  color: var(--secondary-color);
-}
-
-.gpt-buttons button {
-  margin-left: 12px;
-  padding: 10px 20px;
-  border-radius: 30px;
-  font-family: var(--font-accent);
-  font-weight: 600;
-  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+.chat-search input {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
   border: none;
+  outline: none;
+  font-size: 0.95rem;
+  background: rgba(255,255,255,0.1);
   color: #fff;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background 0.3s;
+}
+.chat-search input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+.chat-search input:focus {
+  background: rgba(255,255,255,0.2);
 }
 
-.gpt-buttons button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(255, 204, 21, 0.4);
-}
-
-/* ---------------- QUICK PROMPTS ---------------- */
-.quick-prompts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  margin: 15px 0;
-  z-index: 2;
-}
-
-.prompt-btn {
-  padding: 8px 16px;
-  background: rgba(255,255,255,0.08);
-  color: #fff;
-  border-radius: 30px;
+.chat-search button {
+  background: rgba(255,255,255,0.1);
   border: none;
+  border-radius: 50%;
+  padding: 0.5rem;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 500;
-  backdrop-filter: blur(6px);
+  transition: transform 0.2s, background 0.3s;
+}
+.chat-search button:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.2);
+}
+.chat-search img {
+  width: 20px;
+  height: 20px;
 }
 
-.prompt-btn:hover {
-  transform: scale(1.05);
-  background: rgba(255,255,255,0.15);
-}
-
-/* ---------------- CHAT CONTAINER ---------------- */
-.gpt-main {
+/* ---------------- Messages ---------------- */
+.chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 25px;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
-.message-row {
+.msg {
   display: flex;
   flex-direction: column;
-  animation: fadeIn 0.4s ease forwards;
+  max-width: 80%;
 }
 
-.message-row.user {
-  align-items: flex-end;
+.msg.user {
+  align-self: flex-end;
 }
 
-.message-row.bot {
-  align-items: flex-start;
+.msg.assistant {
+  align-self: flex-start;
 }
 
-.message-bubble {
-  max-width: 70%;
-  padding: 12px 18px;
-  border-radius: 20px;
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(8px);
+.bubble {
   position: relative;
+  padding: 0.75rem 1rem;
+  border-radius: 1.25rem;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.3s ease-in;
   word-wrap: break-word;
 }
 
-.message-bubble.bot {
-  background: rgba(255,255,255,0.12);
+.msg.user .bubble {
+  background: linear-gradient(135deg, #6b46c1, #b83280);
+  color: #fff;
 }
 
-.typing-indicator {
+.msg.assistant .bubble {
+  background: rgba(255,255,255,0.1);
+  color: #f0f0f0;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+}
+.msg-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #fff;
   display: flex;
   align-items: center;
-  font-style: italic;
-  gap: 6px;
+  gap: 0.2rem;
+  transition: color 0.2s, transform 0.2s;
+}
+.msg-actions button:hover {
+  color: #ffd700;
+  transform: scale(1.1);
+}
+.msg-actions img {
+  width: 16px;
+  height: 16px;
 }
 
-.typing-indicator .dots::after {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 4px;
-  border-radius: 50%;
-  background: #fff;
+/* ---------------- Typing indicator ---------------- */
+.typing {
+  color: #ffd700;
+  font-style: italic;
   animation: blink 1s infinite;
 }
 
-@keyframes blink {
-  0%, 50%, 100% { opacity: 0; }
-  25%, 75% { opacity: 1; }
-}
-
-/* ---------------- MESSAGE ACTIONS ---------------- */
-.message-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.message-actions button {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.icon-small {
-  width: 18px;
-  height: 18px;
-}
-
-/* ---------------- CODE BLOCKS ---------------- */
+/* ---------------- Code Blocks ---------------- */
 .code-block {
   position: relative;
-  margin: 10px 0;
+  margin: 0.5rem 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.7);
 }
-
 .copy-code {
   position: absolute;
   top: 6px;
   right: 6px;
   background: rgba(255,255,255,0.15);
   border: none;
-  border-radius: 6px;
-  padding: 4px;
-  cursor: pointer;
-}
-
-/* ---------------- FOOTER INPUT ---------------- */
-.gpt-footer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  background: rgba(0,0,0,0.35);
-  border-top: 1px solid rgba(255,255,255,0.1);
-  backdrop-filter: blur(12px);
-}
-
-.gpt-footer textarea {
-  flex: 1;
-  padding: 10px 14px;
-  border-radius: 30px;
-  border: none;
-  background: rgba(255,255,255,0.08);
-  color: #fff;
-  font-family: var(--font-primary);
-  resize: none;
-}
-
-.gpt-footer button.primary {
-  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-  border: none;
-  color: #fff;
   border-radius: 50%;
-  width: 42px;
-  height: 42px;
+  padding: 0.3rem;
   cursor: pointer;
-  font-size: 1.2rem;
+  transition: background 0.2s;
+}
+.copy-code:hover {
+  background: rgba(255,255,255,0.3);
+}
+.copy-code img {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------------- Bottom Input Area ---------------- */
+.chat-input-area {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255,255,255,0.1);
 }
 
-.gpt-footer button.primary:hover {
+.chat-input-area textarea {
+  flex: 1;
+  resize: none;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  border: none;
+  outline: none;
+  font-size: 0.95rem;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  transition: background 0.3s;
+}
+.chat-input-area textarea::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+.chat-input-area button {
+  padding: 0.5rem 0.75rem;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #6b46c1, #b83280);
+  color: #fff;
+  font-size: 1.1rem;
+  transition: transform 0.2s, opacity 0.3s;
+}
+.chat-input-area button:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(255, 204, 21, 0.4);
 }
 
+/* Upload Button */
 .upload-btn {
   position: relative;
   cursor: pointer;
 }
-
 .upload-btn input {
-  display: none;
-}
-
-.toggle-voice {
-  background: rgba(255,255,255,0.08);
-  border: none;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
   cursor: pointer;
-  transition: all 0.3s ease;
+}
+.upload-btn img {
+  width: 24px;
+  height: 24px;
 }
 
-.toggle-voice:hover {
-  transform: scale(1.05);
-  background: rgba(255,255,255,0.15);
-}
-
-.recording {
-  background: var(--secondary-color) !important;
-  animation: pulse 1.2s infinite;
-}
-
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(250,204,21,0.5); }
-  70% { box-shadow: 0 0 0 10px rgba(250,204,21,0); }
-  100% { box-shadow: 0 0 0 0 rgba(250,204,21,0); }
-}
-
-/* ---------------- ANIMATIONS ---------------- */
+/* ---------------- Animations ---------------- */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-/* ---------------- RESPONSIVE ---------------- */
-@media (max-width: 768px) {
-  .message-bubble { max-width: 85%; }
-  .gpt-header h2 { font-size: 1.4rem; }
-  .gpt-buttons button { padding: 6px 12px; font-size: 0.9rem; }
+@keyframes blink {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0; }
 }
 
-@media (max-width: 480px) {
-  .quick-prompts { flex-direction: column; gap: 8px; }
-  .gpt-footer { flex-direction: column; gap: 8px; }
-  .gpt-footer textarea { width: 100%; }
+/* ---------------- Responsive ---------------- */
+@media (max-width: 768px) {
+  .chat-messages {
+    padding: 0.5rem;
+  }
+  .bubble {
+    max-width: 95%;
+    font-size: 0.9rem;
+  }
+  .chat-input-area textarea {
+    font-size: 0.9rem;
+  }
+  .chat-search input {
+    font-size: 0.9rem;
+  }
 }
