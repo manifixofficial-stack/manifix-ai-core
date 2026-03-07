@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import "../styles/Billing666.css";
 import authService from "../services/auth.service";
 import logo from "../assets/logo.png";
+
 const BillingPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,17 +51,17 @@ const BillingPage = () => {
   };
 
   const features = [
-  "Unlimited GPT Conversations with Context Awareness",
-  "Magic16 AI-Powered Daily Rituals & Guidance",
-  "Real-Time Voice Chat (STT / TTS) Across All Features",
-  "Personalized AI Coach for Meditation & Yoga",
-  "Custom GPT Prompts & Workflow Automation",
-  "Progress Tracking & Posture Analytics",
-  "Mood & Energy Insights with Vibe Score",
-  "Adaptive Dark/Light UI with Custom Themes",
-  "Exclusive Early Access to AI Experiments",
-  "Personalized AI Recommendations for Growth & Fun",
-];
+    "Unlimited GPT Conversations with Context Awareness",
+    "Magic16 AI-Powered Daily Rituals & Guidance",
+    "Real-Time Voice Chat (STT / TTS) Across All Features",
+    "Personalized AI Coach for Meditation & Yoga",
+    "Custom GPT Prompts & Workflow Automation",
+    "Progress Tracking & Posture Analytics",
+    "Mood & Energy Insights with Vibe Score",
+    "Adaptive Dark/Light UI with Custom Themes",
+    "Exclusive Early Access to AI Experiments",
+    "Personalized AI Recommendations for Growth & Fun",
+  ];
 
   return (
     <div className="billing-page">
@@ -79,7 +80,7 @@ const BillingPage = () => {
         <ul className="features">
           {features.map((feature, index) => (
             <li key={index}>
-              <FaCheckCircle className="feature-icon" /> {feature}
+              ✅ {feature}
             </li>
           ))}
         </ul>
