@@ -1,39 +1,33 @@
 /* src/styles/Billing666.css */
 
-/* ---- Global Page ---- */
+/* ---------- Page Layout ---------- */
 .billing-page {
-  font-family: 'Poppins', sans-serif;
+  font-family: "Inter", sans-serif;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+  background: linear-gradient(135deg, #f9f9f9, #ffffff);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem 1rem;
+  padding: 40px 20px;
+  color: #333;
 }
 
-/* ---- Header ---- */
+/* ---------- Header ---------- */
 .billing-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 40px;
 }
 
 .billing-logo {
   width: 80px;
-  height: 80px;
-  object-fit: contain;
-  margin-bottom: 0.5rem;
-  transition: transform 0.3s ease;
-}
-
-.billing-logo:hover {
-  transform: scale(1.1);
+  margin-bottom: 15px;
 }
 
 .billing-header h1 {
   font-size: 2.2rem;
   font-weight: 700;
-  color: #1f1f1f;
-  margin: 0.5rem 0;
+  color: #7b1fa2;
+  margin-bottom: 8px;
 }
 
 .billing-header p {
@@ -41,129 +35,101 @@
   color: #555;
 }
 
-/* ---- Subscription Card ---- */
+/* ---------- Subscription Card ---------- */
 .billing-card {
-  background: #ffffff;
+  background: #fff;
   border-radius: 20px;
-  padding: 2rem;
-  max-width: 500px;
+  padding: 40px 30px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
   width: 100%;
-  box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+  max-width: 500px;
+  text-align: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .billing-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
 }
 
 .billing-card h2 {
   font-size: 1.8rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #222;
-  text-align: center;
+  margin-bottom: 10px;
+  color: #333;
 }
 
 .price {
   font-size: 2rem;
   font-weight: 700;
-  color: #ff4c60;
-  text-align: center;
-  margin-bottom: 1.5rem;
+  color: #7b1fa2;
+  margin-bottom: 25px;
 }
 
-/* ---- Features List ---- */
+/* ---------- Features List ---------- */
 .features {
   list-style: none;
   padding: 0;
-  margin-bottom: 1.5rem;
+  margin-bottom: 30px;
+  text-align: left;
 }
 
-.feature-item {
+.features li {
   display: flex;
   align-items: center;
-  margin: 0.8rem 0;
+  gap: 10px;
+  margin-bottom: 12px;
   font-size: 1rem;
-  color: #333;
-  transition: transform 0.2s ease, color 0.2s ease;
+  color: #444;
 }
 
-.feature-item:hover {
-  color: #ff4c60;
-  transform: translateX(5px);
+.features li::before {
+  content: "✅";
+  display: inline-block;
 }
 
-.feature-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #ff4c60;
-  color: #fff;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  margin-right: 1rem;
-  font-size: 0.9rem;
-  flex-shrink: 0;
-  transition: background 0.3s ease;
-}
-
-.feature-item:hover .feature-icon {
-  background: #ff758f;
-}
-
-.feature-text {
-  flex: 1;
-  line-height: 1.4;
-}
-
-/* ---- Subscribe Button ---- */
+/* ---------- Subscribe Button ---------- */
 .btn-subscribe {
-  background: linear-gradient(90deg, #ff4c60, #ff758f);
+  background: linear-gradient(90deg, #7b1fa2, #ab47bc);
   color: #fff;
   font-weight: 600;
   font-size: 1.1rem;
-  padding: 0.8rem 2rem;
+  padding: 12px 25px;
   border: none;
-  border-radius: 50px;
+  border-radius: 30px;
   cursor: pointer;
-  width: 100%;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  transition: all 0.3s ease;
 }
 
-.btn-subscribe:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 20px rgba(255,76,96,0.3);
-  background: linear-gradient(90deg, #ff758f, #ff4c60);
+.btn-subscribe:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
 .btn-subscribe:disabled {
-  opacity: 0.6;
+  background: #ccc;
   cursor: not-allowed;
 }
 
-/* ---- Error Text ---- */
+/* ---------- Error Message ---------- */
 .billing-error {
-  color: #ff4c60;
-  font-weight: 500;
-  margin-top: 1rem;
-  text-align: center;
+  color: #d32f2f;
+  font-weight: 600;
+  margin-top: 15px;
 }
 
-/* ---- Footer ---- */
+/* ---------- Footer ---------- */
 .billing-footer {
-  margin-top: auto;
+  margin-top: 50px;
   text-align: center;
+  color: #777;
   font-size: 0.9rem;
-  color: #666;
-  margin-top: 3rem;
 }
 
-/* ---- Responsive ---- */
+/* ---------- Responsive ---------- */
 @media (max-width: 600px) {
   .billing-card {
-    padding: 1.5rem;
+    padding: 30px 20px;
   }
 
   .billing-header h1 {
@@ -171,6 +137,6 @@
   }
 
   .price {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
   }
 }
