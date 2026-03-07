@@ -1,4 +1,4 @@
-// src/pages/Gpt.jsx
+new version:// src/pages/Gpt.jsx
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -15,7 +15,7 @@ const [messages,setMessages] = useState([
 {
 id:1,
 role:"assistant",
-content:"Hi 👋 I'm ManifiX.I'm hear with you❤️."
+content:"Hi 👋 I'm ManifiX. Ask me anything."
 }
 ]);
 
