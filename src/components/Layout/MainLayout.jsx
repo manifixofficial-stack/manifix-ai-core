@@ -5,11 +5,11 @@ import "../../styles/MainLayout.css";
 
 // Assets
 import logoImg from "../../assets/logo.png";
-import attachIcon from "../../assets/upload.png";
-import micIcon from "../../assets/mic.png";
-import profileIcon from "../../assets/profile.png";
-import bellIcon from "../../assets/bell.png";
-import searchIcon from "../../assets/search.png";
+import uploadIcon from "../assets/upload.png";
+import copyIcon from "../assets/copy.png";
+import micIcon from "../assets/mic.png";
+import shareIcon from "../assets/share.png";
+import binIcon from "../assets/bin.png"; 
 
 export default function MainLayout() {
   const navigate = useNavigate();
