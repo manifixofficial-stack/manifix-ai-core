@@ -3,8 +3,6 @@ import React, { useState } from "react";
 import "../styles/Billing666.css";
 import authService from "../services/auth.service";
 import logo from "../assets/logo.png";
-import { FaCheckCircle } from "react-icons/fa"; // for feature icons
-
 const BillingPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
