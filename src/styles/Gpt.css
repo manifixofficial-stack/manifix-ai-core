@@ -1,203 +1,207 @@
 /* src/styles/Gpt.css */
 
-/* ---------- Global App ---------- */
+/* ---------------- FONTS ---------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
+
+:root {
+  --primary-color: #a855f7; /* ManifiX Purple */
+  --secondary-color: #facc15; /* Accent Yellow */
+  --bg-color: rgba(0,0,0,0.45);
+  --text-color: #ffffff;
+  --user-msg-bg: rgba(255,255,255,0.15);
+  --ai-msg-bg: rgba(255,255,255,0.08);
+  --font-primary: 'Inter', sans-serif;
+  --font-accent: 'Playfair Display', serif;
+  --border-radius: 15px;
+  --gradient-btn: linear-gradient(90deg, #a855f7, #facc15);
+  --toast-bg: rgba(0,0,0,0.75);
+}
+
+/* ---------------- GLOBAL ---------------- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html, #root {
+  height: 100%;
+  font-family: var(--font-primary);
+  color: var(--text-color);
+  scroll-behavior: smooth;
+  background: #1a1a2e;
+}
+
+/* ---------------- GPT APP CONTAINER ---------------- */
 .gpt-app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   background-size: cover;
   background-position: center;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #f0f0f0;
   position: relative;
   overflow: hidden;
 }
 
-/* ---------- Header ---------- */
-header {
-  z-index: 10;
-}
-
-/* ---------- Quick Prompts ---------- */
-.quick-prompts {
+/* ---------------- HEADER ---------------- */
+.gpt-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(0,0,0,0.3);
-  backdrop-filter: blur(6px);
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  backdrop-filter: blur(12px);
+  background: var(--bg-color);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  z-index: 10;
+  position: sticky;
+  top: 0;
 }
 
-.prompt-btn {
-  background: linear-gradient(135deg, #7F00FF, #E100FF);
+.gpt-header h2 {
+  font-family: var(--font-accent);
+  font-size: 1.8rem;
+  color: var(--secondary-color);
+}
+
+.gpt-buttons button {
+  margin-left: 10px;
+  font-family: var(--font-accent);
+  padding: 8px 18px;
+  border-radius: 30px;
   border: none;
-  border-radius: 20px;
-  padding: 6px 12px;
-  font-size: 0.85rem;
-  color: #fff;
   cursor: pointer;
+  background: var(--gradient-btn);
+  color: #fff;
+  font-size: 0.95rem;
   transition: all 0.3s ease;
 }
 
-.prompt-btn:hover {
+.gpt-buttons button:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: 0 5px 15px rgba(255,204,21,0.4);
 }
 
-/* ---------- Chat Container ---------- */
+/* ---------------- QUICK PROMPTS ---------------- */
+.quick-prompts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 15px 0;
+  z-index: 2;
+}
+
+.prompt-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.prompt-btn:hover {
+  background: var(--primary-color);
+  transform: scale(1.05);
+}
+
+/* ---------------- CHAT MAIN ---------------- */
 .gpt-main {
   flex: 1;
-  padding: 16px;
-  overflow-y: auto;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow-y: auto;
   scroll-behavior: smooth;
 }
 
-/* ---------- Message Row ---------- */
+/* ---------------- MESSAGE ROW ---------------- */
 .message-row {
   display: flex;
   flex-direction: column;
-  max-width: 80%;
-  animation: fadeIn 0.4s ease;
+  max-width: 75%;
+  animation: fadeIn 0.5s ease;
 }
 
 .message-row.user {
   align-self: flex-end;
-  text-align: right;
 }
 
 .message-row.bot {
   align-self: flex-start;
-  text-align: left;
 }
 
-/* ---------- Message Bubble ---------- */
+/* ---------------- MESSAGE BUBBLE ---------------- */
 .message-bubble {
+  background: var(--ai-msg-bg);
+  padding: 12px 18px;
+  border-radius: var(--border-radius);
   position: relative;
-  padding: 12px 16px;
-  border-radius: 20px;
-  background: rgba(255,255,255,0.1);
-  backdrop-filter: blur(4px);
-  color: #fff;
   word-wrap: break-word;
-  line-height: 1.5;
   font-size: 0.95rem;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  transition: all 0.3s ease;
+  line-height: 1.4;
 }
 
 .message-row.user .message-bubble {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  background: var(--user-msg-bg);
   color: #fff;
 }
 
 .message-row.bot .message-bubble {
-  background: linear-gradient(135deg, #7F00FF, #E100FF);
+  background: var(--ai-msg-bg);
+  color: #eee;
 }
 
-/* ---------- Message Actions ---------- */
+/* ---------------- MESSAGE ACTIONS ---------------- */
 .message-actions {
   display: flex;
   gap: 6px;
   margin-top: 4px;
-  justify-content: flex-end;
 }
 
 .message-actions button {
-  background: none;
+  background: rgba(255,255,255,0.08);
   border: none;
-  cursor: pointer;
-  padding: 2px;
-  transition: transform 0.2s ease;
-}
-
-.message-actions button:hover {
-  transform: scale(1.2);
-}
-
-/* ---------- File Links ---------- */
-.file-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #fff;
-  text-decoration: underline;
-}
-
-/* ---------- Typing Indicator ---------- */
-.typing-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.dots {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: #fff;
+  padding: 4px 6px;
   border-radius: 50%;
-  animation: blink 1s infinite alternate;
-}
-
-.dots::after,
-.dots::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: #fff;
-  border-radius: 50%;
-  margin-left: 4px;
-  animation: blink 1s infinite alternate;
-}
-
-@keyframes blink {
-  0% { opacity: 0.3; }
-  50% { opacity: 1; }
-  100% { opacity: 0.3; }
-}
-
-/* ---------- Fade In Animation ---------- */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ---------- Code Blocks ---------- */
-.code-block {
-  position: relative;
-  margin: 8px 0;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.copy-code {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(0,0,0,0.3);
-  border: none;
-  border-radius: 8px;
-  padding: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.copy-code:hover {
-  transform: scale(1.2);
+.message-actions button:hover {
+  background: var(--secondary-color);
 }
 
-/* ---------- Footer ---------- */
+/* ---------------- TYPING INDICATOR ---------------- */
+.typing-indicator {
+  font-style: italic;
+  color: #ccc;
+  display: inline-block;
+}
+
+.dots::after {
+  content: '...';
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 20% { opacity: 0; }
+  50%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------------- FOOTER ---------------- */
 .gpt-footer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(0,0,0,0.25);
-  backdrop-filter: blur(8px);
+  gap: 10px;
+  padding: 12px 20px;
+  backdrop-filter: blur(12px);
+  background: var(--bg-color);
+  border-top: 1px solid rgba(255,255,255,0.1);
 }
 
 .gpt-footer textarea {
@@ -205,67 +209,33 @@ header {
   border-radius: 20px;
   padding: 8px 12px;
   border: none;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
   color: #fff;
   font-size: 0.95rem;
   resize: none;
-  outline: none;
-  transition: all 0.3s ease;
+  overflow-y: hidden;
+  transition: all 0.2s ease;
 }
 
 .gpt-footer textarea:focus {
-  background: rgba(255,255,255,0.2);
+  outline: none;
+  background: rgba(255,255,255,0.1);
 }
 
-/* ---------- Buttons ---------- */
-.primary {
-  background: linear-gradient(135deg, #ff7e5f, #feb47b);
+.gpt-footer button {
+  background: var(--gradient-btn);
   border: none;
+  padding: 8px 12px;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  color: #fff;
   cursor: pointer;
-  font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: all 0.3s ease;
 }
 
-.primary:hover {
+.gpt-footer button:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.upload-btn {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  overflow: hidden;
-  cursor: pointer;
-  background: rgba(255,255,255,0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.upload-btn input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.toggle-voice img {
-  width: 24px;
-  height: 24px;
-}
-
+/* ---------------- RECORDING BUTTON ---------------- */
 .recording {
   animation: pulse 1s infinite;
 }
@@ -276,36 +246,80 @@ header {
   100% { transform: scale(1); }
 }
 
-/* ---------- Toast Notifications ---------- */
-.toast {
-  position: absolute;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.75);
-  color: #fff;
-  padding: 12px 20px;
-  border-radius: 24px;
+/* ---------------- FILE UPLOAD ---------------- */
+.upload-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 0.9rem;
-  z-index: 50;
-}
-
-.toast .retry-btn {
-  background: linear-gradient(135deg, #7F00FF, #E100FF);
-  border: none;
-  border-radius: 12px;
-  padding: 4px 8px;
+  gap: 5px;
   cursor: pointer;
-  color: #fff;
-  font-size: 0.85rem;
 }
 
-/* ---------- Responsive ---------- */
+.upload-btn input {
+  display: none;
+}
+
+/* ---------------- CODE BLOCK ---------------- */
+.code-block {
+  position: relative;
+  margin: 8px 0;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.copy-code {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  padding: 4px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ---------------- TOAST ---------------- */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--toast-bg);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 999;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.retry-btn {
+  background: var(--secondary-color);
+  border: none;
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+/* ---------------- ANIMATIONS ---------------- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------- RESPONSIVE ---------------- */
 @media (max-width: 768px) {
+  .gpt-header h2 { font-size: 1.4rem; }
   .message-row { max-width: 90%; }
   .gpt-footer textarea { font-size: 0.9rem; }
-  .prompt-btn { font-size: 0.8rem; padding: 4px 10px; }
+  .prompt-btn { font-size: 0.75rem; padding: 5px 10px; }
+}
+
+@media (max-width: 480px) {
+  .gpt-header h2 { font-size: 1.2rem; }
+  .gpt-buttons button { padding: 6px 12px; font-size: 0.8rem; }
+  .gpt-footer textarea { font-size: 0.85rem; }
 }
