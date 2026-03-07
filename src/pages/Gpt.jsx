@@ -1,9 +1,11 @@
 // src/pages/Gpt.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 import Header from "../components/Header";
@@ -41,6 +43,7 @@ const defaultWelcome = {
 };
 
 export default function Gpt({ userId }) {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("chatMessages");
     return saved ? JSON.parse(saved) : [defaultWelcome];
@@ -225,14 +228,19 @@ export default function Gpt({ userId }) {
   return (
     <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})` }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
+
+      {/* ---------- Header ---------- */}
       <Header
         onNewChat={() => {
           localStorage.removeItem("chatMessages");
           setMessages([defaultWelcome]);
         }}
+        onUpgrade={() => navigate("/app/billing")}
+        onFeedback={() => navigate("/app/feedback")}
+        onMagic16={() => navigate("/app/magic16")}
       />
 
-      {/* Quick Prompts */}
+      {/* ---------- Quick Prompts ---------- */}
       <div className="quick-prompts">
         {quickPrompts.map((q, i) => (
           <button key={i} onClick={() => useQuickPrompt(q)} className="prompt-btn">
@@ -241,7 +249,7 @@ export default function Gpt({ userId }) {
         ))}
       </div>
 
-      {/* Chat Container */}
+      {/* ---------- Chat Container ---------- */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role} fade-in`}>
@@ -292,7 +300,7 @@ export default function Gpt({ userId }) {
         ))}
       </main>
 
-      {/* Footer */}
+      {/* ---------- Footer ---------- */}
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
           <img src={micIcon} alt="Mic" className="icon-small" />
