@@ -12,7 +12,7 @@ const API_BASE = "https://manifix.up.railway.app";
 
 // Toast Notification Component
 const Toast = ({ message, onClose, retry }) => (
-  <div className="toast">
+  <div className="toast fade-in">
     <span>{message}</span>
     {retry && (
       <button onClick={retry} className="retry-btn" aria-label="Retry">
@@ -164,7 +164,7 @@ export default function Gpt({ userId }) {
             clearInterval(interval);
             if (voiceEnabled) speak(replyText);
           }
-        }, 25);
+        }, 20); // faster, smooth typing
 
       } catch (error) {
         console.error("Chat error:", error);
@@ -223,7 +223,7 @@ export default function Gpt({ userId }) {
 
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
-          <div key={msg.id} className={`message-row ${msg.role}`}>
+          <div key={msg.id} className={`message-row ${msg.role} fade-in`}>
             <div className="message-bubble">
               {msg.type === "thinking" ? (
                 <div role="status" aria-live="polite" className="typing-indicator">
