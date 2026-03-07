@@ -10,11 +10,8 @@ import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 // Icons
 import uploadIcon from "../assets/upload.png";
 import micIcon from "../assets/mic.png";
-import copyIcon from "../assets/copy.png";
 import shareIcon from "../assets/share.png";
 import Header from "../components/Header";
-import upgradeIcon from "../assets/upgrade.png";
-import feedbackIcon from "../assets/feedback.png";
 
 const API_BASE = "https://manifix.up.railway.app";
 
@@ -219,7 +216,7 @@ export default function Gpt({ userId }) {
       {/* Toast Notification */}
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
-      {/* Header with Upgrade Button */}
+      {/* Header with Upgrade Text Button */}
       <Header
         onNewChat={() => {
           localStorage.removeItem("chatMessages");
@@ -227,22 +224,18 @@ export default function Gpt({ userId }) {
         }}
       >
         <button
-          className="header-btn"
+          className="header-text-btn"
           onClick={() => window.location.href="/app/upgrade"}
-          title="Upgrade"
         >
-          <img src={upgradeIcon} alt="Upgrade" className="icon-footer" />
           Upgrade
         </button>
       </Header>
 
-      {/* Feedback button fixed on left */}
+      {/* Feedback text button fixed on left */}
       <button
-        className="fixed-feedback-btn"
+        className="fixed-feedback-text"
         onClick={() => window.location.href="/app/feedback"}
-        title="Feedback"
       >
-        <img src={feedbackIcon} alt="Feedback" className="icon-footer" />
         Feedback
       </button>
 
@@ -257,7 +250,7 @@ export default function Gpt({ userId }) {
                 </div>
               ) : msg.type === "file" ? (
                 <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  <img src={uploadIcon} alt="File" className="icon-inline" /> {msg.content.split("/").pop()}
+                  📎 {msg.content.split("/").pop()}
                 </a>
               ) : (
                 <>
@@ -307,7 +300,7 @@ export default function Gpt({ userId }) {
         />
 
         <label className="upload-btn" aria-label="Upload File">
-          <img src={uploadIcon} alt="Upload" className="icon-footer" />
+          📎
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
