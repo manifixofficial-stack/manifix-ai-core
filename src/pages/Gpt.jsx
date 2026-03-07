@@ -1,23 +1,30 @@
 // src/pages/Gpt.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useNavigate } from "react-router-dom";
 
-import "../styles/Gpt.css";
-import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 import Header from "../components/Header";
-
-// PNG icons
-import binIcon from "../assets/bin.png";
+import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+import uploadIcon from "../assets/upload.png";
 import copyIcon from "../assets/copy.png";
 import micIcon from "../assets/mic.png";
 import shareIcon from "../assets/share.png";
-import uploadIcon from "../assets/upload.png";
+import binIcon from "../assets/bin.png";
+
+import "../styles/Gpt.css";
 
 const API_BASE = "https://manifix.up.railway.app";
+
+// ---------------- Default Welcome ----------------
+const defaultWelcome = {
+  content: "Hi! I’m ManifiX, I'm hear with you❤️!",
+  role: "bot",
+  id: "welcome",
+  type: "text",
+};
 
 // ---------------- Toast Component ----------------
 const Toast = ({ message, onClose, retry }) => (
@@ -33,14 +40,6 @@ const Toast = ({ message, onClose, retry }) => (
     </button>
   </div>
 );
-
-// ---------------- Default Welcome ----------------
-const defaultWelcome = {
-  content: "💎 Hi! I’m ManifiX, your AI companion ✨ Ask me anything!",
-  role: "bot",
-  id: "welcome",
-  type: "text",
-};
 
 export default function Gpt({ userId }) {
   const navigate = useNavigate();
@@ -221,26 +220,22 @@ export default function Gpt({ userId }) {
     if (e.key === "Escape") stopSpeaking();
   };
 
-  // ---------------- Quick Prompts (Extra UX Feature) ----------------
+  // ---------------- Quick Prompts ----------------
   const quickPrompts = ["Tell me a joke", "Explain AI", "Generate code snippet", "Summarize text"];
   const useQuickPrompt = (prompt) => sendMessage(prompt);
 
   return (
     <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})` }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
-
-      {/* ---------- Header ---------- */}
+      
       <Header
         onNewChat={() => {
           localStorage.removeItem("chatMessages");
           setMessages([defaultWelcome]);
         }}
-        onUpgrade={() => navigate("/app/billing")}
-        onFeedback={() => navigate("/app/feedback")}
-        onMagic16={() => navigate("/app/magic16")}
       />
 
-      {/* ---------- Quick Prompts ---------- */}
+      {/* Quick Prompts */}
       <div className="quick-prompts">
         {quickPrompts.map((q, i) => (
           <button key={i} onClick={() => useQuickPrompt(q)} className="prompt-btn">
@@ -249,7 +244,7 @@ export default function Gpt({ userId }) {
         ))}
       </div>
 
-      {/* ---------- Chat Container ---------- */}
+      {/* Chat Container */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role} fade-in`}>
@@ -277,7 +272,7 @@ export default function Gpt({ userId }) {
                             <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, "")} {...props} />
                           </div>
                         ) : (
-                          <code className={className} {...props}>{children}</code>
+                            <code className={className} {...props}>{children}</code>
                         );
                       },
                     }}
@@ -300,7 +295,7 @@ export default function Gpt({ userId }) {
         ))}
       </main>
 
-      {/* ---------- Footer ---------- */}
+      {/* Footer Input */}
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
           <img src={micIcon} alt="Mic" className="icon-small" />
