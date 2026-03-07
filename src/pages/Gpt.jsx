@@ -13,9 +13,6 @@ import micIcon from "../assets/mic.png";
 import copyIcon from "../assets/copy.png";
 import shareIcon from "../assets/share.png";
 import binIcon from "../assets/bin.png";
-import qualityIcon from "../assets/quality.png"; // Billing
-import teamIcon from "../assets/team.png";       // Feedback
-
 import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
