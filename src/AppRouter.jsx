@@ -15,7 +15,7 @@ import NotFound from "./pages/NotFound";
 // App Pages
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
-import Profile from "./pages/Profile";
+import Feedback from "./pages/Feedback";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 
@@ -51,7 +51,7 @@ export default function AppRouter() {
         <Route index element={<Navigate to="gpt" replace />} />
         <Route path="gpt" element={<Gpt />} />
         <Route path="magic16" element={<Magic16 />} />
-        <Route path="profile" element={<Profile />} />
+        <Route path="feedback" element={<Feedback />} />
         <Route path="settings" element={<Settings />} />
         <Route path="billing" element={<Billing />} />
       </Route>
