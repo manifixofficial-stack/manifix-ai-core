@@ -1,6 +1,6 @@
 // src/pages/Feedback.jsx
 import React, { useEffect, useState } from "react";
-import supabase from "../services/supabaseClient"; // your supabase client
+import supabase from "../services/supabase"; // your supabase client
 import "../styles/Feedback.css";
 import logo from "../assets/logo.png";
 
