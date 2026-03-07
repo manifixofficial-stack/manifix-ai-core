@@ -4,17 +4,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
 
 :root {
-  --primary-color: #a855f7; /* ManifiX Purple */
-  --secondary-color: #facc15; /* Accent Yellow */
-  --bg-color: rgba(0,0,0,0.45);
-  --text-color: #ffffff;
-  --user-msg-bg: rgba(255,255,255,0.15);
-  --ai-msg-bg: rgba(255,255,255,0.08);
+  --primary-color: #a855f7;
+  --secondary-color: #facc15;
+  --bg-color: #1a1a2e;
+  --text-color: #fff;
+  --accent-color: #ff6a85;
   --font-primary: 'Inter', sans-serif;
   --font-accent: 'Playfair Display', serif;
-  --border-radius: 15px;
-  --gradient-btn: linear-gradient(90deg, #a855f7, #facc15);
-  --toast-bg: rgba(0,0,0,0.75);
 }
 
 /* ---------------- GLOBAL ---------------- */
@@ -29,10 +25,10 @@ body, html, #root {
   font-family: var(--font-primary);
   color: var(--text-color);
   scroll-behavior: smooth;
-  background: #1a1a2e;
+  background: var(--bg-color);
 }
 
-/* ---------------- GPT APP CONTAINER ---------------- */
+/* ---------------- GPT APP ---------------- */
 .gpt-app {
   display: flex;
   flex-direction: column;
@@ -40,7 +36,40 @@ body, html, #root {
   background-size: cover;
   background-position: center;
   position: relative;
-  overflow: hidden;
+}
+
+/* ---------------- Toast ---------------- */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.8);
+  padding: 12px 20px;
+  border-radius: 12px;
+  color: #fff;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.toast .retry-btn {
+  background: var(--secondary-color);
+  border: none;
+  padding: 4px 10px;
+  border-radius: 8px;
+  color: #000;
+  cursor: pointer;
+}
+
+.toast button[aria-label="Close Notification"] {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
 }
 
 /* ---------------- HEADER ---------------- */
@@ -49,12 +78,12 @@ body, html, #root {
   justify-content: space-between;
   align-items: center;
   padding: 15px 25px;
+  background: rgba(0,0,0,0.35);
   backdrop-filter: blur(12px);
-  background: var(--bg-color);
   border-bottom: 1px solid rgba(255,255,255,0.1);
-  z-index: 10;
   position: sticky;
   top: 0;
+  z-index: 5;
 }
 
 .gpt-header h2 {
@@ -64,193 +93,192 @@ body, html, #root {
 }
 
 .gpt-buttons button {
-  margin-left: 10px;
-  font-family: var(--font-accent);
-  padding: 8px 18px;
+  margin-left: 12px;
+  padding: 10px 20px;
   border-radius: 30px;
+  font-family: var(--font-accent);
+  font-weight: 600;
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
   border: none;
-  cursor: pointer;
-  background: var(--gradient-btn);
   color: #fff;
-  font-size: 0.95rem;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .gpt-buttons button:hover {
   transform: scale(1.05);
-  box-shadow: 0 5px 15px rgba(255,204,21,0.4);
+  box-shadow: 0 6px 20px rgba(255, 204, 21, 0.4);
 }
 
 /* ---------------- QUICK PROMPTS ---------------- */
 .quick-prompts {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
   justify-content: center;
+  gap: 12px;
   margin: 15px 0;
   z-index: 2;
 }
 
 .prompt-btn {
-  background: rgba(255,255,255,0.1);
-  border: none;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.08);
   color: #fff;
-  padding: 6px 14px;
-  border-radius: 20px;
+  border-radius: 30px;
+  border: none;
   cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  backdrop-filter: blur(6px);
 }
 
 .prompt-btn:hover {
-  background: var(--primary-color);
   transform: scale(1.05);
+  background: rgba(255,255,255,0.15);
 }
 
-/* ---------------- CHAT MAIN ---------------- */
+/* ---------------- CHAT CONTAINER ---------------- */
 .gpt-main {
   flex: 1;
-  padding: 20px;
+  overflow-y: auto;
+  padding: 20px 25px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
-  scroll-behavior: smooth;
 }
 
-/* ---------------- MESSAGE ROW ---------------- */
 .message-row {
   display: flex;
   flex-direction: column;
-  max-width: 75%;
-  animation: fadeIn 0.5s ease;
+  animation: fadeIn 0.4s ease forwards;
 }
 
 .message-row.user {
-  align-self: flex-end;
+  align-items: flex-end;
 }
 
 .message-row.bot {
-  align-self: flex-start;
+  align-items: flex-start;
 }
 
-/* ---------------- MESSAGE BUBBLE ---------------- */
 .message-bubble {
-  background: var(--ai-msg-bg);
+  max-width: 70%;
   padding: 12px 18px;
-  border-radius: var(--border-radius);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(8px);
   position: relative;
   word-wrap: break-word;
-  font-size: 0.95rem;
-  line-height: 1.4;
 }
 
-.message-row.user .message-bubble {
-  background: var(--user-msg-bg);
-  color: #fff;
+.message-bubble.bot {
+  background: rgba(255,255,255,0.12);
 }
 
-.message-row.bot .message-bubble {
-  background: var(--ai-msg-bg);
-  color: #eee;
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  font-style: italic;
+  gap: 6px;
+}
+
+.typing-indicator .dots::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: #fff;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50%, 100% { opacity: 0; }
+  25%, 75% { opacity: 1; }
 }
 
 /* ---------------- MESSAGE ACTIONS ---------------- */
 .message-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 6px;
   margin-top: 4px;
 }
 
 .message-actions button {
-  background: rgba(255,255,255,0.08);
+  background: transparent;
   border: none;
-  padding: 4px 6px;
-  border-radius: 50%;
   cursor: pointer;
-  transition: all 0.2s ease;
+  padding: 4px;
 }
 
-.message-actions button:hover {
-  background: var(--secondary-color);
+.icon-small {
+  width: 18px;
+  height: 18px;
 }
 
-/* ---------------- TYPING INDICATOR ---------------- */
-.typing-indicator {
-  font-style: italic;
-  color: #ccc;
-  display: inline-block;
+/* ---------------- CODE BLOCKS ---------------- */
+.code-block {
+  position: relative;
+  margin: 10px 0;
 }
 
-.dots::after {
-  content: '...';
-  animation: blink 1s infinite;
+.copy-code {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
 }
 
-@keyframes blink {
-  0%, 20% { opacity: 0; }
-  50%, 70% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-/* ---------------- FOOTER ---------------- */
+/* ---------------- FOOTER INPUT ---------------- */
 .gpt-footer {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 20px;
-  backdrop-filter: blur(12px);
-  background: var(--bg-color);
+  padding: 10px 20px;
+  background: rgba(0,0,0,0.35);
   border-top: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
 }
 
 .gpt-footer textarea {
   flex: 1;
-  border-radius: 20px;
-  padding: 8px 12px;
+  padding: 10px 14px;
+  border-radius: 30px;
   border: none;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.08);
   color: #fff;
-  font-size: 0.95rem;
+  font-family: var(--font-primary);
   resize: none;
-  overflow-y: hidden;
-  transition: all 0.2s ease;
 }
 
-.gpt-footer textarea:focus {
-  outline: none;
-  background: rgba(255,255,255,0.1);
-}
-
-.gpt-footer button {
-  background: var(--gradient-btn);
+.gpt-footer button.primary {
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
   border: none;
-  padding: 8px 12px;
+  color: #fff;
   border-radius: 50%;
+  width: 42px;
+  height: 42px;
   cursor: pointer;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.3s ease;
 }
 
-.gpt-footer button:hover {
+.gpt-footer button.primary:hover {
   transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(255, 204, 21, 0.4);
 }
 
-/* ---------------- RECORDING BUTTON ---------------- */
-.recording {
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-
-/* ---------------- FILE UPLOAD ---------------- */
 .upload-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  position: relative;
   cursor: pointer;
 }
 
@@ -258,68 +286,50 @@ body, html, #root {
   display: none;
 }
 
-/* ---------------- CODE BLOCK ---------------- */
-.code-block {
-  position: relative;
-  margin: 8px 0;
-  border-radius: var(--border-radius);
-  overflow: hidden;
-}
-
-.copy-code {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(255,255,255,0.1);
+.toggle-voice {
+  background: rgba(255,255,255,0.08);
   border: none;
-  padding: 4px;
   border-radius: 50%;
-  cursor: pointer;
-}
-
-/* ---------------- TOAST ---------------- */
-.toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--toast-bg);
-  color: #fff;
-  padding: 12px 20px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  z-index: 999;
-  animation: fadeIn 0.3s ease forwards;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.retry-btn {
-  background: var(--secondary-color);
-  border: none;
-  color: #000;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
+.toggle-voice:hover {
+  transform: scale(1.05);
+  background: rgba(255,255,255,0.15);
+}
+
+.recording {
+  background: var(--secondary-color) !important;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(250,204,21,0.5); }
+  70% { box-shadow: 0 0 0 10px rgba(250,204,21,0); }
+  100% { box-shadow: 0 0 0 0 rgba(250,204,21,0); }
 }
 
 /* ---------------- ANIMATIONS ---------------- */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(15px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 /* ---------------- RESPONSIVE ---------------- */
 @media (max-width: 768px) {
+  .message-bubble { max-width: 85%; }
   .gpt-header h2 { font-size: 1.4rem; }
-  .message-row { max-width: 90%; }
-  .gpt-footer textarea { font-size: 0.9rem; }
-  .prompt-btn { font-size: 0.75rem; padding: 5px 10px; }
+  .gpt-buttons button { padding: 6px 12px; font-size: 0.9rem; }
 }
 
 @media (max-width: 480px) {
-  .gpt-header h2 { font-size: 1.2rem; }
-  .gpt-buttons button { padding: 6px 12px; font-size: 0.8rem; }
-  .gpt-footer textarea { font-size: 0.85rem; }
+  .quick-prompts { flex-direction: column; gap: 8px; }
+  .gpt-footer { flex-direction: column; gap: 8px; }
+  .gpt-footer textarea { width: 100%; }
 }
