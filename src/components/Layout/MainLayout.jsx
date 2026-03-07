@@ -16,10 +16,11 @@ export default function MainLayout() {
   const [showOptions, setShowOptions] = useState(false);
   const dropdownRef = useRef(null);
 
-  const isChatPage = location.pathname === "/app/gpt";
-  const isBillingPage = location.pathname === "/app/billing";
-  const isMagic16Page = location.pathname === "/app/magic16";
-  const isFeedbackPage = location.pathname === "/app/feedback";
+  // ✅ Use startsWith for nested routes or query params
+  const isChatPage = location.pathname.startsWith("/app/gpt");
+  const isBillingPage = location.pathname.startsWith("/app/billing");
+  const isMagic16Page = location.pathname.startsWith("/app/magic16");
+  const isFeedbackPage = location.pathname.startsWith("/app/feedback");
 
   // Close dropdown if clicked outside
   useEffect(() => {
@@ -42,7 +43,7 @@ export default function MainLayout() {
         </div>
 
         <div className="header-right">
-          {/* GPT Page */}
+          {/* GPT Page Button */}
           {isChatPage && (
             <button
               className="gradient-btn"
@@ -60,7 +61,6 @@ export default function MainLayout() {
                 ⭐ Premium
               </button>
 
-              {/* Premium Info Image */}
               <img
                 src={qualityImg}
                 alt="Premium Quality"
@@ -108,7 +108,7 @@ export default function MainLayout() {
             </div>
           )}
 
-          {/* Magic16 Page */}
+          {/* Magic16 Page Button */}
           {isMagic16Page && (
             <button
               className="gradient-btn magic16-btn"
@@ -119,7 +119,7 @@ export default function MainLayout() {
             </button>
           )}
 
-          {/* Feedback Page */}
+          {/* Feedback Page Button */}
           {isFeedbackPage && (
             <button
               className="gradient-btn feedback-btn"
