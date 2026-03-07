@@ -1,128 +1,149 @@
 /* src/styles/header.css */
 
-/* ---------- Top Header ---------- */
+/* ---------- Top Header Container ---------- */
 .gpt-header {
-  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.8rem 2rem;
-  background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-radius: 0 0 12px 12px;
-  z-index: 1000;
+  padding: 1rem 2rem;
+  background-color: rgba(20, 20, 30, 0.95);
+  position: relative;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-/* Logo and Title */
+/* Logo + App Name */
 .logo-container {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
   cursor: pointer;
-  transition: transform 0.2s ease;
-}
-.logo-container:hover {
-  transform: scale(1.05);
 }
 .logo {
-  width: 48px;
-  height: 48px;
+  height: 45px;
+  width: 45px;
   object-fit: contain;
+  transition: transform 0.2s ease;
+}
+.logo-container:hover .logo {
+  transform: scale(1.05);
 }
 .header-title {
-  font-size: 1.5rem;
-  font-weight: 700;
   color: #fff;
-  letter-spacing: 1px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.5px;
 }
 
-/* Header Buttons Container */
+/* Right Buttons Container */
 .header-buttons {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.8rem;
 }
 
-/* Upgrade Button */
-.header-text-btn {
-  background: #ff5e5e;
-  color: #fff;
-  font-weight: 600;
+/* ---------- Gradient Buttons (Upgrade / Magic16) ---------- */
+.gradient-btn {
   padding: 0.5rem 1.2rem;
-  border-radius: 9999px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
   font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #8e2de2, #4a00e0);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.header-text-btn:hover {
-  background: #ff7b7b;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 94, 94, 0.4);
+.gradient-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(72, 0, 255, 0.45);
 }
 
-/* Magic16 Circle Button */
+/* Magic16 Button Additional Style */
 .new-chat-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #fff;
-  color: #6a11cb;
-  font-size: 1.5rem;
-  font-weight: bold;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-.new-chat-circle:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  gap: 0.3rem;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
-/* ---------- Left Side Feedback Fixed ---------- */
+/* ---------- Left Side Fixed Feedback Button ---------- */
 .fixed-feedback-text {
   position: fixed;
+  top: 50%;
   left: 0;
-  top: 40%;
-  transform: rotate(-90deg) translateX(-50%);
-  transform-origin: left center;
-  background: #2575fc;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-weight: 700;
+  font-size: 1rem;
   color: #fff;
-  font-weight: 600;
-  padding: 0.5rem 1.2rem;
-  border-radius: 0 12px 12px 0;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 900;
+  background: none;
+  padding: 0.5rem 0.8rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+  z-index: 200;
 }
-.fixed-feedback-text:hover {
-  background: #4a90ff;
-  transform: rotate(-90deg) translateX(-50%) scale(1.05);
+
+/* Gradient Pill for Feedback */
+.gradient-pill {
+  background: linear-gradient(90deg, #ff416c, #ff4b2b);
+  padding: 0.75rem 1.2rem;
+  border-radius: 25px;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(255, 75, 43, 0.45);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.gradient-pill:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 22px rgba(255, 75, 43, 0.6);
+}
+
+/* ---------- Hover Effects ---------- */
+.header-text-btn:hover,
+.new-chat-circle:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(72, 0, 255, 0.45);
 }
 
 /* ---------- Responsive ---------- */
-@media screen and (max-width: 768px) {
-  .gpt-header {
-    padding: 0.6rem 1rem;
+@media (max-width: 1024px) {
+  .header-buttons {
+    gap: 0.6rem;
   }
-  .header-title {
-    font-size: 1.3rem;
-  }
-  .header-text-btn {
-    padding: 0.4rem 1rem;
-    font-size: 0.9rem;
-  }
-  .new-chat-circle {
-    width: 40px;
-    height: 40px;
-    font-size: 1.2rem;
+  .gradient-btn {
+    padding: 0.45rem 1rem;
+    font-size: 0.95rem;
   }
   .fixed-feedback-text {
-    top: 35%;
-    padding: 0.4rem 1rem;
     font-size: 0.9rem;
+    padding: 0.5rem 0.7rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .gpt-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.8rem 1rem;
+  }
+  .header-buttons {
+    margin-top: 0.5rem;
+    gap: 0.5rem;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .gradient-btn {
+    width: 100%;
+    text-align: center;
+  }
+  .fixed-feedback-text {
+    display: none; /* Hide on small screens */
   }
 }
