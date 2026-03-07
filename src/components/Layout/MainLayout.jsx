@@ -30,6 +30,11 @@ export default function MainLayout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Sync activeMenu when route changes
+  useEffect(() => {
+    setActiveMenu(location.pathname);
+  }, [location.pathname]);
+
   const menuItems = [
     { name: "New Chat", path: "/app/gpt" },
     { name: "Magic16", path: "/app/magic16" },
@@ -56,15 +61,13 @@ export default function MainLayout() {
           <button className="icon-btn" title="Voice AI">
             <img src={micIcon} alt="Voice AI" />
           </button>
-          <button className="icon-btn" title="Notifications">
-            <img src={bellIcon} alt="Notifications" />
-          </button>
           <div className="profile-dropdown" ref={dropdownRef}>
             <button
               className="icon-btn"
               onClick={() => setShowTopDropdown((prev) => !prev)}
             >
-              <img src={profileIcon} alt="Profile" />
+              {/* Removed profile icon, can add text or placeholder */}
+              Profile
             </button>
             {showTopDropdown && (
               <div className="dropdown-menu">
@@ -108,7 +111,8 @@ export default function MainLayout() {
       {activeMenu === "/app/gpt" && (
         <footer className="bottom-bar">
           <button className="icon-btn">
-            <img src={attachIcon} alt="Attach File" />
+            {/* Removed attach icon, can leave empty or text */}
+            📎
           </button>
           <button className="icon-btn">
             <img src={micIcon} alt="Voice" />
