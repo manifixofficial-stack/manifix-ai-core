@@ -1,70 +1,68 @@
-/* =========================
-   Header Container
-========================= */
-.gpt-header {
-  position: relative;
-  height: 60px;
+/* src/styles/Header.css */
+
+.app-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center; /* keeps title centered */
-  backdrop-filter: blur(14px);
-  background: rgba(15, 15, 25, 0.55);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* =========================
-   Title
-========================= */
-.header-title {
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  margin: 0;
-}
-
-/* =========================
-   + Circle Button
-========================= */
-.new-chat-circle {
-  position: absolute;
-  right: 16px;
-
-  width: 38px;
-  height: 38px;
-
-  border-radius: 50%;
-  border: none;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background: rgba(255, 255, 255, 0.12);
-  color: white;
-
-  font-size: 22px;
-  font-weight: 500;
-
-  cursor: pointer;
-
-  transition: all 0.25s ease;
+  padding: 10px 16px;
+  background: rgba(0,0,0,0.3);
   backdrop-filter: blur(8px);
+  color: #fff;
+  z-index: 20;
+  position: sticky;
+  top: 0;
 }
 
-/* Hover effect */
-.new-chat-circle:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.08);
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* Click effect */
-.new-chat-circle:active {
-  transform: scale(0.95);
+.logo {
+  width: 40px; /* Smaller logo */
+  height: 40px;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
-/* Focus accessibility */
-.new-chat-circle:focus {
-  outline: 2px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
+.app-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #7F00FF, #E100FF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.new-chat-btn {
+  background: linear-gradient(135deg, #ff7e5f, #feb47b);
+  border: none;
+  border-radius: 20px;
+  padding: 6px 14px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.new-chat-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .app-title {
+    display: none; /* Hide text on mobile, keep logo only */
+  }
+  .new-chat-btn {
+    padding: 4px 10px;
+    font-size: 0.85rem;
+  }
 }
