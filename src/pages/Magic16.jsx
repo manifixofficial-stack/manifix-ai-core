@@ -10,7 +10,7 @@ import logo from "../assets/logo.png";
 // Audio
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-// Yoga steps
+// Yoga step images
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
 import yoga3 from "../assets/steps/yoga-03.png";
@@ -22,7 +22,7 @@ import yoga72 from "../assets/steps/yoga-07-2.png";
 import yoga73 from "../assets/steps/yoga-07-3.png";
 import yoga8 from "../assets/steps/yoga-08.png";
 
-// Meditation steps
+// Meditation step images
 import med1 from "../assets/steps/med-01.png";
 import med2 from "../assets/steps/med-02.png";
 import med3 from "../assets/steps/med-03.png";
@@ -40,11 +40,11 @@ export default function Magic16() {
   const audioRef = useRef(null);
   const lastVoiceRef = useRef(0);
 
-  // -------------------- Steps --------------------
+   // -------------------- Steps --------------------
   const yogaSteps = [
     { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
     { img: yoga2, text: "Forward Fold. Relax your neck and shoulders.", duration: 40 },
-    { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 60 },
+    { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 40 },
     { img: yoga4, text: "Plank Pose. Engage your core.", duration: 60 },
     { img: yoga5, text: "Cobra Pose. Open your chest gently.", duration: 40 },
     { img: yoga6, text: "Downward Dog. Stretch fully.", duration: 60 },
@@ -65,9 +65,9 @@ export default function Magic16() {
   ];
 
   const steps = [...yogaSteps, ...meditationSteps];
-  const TOTAL_DURATION = steps.reduce((sum, step) => sum + step.duration, 0);
+  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
 
-  // -------------------- State --------------------
+  // ---------- State ----------
   const [stepIndex, setStepIndex] = useState(0);
   const [stepTime, setStepTime] = useState(steps[0].duration);
   const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
@@ -78,26 +78,21 @@ export default function Magic16() {
   const [cameraError, setCameraError] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // -------------------- Voice Guidance --------------------
+  // ---------- Voice Guidance ----------
   const speak = (text) => {
     if (!("speechSynthesis" in window)) return;
     const now = Date.now();
     if (now - lastVoiceRef.current < 4000) return;
     lastVoiceRef.current = now;
-
     const utter = new SpeechSynthesisUtterance(text);
     utter.rate = 0.95;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   };
 
-  // -------------------- Audio Playback --------------------
   const playAudio = (src) => {
     if (!src) return;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    if (audioRef.current) audioRef.current.pause();
     const audio = new Audio(src);
     audio.loop = true;
     audio.volume = 0.5;
@@ -105,7 +100,7 @@ export default function Magic16() {
     audioRef.current = audio;
   };
 
-  // -------------------- Camera & Detector --------------------
+  // ---------- Camera & Pose Detector ----------
   useEffect(() => {
     const init = async () => {
       try {
@@ -120,6 +115,7 @@ export default function Magic16() {
           { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
         );
 
+        speak("Welcome to Magic16! Let's get moving!");
         setLoading(false);
       } catch (err) {
         console.error("Camera or detector error:", err);
@@ -133,31 +129,30 @@ export default function Magic16() {
       clearInterval(timerRef.current);
       clearInterval(detectRef.current);
       if (audioRef.current) audioRef.current.pause();
-      window.speechSynthesis?.cancel();
+      window.speechSynthesis.cancel();
     };
   }, []);
 
-  // -------------------- Angle Calculator --------------------
+  // ---------- Angle Calculator ----------
   const angle = (A, B, C) => {
     const AB = { x: A.x - B.x, y: A.y - B.y };
     const CB = { x: C.x - B.x, y: C.y - B.y };
     const dot = AB.x * CB.x + AB.y * CB.y;
     const magAB = Math.hypot(AB.x, AB.y);
     const magCB = Math.hypot(CB.x, CB.y);
-    const denom = magAB * magCB;
-    if (!denom) return 0;
-    return (Math.acos(Math.min(Math.max(dot / denom, -1), 1)) * 180) / Math.PI;
+    if (!magAB || !magCB) return 0;
+    return (Math.acos(Math.min(Math.max(dot / (magAB * magCB), -1), 1)) * 180) / Math.PI;
   };
 
-  // -------------------- Pose Detection --------------------
+  // ---------- Pose Detection ----------
   const detect = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current) return;
     try {
       const poses = await detectorRef.current.estimatePoses(videoRef.current);
       if (!poses?.length) return;
 
-      // Evaluate posture for specific steps
-      if ([3,5,6].includes(stepIndex)) {
+      // Example: For Plank or similar steps, simple scoring
+      if ([3, 4].includes(stepIndex)) {
         const kp = poses[0].keypoints;
         const hip = kp.find((k) => k.name === "left_hip");
         const knee = kp.find((k) => k.name === "left_knee");
@@ -167,8 +162,8 @@ export default function Magic16() {
           const score = Math.max(0, 100 - Math.abs(a - 90));
           setLiveScore(Math.round(score));
 
-          if (a < 75) speak("Bend your knee deeper");
-          if (a > 110) speak("Do not overextend your knee");
+          if (a < 75) speak("Bend your knee deeper!");
+          if (a > 110) speak("Do not overextend!");
         }
       }
     } catch (err) {
@@ -176,14 +171,14 @@ export default function Magic16() {
     }
   }, [stepIndex]);
 
-  // -------------------- Timer & Progress --------------------
+  // ---------- Timer & Progress ----------
   const start = () => {
     if (playing) return;
     speak(steps[stepIndex]?.text);
     setPlaying(true);
+    playAudio(meditationAudio);
 
-    if (detectRef.current) clearInterval(detectRef.current);
-    if (timerRef.current) clearInterval(timerRef.current);
+    detectRef.current = setInterval(detect, 400);
 
     timerRef.current = setInterval(() => {
       setTotalTime((t) => {
@@ -200,8 +195,7 @@ export default function Magic16() {
               finish();
               return i;
             }
-            if (next >= yogaSteps.length && meditationAudio) playAudio(meditationAudio);
-            setStepTime(steps[next]?.duration || 60);
+            setStepTime(steps[next]?.duration || 120);
             speak(steps[next]?.text);
             return next;
           });
@@ -210,8 +204,6 @@ export default function Magic16() {
         return prev - 1;
       });
     }, 1000);
-
-    detectRef.current = setInterval(detect, 400);
   };
 
   const stop = () => {
@@ -233,21 +225,14 @@ export default function Magic16() {
 
   const finish = () => {
     stop();
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-    oscillator.connect(audioCtx.destination);
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.2);
-
     confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
+    speak("Congratulations! Ritual complete!");
     setCompleted(true);
   };
 
-  const format = (s) => `${String(Math.floor(s / 60)).padStart(2,"0")}:${String(s % 60).padStart(2,"0")}`;
+  const format = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-  // -------------------- Completed Overlay --------------------
+  // ---------- Completed Overlay ----------
   if (completed) {
     return (
       <div className="result-overlay fade-in">
@@ -256,12 +241,19 @@ export default function Magic16() {
           <h1>{liveScore}%</h1>
           <p>Posture Score</p>
           <button onClick={resetRitual}>Start Again</button>
+          <button
+            onClick={() => {
+              navigator.share?.({ text: "I just completed Magic16 with ManifiX! Join me!" });
+            }}
+          >
+            Share 🎉
+          </button>
         </div>
       </div>
     );
   }
 
-  // -------------------- Main UI --------------------
+  // ---------- Main UI ----------
   return (
     <div className="magic16-container">
       {loading && <div className="loading-screen"><h2>Welcome to Magic16❤️</h2></div>}
@@ -269,13 +261,11 @@ export default function Magic16() {
 
       <img src={logo} alt="ManifiX Logo" className="magic16-logo" />
 
-      {/* Step display */}
       <div className="step-display">
         <img src={steps[stepIndex]?.img} alt="Step" className="step-img" />
         <h2 className="step-text">{steps[stepIndex]?.text}</h2>
       </div>
 
-      {/* Progress */}
       <div className="timer-progress">
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -286,15 +276,13 @@ export default function Magic16() {
         </div>
       </div>
 
-      {/* Live posture score */}
-      {([3,5,6].includes(stepIndex) && playing) && (
+      {([3,4].includes(stepIndex) && playing) && (
         <div className="live-score">
           <h3>Posture Score</h3>
           <h1>{liveScore}%</h1>
         </div>
       )}
 
-      {/* Controls */}
       <div className="controls">
         {!playing ? (
           <button className="start-btn" onClick={start} disabled={loading}>Start</button>
