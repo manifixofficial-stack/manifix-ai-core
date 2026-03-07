@@ -6,6 +6,16 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+
+// Icons
+import uploadIcon from "../assets/upload.png";
+import micIcon from "../assets/mic.png";
+import copyIcon from "../assets/copy.png";
+import shareIcon from "../assets/share.png";
+import binIcon from "../assets/bin.png";
+import qualityIcon from "../assets/quality.png"; // Billing
+import teamIcon from "../assets/team.png";       // Feedback
+
 import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
@@ -148,7 +158,6 @@ export default function Gpt({ userId }) {
 
         setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
 
-        // Typing animation
         let idx = 0;
         const replyMsg = { content: "", role: "bot", id: Math.random().toString(36).substring(2), type: "text" };
         setMessages(prev => [...prev, replyMsg]);
@@ -209,7 +218,10 @@ export default function Gpt({ userId }) {
   };
 
   return (
-    <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}>
+    <div
+      className="gpt-app theme-purple"
+      style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
+    >
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
       <Header
         onNewChat={() => {
@@ -228,7 +240,7 @@ export default function Gpt({ userId }) {
                 </div>
               ) : msg.type === "file" ? (
                 <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  📎 {msg.content.split("/").pop()}
+                  <img src={uploadIcon} alt="File" className="icon-inline" /> {msg.content.split("/").pop()}
                 </a>
               ) : (
                 <>
@@ -246,9 +258,21 @@ export default function Gpt({ userId }) {
                     }}
                   />
                   <div className="message-actions">
-                    <button className="copy-msg" onClick={() => copyMessage(msg.content)} title="Copy">📋</button>
-                    <button className="share-msg" onClick={() => shareMessage(msg.content)} title="Share">🔗</button>
-                    <button className="delete-msg" onClick={() => deleteMessage(msg.id)} title="Delete">🗑️</button>
+                    <button className="icon-btn" onClick={() => copyMessage(msg.content)} title="Copy">
+                      <img src={copyIcon} alt="Copy" />
+                    </button>
+                    <button className="icon-btn" onClick={() => shareMessage(msg.content)} title="Share">
+                      <img src={shareIcon} alt="Share" />
+                    </button>
+                    <button className="icon-btn" onClick={() => deleteMessage(msg.id)} title="Delete">
+                      <img src={binIcon} alt="Delete" />
+                    </button>
+                    <button className="icon-btn" onClick={() => window.location.href="/app/billing"} title="Billing">
+                      <img src={qualityIcon} alt="Billing" />
+                    </button>
+                    <button className="icon-btn" onClick={() => window.location.href="/app/feedback"} title="Feedback">
+                      <img src={teamIcon} alt="Feedback" />
+                    </button>
                   </div>
                 </>
               )}
@@ -259,7 +283,7 @@ export default function Gpt({ userId }) {
 
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          {listening ? "🛑" : "🎤"}
+          <img src={micIcon} alt="Mic" className="icon-footer" />
         </button>
 
         <textarea
@@ -277,11 +301,13 @@ export default function Gpt({ userId }) {
         />
 
         <label className="upload-btn" aria-label="Upload File">
-          📎
+          <img src={uploadIcon} alt="Upload" className="icon-footer" />
           <input type="file" onChange={handleUpload} disabled={uploading} />
         </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">➤</button>
+        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">
+          ➤
+        </button>
 
         <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
           {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
