@@ -1,304 +1,269 @@
-/* src/styles/Gpt.css */
+/* -------------------- Global -------------------- */
+:root {
+  --primary-purple: #8e44ad;
+  --secondary-purple: #6c3483;
+  --accent-color: #f39c12;
+  --bubble-user: linear-gradient(135deg, #8e44ad, #9b59b6);
+  --bubble-bot: #ffffff;
+  --background-blur: rgba(255, 255, 255, 0.08);
+  --text-light: #ffffff;
+  --text-dark: #2c3e50;
+  --toast-bg: rgba(0, 0, 0, 0.85);
+  --toast-color: #fff;
+  --shadow-glow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --transition-fast: 0.2s ease-in-out;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
 
-/* ---------------- Global ---------------- */
+/* -------------------- Body -------------------- */
+body, html {
+  margin: 0;
+  padding: 0;
+  color: var(--text-light);
+  background: #1c1c1c;
+}
+
+/* -------------------- App Container -------------------- */
 .gpt-app {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  font-family: 'Inter', sans-serif;
-  color: #f1f1f1;
-  background-color: #1a0f3d;
-  background-size: cover;
+  width: 100%;
   background-position: center;
-  transition: background 0.3s ease, color 0.3s ease;
+  background-size: cover;
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+  font-size: 16px;
 }
 
-/* ---------------- Toast ---------------- */
-.toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: rgba(30, 0, 60, 0.95);
-  color: #fff;
-  padding: 12px 20px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 1000;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-  animation: fadeIn 0.3s ease;
-}
-
-.toast .retry-btn {
-  background: #7f5af0;
-  border: none;
-  padding: 6px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: #fff;
-  font-weight: bold;
-  transition: background 0.2s ease;
-}
-
-.toast .retry-btn:hover {
-  background: #9955ff;
-}
-
-.toast button[aria-label="Close Notification"] {
-  background: transparent;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-/* ---------------- Header ---------------- */
+/* -------------------- Header -------------------- */
 .gpt-app header,
 .gpt-app .header {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(15px);
+  padding: 1rem 1.5rem;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background: rgba(40, 10, 70, 0.85);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  justify-content: space-between;
+  box-shadow: var(--shadow-glow);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+  border-radius: 0 0 15px 15px;
 }
 
-.gpt-app header h2 {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.header-actions button {
-  background: transparent;
-  border: none;
-  font-size: 1.3rem;
-  margin-left: 12px;
-  cursor: pointer;
-  color: #fff;
-  transition: transform 0.2s ease;
-}
-
-.header-actions button:hover {
-  transform: scale(1.2);
-}
-
-/* ---------------- Main Chat ---------------- */
+/* -------------------- Chat Container -------------------- */
 .gpt-main {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 24px;
+  padding: 1rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  scroll-behavior: smooth;
+  gap: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-color) transparent;
+}
+.gpt-main::-webkit-scrollbar {
+  width: 8px;
+}
+.gpt-main::-webkit-scrollbar-thumb {
+  background-color: var(--accent-color);
+  border-radius: 4px;
+}
+.gpt-main::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Message Rows */
+/* -------------------- Message Rows -------------------- */
 .message-row {
   display: flex;
-  flex-direction: column;
-  max-width: 80%;
+  width: 100%;
+  animation: fadeIn 0.3s ease forwards;
 }
 
 .message-row.user {
-  align-self: flex-end;
+  justify-content: flex-end;
 }
-
 .message-row.bot {
-  align-self: flex-start;
+  justify-content: flex-start;
 }
 
+/* -------------------- Message Bubble -------------------- */
 .message-bubble {
-  background: rgba(50, 15, 90, 0.8);
-  padding: 12px 16px;
-  border-radius: 20px;
+  max-width: 70%;
+  padding: 0.8rem 1.2rem;
+  border-radius: 25px;
+  background: var(--background-blur);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+  color: var(--text-light);
+  line-height: 1.5;
+  transition: all var(--transition-fast);
   position: relative;
+}
+.message-row.user .message-bubble {
+  background: var(--bubble-user);
   color: #fff;
-  font-size: 1rem;
-  word-wrap: break-word;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  transition: background 0.3s ease;
+  border-bottom-right-radius: 5px;
+}
+.message-row.bot .message-bubble {
+  background: var(--bubble-bot);
+  color: var(--text-dark);
+  border-bottom-left-radius: 5px;
 }
 
-/* ---------------- Typing Indicator ---------------- */
+/* -------------------- Typing Indicator -------------------- */
 .typing-indicator {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: 0.2rem;
   font-style: italic;
-  color: #ddd;
+  color: #aaa;
+}
+.typing-indicator .dots::after {
+  content: "...";
+  animation: dots 1s infinite steps(3, end);
 }
 
-.dots::after {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 2px;
-  border-radius: 50%;
-  background: #fff;
-  animation: blink 1s infinite alternate;
-}
-
-@keyframes blink {
-  0%, 20% { opacity: 0; }
-  50% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-/* ---------------- Code Block ---------------- */
-.code-block {
-  position: relative;
-  margin: 12px 0;
-  border-radius: 12px;
-  overflow: hidden;
-  background: rgba(20, 0, 40, 0.9);
-}
-
-.code-block .copy-code {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: #7f5af0;
-  border: none;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 0.8rem;
-  padding: 4px 8px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  z-index: 10;
-}
-
-.code-block .copy-code:hover {
-  background: #9955ff;
-}
-
-/* ---------------- Message Actions ---------------- */
+/* -------------------- Message Actions -------------------- */
 .message-actions {
-  margin-top: 6px;
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+  justify-content: flex-end;
 }
-
 .message-actions button {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #fff;
-  font-size: 1.1rem;
-  transition: transform 0.2s ease;
+  font-size: 0.9rem;
+  color: var(--accent-color);
+  transition: transform 0.15s ease;
 }
-
 .message-actions button:hover {
   transform: scale(1.3);
 }
 
-/* ---------------- Footer ---------------- */
+/* -------------------- File Link -------------------- */
+.file-link {
+  color: var(--accent-color);
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+/* -------------------- Footer -------------------- */
 .gpt-footer {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  background: rgba(40, 10, 70, 0.85);
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(15px);
   border-top: 1px solid rgba(255,255,255,0.1);
-  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-glow);
+  border-radius: 15px 15px 0 0;
 }
 
 .gpt-footer textarea {
   flex: 1;
-  padding: 10px 16px;
-  border-radius: 16px;
   border: none;
-  outline: none;
-  font-size: 1rem;
-  background: rgba(60, 20, 100, 0.6);
-  color: #fff;
+  border-radius: 15px;
+  padding: 0.6rem 0.8rem;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-light);
   resize: none;
-  transition: background 0.3s ease;
+  font-size: 1rem;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+.gpt-footer textarea:focus {
+  background: rgba(255,255,255,0.15);
 }
 
-.gpt-footer textarea::placeholder {
-  color: #ccc;
+/* -------------------- Buttons -------------------- */
+.gpt-footer button {
+  background: var(--accent-color);
+  border: none;
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  cursor: pointer;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.gpt-footer button:hover {
+  transform: scale(1.2);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
 
 .gpt-footer .primary {
-  background: #7f5af0;
-  border: none;
-  color: #fff;
-  font-size: 1.3rem;
-  padding: 10px 16px;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: background 0.3s ease, transform 0.2s ease;
-}
-
-.gpt-footer .primary:hover {
-  background: #9955ff;
-  transform: scale(1.05);
+  border-radius: 15px;
+  width: auto;
+  padding: 0.6rem 1rem;
+  font-weight: bold;
 }
 
 .gpt-footer .toggle-voice {
-  background: #444;
-  border: none;
-  color: #fff;
-  border-radius: 16px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: background 0.2s ease;
+  font-size: 0.85rem;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-light);
 }
 
-.gpt-footer .toggle-voice:hover {
-  background: #7f5af0;
-}
-
-/* ---------------- Upload Button ---------------- */
-.upload-btn {
-  position: relative;
-  background: #555;
-  border-radius: 16px;
-  padding: 8px 12px;
-  cursor: pointer;
-  overflow: hidden;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  color: #fff;
-}
-
-.upload-btn input[type="file"] {
-  position: absolute;
-  left: 0;
-  top: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-
-/* ---------------- Mic ---------------- */
+/* Recording Animation */
 .gpt-footer button.recording {
-  color: #ff5555;
+  background: red;
   animation: pulse 1s infinite alternate;
 }
 
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+/* -------------------- Toast -------------------- */
+.toast {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: var(--toast-bg);
+  color: var(--toast-color);
+  padding: 0.6rem 1rem;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  animation: fadeIn 0.3s ease forwards;
 }
 
-/* ---------------- Animations ---------------- */
-@keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(-10px); }
-  100% { opacity: 1; transform: translateY(0); }
+/* -------------------- Code Block -------------------- */
+.code-block {
+  position: relative;
+  margin: 0.5rem 0;
 }
+.copy-code {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--accent-color);
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #fff;
+  transition: transform 0.2s ease;
+}
+.copy-code:hover { transform: scale(1.15); }
 
-/* ---------------- Responsive ---------------- */
+/* -------------------- Animations -------------------- */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dots { 0%,20% { content: ""; } 40% { content: "."; } 60% { content: ".."; } 80%,100% { content: "..."; } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,0,0,0.7); } 100% { box-shadow: 0 0 0 8px rgba(255,0,0,0); } }
+
+/* -------------------- Responsive -------------------- */
 @media (max-width: 768px) {
-  .message-bubble { max-width: 90%; }
-  .gpt-footer { flex-direction: column; gap: 8px; padding: 16px; }
+  .message-bubble { max-width: 85%; }
+  .gpt-footer { flex-direction: column; gap: 0.5rem; }
   .gpt-footer textarea { width: 100%; }
 }
