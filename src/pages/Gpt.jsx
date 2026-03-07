@@ -12,8 +12,9 @@ import uploadIcon from "../assets/upload.png";
 import micIcon from "../assets/mic.png";
 import copyIcon from "../assets/copy.png";
 import shareIcon from "../assets/share.png";
-import binIcon from "../assets/bin.png";
 import Header from "../components/Header";
+import upgradeIcon from "../assets/upgrade.png";
+import feedbackIcon from "../assets/feedback.png";
 
 const API_BASE = "https://manifix.up.railway.app";
 
@@ -110,14 +111,10 @@ export default function Gpt({ userId }) {
     listening ? rec.stop() : rec.start();
   };
 
-  // ---------------- Copy / Share / Delete ----------------
+  // ---------------- Copy / Share ----------------
   const copyMessage = (text) => {
     navigator.clipboard.writeText(text);
     showToast("✅ Copied to clipboard");
-  };
-  const deleteMessage = (id) => {
-    setMessages(prev => prev.filter(msg => msg.id !== id));
-    showToast("🗑️ Message deleted");
   };
   const shareMessage = (text) => {
     navigator.share?.({ text }).catch(() => {
@@ -219,14 +216,37 @@ export default function Gpt({ userId }) {
       className="gpt-app theme-purple"
       style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
     >
+      {/* Toast Notification */}
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
+
+      {/* Header with Upgrade Button */}
       <Header
         onNewChat={() => {
           localStorage.removeItem("chatMessages");
           setMessages([defaultWelcome]);
         }}
-      />
+      >
+        <button
+          className="header-btn"
+          onClick={() => window.location.href="/app/upgrade"}
+          title="Upgrade"
+        >
+          <img src={upgradeIcon} alt="Upgrade" className="icon-footer" />
+          Upgrade
+        </button>
+      </Header>
 
+      {/* Feedback button fixed on left */}
+      <button
+        className="fixed-feedback-btn"
+        onClick={() => window.location.href="/app/feedback"}
+        title="Feedback"
+      >
+        <img src={feedbackIcon} alt="Feedback" className="icon-footer" />
+        Feedback
+      </button>
+
+      {/* Chat Area */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role}`}>
@@ -255,20 +275,8 @@ export default function Gpt({ userId }) {
                     }}
                   />
                   <div className="message-actions">
-                    <button className="icon-btn" onClick={() => copyMessage(msg.content)} title="Copy">
-                      <img src={copyIcon} alt="Copy" />
-                    </button>
                     <button className="icon-btn" onClick={() => shareMessage(msg.content)} title="Share">
                       <img src={shareIcon} alt="Share" />
-                    </button>
-                    <button className="icon-btn" onClick={() => deleteMessage(msg.id)} title="Delete">
-                      <img src={binIcon} alt="Delete" />
-                    </button>
-                    <button className="icon-btn" onClick={() => window.location.href="/app/billing"} title="Billing">
-                      <img src={qualityIcon} alt="Billing" />
-                    </button>
-                    <button className="icon-btn" onClick={() => window.location.href="/app/feedback"} title="Feedback">
-                      <img src={teamIcon} alt="Feedback" />
                     </button>
                   </div>
                 </>
@@ -278,6 +286,7 @@ export default function Gpt({ userId }) {
         ))}
       </main>
 
+      {/* Footer */}
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
           <img src={micIcon} alt="Mic" className="icon-footer" />
