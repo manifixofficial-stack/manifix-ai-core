@@ -1,6 +1,6 @@
 // src/pages/Feedback.jsx
 import React, { useEffect, useState } from "react";
-import supabase from "../services/supabase"; // your supabase client
+import supabase from "../services/supabase"; // Make sure this is your configured client
 import "../styles/Feedback.css";
 import logo from "../assets/logo.png";
 
@@ -15,17 +15,18 @@ export default function Feedback() {
       setError("");
 
       try {
+        // Fetch all feedback, newest first
         const { data, error } = await supabase
           .from("user_feedback")
           .select("*")
-          .lt("rating", 5) // Only ratings under 5
           .order("created_at", { ascending: false });
 
         if (error) throw error;
+
         setFeedbacks(data || []);
       } catch (err) {
         console.error(err);
-        setError("Unable to fetch feedback. Try later.");
+        setError("Unable to fetch feedback. Try again later.");
       } finally {
         setLoading(false);
       }
@@ -39,7 +40,7 @@ export default function Feedback() {
       <header className="feedback-header">
         <img src={logo} alt="ManifiX Logo" className="feedback-logo" />
         <h1>User Feedback</h1>
-        <p>Here’s what our users shared (under 5 stars)</p>
+        <p>See what our users are saying</p>
       </header>
 
       {loading && <p className="loading-text">Loading feedback...</p>}
@@ -47,24 +48,25 @@ export default function Feedback() {
 
       {!loading && !error && (
         <div className="feedback-list">
-          {feedbacks.length === 0 && (
-            <p className="no-feedback">No feedback under 5 stars.</p>
-          )}
-          {feedbacks.map((fb) => (
-            <div key={fb.id} className="feedback-card">
-              <div className="feedback-user">
-                <strong>{fb.user_name || "Anonymous"}</strong>
-                <span className="feedback-rating">
-                  {"⭐".repeat(fb.rating)}{" "}
-                  {"☆".repeat(5 - fb.rating)}
-                </span>
+          {feedbacks.length === 0 ? (
+            <p className="no-feedback">No feedback available yet.</p>
+          ) : (
+            feedbacks.map((fb) => (
+              <div key={fb.id} className="feedback-card">
+                <div className="feedback-user">
+                  <strong>{fb.user_name || "Anonymous"}</strong>
+                  <span className="feedback-rating">
+                    {"⭐".repeat(fb.rating || 0)}
+                    {"☆".repeat(5 - (fb.rating || 0))}
+                  </span>
+                </div>
+                <p className="feedback-comment">{fb.comment}</p>
+                <small className="feedback-date">
+                  {new Date(fb.created_at).toLocaleString()}
+                </small>
               </div>
-              <p className="feedback-comment">{fb.comment}</p>
-              <small className="feedback-date">
-                {new Date(fb.created_at).toLocaleString()}
-              </small>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
 
