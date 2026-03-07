@@ -40,15 +40,14 @@ export default function Header() {
         </div>
       </header>
 
-           {/* ---------- Floating Feedback Button ---------- */}
+      {/* ---------- Floating Feedback Button ---------- */}
       <button
         className="floating-feedback-btn"
         onClick={() => navigate("/app/feedback")}
         aria-label="Feedback"
         title="Give Feedback"
       >
-        <FaComments className="feedback-icon" />
-        <span>Feedback</span>
+        Feedback
       </button>
     </>
   );
