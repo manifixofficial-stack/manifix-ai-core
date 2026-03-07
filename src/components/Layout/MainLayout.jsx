@@ -2,10 +2,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import "../../styles/MainLayout.css";
+
 import logoImg from "../../assets/logo.png";
 import shareIcon from "../../assets/share.png";
 import teamIcon from "../../assets/team.png";
 import binIcon from "../../assets/bin.png";
+import qualityImg from "../../assets/quality.png"; // Premium upgrade image
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -14,9 +16,10 @@ export default function MainLayout() {
   const [showOptions, setShowOptions] = useState(false);
   const dropdownRef = useRef(null);
 
-  const isChatPage = location.pathname === "/gpt";
-  const isBillingPage = location.pathname === "/billing";
-  const isMagic16Page = location.pathname === "/magic16";
+  const isChatPage = location.pathname === "/app/gpt";
+  const isBillingPage = location.pathname === "/app/billing";
+  const isMagic16Page = location.pathname === "/app/magic16";
+  const isFeedbackPage = location.pathname === "/app/feedback";
 
   // Close dropdown if clicked outside
   useEffect(() => {
@@ -31,7 +34,7 @@ export default function MainLayout() {
 
   return (
     <div className="main-layout">
-      {/* ---------- Header ---------- */}
+      {/* ---------- HEADER ---------- */}
       <header className="main-header">
         <div className="header-left" onClick={() => navigate("/")}>
           <img src={logoImg} alt="ManifiX Logo" className="logo" />
@@ -39,19 +42,31 @@ export default function MainLayout() {
         </div>
 
         <div className="header-right">
+          {/* GPT Page */}
           {isChatPage && (
             <button
               className="gradient-btn"
               title="New Chat"
-              onClick={() => navigate("/gpt")}
+              onClick={() => navigate("/app/gpt")}
             >
               ➕ New Chat
             </button>
           )}
 
+          {/* Billing / Upgrade Page */}
           {isBillingPage && (
             <div className="billing-actions">
-              <button className="gradient-btn premium-btn">⭐ Premium</button>
+              <button className="gradient-btn premium-btn">
+                ⭐ Premium
+              </button>
+
+              {/* Premium Info Image */}
+              <img
+                src={qualityImg}
+                alt="Premium Quality"
+                className="premium-quality-img"
+              />
+
               <div className="more-options" ref={dropdownRef}>
                 <button
                   className="gradient-btn"
@@ -60,16 +75,32 @@ export default function MainLayout() {
                 >
                   ⋮
                 </button>
+
                 {showOptions && (
                   <div className="dropdown-menu">
-                    <button onClick={() => alert("Share Chat")}>
-                      <img src={shareIcon} alt="Share" className="dropdown-icon" /> Share
+                    <button onClick={() => alert("Share Billing")}>
+                      <img
+                        src={shareIcon}
+                        alt="Share"
+                        className="dropdown-icon"
+                      />{" "}
+                      Share
                     </button>
-                    <button onClick={() => alert("Start Group Chat")}>
-                      <img src={teamIcon} alt="Group" className="dropdown-icon" /> Group Chat
+                    <button onClick={() => alert("Group Purchase")}>
+                      <img
+                        src={teamIcon}
+                        alt="Group"
+                        className="dropdown-icon"
+                      />{" "}
+                      Group Purchase
                     </button>
-                    <button onClick={() => alert("Delete Chat")}>
-                      <img src={binIcon} alt="Delete" className="dropdown-icon" /> Delete
+                    <button onClick={() => alert("Cancel Subscription")}>
+                      <img
+                        src={binIcon}
+                        alt="Delete"
+                        className="dropdown-icon"
+                      />{" "}
+                      Cancel
                     </button>
                   </div>
                 )}
@@ -77,22 +108,38 @@ export default function MainLayout() {
             </div>
           )}
 
+          {/* Magic16 Page */}
           {isMagic16Page && (
-            <button className="gradient-btn magic16-btn" title="Magic16">
+            <button
+              className="gradient-btn magic16-btn"
+              title="Magic16"
+              onClick={() => navigate("/app/magic16")}
+            >
               ✨ Magic16
+            </button>
+          )}
+
+          {/* Feedback Page */}
+          {isFeedbackPage && (
+            <button
+              className="gradient-btn feedback-btn"
+              title="Feedback"
+              onClick={() => navigate("/app/feedback")}
+            >
+              📝 Feedback
             </button>
           )}
         </div>
       </header>
 
-      {/* ---------- Main Content ---------- */}
+      {/* ---------- MAIN CONTENT ---------- */}
       <main className="main-content">
         <Outlet />
       </main>
 
-      {/* ---------- Footer ---------- */}
+      {/* ---------- FOOTER ---------- */}
       <footer className="main-footer">
-        <span>© {new Date().getFullYear()} ManifiX</span>
+        <span>© {new Date().getFullYear()} ManifiX. All rights reserved.</span>
       </footer>
     </div>
   );
