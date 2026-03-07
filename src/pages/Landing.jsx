@@ -12,12 +12,12 @@ import "../styles/Landing.css";
 export default function Landing() {
   const navigate = useNavigate();
 
-  // 🔐 Auto-redirect if already logged in
+  // 🔐 Auto-redirect if user already logged in
   useEffect(() => {
     try {
       const user = authService?.getCurrentUser?.();
       if (user) {
-        navigate("/app/gpt", { replace: true }); // <-- changed from /dashboard
+        navigate("/app/gpt", { replace: true }); // Redirect to GPT dashboard
       }
     } catch (error) {
       console.error("Landing auth check failed:", error);
@@ -32,19 +32,19 @@ export default function Landing() {
       <div className="overlay" />
 
       {/* ---------------- HERO SECTION ---------------- */}
-      <section className="landing-top">
-        <img src={logo} alt="ManifiX Logo" className="main-logo" />
+      <header className="landing-header">
+        <img src={logo} alt="ManifiX Logo" className="landing-logo" />
         <h1 className="brand-name">ManifiX</h1>
         <p className="brand-tagline">
           Master Your Mind. Elevate Your Energy. Transform Your Life.
         </p>
-      </section>
+      </header>
 
       {/* ---------------- CORE VALUE SECTION ---------------- */}
       <section className="landing-hero">
         <h2 className="hero-title">16 Minutes. Infinite Power.</h2>
         <p className="hero-description">
-          Unlock clarity, discipline, and abundance using AI-guided rituals
+          Unlock clarity, focus, and energy using AI-guided rituals and tools
           designed for high performers and future leaders.
         </p>
 
@@ -53,26 +53,33 @@ export default function Landing() {
             <h3>Magic16 Ritual</h3>
             <p>
               8 minutes meditation + 8 minutes reflection.
-              Rewire your focus daily.
+              Track your posture, energy, and progress daily.
             </p>
           </div>
 
           <div className="feature">
             <h3>AI Coach</h3>
             <p>
-              Ask deep questions. Get intelligent, contextual guidance.
+              Ask deep questions and receive contextual guidance powered by GPT.
             </p>
           </div>
 
           <div className="feature">
             <h3>Vibe Tracking</h3>
             <p>
-              Monitor your energy, patterns, and growth trajectory.
+              Monitor energy, streaks, and your growth trajectory for peak performance.
+            </p>
+          </div>
+
+          <div className="feature">
+            <h3>Premium Tools</h3>
+            <p>
+              Access unlimited Magic16 sessions, advanced analytics, and personalized recommendations.
             </p>
           </div>
         </div>
 
-        {/* CTA SECTION */}
+        {/* ---------------- CALL TO ACTION ---------------- */}
         <div className="cta-container">
           <button
             className="landing-button primary"
