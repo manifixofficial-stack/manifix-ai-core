@@ -1,45 +1,39 @@
 /* src/styles/MainLayout.css */
 
-/* ---------- RESET ---------- */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Poppins", sans-serif;
-}
-
-/* ---------- LAYOUT ---------- */
+/* ---------------- Global ---------------- */
 .main-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  background: #f5f5f8;
+  height: 100vh;
+  font-family: 'Inter', sans-serif;
+  background-color: #1e1e2f;
+  color: #fff;
+  transition: background 0.3s, color 0.3s;
 }
 
-.main-content {
-  flex: 1;
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+.main-layout.light {
+  background-color: #f9f9f9;
+  color: #1e1e2f;
 }
 
-/* ---------- HEADER ---------- */
-.main-header {
+/* ---------------- TopBar ---------------- */
+.topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 30px;
-  background: linear-gradient(90deg, #6a11cb, #2575fc);
-  color: white;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  padding: 0.5rem 1rem;
+  background-color: rgba(30,30,47,0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  z-index: 10;
 }
 
-.header-left {
+.main-layout.light .topbar {
+  background-color: rgba(249,249,249,0.95);
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+.topbar-left {
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -47,154 +41,230 @@
 
 .logo {
   height: 40px;
-  margin-right: 10px;
+  width: auto;
 }
 
-.app-title {
-  font-size: 1.6rem;
-  font-weight: 600;
-  letter-spacing: 1px;
+.topbar-center {
+  flex: 1;
+  margin: 0 1rem;
 }
 
-/* ---------- HEADER RIGHT BUTTONS ---------- */
-.header-right {
+.search-input {
+  width: 100%;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  border: none;
+  background-color: rgba(255,255,255,0.1);
+  color: inherit;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.main-layout.light .search-input {
+  background-color: rgba(0,0,0,0.05);
+}
+
+.search-input:focus {
+  outline: none;
+  background-color: rgba(255,255,255,0.2);
+}
+
+.topbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.5rem;
 }
 
-/* Gradient button style */
-.gradient-btn {
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #ff8a00, #e52e71);
-  color: #fff;
+.icon-btn {
+  background: none;
   border: none;
-  border-radius: 12px;
   cursor: pointer;
-  font-weight: 500;
-  transition: transform 0.2s, box-shadow 0.2s;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  transition: background 0.2s, transform 0.1s;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.gradient-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+.icon-btn:hover {
+  background-color: rgba(255,255,255,0.1);
+  transform: scale(1.1);
 }
 
-/* Premium / Magic16 / Feedback buttons */
-.premium-btn {
-  background: linear-gradient(135deg, #facc15, #f59e0b);
-  color: #222;
+.main-layout.light .icon-btn:hover {
+  background-color: rgba(0,0,0,0.05);
 }
 
-.magic16-btn {
-  background: linear-gradient(135deg, #6ee7b7, #3b82f6);
-}
-
-.feedback-btn {
-  background: linear-gradient(135deg, #f472b6, #9333ea);
-}
-
-/* ---------- BILLING PREMIUM IMAGE ---------- */
-.premium-quality-img {
-  height: 40px;
-  margin-left: 10px;
-  border-radius: 8px;
-  object-fit: cover;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s;
-}
-
-.premium-quality-img:hover {
-  transform: scale(1.05);
-}
-
-/* ---------- DROPDOWN ---------- */
-.more-options {
+/* ---------------- Profile Dropdown ---------------- */
+.profile-dropdown {
   position: relative;
 }
 
 .dropdown-menu {
   position: absolute;
-  top: 50px;
   right: 0;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  top: 110%;
+  background-color: rgba(30,30,47,0.95);
+  border-radius: 8px;
   overflow: hidden;
-  min-width: 180px;
-  animation: fadeInScale 0.2s ease forwards;
-  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  z-index: 20;
+}
+
+.main-layout.light .dropdown-menu {
+  background-color: rgba(249,249,249,0.95);
 }
 
 .dropdown-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 16px;
-  background: none;
+  padding: 0.5rem 1rem;
   border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
-  font-size: 0.95rem;
   transition: background 0.2s;
 }
 
 .dropdown-menu button:hover {
-  background: #f0f0f5;
+  background-color: rgba(255,255,255,0.1);
 }
 
-.dropdown-icon {
-  width: 18px;
-  height: 18px;
+.main-layout.light .dropdown-menu button:hover {
+  background-color: rgba(0,0,0,0.05);
 }
 
-/* Dropdown animation */
-@keyframes fadeInScale {
-  0% {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
+/* ---------------- Body Layout ---------------- */
+.body-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
 }
 
-/* ---------- FOOTER ---------- */
-.main-footer {
-  padding: 12px 20px;
-  background: #1f2937;
+/* ---------------- Sidebar ---------------- */
+.sidebar {
+  width: 200px;
+  background-color: rgba(30,30,47,0.9);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0.5rem;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+.main-layout.light .sidebar {
+  background-color: rgba(249,249,249,0.9);
+  border-right: 1px solid rgba(0,0,0,0.1);
+}
+
+.sidebar-btn {
+  background: none;
+  border: none;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0.2rem 0;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.sidebar-btn:hover {
+  background-color: rgba(255,255,255,0.1);
+  transform: scale(1.02);
+}
+
+.main-layout.light .sidebar-btn:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+.sidebar-btn.active {
+  background-color: #6c63ff;
   color: #fff;
-  text-align: center;
-  font-size: 0.9rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* ---------- RESPONSIVE ---------- */
-@media (max-width: 1024px) {
-  .header-right {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .main-content {
-    padding: 15px;
-  }
+/* ---------------- Workspace ---------------- */
+.workspace {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  background-color: rgba(0,0,0,0.05);
 }
 
-@media (max-width: 640px) {
-  .main-header {
+.main-layout.light .workspace {
+  background-color: rgba(245,245,245,0.8);
+}
+
+/* ---------------- Bottom Bar ---------------- */
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  gap: 0.5rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  background-color: rgba(30,30,47,0.95);
+}
+
+.main-layout.light .bottom-bar {
+  background-color: rgba(249,249,249,0.95);
+  border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.message-input {
+  flex: 1;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.95rem;
+  background-color: rgba(255,255,255,0.1);
+  color: inherit;
+  transition: background 0.2s;
+}
+
+.main-layout.light .message-input {
+  background-color: rgba(0,0,0,0.05);
+}
+
+.message-input:focus {
+  outline: none;
+  background-color: rgba(255,255,255,0.2);
+}
+
+.send-btn {
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-radius: 8px;
+  background-color: #6c63ff;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.send-btn:hover {
+  background-color: #554fcf;
+}
+
+/* ---------------- Responsive ---------------- */
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .topbar-center {
+    flex: none;
+    width: 100%;
+    margin: 0 0.5rem;
+  }
+
+  .bottom-bar {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    gap: 0.3rem;
   }
-  .header-left {
-    gap: 10px;
-  }
-  .gradient-btn {
-    padding: 6px 12px;
-    font-size: 0.85rem;
-  }
-  .premium-quality-img {
-    height: 32px;
+
+  .workspace {
+    padding: 0.5rem;
   }
 }
