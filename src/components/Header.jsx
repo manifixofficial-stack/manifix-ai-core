@@ -40,13 +40,15 @@ export default function Header() {
         </div>
       </header>
 
-      {/* ---------- Left Side Fixed Feedback ---------- */}
+           {/* ---------- Floating Feedback Button ---------- */}
       <button
-        className="fixed-feedback-text gradient-pill"
+        className="floating-feedback-btn"
         onClick={() => navigate("/app/feedback")}
         aria-label="Feedback"
+        title="Give Feedback"
       >
-        Feedback
+        <FaComments className="feedback-icon" />
+        <span>Feedback</span>
       </button>
     </>
   );
