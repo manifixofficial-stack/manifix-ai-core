@@ -216,6 +216,51 @@ body, html, #root {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ---------------- TESTIMONIALS ---------------- */
+.landing-testimonials {
+  padding: 3rem 1rem;
+  text-align: center;
+  z-index: 1;
+  position: relative;
+}
+
+.testimonial-title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 2rem;
+}
+
+.testimonial-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.testimonial-card {
+  background: rgba(255,255,255,0.05);
+  border-radius: 15px;
+  padding: 1.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.testimonial-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.testimonial-text {
+  font-size: 0.95rem;
+  color: #eee;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.testimonial-author {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ff6a85;
+}
+
 /* ---------------- RESPONSIVE ---------------- */
 @media (max-width: 1024px) {
   .hero-features { flex-direction: column; align-items: center; }
@@ -226,4 +271,5 @@ body, html, #root {
   .hero-description { font-size: 1rem; }
   .feature { width: 90%; }
   .landing-button { padding: 12px 30px; font-size: 1rem; }
+  .testimonial-cards { grid-template-columns: 1fr; }
 }
