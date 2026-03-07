@@ -1,130 +1,72 @@
-// src/layouts/MainLayout.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import "../../styles/MainLayout.css";
-
-// Assets
-import logoImg from "../../assets/logo.png";
-import uploadIcon from "../../assets/upload.png";
-import copyIcon from "../../assets/copy.png";
-import micIcon from "../../assets/mic.png";
-import shareIcon from "../../assets/share.png";
-import binIcon from "../../assets/bin.png"; 
+import "../../styles/MainLayout.css"; // Correct path
 
 export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [activeMenu, setActiveMenu] = useState(location.pathname);
-  const [showTopDropdown, setShowTopDropdown] = useState(false);
-  const dropdownRef = useRef(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const [groupChatOpen, setGroupChatOpen] = useState(false);
 
-  // Close dropdown if clicked outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setShowTopDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Sync activeMenu when route changes
-  useEffect(() => {
-    setActiveMenu(location.pathname);
-  }, [location.pathname]);
-
-  const menuItems = [
-    { name: "New Chat", path: "/app/gpt" },
-    { name: "Magic16", path: "/app/magic16" },
-    { name: "Landing", path: "/" },
-    { name: "Billing", path: "/app/billing" },
-    { name: "Feedback", path: "/app/feedback" },
-  ];
+  const isChatPage = location.pathname === "/gpt";
+  const isBillingPage = location.pathname === "/billing";
+  const isMagic16Page = location.pathname === "/magic16";
 
   return (
     <div className="main-layout">
-      {/* ---------- TopBar ---------- */}
-      <header className="topbar">
-        <div className="topbar-left" onClick={() => navigate("/")}>
-          <img src={logoImg} alt="ManifiX Logo" className="logo" />
-        </div>
-        <div className="topbar-center">
-          <input
-            type="text"
-            placeholder="Search..."
-            className="search-input"
-          />
-        </div>
-        <div className="topbar-right">
-          <button className="icon-btn" title="Voice AI">
-            <img src={micIcon} alt="Voice AI" />
-          </button>
-          <div className="profile-dropdown" ref={dropdownRef}>
-            <button
-              className="icon-btn"
-              onClick={() => setShowTopDropdown((prev) => !prev)}
-            >
-              {/* Removed profile icon, can add text or placeholder */}
-              Profile
+      {/* Top Header */}
+      <header className="main-header">
+        <h1 className="logo" onClick={() => navigate("/")}>
+          ManifiX
+        </h1>
+
+        {/* Contextual right buttons */}
+        <div className="header-actions">
+          {isChatPage && (
+            <button className="add-chat-btn" title="New Chat">
+              ➕
             </button>
-            {showTopDropdown && (
-              <div className="dropdown-menu">
-                <button onClick={() => navigate("/app/settings")}>
-                  Settings
+          )}
+          {isBillingPage && (
+            <>
+              <button className="premium-btn">⭐ Premium</button>
+              <div className="more-options">
+                <button
+                  onClick={() => setShowOptions(prev => !prev)}
+                  aria-label="More options"
+                >
+                  ⋮
                 </button>
-                <button onClick={() => alert("Logout")}>Logout</button>
+                {showOptions && (
+                  <div className="dropdown">
+                    <button onClick={() => alert("Share Chat")}>📤 Share</button>
+                    <button onClick={() => alert("Start Group Chat")}>
+                      👥 Group Chat
+                    </button>
+                    <button onClick={() => alert("Delete Chat")}>🗑 Delete</button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
+          {isMagic16Page && (
+            <button className="magic16-btn" title="Magic16">
+              ✨ Magic16
+            </button>
+          )}
         </div>
       </header>
 
-      {/* ---------- BODY ---------- */}
-      <div className="body-layout">
-        {/* Sidebar */}
-        <aside className="sidebar">
-          {menuItems.map((item) => (
-            <button
-              key={item.path}
-              className={`sidebar-btn ${
-                activeMenu === item.path ? "active" : ""
-              }`}
-              onClick={() => {
-                navigate(item.path);
-                setActiveMenu(item.path);
-              }}
-            >
-              {item.name}
-            </button>
-          ))}
-        </aside>
+      {/* Main content */}
+      <main className="main-content">
+        <Outlet />
+      </main>
 
-        {/* Main Workspace */}
-        <main className="workspace">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* ---------- Bottom Input Bar ---------- */}
-      {activeMenu === "/app/gpt" && (
-        <footer className="bottom-bar">
-          <button className="icon-btn">
-            {/* Removed attach icon, can leave empty or text */}
-            📎
-          </button>
-          <button className="icon-btn">
-            <img src={micIcon} alt="Voice" />
-          </button>
-          <input
-            type="text"
-            placeholder="Type your message..."
-            className="message-input"
-          />
-          <button className="send-btn">➤</button>
-        </footer>
-      )}
+      {/* Optional footer */}
+      <footer className="main-footer">
+        <span>© {new Date().getFullYear()} ManifiX</span>
+      </footer>
     </div>
   );
 }
