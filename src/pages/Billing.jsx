@@ -1,9 +1,9 @@
 // src/pages/Billing.jsx
-
 import React, { useState } from "react";
 import "../styles/Billing666.css";
 import authService from "../services/auth.service";
 import logo from "../assets/logo.png";
+import { FaCheckCircle } from "react-icons/fa"; // for feature icons
 
 const BillingPage = () => {
   const [loading, setLoading] = useState(false);
@@ -51,23 +51,39 @@ const BillingPage = () => {
     }
   };
 
+  const features = [
+  "Unlimited GPT Conversations with Context Awareness",
+  "Magic16 AI-Powered Daily Rituals & Guidance",
+  "Real-Time Voice Chat (STT / TTS) Across All Features",
+  "Personalized AI Coach for Meditation & Yoga",
+  "Custom GPT Prompts & Workflow Automation",
+  "Progress Tracking & Posture Analytics",
+  "Mood & Energy Insights with Vibe Score",
+  "Adaptive Dark/Light UI with Custom Themes",
+  "Exclusive Early Access to AI Experiments",
+  "Personalized AI Recommendations for Growth & Fun",
+];
+
   return (
     <div className="billing-page">
+      {/* Header */}
       <header className="billing-header">
         <img src={logo} alt="ManifiX Logo" className="billing-logo" />
         <h1>ManifiX Premium</h1>
         <p>Unlock full access to all premium features</p>
       </header>
 
+      {/* Subscription Card */}
       <section className="billing-card">
         <h2>Premium Subscription</h2>
         <p className="price">₹1,999 / month</p>
 
         <ul className="features">
-          <li>🎯 Full GPT Access</li>
-          <li>🎵 Magic16 & Vibe unlocked</li>
-          <li>🔊 STT / TTS Enabled</li>
-          <li>⚡ Priority Support</li>
+          {features.map((feature, index) => (
+            <li key={index}>
+              <FaCheckCircle className="feature-icon" /> {feature}
+            </li>
+          ))}
         </ul>
 
         <button
@@ -81,8 +97,9 @@ const BillingPage = () => {
         {error && <p className="billing-error">{error}</p>}
       </section>
 
+      {/* Footer */}
       <footer className="billing-footer">
-        <p>© 2026 ManifiX. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
       </footer>
     </div>
   );
