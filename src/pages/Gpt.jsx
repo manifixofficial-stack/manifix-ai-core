@@ -17,7 +17,7 @@ import uploadIcon from "../assets/upload.png";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-// Toast Notification Component
+// ---------------- Toast Component ----------------
 const Toast = ({ message, onClose, retry }) => (
   <div className="toast fade-in">
     <span>{message}</span>
@@ -32,6 +32,7 @@ const Toast = ({ message, onClose, retry }) => (
   </div>
 );
 
+// ---------------- Default Welcome ----------------
 const defaultWelcome = {
   content: "💎 Hi! I’m ManifiX, your AI companion ✨ Ask me anything!",
   role: "bot",
@@ -217,6 +218,10 @@ export default function Gpt({ userId }) {
     if (e.key === "Escape") stopSpeaking();
   };
 
+  // ---------------- Quick Prompts (Extra UX Feature) ----------------
+  const quickPrompts = ["Tell me a joke", "Explain AI", "Generate code snippet", "Summarize text"];
+  const useQuickPrompt = (prompt) => sendMessage(prompt);
+
   return (
     <div className="gpt-app theme-purple" style={{ backgroundImage: `url(${backgroundPurple})` }}>
       {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
@@ -227,6 +232,16 @@ export default function Gpt({ userId }) {
         }}
       />
 
+      {/* Quick Prompts */}
+      <div className="quick-prompts">
+        {quickPrompts.map((q, i) => (
+          <button key={i} onClick={() => useQuickPrompt(q)} className="prompt-btn">
+            {q}
+          </button>
+        ))}
+      </div>
+
+      {/* Chat Container */}
       <main className="gpt-main" ref={chatContainer}>
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role} fade-in`}>
@@ -277,6 +292,7 @@ export default function Gpt({ userId }) {
         ))}
       </main>
 
+      {/* Footer */}
       <footer className="gpt-footer">
         <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
           <img src={micIcon} alt="Mic" className="icon-small" />
