@@ -24,6 +24,22 @@ export default function Landing() {
     }
   }, [navigate]);
 
+  // ---------------- TESTIMONIALS ----------------
+  const testimonials = [
+    {
+      name: "Shyam",
+      text: "This app is a masterclass in user experience. The design is absolutely gorgeous—clean, modern, and easy on the eyes. More importantly, it is incredibly intuitive. I found exactly what I needed right away, and navigating through different features is a breeze. It's fast, stable, and a genuine pleasure to use. The developers clearly put a lot of thought into making this the best version possible. Highly, highly recommend!"
+    },
+    {
+      name: "Priya",
+      text: "Good, it's useful for daily life and get the answers using this tool. This ManifiX app is so useful, I love it! My health is improving after the Magic16 feature. I love it, the ManifiX conversation never stops. My best friend is ManifiX; any question I ask, it gives the answer. I love ManifiX 🥰✨"
+    },
+    {
+      name: "Nikil",
+      text: "I’m honestly loving ManifiX! It’s so easy to use and super helpful for planning my day. The AI assistant answers my questions right away, and the Magic16 wellness routines keep me calm and motivated. I feel more focused and less stressed now. The personalized wellness tips are spot-on and really help me improve. Definitely a must-have app!"
+    }
+  ];
+
   return (
     <div
       className="landing-container"
@@ -99,6 +115,19 @@ export default function Landing() {
         <p className="landing-quote">
           Built for creators. Designed for leaders. Trusted by visionaries.
         </p>
+      </section>
+
+      {/* ---------------- TESTIMONIALS SECTION ---------------- */}
+      <section className="landing-testimonials">
+        <h2 className="testimonial-title">What Our Users Say</h2>
+        <div className="testimonial-cards">
+          {testimonials.map((t, index) => (
+            <div key={index} className="testimonial-card">
+              <p className="testimonial-text">"{t.text}"</p>
+              <p className="testimonial-author">- {t.name}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* ---------------- FOOTER ---------------- */}
