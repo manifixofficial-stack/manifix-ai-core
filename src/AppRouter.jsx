@@ -16,23 +16,24 @@ import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 
 // App Pages
+import Dashboard from "./pages/Dashboard";
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
 import Feedback from "./pages/Feedback";
-import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
-import Dashboard from "./pages/Dashboard";
 
 export default function AppRouter() {
-  const { user } = useApp(); // ✅ Use context directly
+  const { user } = useApp(); // get user from context
 
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* Landing Page - First page */}
       <Route
         path="/"
         element={user ? <Navigate to="/app/dashboard" replace /> : <Landing />}
       />
+
+      {/* Auth Pages */}
       <Route
         path="/login"
         element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
@@ -42,6 +43,8 @@ export default function AppRouter() {
         element={user ? <Navigate to="/app/dashboard" replace /> : <Signup />}
       />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      {/* Public Pages */}
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/contact" element={<Contact />} />
@@ -57,14 +60,10 @@ export default function AppRouter() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="gpt" element={<Gpt/>} />
+        <Route path="gpt" element={<Gpt />} />
         <Route path="magic16" element={<Magic16 />} />
         <Route path="feedback" element={<Feedback />} />
-        <Route path="settings" element={<Settings />} />
         <Route path="billing" element={<Billing />} />
-        <Route path="contact" element={<Contact />} />
-        <Route path="privacy" element={<Privacy />} />
-        <Route path="terms" element={<Terms />} />
       </Route>
 
       {/* Catch-all */}
