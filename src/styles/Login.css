@@ -1,17 +1,18 @@
-/* ---------------- GLOBAL ---------------- */
+/* src/styles/Login.css */
+
+/* ======================= AUTH WRAPPER ======================= */
 .auth-wrapper {
   position: relative;
   min-height: 100vh;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   background-size: cover;
   background-position: center;
   font-family: 'Poppins', sans-serif;
   overflow: hidden;
   color: #fff;
 }
-
 .overlay {
   position: absolute;
   inset: 0;
@@ -19,55 +20,45 @@
   z-index: 0;
 }
 
-/* ---------------- AUTH CARD ---------------- */
+/* ======================= GLASSMORPHIC CARD ======================= */
 .auth-card {
   position: relative;
   z-index: 1;
   background: rgba(255, 255, 255, 0.05);
   padding: 3rem 2rem;
-  border-radius: 20px;
-  backdrop-filter: blur(15px);
-  box-shadow: 0 10px 40px rgba(255, 204, 0, 0.4);
+  border-radius: 25px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 40px rgba(255, 0, 255, 0.2),
+              0 12px 40px rgba(0, 255, 255, 0.2);
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   text-align: center;
   animation: fadeInUp 1s ease forwards;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* ---------------- BRAND ---------------- */
-.brand img {
-  width: 80px;
-  margin-bottom: 0.5rem;
-  animation: bounceIn 1.2s ease;
+/* ======================= BRAND LOGO ======================= */
+.brand img.logo {
+  width: 90px;
+  animation: bounceIn 1s ease;
 }
-
 .brand h1 {
   font-size: 2.5rem;
-  color: #ffcc00;
-  margin-bottom: 0.2rem;
-  text-shadow: 0 0 10px #ffcc00;
+  background: linear-gradient(90deg, #00ffff, #8e2de2, #ff0080);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
+  margin: 0.5rem 0;
 }
-
 .brand .tagline {
   font-size: 1rem;
   color: #ddd;
   margin-bottom: 2rem;
 }
 
-/* ---------------- HEADINGS ---------------- */
-h2 {
-  font-size: 1.8rem;
-  margin-bottom: 0.5rem;
-}
-
-.subtitle {
-  color: #ccc;
-  margin-bottom: 1.5rem;
-  font-size: 1rem;
-}
-
-/* ---------------- BUTTONS ---------------- */
-.google-btn, .primary-btn {
+/* ======================= BUTTONS ======================= */
+.google-btn,
+.primary-btn {
   width: 100%;
   padding: 0.75rem;
   border-radius: 50px;
@@ -75,31 +66,33 @@ h2 {
   border: none;
   cursor: pointer;
   margin-bottom: 1rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 5px 15px rgba(255, 204, 0, 0.4);
+  transition: all 0.35s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
-
 .google-btn {
-  background: linear-gradient(45deg, #4285F4, #34A853, #FBBC05, #EA4335);
+  background: linear-gradient(45deg, #00ffff, #8e2de2, #ff0080);
   color: #fff;
+  font-size: 1rem;
 }
-
 .google-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 204, 0, 0.6);
+  box-shadow: 0 8px 25px rgba(255, 0, 255, 0.4);
 }
-
 .primary-btn {
-  background: linear-gradient(45deg, #ffcc00, #ff9900);
-  color: #000;
+  background: linear-gradient(45deg, #00ffff, #8e2de2, #ff0080);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
 }
-
 .primary-btn:hover {
   transform: scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 204, 0, 0.6);
+  box-shadow: 0 8px 25px rgba(255, 0, 255, 0.4);
 }
 
-/* ---------------- INPUTS ---------------- */
+/* ======================= INPUT FIELDS ======================= */
 input {
   width: 100%;
   padding: 0.75rem 1rem;
@@ -112,13 +105,12 @@ input {
   font-size: 1rem;
   transition: all 0.3s ease;
 }
-
 input:focus {
   background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 10px #ffcc00;
+  box-shadow: 0 0 10px #ff00ff, 0 0 20px #00ffff;
 }
 
-/* ---------------- DIVIDER ---------------- */
+/* ======================= DIVIDER ======================= */
 .divider {
   display: flex;
   align-items: center;
@@ -126,69 +118,56 @@ input:focus {
   margin: 1.5rem 0;
   color: #ccc;
 }
-
 .divider span {
   flex: 1;
   position: relative;
+  font-size: 0.85rem;
 }
-
-.divider span::before, .divider span::after {
+.divider span::before,
+.divider span::after {
   content: "";
   height: 1px;
-  background: #ffcc00;
+  background: #ff00ff;
   position: absolute;
   top: 50%;
   width: 200%;
 }
+.divider span::before {
+  left: -100%;
+}
+.divider span::after {
+  right: -100%;
+}
 
-.divider span::before { left: -100%; }
-.divider span::after { right: -100%; }
-
-/* ---------------- ERROR ---------------- */
+/* ======================= ERROR & MICROCOPY ======================= */
 .error {
   color: #ff5555;
   margin-bottom: 1rem;
   font-weight: 500;
 }
-
-/* ---------------- MICROCOPY ---------------- */
 .microcopy {
   font-size: 0.85rem;
   color: #ccc;
   margin-top: 0.5rem;
 }
-
 .microcopy .link {
-  color: #ffcc00;
+  color: #ff00ff;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: 0.3s ease;
 }
-
 .microcopy .link:hover {
+  color: #00ffff;
   text-decoration: underline;
-  color: #fff700;
 }
 
-/* ---------------- ANIMATIONS ---------------- */
+/* ======================= ANIMATIONS ======================= */
 @keyframes fadeInUp {
   0% { opacity: 0; transform: translateY(30px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes bounceIn {
   0% { opacity: 0; transform: scale(0.5); }
   60% { opacity: 1; transform: scale(1.2); }
   80% { transform: scale(0.9); }
   100% { transform: scale(1); }
-}
-
-/* ---------------- RESPONSIVE ---------------- */
-@media (max-width: 480px) {
-  .auth-card {
-    padding: 2rem 1.5rem;
-  }
-
-  h2 {
-    font-size: 1.5rem;
-  }
 }
