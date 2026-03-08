@@ -11,6 +11,7 @@ export { default as ChatMessage } from "./Chat/ChatMessage";
 // Magic16
 export { default as Magic16Controls } from "./Magic16/Magic16Controls";
 export { default as Magic16Timer } from "./Magic16/Magic16Timer";
+export { default as PostureOverlay } from "./Magic16/PostureOverlay";
 
 // Vibe
 export { default as ProfileCard } from "./Profile/ProfileCard";
