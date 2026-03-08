@@ -1,77 +1,90 @@
-// src/pages/Feedback.jsx
-import React, { useEffect, useState } from "react";
-import supabase from "../services/supabase"; // Make sure this is your configured client
+import React, { useState } from "react";
+import supabase from "../services/supabase";
 import "../styles/Feedback.css";
 import logo from "../assets/logo.png";
 
 export default function Feedback() {
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [rating, setRating] = useState(0);
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchFeedback = async () => {
-      setLoading(true);
-      setError("");
+  const submitFeedback = async () => {
+    if (!message.trim()) {
+      setStatus("⚠ Please enter your feedback.");
+      return;
+    }
 
-      try {
-        // Fetch all feedback, newest first
-        const { data, error } = await supabase
-          .from("user_feedback")
-          .select("*")
-          .order("created_at", { ascending: false });
+    setLoading(true);
+    setStatus("");
 
-        if (error) throw error;
+    try {
+      const { error } = await supabase.from("user_feedback").insert([
+        {
+          comment: message.trim(),
+          rating: rating || null,
+        },
+      ]);
 
-        setFeedbacks(data || []);
-      } catch (err) {
-        console.error(err);
-        setError("Unable to fetch feedback. Try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (error) throw error;
 
-    fetchFeedback();
-  }, []);
+      setStatus("✅ Thank you for your feedback!");
+      setMessage("");
+      setRating(0);
+    } catch (err) {
+      console.error(err);
+      setStatus("❌ Failed to send feedback. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="feedback-page">
       <header className="feedback-header">
         <img src={logo} alt="ManifiX Logo" className="feedback-logo" />
-        <h1>User Feedback</h1>
-        <p>See what our users are saying</p>
+        <h1>ManifiX Feedback</h1>
       </header>
 
-      {loading && <p className="loading-text">Loading feedback...</p>}
-      {error && <p className="error-text">{error}</p>}
+      <main className="feedback-main">
+        <div className="feedback-card">
+          <h2>We Value Your Feedback</h2>
 
-      {!loading && !error && (
-        <div className="feedback-list">
-          {feedbacks.length === 0 ? (
-            <p className="no-feedback">No feedback available yet.</p>
-          ) : (
-            feedbacks.map((fb) => (
-              <div key={fb.id} className="feedback-card">
-                <div className="feedback-user">
-                  <strong>{fb.user_name || "Anonymous"}</strong>
-                  <span className="feedback-rating">
-                    {"⭐".repeat(fb.rating || 0)}
-                    {"☆".repeat(5 - (fb.rating || 0))}
-                  </span>
-                </div>
-                <p className="feedback-comment">{fb.comment}</p>
-                <small className="feedback-date">
-                  {new Date(fb.created_at).toLocaleString()}
-                </small>
-              </div>
-            ))
-          )}
+          <label>Your Feedback</label>
+          <textarea
+            placeholder="Tell us what you think..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+
+          <label>Rate Us</label>
+
+          <div className="rating">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <span
+                key={star}
+                className={`star ${rating >= star ? "active" : ""}`}
+                onClick={() => setRating(star)}
+              >
+                ★
+              </span>
+            ))}
+          </div>
+
+          <button
+            className="submit-btn"
+            onClick={submitFeedback}
+            disabled={loading}
+          >
+            {loading ? "Submitting..." : "Submit Feedback"}
+          </button>
+
+          {status && <p className="status">{status}</p>}
         </div>
-      )}
+      </main>
 
       <footer className="feedback-footer">
-        <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
+        © {new Date().getFullYear()} ManifiX — All Rights Reserved
       </footer>
     </div>
   );
