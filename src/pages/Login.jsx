@@ -94,11 +94,7 @@ export default function Login() {
           Continue with Google
         </button>
 
-        {/* DIVIDER */}
-        <div className="divider">
-          <span>or continue with email</span>
-        </div>
-
+    
         {/* EMAIL INPUT */}
         <input
           type="email"
