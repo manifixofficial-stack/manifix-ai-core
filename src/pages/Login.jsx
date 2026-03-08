@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
 import { useApp } from "../context/AppContext";
 
-import logo from "../assets/logo.svg";
+import logo from "../assets/logo.png";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
 
 import "../styles/Login.css";
