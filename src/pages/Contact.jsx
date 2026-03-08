@@ -90,7 +90,7 @@ export default function Contact() {
           <img src="/assets/images/logo.png" alt="ManifiX logo" className="w-12 h-12 object-contain" />
           <div>
             <h1 className="text-xl font-extrabold tracking-wide">ManifiX</h1>
-            <p className="text-sm text-gray-400">AI • Human • Wellness • Creation</p>
+            <p className="text-sm text-gray-400">AI.Magic16</p>
           </div>
         </a>
         <nav className="flex items-center gap-6">
@@ -114,9 +114,9 @@ export default function Contact() {
 
         {/* Cards */}
         <section className="grid md:grid-cols-3 gap-8 mb-12">
-          <Card title="Partnerships" desc="Collaborate with ManifiX for wellness, AI, or creative ecosystems." mail="partners@manifix.app" btnText="Email Us" />
-          <Card title="Investors" desc="Shape the ManifiX future — invest in the next-generation creative AI platform." mail="invest@manifix.app" btnText="Contact IR Team" />
-          <Card title="Press & Media" desc="Get access to interviews, news, and official brand media kits." mail="press@manifix.app" btnText="Reach PR Team" />
+          <Card title="Partnerships" desc="Collaborate with ManifiX for wellness, AI, or creative ecosystems." mail="partners@manifixai.com" btnText="Email Us" />
+          <Card title="Investors" desc="Shape the ManifiX future — invest in the next-generation creative AI platform." mail="invest@manifixai.com" btnText="Contact IR Team" />
+          <Card title="Press & Media" desc="Get access to interviews, news, and official brand media kits." mail="press@manifixai.com" btnText="Reach PR Team" />
         </section>
 
         {/* Contact Form */}
