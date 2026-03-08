@@ -1,317 +1,373 @@
-// src/pages/Gpt.jsx
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
 
-// Icons
-import uploadIcon from "../assets/upload.png";
 import micIcon from "../assets/mic.png";
 import shareIcon from "../assets/share.png";
 import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-// Toast Component
-const Toast = ({ message, onClose, retry }) => (
-  <div className="toast">
-    <span>{message}</span>
-    {retry && (
-      <button onClick={retry} className="retry-btn" aria-label="Retry">
-        ↻ Retry
-      </button>
-    )}
-    <button onClick={onClose} aria-label="Close Notification">
-      ×
-    </button>
-  </div>
-);
-
 const defaultWelcome = {
-  content: `Hii ❤️ I’m ManifiX, I’m here with you ✨`,
-  role: "bot",
   id: "welcome",
+  role: "bot",
+  content: "Hi👋🏻 I'm ManifiX.",I'm hear with you❤️"
   type: "text",
 };
 
 export default function Gpt({ userId }) {
+
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem("chatMessages");
     return saved ? JSON.parse(saved) : [defaultWelcome];
   });
-  const [input, setInput] = useState("");
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [listening, setListening] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [toast, setToast] = useState("");
-  const [retryMsg, setRetryMsg] = useState(null);
 
-  const chatContainer = useRef(null);
+  const [input, setInput] = useState("");
+  const [listening, setListening] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  const chatRef = useRef(null);
   const recognitionRef = useRef(null);
-  const ttsRef = useRef(null);
 
   // ---------------- Speech Recognition ----------------
+
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
     if (!SpeechRecognition) return;
+
     const rec = new SpeechRecognition();
+
     rec.lang = "en-IN";
-    rec.interimResults = false;
     rec.continuous = false;
+
     recognitionRef.current = rec;
 
     rec.onstart = () => setListening(true);
-    rec.onresult = (e) => setInput(e.results[0][0].transcript);
-    rec.onerror = (e) => {
-      setListening(false);
-      showToast(`STT Error: ${e.error}`);
-      if (voiceEnabled) speak(`Speech recognition failed. ${e.error}`);
-    };
     rec.onend = () => setListening(false);
-  }, [voiceEnabled]);
 
-  // ---------------- Scroll & Persist ----------------
+    rec.onresult = (e) => {
+      setInput(e.results[0][0].transcript);
+    };
+
+  }, []);
+
+  // ---------------- Auto Scroll ----------------
+
   useEffect(() => {
-    if (chatContainer.current) {
-      chatContainer.current.scrollTo({ top: chatContainer.current.scrollHeight, behavior: "smooth" });
+
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
+
     localStorage.setItem("chatMessages", JSON.stringify(messages));
+
   }, [messages]);
 
-  // ---------------- Text-to-Speech ----------------
+  // ---------------- TTS ----------------
+
   const speak = (text) => {
-    if (!voiceEnabled || !window.speechSynthesis) return;
+
+    if (!voiceEnabled) return;
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-IN";
+
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-IN";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
-    ttsRef.current = utterance;
-  };
-  const stopSpeaking = () => window.speechSynthesis?.cancel();
+    window.speechSynthesis.speak(utter);
 
-  // ---------------- Toast ----------------
-  const showToast = (msg, retryFn = null) => {
-    setToast(msg);
-    setRetryMsg(() => retryFn);
-    setTimeout(() => setToast(""), 5000);
   };
 
-  // ---------------- Mic ----------------
-  const handleMic = () => {
-    const rec = recognitionRef.current;
-    if (!rec) return showToast("STT not supported");
-    listening ? rec.stop() : rec.start();
-  };
+  // ---------------- Copy ----------------
 
-  // ---------------- Copy / Share ----------------
   const copyMessage = (text) => {
+
     navigator.clipboard.writeText(text);
-    showToast("✅ Copied to clipboard");
-  };
-  const shareMessage = (text) => {
-    navigator.share?.({ text }).catch(() => {
-      copyMessage(text);
-      showToast("🔗 Copied link for sharing");
-    });
+
   };
 
   // ---------------- Send Message ----------------
-  const sendMessage = async (msg, isFile = false) => {
-    if (!msg) return;
-    stopSpeaking();
+
+  const sendMessage = async (text, type = "text") => {
+
+    if (!text) return;
 
     const userMsg = {
-      content: msg,
+      id: Date.now(),
       role: "user",
-      id: Math.random().toString(36).substring(2),
-      type: isFile ? "file" : "text",
+      content: text,
+      type,
     };
-    setMessages(prev => [...prev, userMsg]);
+
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
-    const thinkingMsg = {
-      content: "ManifiX is thinking...",
+    const thinking = {
+      id: "thinking",
       role: "bot",
       type: "thinking",
-      id: Math.random().toString(36).substring(2),
-    };
-    setMessages(prev => [...prev, thinkingMsg]);
-
-    const attempt = async () => {
-      try {
-        const response = await axios.post(`${API_BASE}/api/chat`, { message: msg, userId });
-        const replyText = response.data.reply || "Hmm… I have no response.";
-
-        setMessages(prev => prev.filter(m => m.id !== thinkingMsg.id));
-
-        let idx = 0;
-        const replyMsg = { content: "", role: "bot", id: Math.random().toString(36).substring(2), type: "text" };
-        setMessages(prev => [...prev, replyMsg]);
-
-        const interval = setInterval(() => {
-          if (idx < replyText.length) {
-            replyMsg.content += replyText[idx];
-            setMessages(prev => [...prev.filter(m => m.id !== replyMsg.id), { ...replyMsg }]);
-            idx++;
-          } else {
-            clearInterval(interval);
-            if (voiceEnabled) speak(replyText);
-          }
-        }, 25);
-
-      } catch (error) {
-        console.error("Chat error:", error);
-        setMessages(prev => [
-          ...prev.filter(m => m.id !== thinkingMsg.id),
-          { content: "❌ Server Error. Please try again.", role: "bot", id: Math.random().toString(36).substring(2), type: "text" },
-        ]);
-        showToast("❌ Server Error. Tap retry to try again.", attempt);
-        if (voiceEnabled) speak("❌ Server Error. Please try again.");
-      }
+      content: "Thinking...",
     };
 
-    attempt();
+    setMessages((prev) => [...prev, thinking]);
+
+    try {
+
+      const res = await axios.post(`${API_BASE}/api/chat`, {
+        message: text,
+        userId,
+      });
+
+      const reply = res.data.reply || "No response.";
+
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== "thinking")
+      );
+
+      const botMsg = {
+        id: Date.now() + 1,
+        role: "bot",
+        content: reply,
+        type: "text",
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+
+      speak(reply);
+
+    } catch {
+
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== "thinking"),
+        {
+          id: Date.now(),
+          role: "bot",
+          content: "Server error. Please try again.",
+          type: "text",
+        },
+      ]);
+
+    }
+
   };
 
-  // ---------------- File Upload ----------------
+  // ---------------- Upload Image/File ----------------
+
   const handleUpload = async (e) => {
+
     const file = e.target.files[0];
     if (!file) return;
+
     setUploading(true);
+
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      const res = await axios.post(`${API_BASE}/api/upload`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      sendMessage(res.data.url, true);
+
+      const res = await axios.post(
+        `${API_BASE}/api/upload`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+
+      const url = res.data.url;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: "user",
+          content: url,
+          type: "image",
+        },
+      ]);
+
+      sendMessage(url, "image");
+
     } catch {
-      showToast("❌ File upload failed", () => handleUpload(e));
-      if (voiceEnabled) speak("File upload failed");
-    } finally {
-      setUploading(false);
-      e.target.value = null;
+
+      alert("Upload failed");
+
     }
+
+    setUploading(false);
+    e.target.value = null;
+
   };
 
-  // ---------------- Enter Key ----------------
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input.trim());
-    }
+  // ---------------- Mic ----------------
+
+  const handleMic = () => {
+
+    const rec = recognitionRef.current;
+
+    if (!rec) return;
+
+    listening ? rec.stop() : rec.start();
+
   };
+
+  // ---------------- Render ----------------
 
   return (
-    <div
-      className="gpt-app theme-purple"
-      style={{ backgroundImage: `url(${backgroundPurple})`, backgroundSize: "cover" }}
-    >
-      {/* Toast Notification */}
-      {toast && <Toast message={toast} onClose={() => setToast("")} retry={retryMsg} />}
 
-      {/* Header with Upgrade Text Button */}
+    <div
+      className="gpt-app"
+      style={{
+        backgroundImage: `url(${backgroundPurple})`,
+      }}
+    >
+
       <Header
         onNewChat={() => {
           localStorage.removeItem("chatMessages");
           setMessages([defaultWelcome]);
         }}
-      >
-        <button
-          className="header-text-btn"
-          onClick={() => window.location.href="/app/upgrade"}
-        >
-          Upgrade
-        </button>
-      </Header>
+      />
 
-      {/* Feedback text button fixed on left */}
-      <button
-        className="fixed-feedback-text"
-        onClick={() => window.location.href="/app/feedback"}
-      >
-        Feedback
-      </button>
+      {/* Chat */}
 
-      {/* Chat Area */}
-      <main className="gpt-main" ref={chatContainer}>
+      <main className="gpt-main" ref={chatRef}>
+
         {messages.map((msg) => (
+
           <div key={msg.id} className={`message-row ${msg.role}`}>
+
             <div className="message-bubble">
+
               {msg.type === "thinking" ? (
-                <div role="status" aria-live="polite" className="typing-indicator">
-                  {msg.content}<span className="dots">...</span>
+
+                <div className="typing">
+                  ManifiX is thinking...
                 </div>
-              ) : msg.type === "file" ? (
-                <a href={msg.content} target="_blank" rel="noopener noreferrer" className="file-link">
-                  📎 {msg.content.split("/").pop()}
-                </a>
+
+              ) : msg.type === "image" ? (
+
+                <img
+                  src={msg.content}
+                  alt="upload"
+                  className="chat-image"
+                />
+
               ) : (
-                <>
-                  <ReactMarkdown
-                    children={msg.content}
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        return !inline && match ? (
-                          <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" children={String(children).replace(/\n$/, "")} {...props} />
-                        ) : (
-                          <code className={className} {...props}>{children}</code>
-                        );
-                      },
-                    }}
-                  />
-                  <div className="message-actions">
-                    <button className="icon-btn" onClick={() => shareMessage(msg.content)} title="Share">
-                      <img src={shareIcon} alt="Share" />
-                    </button>
-                  </div>
-                </>
+
+                <ReactMarkdown
+                  components={{
+                    code({ inline, className, children }) {
+
+                      const match =
+                        /language-(\w+)/.exec(className || "");
+
+                      return !inline && match ? (
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match[1]}
+                        >
+                          {children}
+                        </SyntaxHighlighter>
+                      ) : (
+                        <code>{children}</code>
+                      );
+                    },
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+
               )}
+
+              {/* Message Actions */}
+
+              <div className="message-actions">
+
+                <button
+                  onClick={() => copyMessage(msg.content)}
+                  className="msg-btn"
+                >
+                  Copy
+                </button>
+
+                <button
+                  onClick={() => navigator.share?.({ text: msg.content })}
+                  className="msg-btn"
+                >
+                  <img src={shareIcon} alt="share" />
+                </button>
+
+              </div>
+
             </div>
+
           </div>
+
         ))}
+
       </main>
 
       {/* Footer */}
+
       <footer className="gpt-footer">
-        <button onClick={handleMic} className={listening ? "recording" : ""} aria-label={listening ? "Stop Recording" : "Start Recording"}>
-          <img src={micIcon} alt="Mic" className="icon-footer" />
+
+        <button onClick={handleMic}>
+          <img src={micIcon} alt="mic" />
         </button>
 
         <textarea
-          rows={1}
-          style={{ resize: "none", overflowY: "hidden" }}
           value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = `${e.target.scrollHeight}px`;
+          placeholder="Ask ManifiX anything..."
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage(input);
+            }
           }}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Your ManifiX Anything…"
-          aria-label="Chat input"
         />
 
-        <label className="upload-btn" aria-label="Upload File">
+        {/* File Upload */}
+
+        <label className="upload-btn">
+
           📎
-          <input type="file" onChange={handleUpload} disabled={uploading} />
+
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleUpload}
+            disabled={uploading}
+          />
+
         </label>
 
-        <button onClick={() => sendMessage(input.trim())} disabled={!input.trim()} className="primary" aria-label="Send">
+        <button
+          onClick={() => sendMessage(input)}
+          disabled={!input}
+        >
           ➤
         </button>
 
-        <button className="toggle-voice" onClick={() => setVoiceEnabled((prev) => !prev)} aria-label="Toggle Voice">
-          {voiceEnabled ? "🔊 Voice ON" : "🔇 Voice OFF"}
+        <button
+          onClick={() => setVoiceEnabled((v) => !v)}
+        >
+          {voiceEnabled ? "🔊" : "🔇"}
         </button>
+
       </footer>
+
     </div>
+
   );
+
 }
