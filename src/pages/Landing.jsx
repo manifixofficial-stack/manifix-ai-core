@@ -1,5 +1,5 @@
 // src/pages/Landing.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import logo from "../assets/logo.png";
@@ -11,13 +11,14 @@ import "../styles/Landing.css";
 
 export default function Landing() {
   const navigate = useNavigate();
+  const testimonialRef = useRef(null);
 
   // 🔐 Auto-redirect if user already logged in
   useEffect(() => {
     try {
       const user = authService?.getCurrentUser?.();
       if (user) {
-        navigate("/app/gpt", { replace: true }); // Redirect to GPT dashboard
+        navigate("/app/gpt", { replace: true });
       }
     } catch (error) {
       console.error("Landing auth check failed:", error);
@@ -39,6 +40,22 @@ export default function Landing() {
       text: "I’m honestly loving ManifiX! It’s so easy to use and super helpful for planning my day. The AI assistant answers my questions right away, and the Magic16 wellness routines keep me calm and motivated. I feel more focused and less stressed now. The personalized wellness tips are spot-on and really help me improve. Definitely a must-have app!"
     }
   ];
+
+  // Auto-scroll testimonials
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      if (!testimonialRef.current) return;
+      const width = testimonialRef.current.offsetWidth;
+      testimonialRef.current.scrollTo({
+        left: width * index,
+        behavior: "smooth",
+      });
+      index = (index + 1) % testimonials.length;
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div
@@ -79,14 +96,7 @@ export default function Landing() {
               Ask deep questions and receive contextual guidance powered by GPT.
             </p>
           </div>
-
-          <div className="feature">
-            <h3>Vibe Tracking</h3>
-            <p>
-              Monitor energy, streaks, and your growth trajectory for peak performance.
-            </p>
-          </div>
-
+          
           <div className="feature">
             <h3>Premium Tools</h3>
             <p>
@@ -99,7 +109,7 @@ export default function Landing() {
         <div className="cta-container">
           <button
             className="landing-button primary"
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/signup")}
           >
             Start Free →
           </button>
@@ -118,7 +128,7 @@ export default function Landing() {
       </section>
 
       {/* ---------------- TESTIMONIALS SECTION ---------------- */}
-      <section className="landing-testimonials">
+      <section className="landing-testimonials" ref={testimonialRef}>
         <h2 className="testimonial-title">What Our Users Say</h2>
         <div className="testimonial-cards">
           {testimonials.map((t, index) => (
