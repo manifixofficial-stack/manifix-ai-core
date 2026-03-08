@@ -1,6 +1,6 @@
 // src/pages/Dashboard.jsx
 import React, { useEffect } from "react";
-import './dashboard.css';
+import '../styles/dashboard.css';
 const testimonials = [
   {
     name: "Shyam",
