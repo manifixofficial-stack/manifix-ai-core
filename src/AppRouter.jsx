@@ -13,7 +13,6 @@ import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
-import Contact from "./pages/Contact";
 
 // App Pages
 import Dashboard from "./pages/Dashboard";
@@ -47,7 +46,6 @@ export default function AppRouter() {
       {/* Public Pages */}
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
-      <Route path="/contact" element={<Contact />} />
 
       {/* Protected App Routes */}
       <Route
