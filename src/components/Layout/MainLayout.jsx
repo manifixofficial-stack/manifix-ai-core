@@ -28,7 +28,7 @@ export default function MainLayout() {
       {/* Sidebar */}
       <aside className="chatgpt-sidebar">
         <div className="sidebar-header">
-          <img src="/assets/images/logo.png" alt="ManifiX Logo" className="sidebar-logo" />
+          <img src="/assets/logo.png" alt="ManifiX Logo" className="sidebar-logo" />
           <h1 className="sidebar-title">ManifiX</h1>
         </div>
 
