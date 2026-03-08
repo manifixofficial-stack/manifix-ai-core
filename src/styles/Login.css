@@ -1,232 +1,194 @@
-/* ==========================================================
-   ManifiX Auth Pages — Dark Gradient Vibe
-   Professional, responsive, mobile-first
-   Supports Login / Signup / Forgot Password
-   ========================================================== */
-
-/* ----------------- GLOBAL ----------------- */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: 'Poppins', 'Inter', sans-serif;
-}
-
-body, html, #root {
-  height: 100%;
-  width: 100%;
-}
-
-/* ----------------- BACKGROUND ----------------- */
+/* ---------------- GLOBAL ---------------- */
 .auth-wrapper {
   position: relative;
   min-height: 100vh;
-  width: 100%;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
+  font-family: 'Poppins', sans-serif;
   overflow: hidden;
+  color: #fff;
 }
 
 .overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(15, 12, 40, 0.8);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
   z-index: 0;
 }
 
-/* ----------------- AUTH CARD ----------------- */
+/* ---------------- AUTH CARD ---------------- */
 .auth-card {
   position: relative;
   z-index: 1;
   background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
+  padding: 3rem 2rem;
   border-radius: 20px;
-  padding: 40px 30px;
-  max-width: 400px;
-  width: 90%;
+  backdrop-filter: blur(15px);
+  box-shadow: 0 10px 40px rgba(255, 204, 0, 0.4);
+  width: 100%;
+  max-width: 420px;
   text-align: center;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-  transition: transform 0.3s ease;
+  animation: fadeInUp 1s ease forwards;
 }
 
-.auth-card:hover {
-  transform: translateY(-5px);
-}
-
-/* ----------------- BRAND ----------------- */
+/* ---------------- BRAND ---------------- */
 .brand img {
   width: 80px;
-  margin-bottom: 10px;
+  margin-bottom: 0.5rem;
+  animation: bounceIn 1.2s ease;
 }
 
 .brand h1 {
-  font-size: 2rem;
-  color: #fff;
-  letter-spacing: 1px;
+  font-size: 2.5rem;
+  color: #ffcc00;
+  margin-bottom: 0.2rem;
+  text-shadow: 0 0 10px #ffcc00;
 }
 
 .brand .tagline {
-  color: #bbb;
-  font-size: 0.9rem;
-  margin-bottom: 25px;
-}
-
-/* ----------------- HEADINGS ----------------- */
-.auth-card h2 {
-  color: #fff;
-  font-size: 1.6rem;
-  margin-bottom: 10px;
-}
-
-.auth-card .subtitle {
-  color: #ccc;
-  font-size: 0.95rem;
-  margin-bottom: 25px;
-}
-
-/* ----------------- INPUTS ----------------- */
-.auth-card input {
-  width: 100%;
-  padding: 12px 15px;
-  margin-bottom: 15px;
-  border: none;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
   font-size: 1rem;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
-}
-
-.auth-card input::placeholder {
   color: #ddd;
+  margin-bottom: 2rem;
 }
 
-.auth-card input:focus {
-  outline: none;
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+/* ---------------- HEADINGS ---------------- */
+h2 {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
 }
 
-/* ----------------- BUTTONS ----------------- */
-.auth-card .primary-btn,
-.auth-card .google-btn {
-  width: 100%;
-  padding: 12px 0;
-  margin: 10px 0;
-  border: none;
-  border-radius: 12px;
+.subtitle {
+  color: #ccc;
+  margin-bottom: 1.5rem;
   font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
+}
+
+/* ---------------- BUTTONS ---------------- */
+.google-btn, .primary-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 50px;
   font-weight: 600;
-}
-
-.primary-btn {
-  background: linear-gradient(135deg, #9b59b6, #8e44ad);
-  color: #fff;
-  box-shadow: 0 5px 15px rgba(155, 89, 182, 0.5);
-}
-
-.primary-btn:hover {
-  background: linear-gradient(135deg, #8e44ad, #9b59b6);
-  box-shadow: 0 6px 20px rgba(155, 89, 182, 0.6);
+  border: none;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(255, 204, 0, 0.4);
 }
 
 .google-btn {
-  background: #fff;
-  color: #333;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: linear-gradient(45deg, #4285F4, #34A853, #FBBC05, #EA4335);
+  color: #fff;
 }
 
 .google-btn:hover {
-  background: #f0f0f0;
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px rgba(255, 204, 0, 0.6);
 }
 
-/* Divider */
+.primary-btn {
+  background: linear-gradient(45deg, #ffcc00, #ff9900);
+  color: #000;
+}
+
+.primary-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px rgba(255, 204, 0, 0.6);
+}
+
+/* ---------------- INPUTS ---------------- */
+input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 50px;
+  border: none;
+  outline: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 10px #ffcc00;
+}
+
+/* ---------------- DIVIDER ---------------- */
 .divider {
-  margin: 15px 0;
+  display: flex;
+  align-items: center;
   text-align: center;
-  color: #bbb;
-  font-size: 0.85rem;
-  position: relative;
+  margin: 1.5rem 0;
+  color: #ccc;
 }
 
 .divider span {
-  background: rgba(15, 12, 40, 0.8);
-  padding: 0 8px;
+  flex: 1;
   position: relative;
-  z-index: 1;
 }
 
-.divider::before {
-  content: '';
-  position: absolute;
-  width: 100%;
+.divider span::before, .divider span::after {
+  content: "";
   height: 1px;
-  background: #bbb;
+  background: #ffcc00;
+  position: absolute;
   top: 50%;
-  left: 0;
-  z-index: 0;
-  opacity: 0.3;
+  width: 200%;
 }
 
-/* ----------------- LINKS & MICROCOPY ----------------- */
+.divider span::before { left: -100%; }
+.divider span::after { right: -100%; }
+
+/* ---------------- ERROR ---------------- */
+.error {
+  color: #ff5555;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+/* ---------------- MICROCOPY ---------------- */
 .microcopy {
   font-size: 0.85rem;
   color: #ccc;
-  margin-top: 10px;
+  margin-top: 0.5rem;
 }
 
 .microcopy .link {
-  color: #9b59b6;
+  color: #ffcc00;
   cursor: pointer;
-  font-weight: 600;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .microcopy .link:hover {
-  color: #8e44ad;
+  text-decoration: underline;
+  color: #fff700;
 }
 
-/* ----------------- ERROR / SUCCESS ----------------- */
-.error {
-  color: #e74c3c;
-  font-size: 0.85rem;
-  margin-bottom: 10px;
+/* ---------------- ANIMATIONS ---------------- */
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-.success {
-  color: #2ecc71;
-  font-size: 0.85rem;
-  margin-bottom: 10px;
+@keyframes bounceIn {
+  0% { opacity: 0; transform: scale(0.5); }
+  60% { opacity: 1; transform: scale(1.2); }
+  80% { transform: scale(0.9); }
+  100% { transform: scale(1); }
 }
 
-/* ----------------- RESPONSIVE ----------------- */
-@media (max-width: 500px) {
+/* ---------------- RESPONSIVE ---------------- */
+@media (max-width: 480px) {
   .auth-card {
-    padding: 30px 20px;
+    padding: 2rem 1.5rem;
   }
 
-  .brand h1 {
-    font-size: 1.7rem;
-  }
-
-  .auth-card h2 {
-    font-size: 1.4rem;
-  }
-
-  .primary-btn, .google-btn {
-    font-size: 0.95rem;
+  h2 {
+    font-size: 1.5rem;
   }
 }
