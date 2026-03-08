@@ -1,38 +1,37 @@
 /* src/styles/MainLayout.css */
 
-/* Layout */
+/* ------------------ General Layout ------------------ */
 .chatgpt-layout {
   display: flex;
   min-height: 100vh;
-  font-family: "Inter", sans-serif;
-  background-color: #f5f7fa;
+  font-family: 'Inter', sans-serif;
+  background-color: #f5f6fa;
+  color: #333;
 }
 
-/* Sidebar */
+/* ------------------ Sidebar ------------------ */
 .chatgpt-sidebar {
   width: 260px;
   background-color: #1e1e2f;
   color: #fff;
   display: flex;
   flex-direction: column;
-  padding: 20px 0;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  transition: width 0.3s ease;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
 }
 
-/* Sidebar header/logo */
 .sidebar-header {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .sidebar-logo {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-  margin-bottom: 10px;
+  width: 40px;
+  height: 40px;
+  margin-right: 10px;
+  border-radius: 8px;
 }
 
 .sidebar-title {
@@ -41,8 +40,8 @@
   color: #fff;
 }
 
-/* Navigation */
 .sidebar-nav {
+  flex: 1;
   margin-top: 20px;
   display: flex;
   flex-direction: column;
@@ -51,18 +50,19 @@
 .sidebar-link {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  margin: 5px 10px;
-  border-radius: 10px;
-  text-decoration: none;
-  color: #cfd3e1;
+  padding: 14px 20px;
+  color: rgba(255,255,255,0.8);
   font-weight: 500;
-  transition: all 0.3s ease;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  margin: 4px 10px;
 }
 
 .sidebar-link:hover {
-  background-color: #2a2a3d;
+  background-color: #3a3a55;
   color: #fff;
+  transform: translateX(3px);
 }
 
 .sidebar-link.active {
@@ -75,72 +75,88 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  font-size: 1.2rem;
 }
 
-.link-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-  transition: transform 0.3s ease;
+/* Tooltip for icons */
+.link-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #4b5cff;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  margin-left: 10px;
 }
 
-.sidebar-link:hover .link-icon svg {
-  transform: scale(1.1);
+.sidebar-link:hover .link-icon::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 
-/* Main content */
+.link-text {
+  flex: 1;
+}
+
+/* ------------------ Main Content ------------------ */
 .chatgpt-main {
   flex: 1;
   padding: 30px;
-  background-color: #f5f7fa;
+  background-color: #f5f6fa;
   overflow-y: auto;
 }
 
-/* Scrollbar styling */
+/* ------------------ Buttons ------------------ */
+button {
+  background-color: #4b5cff;
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+button:hover {
+  background-color: #3a45d1;
+  transform: translateY(-2px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* ------------------ Scrollbar ------------------ */
 .chatgpt-main::-webkit-scrollbar {
   width: 8px;
 }
 
 .chatgpt-main::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(75,92,255,0.5);
   border-radius: 4px;
 }
 
 .chatgpt-main::-webkit-scrollbar-track {
-  background-color: transparent;
+  background: transparent;
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
+/* ------------------ Responsive ------------------ */
+@media screen and (max-width: 768px) {
   .chatgpt-sidebar {
-    width: 220px;
+    width: 70px;
   }
 
-  .sidebar-title {
-    font-size: 1.3rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .chatgpt-layout {
-    flex-direction: column;
-  }
-
-  .chatgpt-sidebar {
-    width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 10px;
-  }
-
-  .sidebar-nav {
-    flex-direction: row;
-    margin-top: 0;
-  }
-
-  .sidebar-link {
-    margin: 0 5px;
-    padding: 8px 12px;
-    border-radius: 8px;
+  .link-text {
+    display: none;
   }
 }
