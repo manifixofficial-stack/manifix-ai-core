@@ -1,120 +1,154 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import "../styles/dashboard.css";
-
-const testimonials = [
-  {
-    name: "Shyam",
-    text: "This app is a masterclass in user experience. The design is absolutely gorgeous—clean, modern, and easy on the eyes. More importantly, it is incredibly intuitive. I found exactly what I needed right away, and navigating through different features is a breeze. It's fast, stable, and a genuine pleasure to use. The developers clearly put a lot of thought into making this the best version possible. Highly, highly recommend!"
-  },
-  {
-    name: "Priya",
-    text: "Good, it's useful for daily life and get the answers using this tool. This ManifiX app is so useful, I love it! My health is improving after the Magic16 feature. I love it, the ManifiX conversation never stops. My best friend is ManifiX; any question I ask, it gives the answer. I love ManifiX 🥰✨"
-  },
-  {
-    name: "Nikil",
-    text: "I’m honestly loving ManifiX! It’s so easy to use and super helpful for planning my day. The AI assistant answers my questions right away, and the Magic16 wellness routines keep me calm and motivated. I feel more focused and less stressed now. The personalized wellness tips are spot-on and really help me improve. Definitely a must-have app!"
-  }
-];
+import bot from "../assets/bot.png";
 
 export default function Dashboard() {
-
   useEffect(() => {
-    const container = document.getElementById("particles");
+    const particlesContainer = document.getElementById("particles");
+    if (!particlesContainer) return;
 
-    if (!container) return;
-
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 120; i++) {
       const p = document.createElement("div");
       p.className = "particle";
       p.style.left = Math.random() * window.innerWidth + "px";
       p.style.top = Math.random() * window.innerHeight + "px";
       p.style.width = p.style.height = Math.random() * 3 + 1 + "px";
-      p.style.opacity = Math.random() * 0.6 + 0.2;
+      p.style.opacity = Math.random() * 0.6 + 0.3;
 
-      container.appendChild(p);
+      particlesContainer.appendChild(p);
     }
+
+    const handleMouse = (e) => {
+      const particle = document.createElement("div");
+      particle.className = "particle";
+      particle.style.left = e.clientX + "px";
+      particle.style.top = e.clientY + "px";
+      particle.style.width = particle.style.height = "2px";
+
+      document.body.appendChild(particle);
+
+      setTimeout(() => particle.remove(), 1500);
+    };
+
+    document.addEventListener("mousemove", handleMouse);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouse);
+    };
   }, []);
+
+  const toggleFAQ = (e) => {
+    e.currentTarget.classList.toggle("active");
+  };
 
   return (
     <div className="dashboard-page">
-
-      {/* Background particles */}
       <div id="particles"></div>
 
       {/* HERO */}
-      <section className="dashboard-hero">
+      <section className="hero">
+        <div className="hero-text">
+          <h1>Ask, Learn & Boost Your Energy</h1>
 
-        <h1>
-          Welcome to <span>ManifiX</span>
-        </h1>
+          <p>
+            ManifiX is your AI-powered guide to unleash energy, boost prosperity,
+            and transform your wellness.
+          </p>
 
-        <p>
-          Your AI powered platform for productivity, wellness and guidance.
-        </p>
+          <div className="hero-buttons">
+            <Link to="/app/gpt" className="primary">
+              Start Chatting
+            </Link>
 
-        <div className="hero-actions">
-
-          <Link to="/app/gpt" className="btn-primary">
-            Start Chatting
-          </Link>
-
-          <Link to="/app/magic16" className="btn-secondary">
-            Explore Magic16
-          </Link>
-
+            <Link to="/app/magic16" className="secondary">
+              Improve Your Health
+            </Link>
+          </div>
         </div>
 
+        <div className="hero-image">
+          <img src={bot} alt="AI Illustration" />
+        </div>
       </section>
-
 
       {/* FEATURES */}
-      <section className="dashboard-features">
-
-        <Link to="/app/gpt" className="feature-card">
-          <h3>GPT AI</h3>
-          <p>Ask questions and receive intelligent AI guidance.</p>
-        </Link>
-
-        <Link to="/app/magic16" className="feature-card">
-          <h3>Magic16</h3>
-          <p>Daily wellness routines to boost your energy.</p>
-        </Link>
-
-        <Link to="/app/billing" className="feature-card">
-          <h3>Billing</h3>
-          <p>Manage subscriptions and account usage.</p>
-        </Link>
-
-        <Link to="/app/feedback" className="feature-card">
-          <h3>Feedback</h3>
-          <p>Help improve ManifiX with your suggestions.</p>
-        </Link>
-
-      </section>
-
-
-      {/* TESTIMONIALS */}
-      <section className="dashboard-testimonials">
-
-        <h2>What Users Say</h2>
-
-        <div className="testimonial-grid">
-
-          {testimonials.map((t, i) => (
-            <div key={i} className="testimonial-card">
-
-              <h4>{t.name}</h4>
-
-              <p>{t.text}</p>
-
-            </div>
-          ))}
-
+      <section className="features">
+        <div className="feature">
+          <h3>Instant AI Answers</h3>
+          <p>Get precise and fast responses to any questions.</p>
         </div>
 
+        <div className="feature">
+          <h3>ManifiX Guidance</h3>
+          <p>Receive personalized tips to boost your success.</p>
+        </div>
+
+        <div className="feature">
+          <h3>Magic16 Wellness</h3>
+          <p>Daily routines to enhance focus.</p>
+        </div>
+
+        <div className="feature">
+          <h3>Voice & Text Chat</h3>
+          <p>Communicate naturally via voice or text.</p>
+        </div>
       </section>
 
+      {/* TESTIMONIALS */}
+      <section className="testimonials">
+        <h2>What Our Users Say</h2>
+
+        <div className="testimonial-cards">
+          <div className="testimonial">
+            <h4>Shyam</h4>
+
+            <p>
+             This app is a masterclass in user experience. The design is absolutely gorgeous—clean, modern, and easy on the eyes. More importantly, it is incredibly intuitive. I found exactly what I needed right away, and navigating through different features is a breeze. It's fast, stable, and a genuine pleasure to use. The developers clearly put a lot of thought into making this the best version possible. Highly, highly recommend!
+            </p>
+          </div>
+
+          <div className="testimonial">
+            <h4>Priya</h4>
+
+            <p>
+              I’m honestly loving ManifiX! It’s so easy to use and super helpful for planning my day. The AI assistant answers my questions right away, and the Magic16 wellness routines keep me calm and motivated. I feel more focused and less stressed now. The personalized wellness tips are spot-on and really help me improve. Definitely a must-have app!
+            </p>
+          </div>
+           <div className="testimonial">
+            <h4>Nikil</h4>
+
+            <p>
+              Good, it's useful for daily life and get the answers using this tool. This ManifiX app is so useful, I love it! My health is improving after the Magic16 feature. I love it, the ManifiX conversation never stops. My best friend is ManifiX; any question I ask, it gives the answer. I love ManifiX 🥰✨
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="faq">
+        <h2>Frequently Asked Questions</h2>
+
+        <div className="faq-item" onClick={toggleFAQ}>
+          <h3>What is ManifiX?</h3>
+          <p>ManifiX is your AI assistant for growth, wellness, and success.</p>
+        </div>
+
+        <div className="faq-item" onClick={toggleFAQ}>
+          <h3>Can I chat for free?</h3>
+          <p>Yes! Unlimited chatting at no cost.</p>
+        </div>
+
+        <div className="faq-item" onClick={toggleFAQ}>
+          <h3>How do I use Magic16?</h3>
+          <p>Magic16 includes daily yoga & meditation to boost your energy.</p>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="dashboard-footer">
+        <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
+      </footer>
     </div>
   );
 }
