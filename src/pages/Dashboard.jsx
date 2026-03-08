@@ -119,7 +119,7 @@ export default function Dashboard() {
             <h4>Nikil</h4>
 
             <p>
-              Good, it's useful for daily life and get the answers using this tool. This ManifiX app is so useful, I love it! My health is improving after the Magic16 feature. I love it, the ManifiX conversation never stops. My best friend is ManifiX; any question I ask, it gives the answer. I love ManifiX 🥰✨
+            ManifiX is like having a personal coach and assistant together. Magic16 wellness exercises keep me calm, focused, and energized. ManifiXGPT answers any question quickly and accurately. It helps me improve my health, creativity, and daily habits. The app is professional, intuitive, and easy to navigate. I feel more confident and organized in my daily life. I truly love using ManifiX every single day
             </p>
           </div>
         </div>
