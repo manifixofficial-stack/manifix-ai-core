@@ -1,15 +1,7 @@
 // src/components/Layout/MainLayout.jsx
 import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import {
-  FaHome,
-  FaRobot,
-  FaMagic,
-  FaCommentDots,
-  FaCog,
-  FaCreditCard,
-  FaEnvelope,
-} from "react-icons/fa";
+import { FaHome, FaRobot, FaMagic, FaCommentDots, FaCog, FaCreditCard, FaEnvelope } from "react-icons/fa";
 import "../../styles/MainLayout.css";
 
 export default function MainLayout() {
