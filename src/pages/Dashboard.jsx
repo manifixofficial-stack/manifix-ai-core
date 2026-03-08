@@ -1,6 +1,7 @@
-// src/pages/Dashboard.jsx
 import React, { useEffect } from "react";
-import '../styles/dashboard.css';
+import { Link } from "react-router-dom";
+import "../styles/dashboard.css";
+
 const testimonials = [
   {
     name: "Shyam",
@@ -17,152 +18,103 @@ const testimonials = [
 ];
 
 export default function Dashboard() {
+
   useEffect(() => {
-    // Particle Animation
-    const particlesContainer = document.getElementById('particles');
-    const particles = [];
-    for (let i = 0; i < 120; i++) {
-      const p = document.createElement('div');
-      p.className = 'particle';
-      p.style.left = Math.random() * window.innerWidth + 'px';
-      p.style.top = Math.random() * window.innerHeight + 'px';
-      p.style.width = p.style.height = (Math.random() * 3 + 1) + 'px';
-      p.style.opacity = Math.random() * 0.6 + 0.3;
-      particlesContainer.appendChild(p);
-      particles.push(p);
+    const container = document.getElementById("particles");
+
+    if (!container) return;
+
+    for (let i = 0; i < 80; i++) {
+      const p = document.createElement("div");
+      p.className = "particle";
+      p.style.left = Math.random() * window.innerWidth + "px";
+      p.style.top = Math.random() * window.innerHeight + "px";
+      p.style.width = p.style.height = Math.random() * 3 + 1 + "px";
+      p.style.opacity = Math.random() * 0.6 + 0.2;
+
+      container.appendChild(p);
     }
-
-    // Mouse particles
-    const handleMouseMove = (e) => {
-      const particle = document.createElement('div');
-      particle.className = 'particle';
-      particle.style.left = e.clientX + 'px';
-      particle.style.top = e.clientY + 'px';
-      particle.style.width = particle.style.height = '2px';
-      particle.style.opacity = 0.7;
-      document.body.appendChild(particle);
-      setTimeout(() => particle.remove(), 1500);
-    };
-    document.addEventListener('mousemove', handleMouseMove);
-
-    return () => document.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  // FAQ Toggle
-  useEffect(() => {
-    const faqItems = document.querySelectorAll('.faq-item');
-    faqItems.forEach(item => {
-      item.addEventListener('click', () => item.classList.toggle('active'));
-    });
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-[#0f0f1f] text-[#e0e0ff] overflow-x-hidden font-inter">
-      {/* Particle Container */}
-      <div id="particles" className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none"></div>
+    <div className="dashboard-page">
 
-      {/* Header */}
-      <header className="flex justify-between items-center px-20 py-5 sticky top-0 bg-[rgba(10,10,30,0.9)] backdrop-blur-md z-50">
-        <div className="flex items-center gap-3 logo">
-          <img src="/assets/images/logo.png" alt="ManifiX Logo" className="w-[55px]" />
-          <span className="font-orbitron font-bold text-2xl bg-gradient-to-r from-[#6BD1FF] via-[#8C75FF] to-[#FF6FFF] bg-clip-text text-transparent text-shadow">
-            ManifiX
-          </span>
-        </div>
-        <nav className="flex items-center gap-6">
-          <a href="/gpt" className="font-semibold hover:text-[#6BD1FF] transition">ManifiX AI</a>
-          <a href="/magic16" className="font-semibold hover:text-[#6BD1FF] transition">Magic16</a>
-          <a href="/dashboard" className="font-semibold hover:text-[#6BD1FF] transition">Dashboard</a>
-          <a href="/settings" className="font-semibold hover:text-[#6BD1FF] transition">Settings</a>
-        </nav>
-      </header>
+      {/* Background particles */}
+      <div id="particles"></div>
 
-      {/* Hero Section */}
-      <section className="hero flex flex-wrap items-center justify-between px-20 py-32 gap-10 relative z-10">
-        <div className="hero-text flex-1 max-w-xl">
-          <h1 className="text-5xl md:text-6xl font-orbitron mb-5 bg-gradient-to-r from-[#8C75FF] via-[#6BD1FF] to-[#FF6FFF] bg-clip-text text-transparent animate-gradient text-shadow">
-            Ask, Learn & Boost Your Energy
-          </h1>
-          <p className="text-xl mb-8 text-[#d0d0ff]">
-            ManifiX is your AI-powered guide to unleash energy, boost your prosperity, and transform your wellness.
-          </p>
-          <div className="hero-buttons flex flex-wrap gap-4">
-            <a href="/gpt" className="primary px-10 py-4 rounded-full font-semibold bg-gradient-to-tr from-[#6BD1FF] to-[#8C75FF] text-[#0f0f1f] hover:from-[#FF6FFF] hover:to-[#6BD1FF] hover:translate-y-[-3px] shadow-lg transition-all">
-              Start Chatting
-            </a>
-            <a href="/magic16" className="secondary px-10 py-4 rounded-full font-semibold border-2 border-[#8C75FF] text-[#8C75FF] hover:bg-[#8C75FF] hover:text-[#0f0f1f] hover:translate-y-[-3px] shadow-lg transition-all">
-              Improve Your Health
-            </a>
-          </div>
+      {/* HERO */}
+      <section className="dashboard-hero">
+
+        <h1>
+          Welcome to <span>ManifiX</span>
+        </h1>
+
+        <p>
+          Your AI powered platform for productivity, wellness and guidance.
+        </p>
+
+        <div className="hero-actions">
+
+          <Link to="/app/gpt" className="btn-primary">
+            Start Chatting
+          </Link>
+
+          <Link to="/app/magic16" className="btn-secondary">
+            Explore Magic16
+          </Link>
+
         </div>
-        <div className="hero-image flex-1 text-center">
-          <img src="/assets/images/bot.png" alt="AI Illustration" className="max-w-full rounded-[20px] shadow-2xl transition-transform hover:scale-105" />
-        </div>
+
       </section>
 
-      {/* Features Section */}
-      <section className="features grid gap-8 px-20 py-24">
-        <Feature title="Instant AI Answers" desc="Get precise and fast responses to any questions." />
-        <Feature title="ManifiX Guidance" desc="Receive personalized tips to boost your success." />
-        <Feature title="Magic16 Wellness" desc="Daily routines to enhance focus." />
-        <Feature title="Voice & Text Chat" desc="Communicate naturally via voice or text." />
+
+      {/* FEATURES */}
+      <section className="dashboard-features">
+
+        <Link to="/app/gpt" className="feature-card">
+          <h3>GPT AI</h3>
+          <p>Ask questions and receive intelligent AI guidance.</p>
+        </Link>
+
+        <Link to="/app/magic16" className="feature-card">
+          <h3>Magic16</h3>
+          <p>Daily wellness routines to boost your energy.</p>
+        </Link>
+
+        <Link to="/app/billing" className="feature-card">
+          <h3>Billing</h3>
+          <p>Manage subscriptions and account usage.</p>
+        </Link>
+
+        <Link to="/app/feedback" className="feature-card">
+          <h3>Feedback</h3>
+          <p>Help improve ManifiX with your suggestions.</p>
+        </Link>
+
       </section>
 
-      {/* ---------------- TESTIMONIALS ---------------- */}
-      <section className="testimonials px-20 py-24">
-        <h2 className="text-center text-4xl font-bold text-[#8C75FF] mb-12">What Our Users Say</h2>
-        <div className="testimonial-cards grid gap-8">
+
+      {/* TESTIMONIALS */}
+      <section className="dashboard-testimonials">
+
+        <h2>What Users Say</h2>
+
+        <div className="testimonial-grid">
+
           {testimonials.map((t, i) => (
-            <div key={i} className="testimonial bg-[rgba(20,20,50,0.85)] p-6 rounded-2xl shadow-md hover:shadow-xl transition-all">
-              <h4 className="text-[#6BD1FF] font-bold mb-3">{t.name}</h4>
-              <p className="text-[#d0d0ff]">{t.text}</p>
+            <div key={i} className="testimonial-card">
+
+              <h4>{t.name}</h4>
+
+              <p>{t.text}</p>
+
             </div>
           ))}
+
         </div>
+
       </section>
 
-      {/* FAQ Section */}
-      <section className="faq px-20 py-24">
-        <h2 className="text-4xl text-center text-[#8C75FF] mb-12">Frequently Asked Questions</h2>
-        <FAQItem question="What is ManifiX?" answer="ManifiX is your AI assistant for growth, wellness, and success." />
-        <FAQItem question="Can I chat for free?" answer="Yes! Unlimited chatting at no cost." />
-        <FAQItem question="How do I use Magic16?" answer="Magic16 includes daily yoga & meditation to boost your energy." />
-      </section>
-
-      {/* Footer */}
-      <footer className="text-center py-16 bg-[rgba(0,0,0,0.9)] text-[#d0d0ff]">
-        <p>&copy; 2025 ManifiX. All rights reserved.</p>
-        <p>
-          <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a> | <a href="/contact">Contact</a>
-        </p>
-      </footer>
-    </div>
-  );
-}
-
-// ===== Feature Component =====
-function Feature({ title, desc }) {
-  return (
-    <div className="feature bg-[rgba(15,15,40,0.85)] p-8 rounded-2xl border border-[rgba(107,209,255,0.2)] hover:translate-y-[-7px] hover:shadow-[0_15px_40px_rgba(107,209,255,0.3)] transition-all">
-      <h3 className="text-[#6BD1FF] font-bold mb-3 text-xl">{title}</h3>
-      <p className="text-[#d0d0ff] text-base">{desc}</p>
-    </div>
-  );
-}
-
-// ===== FAQ Item Component =====
-function FAQItem({ question, answer }) {
-  useEffect(() => {
-    const faqItems = document.querySelectorAll('.faq-item');
-    faqItems.forEach(item => {
-      item.addEventListener('click', () => item.classList.toggle('active'));
-    });
-  }, []);
-
-  return (
-    <div className="faq-item bg-[rgba(20,20,50,0.85)] p-5 mb-5 rounded-lg border border-[rgba(107,209,255,0.1)] cursor-pointer transition-all">
-      <h3 className="font-semibold mb-2">{question}</h3>
-      <p>{answer}</p>
     </div>
   );
 }
