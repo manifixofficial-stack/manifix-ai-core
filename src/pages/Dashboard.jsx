@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import "../styles/dashboard.css";
-import bot from "../assets/bot.png";
 
 export default function Dashboard() {
   useEffect(() => {
@@ -68,7 +67,7 @@ export default function Dashboard() {
         </div>
 
         <div className="hero-image">
-          <img src={bot} alt="AI Illustration" />
+          <img src="/assets/images/bot.png" alt="AI Illustration" />
         </div>
       </section>
 
@@ -95,7 +94,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
+   {/* TESTIMONIALS */}
       <section className="testimonials">
         <h2>What Our Users Say</h2>
 
@@ -124,7 +123,7 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
-
+      
       {/* FAQ */}
       <section className="faq">
         <h2>Frequently Asked Questions</h2>
