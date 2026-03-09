@@ -1,0 +1,106 @@
+/* Terms.css */
+
+/* Container Styling */
+.terms-container {
+  font-family: "Arial", sans-serif;
+  line-height: 1.7;
+  padding: 40px 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+  color: #1a1a1a;
+  background-color: #fefefe;
+}
+
+/* Section Styling */
+.terms-section {
+  margin-bottom: 50px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.terms-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* Section Headings */
+.terms-section h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 15px;
+}
+
+.terms-section h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+/* Paragraph Styling */
+.terms-section p {
+  font-size: 16px;
+  color: #444;
+  margin-bottom: 12px;
+}
+
+/* List Styling */
+.terms-section ul {
+  list-style-type: disc;
+  padding-left: 25px;
+  margin-bottom: 12px;
+}
+
+.terms-section ul li {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #444;
+}
+
+/* Bold text */
+.terms-section b {
+  font-weight: 600;
+  color: #222;
+}
+
+/* Links */
+.terms-section a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.terms-section a:hover {
+  text-decoration: underline;
+}
+
+/* Footer styling */
+.terms-footer {
+  text-align: center;
+  margin-top: 50px;
+  padding-top: 20px;
+  color: #777;
+  font-size: 14px;
+}
+
+/* Responsive Styling */
+@media (max-width: 768px) {
+  .terms-container {
+    padding: 20px 15px;
+  }
+
+  .terms-section h2 {
+    font-size: 24px;
+  }
+
+  .terms-section h3 {
+    font-size: 18px;
+  }
+
+  .terms-section p,
+  .terms-section ul li {
+    font-size: 15px;
+  }
+}
