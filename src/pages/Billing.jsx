@@ -37,7 +37,7 @@ const BillingPage = () => {
       const order = await res.json();
 
       const options = {
-        key: "RAZORPAY_PUBLIC_KEY", // replace with your key
+      key: import.meta.env.VITE_RAZORPAY_KEY
         amount: order.amount,
         currency: order.currency,
         name: "ManifiX",
