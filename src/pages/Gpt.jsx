@@ -600,303 +600,151 @@ return (
       {messages.map((msg) => (
         <div
           key={msg.id}
-          className={`message ${msg.role}`}
+          className={`message-row ${msg.role}`}
           style={{
-            alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-            backgroundColor: msg.role === "user" ? "#7c3aed33" : "#1e293b",
-            color: msg.role === "user" ? "#000" : "#fff",
-            padding: "10px 14px",
-            borderRadius: "12px",
-            maxWidth: "70%",
-            wordBreak: "break-word",
+            display: "flex",
+            justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
           }}
         >
-          {msg.type === "image" ? (
-            <img
-              src={msg.content}
-              alt="User upload"
-              style={{ maxWidth: "100%", borderRadius: "8px" }}
-            />
-          ) : (
-            msg.content
-          )}
+          <div
+            className="message-bubble"
+            style={{
+              maxWidth: "70%",
+              backgroundColor: msg.role === "user" ? "#7c3aed33" : "#1e293b",
+              color: msg.role === "user" ? "#000" : "#fff",
+              padding: "10px 14px",
+              borderRadius: "12px",
+              wordBreak: "break-word",
+              position: "relative",
+              transition: "all 0.2s ease-in-out",
+            }}
+          >
+            {msg.type === "thinking" ? (
+              <div className="typing" style={{ fontStyle: "italic", opacity: 0.7 }}>
+                ManifiX is thinking...
+              </div>
+            ) : msg.type === "image" ? (
+              <img
+                src={msg.content}
+                alt="User upload"
+                style={{ maxWidth: "100%", borderRadius: "8px", display: "block" }}
+              />
+            ) : (
+              <ReactMarkdown
+                components={{
+                  code({ inline, className, children }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    if (!inline && match) {
+                      return (
+                        <div className="code-block" style={{ position: "relative", margin: "12px 0" }}>
+                          <button
+                            onClick={() => copyText(children.toString())}
+                            style={{
+                              position: "absolute",
+                              top: "6px",
+                              right: "6px",
+                              background: "#7c3aed",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "4px",
+                              padding: "4px 8px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                            }}
+                          >
+                            Copy
+                          </button>
+                          <SyntaxHighlighter style={oneDark} language={match[1]}>
+                            {children}
+                          </SyntaxHighlighter>
+                        </div>
+                      );
+                    }
+                    return (
+                      <code style={{ backgroundColor: "#e5e7eb", padding: "2px 4px", borderRadius: "4px", fontFamily: "monospace" }}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {msg.content}
+              </ReactMarkdown>
+            )}
+
+            {/* Copy button for bot messages */}
+            {msg.role === "bot" && (
+              <button
+                className="copy-msg"
+                onClick={() => copyText(msg.content)}
+                style={{
+                  marginTop: "6px",
+                  fontSize: "12px",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  backgroundColor: "#7c3aed",
+                  color: "#fff",
+                  border: "none",
+                }}
+              >
+                Copy
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>
 
-    {/* ---------- Input Area ---------- */}
-    <div className="input-area" style={{ padding: "16px", display: "flex", gap: "8px" }}>
-      <input
-        type="text"
+    {/* ---------- Footer / Input Area ---------- */}
+    <footer
+      className="gpt-footer"
+      style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px", backgroundColor: "#f3f4f6", borderTop: "1px solid #ddd" }}
+    >
+      <button onClick={handleMic} style={{ background: "transparent", border: "none", cursor: "pointer" }}>
+        <img src={micIcon} alt="mic" style={{ width: "24px", height: "24px" }} />
+      </button>
+
+      <textarea
         value={input}
+        placeholder="Ask ManifiX anything..."
         onChange={(e) => setInput(e.target.value)}
-        placeholder="Type your message..."
-        style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }}
-        disabled={generating}
-        onKeyDown={(e) => e.key === "Enter" && sendMessage(input)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage(input);
+          }
+        }}
+        style={{ flex: 1, padding: "8px", borderRadius: "6px", border: "1px solid #ccc", resize: "none" }}
       />
 
+      <label className="upload-btn" style={{ cursor: "pointer" }}>
+        📎
+        <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading} style={{ display: "none" }} />
+      </label>
+
+      {!generating ? (
+        <button
+          onClick={() => sendMessage(input)}
+          style={{ padding: "8px 12px", borderRadius: "6px", backgroundColor: "#7c3aed", color: "#fff", border: "none", cursor: "pointer" }}
+        >
+          Send
+        </button>
+      ) : (
+        <button
+          onClick={stopGenerating}
+          style={{ padding: "8px 12px", borderRadius: "6px", backgroundColor: "#ef4444", color: "#fff", border: "none", cursor: "pointer" }}
+        >
+          Stop
+        </button>
+      )}
+
       <button
-        onClick={() => sendMessage(input)}
-        disabled={generating || !input.trim()}
-        style={{
-          padding: "10px 16px",
-          borderRadius: "8px",
-          backgroundColor: "#7c3aed",
-          color: "#fff",
-          border: "none",
-          cursor: generating ? "not-allowed" : "pointer",
-        }}
+        onClick={regenerate}
+        style={{ padding: "8px 12px", borderRadius: "6px", backgroundColor: "#f59e0b", color: "#fff", border: "none", cursor: "pointer" }}
       >
-        Send
+        Regenerate
       </button>
-    </div>
+    </footer>
   </div>
 );
-
-{/* ---------- Chat ---------- */}
-<main
-  className="gpt-main"
-  ref={chatRef}
-  style={{
-    flex: 1,
-    overflowY: "auto",
-    padding: "20px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-  }}
->
-  {messages.map((msg) => (
-    <div
-      key={msg.id}
-      className={`message-row ${msg.role}`}
-      style={{
-        display: "flex",
-        justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-      }}
-    >
-      <div
-        className="message-bubble"
-        style={{
-          maxWidth: "70%",
-          backgroundColor: msg.role === "user" ? "#7c3aed33" : "#1e293b",
-          color: msg.role === "user" ? "#000" : "#fff",
-          padding: "10px 14px",
-          borderRadius: "12px",
-          wordBreak: "break-word",
-          position: "relative",
-          transition: "all 0.2s ease-in-out",
-        }}
-      >
-        {msg.type === "thinking" ? (
-          <div className="typing" style={{ fontStyle: "italic", opacity: 0.7 }}>
-            ManifiX is thinking...
-          </div>
-        ) : msg.type === "image" ? (
-          <img
-            src={msg.content}
-            alt="User upload"
-            style={{
-              maxWidth: "100%",
-              borderRadius: "8px",
-              display: "block",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {msg.content}
-          </div>
-        )}
-      </div>
-    </div>
-  ))}
-</main>
-              ) : (
-
-              {/* ---------- Markdown & Code Rendering ---------- */}
-<ReactMarkdown
-  components={{
-    code({ inline, className, children }) {
-      const match = /language-(\w+)/.exec(className || "");
-
-      // Code block with syntax highlighting and copy button
-      if (!inline && match) {
-        return (
-          <div
-            className="code-block"
-            style={{
-              position: "relative",
-              margin: "12px 0",
-              borderRadius: "8px",
-              overflow: "hidden",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-            }}
-          >
-            <button
-              onClick={() => copyText(children.toString())}
-              style={{
-                position: "absolute",
-                top: "6px",
-                right: "6px",
-                background: "#7c3aed",
-                color: "#fff",
-                border: "none",
-                borderRadius: "4px",
-                padding: "4px 8px",
-                cursor: "pointer",
-                fontSize: "12px",
-              }}
-            >
-              Copy
-            </button>
-            <SyntaxHighlighter
-              style={oneDark}
-              language={match[1]}
-              wrapLines
-              showLineNumbers
-            >
-              {children}
-            </SyntaxHighlighter>
-          </div>
-        );
-      }
-
-      // Inline code
-      return (
-        <code
-          style={{
-            backgroundColor: "#e5e7eb",
-            padding: "2px 4px",
-            borderRadius: "4px",
-            fontFamily: "monospace",
-          }}
-        >
-          {children}
-        </code>
-      );
-    },
-  }}
->
-  {msg.content}
-</ReactMarkdown>
-  }}
-
-  {/* ---------------- Chat & Footer ---------------- */}
-<main className="gpt-main" ref={chatRef}>
-  {messages.map((msg) => (
-    <div key={msg.id} className={`message-row ${msg.role}`}>
-      <div className="message-bubble">
-        {msg.type === "thinking" ? (
-          <div className="typing">ManifiX is thinking...</div>
-        ) : msg.type === "image" ? (
-          <img src={msg.content} alt="upload" className="chat-image" />
-        ) : (
-          <ReactMarkdown
-            components={{
-              code({ inline, className, children }) {
-                const match = /language-(\w+)/.exec(className || "");
-                if (!inline && match) {
-                  return (
-                    <div className="code-block">
-                      <button
-                        className="copy-code"
-                        onClick={() => copyText(children.toString())}
-                      >
-                        Copy
-                      </button>
-                      <SyntaxHighlighter style={oneDark} language={match[1]}>
-                        {children}
-                      </SyntaxHighlighter>
-                    </div>
-                  );
-                }
-                return <code>{children}</code>;
-              },
-            }}
-          >
-            {msg.content}
-          </ReactMarkdown>
-        )}
-
-        {/* Copy button for bot messages */}
-        {msg.role === "bot" && (
-          <button
-            className="copy-msg"
-            onClick={() => copyText(msg.content)}
-            style={{
-              marginTop: "6px",
-              fontSize: "12px",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              cursor: "pointer",
-              backgroundColor: "#7c3aed",
-              color: "#fff",
-              border: "none",
-            }}
-          >
-            Copy
-          </button>
-        )}
-      </div>
-    </div>
-  ))}
-</main>
-
-{/* ---------------- Footer / Input Area ---------------- */}
-<footer className="gpt-footer" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px", backgroundColor: "#f3f4f6", borderTop: "1px solid #ddd" }}>
-  <button onClick={handleMic} style={{ background: "transparent", border: "none", cursor: "pointer" }}>
-    <img src={micIcon} alt="mic" style={{ width: "24px", height: "24px" }} />
-  </button>
-
-  <textarea
-    value={input}
-    placeholder="Ask ManifiX anything..."
-    onChange={(e) => setInput(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage(input);
-      }
-    }}
-    style={{ flex: 1, padding: "8px", borderRadius: "6px", border: "1px solid #ccc", resize: "none" }}
-  />
-
-  <label className="upload-btn" style={{ cursor: "pointer" }}>
-    📎
-    <input
-      type="file"
-      accept="image/*"
-      onChange={handleUpload}
-      disabled={uploading}
-      style={{ display: "none" }}
-    />
-  </label>
-
-  {!generating ? (
-    <button
-      onClick={() => sendMessage(input)}
-      style={{ padding: "8px 12px", borderRadius: "6px", backgroundColor: "#7c3aed", color: "#fff", border: "none", cursor: "pointer" }}
-    >
-      Send
-    </button>
-  ) : (
-    <button
-      onClick={stopGenerating}
-      style={{ padding: "8px 12px", borderRadius: "6px", backgroundColor: "#ef4444", color: "#fff", border: "none", cursor: "pointer" }}
-    >
-      Stop
-    </button>
-  )}
-
-  <button
-    onClick={regenerate}
-    style={{ padding: "8px 12px", borderRadius: "6px", backgroundColor: "#f59e0b", color: "#fff", border: "none", cursor: "pointer" }}
-  >
-    Regenerate
-  </button>
-</footer>
