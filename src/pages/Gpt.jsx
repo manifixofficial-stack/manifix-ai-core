@@ -310,7 +310,7 @@ const sendMessage = async (text) => {
     // Send to backend
     const response = await axios.post(`${API_BASE}/api/chat`, {
       userId,
-      messages: [...messages, userMsg], // include history
+  messages: [...messages] // because setMessages updates asynchronously
       input: text,
     });
 
