@@ -190,5 +190,6 @@ export default function Terms() {
       <footer className="terms-footer">
         <p>© 2025 ManifiX AI. All rights reserved.</p>
       </footer>
+      </dev>
   );
 }
