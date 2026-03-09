@@ -72,7 +72,10 @@ export default function Magic16() {
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [averageScore, setAverageScore] = useState(0);
+  const [scoreHistory, setScoreHistory] = useState([]);
 
+  // Speak step instructions
   const speak = (text) => {
     if (!("speechSynthesis" in window)) return;
     const now = Date.now();
@@ -84,6 +87,7 @@ export default function Magic16() {
     window.speechSynthesis.speak(utter);
   };
 
+  // Play meditation background audio
   const playAudio = () => {
     const audio = new Audio(meditationAudio);
     audio.loop = true;
@@ -92,6 +96,7 @@ export default function Magic16() {
     audioRef.current = audio;
   };
 
+  // Calculate angle between three keypoints
   const angle = (A, B, C) => {
     const AB = { x: A.x - B.x, y: A.y - B.y };
     const CB = { x: C.x - B.x, y: C.y - B.y };
@@ -101,6 +106,7 @@ export default function Magic16() {
     return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
   };
 
+  // Pose detection logic
   const detect = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current) return;
     const poses = await detectorRef.current.estimatePoses(videoRef.current);
@@ -113,9 +119,11 @@ export default function Magic16() {
       const a = angle(hip, knee, ankle);
       const sc = Math.max(0, 100 - Math.abs(a - 90));
       setScore(Math.round(sc));
+      setScoreHistory((prev) => [...prev, Math.round(sc)]);
     }
   }, []);
 
+  // Initialize video stream and detector
   useEffect(() => {
     const init = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -144,11 +152,13 @@ export default function Magic16() {
     };
   }, []);
 
+  // Start routine
   const start = () => {
     if (playing) return;
     setPlaying(true);
     playAudio();
     speak(steps[stepIndex].text);
+
     detectRef.current = setInterval(detect, 400);
 
     timerRef.current = setInterval(() => {
@@ -181,16 +191,26 @@ export default function Magic16() {
 
   const finish = () => {
     stop();
-    confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
-    speak("Congratulations! Ritual complete!");
+    confetti({ particleCount: 300, spread: 130, origin: { y: 0.6 } });
+
+    // Calculate final average posture score
+    const avg = scoreHistory.length ? Math.round(scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length) : 0;
+    setAverageScore(avg);
     setCompleted(true);
+
+    speak(`Congratulations! Ritual complete! Your average posture score is ${avg} percent.`);
   };
 
   return (
     <div className="magic16">
       <AnimatePresence>
         {loading && (
-          <motion.div className="magic16-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <motion.div
+            className="magic16-loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             Welcome Magic16 ❤️
           </motion.div>
         )}
@@ -202,13 +222,39 @@ export default function Magic16() {
         <PostureOverlay />
       </div>
 
-      <motion.div className="magic16-step" layout>
-        <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
-        <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
-      </motion.div>
+      {!completed ? (
+        <motion.div className="magic16-step" layout>
+          <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
+          <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
+        </motion.div>
+      ) : (
+        <motion.div
+          className="magic16-complete"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <h1>🎉 Magic16 Complete! 🎉</h1>
+          <p>Average Posture Score: {averageScore}%</p>
+          <button
+            onClick={() => {
+              setCompleted(false);
+              setStepIndex(0);
+              setStepTime(steps[0].duration);
+              setTotalTime(TOTAL_DURATION);
+              setProgress(0);
+              setScore(0);
+              setScoreHistory([]);
+            }}
+          >
+            Restart Magic16
+          </button>
+        </motion.div>
+      )}
 
       <div className="magic16-timers">
-        <p>Total Time {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}</p>
+        <p>
+          Total Time {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}
+        </p>
         <p>Step Time {stepTime}s</p>
       </div>
 
@@ -222,14 +268,14 @@ export default function Magic16() {
         />
       </div>
 
-      {playing && <div className="magic16-score">Posture Score {score}%</div>}
+      {playing && !completed && <div className="magic16-score">Posture Score {score}%</div>}
 
       <div className="magic16-controls">
-        {!playing ? (
+        {!playing && !completed ? (
           <button onClick={start}>Start Magic16</button>
-        ) : (
+        ) : !completed ? (
           <button onClick={stop}>Pause</button>
-        )}
+        ) : null}
       </div>
 
       <video ref={videoRef} autoPlay playsInline muted hidden />
