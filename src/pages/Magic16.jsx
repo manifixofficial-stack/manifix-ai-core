@@ -1,17 +1,15 @@
-// src/pages/Magic16.jsx
 import { useRef, useEffect, useState, useCallback } from "react";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
 import * as tf from "@tensorflow/tfjs";
 import confetti from "canvas-confetti";
+import { motion, AnimatePresence } from "framer-motion";
 
 import "../styles/magic16.css";
 import logo from "../../assets/logo.png";
 import PostureOverlay from "../components/Magic16/PostureOverlay";
-// Audio
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-// Yoga
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
 import yoga3 from "../assets/steps/yoga-03.png";
@@ -23,7 +21,6 @@ import yoga72 from "../assets/steps/yoga-07-2.png";
 import yoga73 from "../assets/steps/yoga-07-3.png";
 import yoga8 from "../assets/steps/yoga-08.png";
 
-// Meditation
 import med1 from "../assets/steps/med-01.png";
 import med2 from "../assets/steps/med-02.png";
 import med3 from "../assets/steps/med-03.png";
@@ -33,7 +30,6 @@ import med6 from "../assets/steps/med-06.png";
 import med7 from "../assets/steps/med-07.png";
 
 export default function Magic16() {
-
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
@@ -42,7 +38,6 @@ export default function Magic16() {
   const audioRef = useRef(null);
   const lastVoiceRef = useRef(0);
 
-  // ---------- Steps ----------
   const yogaSteps = [
     { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
     { img: yoga2, text: "Forward Fold. Relax your neck.", duration: 40 },
@@ -69,7 +64,6 @@ export default function Magic16() {
   const steps = [...yogaSteps, ...meditationSteps];
   const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
 
-  // ---------- State ----------
   const [stepIndex, setStepIndex] = useState(0);
   const [stepTime, setStepTime] = useState(steps[0].duration);
   const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
@@ -79,23 +73,17 @@ export default function Magic16() {
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // ---------- Voice ----------
   const speak = (text) => {
     if (!("speechSynthesis" in window)) return;
-
     const now = Date.now();
     if (now - lastVoiceRef.current < 4000) return;
-
     lastVoiceRef.current = now;
-
     const utter = new SpeechSynthesisUtterance(text);
     utter.rate = 0.95;
-
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   };
 
-  // ---------- Audio ----------
   const playAudio = () => {
     const audio = new Audio(meditationAudio);
     audio.loop = true;
@@ -104,7 +92,6 @@ export default function Magic16() {
     audioRef.current = audio;
   };
 
-  // ---------- Pose ----------
   const angle = (A, B, C) => {
     const AB = { x: A.x - B.x, y: A.y - B.y };
     const CB = { x: C.x - B.x, y: C.y - B.y };
@@ -116,15 +103,12 @@ export default function Magic16() {
 
   const detect = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current) return;
-
     const poses = await detectorRef.current.estimatePoses(videoRef.current);
     if (!poses?.length) return;
-
     const kp = poses[0].keypoints;
     const hip = kp.find((k) => k.name === "left_hip");
     const knee = kp.find((k) => k.name === "left_knee");
     const ankle = kp.find((k) => k.name === "left_ankle");
-
     if (hip && knee && ankle) {
       const a = angle(hip, knee, ankle);
       const sc = Math.max(0, 100 - Math.abs(a - 90));
@@ -132,13 +116,10 @@ export default function Magic16() {
     }
   }, []);
 
-  // ---------- Camera Init ----------
   useEffect(() => {
-
     const init = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-
       videoRef.current.srcObject = stream;
 
       await tf.ready();
@@ -161,51 +142,33 @@ export default function Magic16() {
       clearInterval(timerRef.current);
       clearInterval(detectRef.current);
     };
-
   }, []);
 
-  // ---------- Timer ----------
   const start = () => {
-
     if (playing) return;
-
     setPlaying(true);
-
     playAudio();
-
     speak(steps[stepIndex].text);
-
     detectRef.current = setInterval(detect, 400);
 
     timerRef.current = setInterval(() => {
-
       setTotalTime((t) => t - 1);
 
       setStepTime((prev) => {
-
         if (prev <= 1) {
-
           const next = stepIndex + 1;
-
           if (next >= steps.length) {
             finish();
             return 0;
           }
-
           setStepIndex(next);
-          setStepTime(steps[next].duration);
           speak(steps[next].text);
-
           return steps[next].duration;
         }
-
         return prev - 1;
       });
 
-      setProgress(
-        Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100)
-      );
-
+      setProgress(Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100));
     }, 1000);
   };
 
@@ -217,100 +180,59 @@ export default function Magic16() {
   };
 
   const finish = () => {
-
     stop();
-
-    confetti({
-      particleCount: 250,
-      spread: 120,
-      origin: { y: 0.6 },
-    });
-
+    confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
     speak("Congratulations! Ritual complete!");
-
     setCompleted(true);
   };
 
-  // ---------- Completed ----------
-  if (completed) {
-
-    return (
-      <div className="magic16-complete">
-        <h1>🎉 Ritual Complete</h1>
-        <h2>Posture Score {score}%</h2>
-        <button onClick={() => window.location.reload()}>
-          Start Again
-        </button>
-      </div>
-    );
-  }
-
-  // ---------- UI ----------
   return (
-
     <div className="magic16">
-
-      {loading && <div className="magic16-loading">Welcome Magic16❤️</div>}
+      <AnimatePresence>
+        {loading && (
+          <motion.div className="magic16-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            Welcome Magic16 ❤️
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <img src={logo} className="magic16-logo" alt="logo" />
+
       <div className="magic16-camera">
-
-      <PostureOverlay />
-
-       </div>
-
-      <div className="magic16-step">
-
-        <img
-          src={steps[stepIndex].img}
-          alt="step"
-          className="magic16-step-img"
-        />
-
-        <h1 className="magic16-step-text">
-          {steps[stepIndex].text}
-        </h1>
-
+        <PostureOverlay />
       </div>
 
+      <motion.div className="magic16-step" layout>
+        <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
+        <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
+      </motion.div>
+
       <div className="magic16-timers">
-
-        <p>Total Time {Math.floor(totalTime / 60)}:
-          {String(totalTime % 60).padStart(2, "0")}
-        </p>
-
+        <p>Total Time {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}</p>
         <p>Step Time {stepTime}s</p>
-
       </div>
 
       <div className="magic16-progress">
-        <div style={{ width: `${progress}%` }} />
+        <motion.div
+          className="magic16-progress-bar"
+          style={{ width: `${progress}%` }}
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.5 }}
+        />
       </div>
 
-      {playing && (
-        <div className="magic16-score">
-          Posture Score {score}%
-        </div>
-      )}
+      {playing && <div className="magic16-score">Posture Score {score}%</div>}
 
       <div className="magic16-controls">
-
         {!playing ? (
           <button onClick={start}>Start Magic16</button>
         ) : (
           <button onClick={stop}>Pause</button>
         )}
-
       </div>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        hidden
-      />
-
+      <video ref={videoRef} autoPlay playsInline muted hidden />
     </div>
   );
 }
