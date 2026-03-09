@@ -21,7 +21,7 @@ export default function Feedback() {
     try {
       const { error } = await supabase.from("user_feedback").insert([
         {
-          comment: message.trim(),
+        message: message.trim(),
           rating: rating || null,
         },
       ]);
