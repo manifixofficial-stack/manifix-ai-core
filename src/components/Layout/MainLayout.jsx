@@ -57,7 +57,29 @@ export default function MainLayout() {
           <path d="M2 4v16h20V4H2zm18 14H4V6h16v12z"/>
         </svg>
       ),
+    },
+
+    // NEW ITEMS
+    {
+      name: "Privacy Policy",
+      path: "/app/privacy",
+      icon: (
+        <svg viewBox="0 0 24 24">
+          <path d="M12 1L3 5v6c0 5.25 3.75 10.25 9 11 5.25-.75 9-5.75 9-11V5l-9-4z"/>
+        </svg>
+      ),
+    },
+    {
+      name: "Terms of Use",
+      path: "/app/terms",
+      icon: (
+        <svg viewBox="0 0 24 24">
+          <path d="M6 2h9l5 5v15H6z"/>
+          <path d="M14 2v6h6"/>
+        </svg>
+      ),
     }
+
   ];
 
   return (
@@ -68,7 +90,6 @@ export default function MainLayout() {
 
         <div className="sidebar-header">
 
-          {/* Toggle Button */}
           <button className="menu-toggle" onClick={toggleSidebar}>
             =
           </button>
@@ -81,7 +102,6 @@ export default function MainLayout() {
         <nav className="sidebar-nav">
 
           {navItems.map((item) => (
-
             <NavLink
               key={item.name}
               to={item.path}
@@ -101,7 +121,6 @@ export default function MainLayout() {
               </span>
 
             </NavLink>
-
           ))}
 
         </nav>
