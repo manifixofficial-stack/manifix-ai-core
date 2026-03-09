@@ -28,7 +28,7 @@ const BillingPage = () => {
 
       // create Razorpay order from backend
       const res = await fetch(
-        "https://manifix.up.railway.app/api/create-order",
+        `${import.meta.env.VITE_API_BASE_URL}/api/create-order`
         { method: "POST" }
       );
 
