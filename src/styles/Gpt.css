@@ -7,7 +7,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #1e293b; /* fallback */
+  background: linear-gradient(160deg, #1e293b, #0f172a);
   transition: background 0.3s ease-in-out;
 }
 
@@ -20,7 +20,7 @@
   flex-direction: column;
   gap: 12px;
   scrollbar-width: thin;
-  scrollbar-color: #7c3aed33 transparent;
+  scrollbar-color: #7c3aed66 transparent;
 }
 
 /* Webkit scrollbar */
@@ -41,6 +41,7 @@
 .message-row {
   display: flex;
   width: 100%;
+  align-items: flex-end;
 }
 
 .message-row.user {
@@ -54,34 +55,39 @@
 /* ---------------- Message Bubbles ---------------- */
 .message-bubble {
   max-width: 70%;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
   word-break: break-word;
   position: relative;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  animation: bubbleFade 0.3s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  animation: bubbleFade 0.35s ease-in-out;
   transition: all 0.2s ease-in-out;
+  line-height: 1.5;
 }
 
 .message-bubble:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.01);
 }
 
+/* Fade in animation */
 @keyframes bubbleFade {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 /* User bubble */
 .message-row.user .message-bubble {
-  background-color: #7c3aed33;
+  background: linear-gradient(135deg, #7c3aed66, #9333ea66);
   color: #000;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
 }
 
 /* Bot bubble */
 .message-row.bot .message-bubble {
   background-color: #1e293b;
-  color: #fff;
+  color: #f1f5f9;
+  border-bottom-left-radius: 4px;
 }
 
 /* ---------------- Typing / Thinking ---------------- */
@@ -103,14 +109,15 @@
   80%, 100% { content: " ."; }
 }
 
-/* ---------------- Markdown Code ---------------- */
+/* ---------------- Markdown / Code Blocks ---------------- */
 .code-block {
   background-color: #0f172a;
-  border-radius: 8px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 12px;
   overflow-x: auto;
   position: relative;
   margin: 12px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .code-block button {
@@ -124,13 +131,20 @@
   padding: 4px 8px;
   font-size: 12px;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.code-block button:hover {
+  background: #9333ea;
 }
 
 code {
-  background-color: #e5e7eb;
-  padding: 2px 4px;
+  background-color: #1e293b;
+  padding: 2px 6px;
   border-radius: 4px;
   font-family: "Fira Code", monospace;
+  font-size: 13px;
+  color: #f1f5f9;
 }
 
 /* ---------------- Footer / Input ---------------- */
@@ -138,24 +152,34 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
-  background-color: #f3f4f6;
-  border-top: 1px solid #ddd;
+  padding: 10px 16px;
+  background-color: #111827;
+  border-top: 1px solid #22272e;
+  transition: all 0.2s ease-in-out;
 }
 
 .gpt-footer textarea {
   flex: 1;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  padding: 10px;
   resize: none;
   font-size: 14px;
+  background-color: #1e293b;
+  color: #f1f5f9;
+  transition: all 0.2s ease-in-out;
 }
 
+.gpt-footer textarea:focus {
+  border-color: #7c3aed;
+  outline: none;
+}
+
+/* Buttons */
 .gpt-footer button {
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
-  padding: 8px 12px;
+  padding: 8px 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease-in-out;
@@ -168,7 +192,7 @@ code {
 
 /* Send button */
 .gpt-footer button.send-btn {
-  background-color: #7c3aed;
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
   color: #fff;
 }
 
@@ -187,7 +211,13 @@ code {
 /* ---------------- Upload Button ---------------- */
 .upload-btn {
   cursor: pointer;
-  font-size: 18px;
+  font-size: 20px;
+  color: #7c3aed;
+  transition: all 0.2s ease;
+}
+
+.upload-btn:hover {
+  transform: scale(1.1);
 }
 
 /* ---------------- Responsive ---------------- */
@@ -195,7 +225,7 @@ code {
   .message-bubble {
     max-width: 85%;
   }
-  
+
   .gpt-footer textarea {
     font-size: 13px;
   }
@@ -206,13 +236,13 @@ code {
   }
 }
 
-/* ---------------- Smooth Image ---------------- */
+/* ---------------- Smooth Images ---------------- */
 .message-bubble img {
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: all 0.3s ease-in-out;
 }
 
 .message-bubble img:hover {
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
