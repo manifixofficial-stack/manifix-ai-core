@@ -144,15 +144,6 @@ Do not say you are an AI unless necessary.,do not say you are chatgpt,you are th
   timestamp: new Date().toISOString(), // Optional timestamp
 };
 
-// Example user message template
-const createUserMessage = (text) => ({
-  id: crypto.randomUUID(),
-  role: "user",
-  content: text,
-  type: "text",
-  timestamp: new Date().toISOString(),
-});
-
 // Example assistant message template
 const createAssistantMessage = (text) => ({
   id: crypto.randomUUID(),
@@ -346,51 +337,48 @@ const sendMessage = async (text) => {
   }
 };
 try {
-  // Create a new AbortController for this request
-  controllerRef.current = new AbortController();
+    controllerRef.current = new AbortController();
 
-  // Add thinking placeholder with unique ID
-  const thinkingId = `bot-thinking-${Date.now()}`;
-  const thinkingMessage = {
-    id: thinkingId,
-    role: "bot",
-    content: "Thinking...",
-    type: "thinking",
-    timestamp: new Date().toISOString(),
-  };
-  setMessages((prev) => [...prev, thinkingMessage]);
+    const thinkingId = `bot-thinking-${Date.now()}`;
+    const thinkingMessage = {
+      id: thinkingId,
+      role: "bot",
+      content: "Thinking...",
+      type: "thinking",
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, thinkingMessage]);
 
-  // Send the message to backend with abort signal
-  const res = await axios.post(
-    `${API_BASE}/api/chat`,
-    { message: text, userId },
-    { signal: controllerRef.current.signal }
-  );
+    // Send request to backend
+    const res = await axios.post(
+      `${API_BASE}/api/chat`,
+      { message: text, userId },
+      { signal: controllerRef.current.signal }
+    );
 
-  const reply = res.data.reply || "No response.";
+    const reply = res.data.reply || "No response.";
 
-  // Replace thinking placeholder with actual bot reply
-  setMessages((prev) =>
-    prev.map((msg) =>
-      msg.id === thinkingId
-        ? { id: `bot-${Date.now()}`, role: "bot", content: reply, timestamp: new Date().toISOString() }
-        : msg
-    )
-  );
-} catch (err) {
-  console.error("Chat request failed:", err);
-
-  // Update thinking message to show error
-  setMessages((prev) =>
-    prev.map((msg) =>
-      msg.type === "thinking"
-        ? { ...msg, content: "Failed to get response. Try again." }
-        : msg
-    )
-  );
-} finally {
-  setGenerating(false);
-}
+    // Replace thinking placeholder with actual bot reply
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === thinkingId
+          ? { id: `bot-${Date.now()}`, role: "bot", content: reply, timestamp: new Date().toISOString() }
+          : msg
+      )
+    );
+  } catch (err) {
+    console.error("Chat request failed:", err);
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.type === "thinking"
+          ? { ...msg, content: "Failed to get response. Try again." }
+          : msg
+      )
+    );
+  } finally {
+    setGenerating(false);
+  }
+};
 
   try {
   // Unique ID for thinking placeholder
