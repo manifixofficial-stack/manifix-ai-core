@@ -24,6 +24,7 @@
     "remark-math": "^5.1.1",
     "rehype-raw": "^6.1.1",
     "rehype-sanitize": "^5.0.1",
+    "framer-motion": "^10.12.16",
     "bullmq": "^5.69.3",
     "canvas-confetti": "^1.9.4",
     "dayjs": "^1.11.10",
