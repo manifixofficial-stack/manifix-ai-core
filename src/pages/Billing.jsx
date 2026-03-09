@@ -1,20 +1,23 @@
 // src/pages/Billing.jsx
+
 import React, { useState } from "react";
 import "../styles/Billing666.css";
 import authService from "../services/auth.service";
+import supabase from "../services/supabase";
 import logo from "../assets/logo.png";
 
 const BillingPage = () => {
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const priceId = "price_1QABCxyz123456"; // your real Stripe price ID
-
   const handleSubscribe = async () => {
+
     setLoading(true);
     setError("");
 
     try {
+
       const currentUser = authService?.getCurrentUser?.();
 
       if (!currentUser) {
@@ -23,30 +26,79 @@ const BillingPage = () => {
         return;
       }
 
+      // create Razorpay order from backend
       const res = await fetch(
-        "https://manifix.up.railway.app/api/create-checkout-session",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            priceId,
-            userId: currentUser.id,
-          }),
-        }
+        "https://manifix.up.railway.app/api/create-order",
+        { method: "POST" }
       );
 
-      const data = await res.json();
+      if (!res.ok) throw new Error("Failed to create order");
 
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError("Unable to start payment. Try again.");
-      }
+      const order = await res.json();
+
+      const options = {
+        key: "RAZORPAY_PUBLIC_KEY", // replace with your key
+        amount: order.amount,
+        currency: order.currency,
+        name: "ManifiX",
+        description: "Premium Subscription",
+        image: logo,
+        order_id: order.id,
+
+        handler: async function (response) {
+
+          try {
+
+            // Insert premium record
+            const { error: insertError } = await supabase
+              .from("premium")
+              .insert([
+                {
+                  user_id: currentUser.id,
+                  payment_id: response.razorpay_payment_id,
+                  plan: "premium",
+                  subscription_status: "active",
+                  expires_at: new Date(
+                    Date.now() + 30 * 24 * 60 * 60 * 1000
+                  ),
+                },
+              ]);
+
+            if (insertError) throw insertError;
+
+            alert("🎉 Payment Successful! Premium activated.");
+
+          } catch (dbErr) {
+
+            console.error("Database Error:", dbErr);
+            alert("Payment succeeded but premium activation failed.");
+
+          }
+        },
+
+        prefill: {
+          name: currentUser.name || "",
+          email: currentUser.email || "",
+        },
+
+        theme: {
+          color: "#6366f1",
+        },
+      };
+
+      const razor = new window.Razorpay(options);
+
+      razor.open();
+
     } catch (err) {
+
       console.error(err);
       setError("Payment service not reachable. Try later.");
+
     } finally {
+
       setLoading(false);
+
     }
   };
 
@@ -65,23 +117,20 @@ const BillingPage = () => {
 
   return (
     <div className="billing-page">
-      {/* Header */}
+
       <header className="billing-header">
         <img src={logo} alt="ManifiX Logo" className="billing-logo" />
         <h1>ManifiX Premium</h1>
         <p>Unlock full access to all premium features</p>
       </header>
 
-      {/* Subscription Card */}
       <section className="billing-card">
         <h2>Premium Subscription</h2>
         <p className="price">₹1,999 / month</p>
 
         <ul className="features">
           {features.map((feature, index) => (
-            <li key={index}>
-              ✅ {feature}
-            </li>
+            <li key={index}>✅ {feature}</li>
           ))}
         </ul>
 
@@ -96,10 +145,10 @@ const BillingPage = () => {
         {error && <p className="billing-error">{error}</p>}
       </section>
 
-      {/* Footer */}
       <footer className="billing-footer">
         <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
       </footer>
+
     </div>
   );
 };
