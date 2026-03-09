@@ -1,5 +1,4 @@
 // src/pages/Billing.jsx
-
 import React, { useState } from "react";
 import "../styles/Billing666.css";
 import authService from "../services/auth.service";
@@ -7,17 +6,14 @@ import supabase from "../services/supabase";
 import logo from "../assets/logo.png";
 
 const BillingPage = () => {
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubscribe = async () => {
-
     setLoading(true);
     setError("");
 
     try {
-
       const currentUser = authService?.getCurrentUser?.();
 
       if (!currentUser) {
@@ -26,79 +22,60 @@ const BillingPage = () => {
         return;
       }
 
-      // create Razorpay order from backend
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/create-order`
-        { method: "POST" }
-      );
+      // Create Razorpay order from backend
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/create-order`, {
+        method: "POST",
+      });
 
       if (!res.ok) throw new Error("Failed to create order");
 
       const order = await res.json();
 
       const options = {
-      key: import.meta.env.VITE_RAZORPAY_KEY
+        key: import.meta.env.VITE_RAZORPAY_KEY, // Test Mode Key from .env
         amount: order.amount,
         currency: order.currency,
         name: "ManifiX",
         description: "Premium Subscription",
         image: logo,
         order_id: order.id,
-
         handler: async function (response) {
-
           try {
-
-            // Insert premium record
-            const { error: insertError } = await supabase
-              .from("premium")
-              .insert([
-                {
-                  user_id: currentUser.id,
-                  payment_id: response.razorpay_payment_id,
-                  plan: "premium",
-                  subscription_status: "active",
-                  expires_at: new Date(
-                    Date.now() + 30 * 24 * 60 * 60 * 1000
-                  ),
-                },
-              ]);
+            // Insert premium record in Supabase
+            const { error: insertError } = await supabase.from("premium").insert([
+              {
+                user_id: currentUser.id,
+                payment_id: response.razorpay_payment_id,
+                plan: "premium",
+                subscription_status: "active",
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+              },
+            ]);
 
             if (insertError) throw insertError;
 
             alert("🎉 Payment Successful! Premium activated.");
-
           } catch (dbErr) {
-
             console.error("Database Error:", dbErr);
             alert("Payment succeeded but premium activation failed.");
-
           }
         },
-
         prefill: {
           name: currentUser.name || "",
           email: currentUser.email || "",
         },
-
         theme: {
           color: "#6366f1",
         },
       };
 
       const razor = new window.Razorpay(options);
-
       razor.open();
-
     } catch (err) {
-
       console.error(err);
       setError("Payment service not reachable. Try later.");
-
     } finally {
-
       setLoading(false);
-
     }
   };
 
@@ -117,7 +94,6 @@ const BillingPage = () => {
 
   return (
     <div className="billing-page">
-
       <header className="billing-header">
         <img src={logo} alt="ManifiX Logo" className="billing-logo" />
         <h1>ManifiX Premium</h1>
@@ -134,11 +110,7 @@ const BillingPage = () => {
           ))}
         </ul>
 
-        <button
-          className="btn-subscribe"
-          onClick={handleSubscribe}
-          disabled={loading}
-        >
+        <button className="btn-subscribe" onClick={handleSubscribe} disabled={loading}>
           {loading ? "Processing..." : "Subscribe Now"}
         </button>
 
@@ -148,7 +120,6 @@ const BillingPage = () => {
       <footer className="billing-footer">
         <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
       </footer>
-
     </div>
   );
 };
