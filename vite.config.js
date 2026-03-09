@@ -6,19 +6,23 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
 
+  // Base path for deployment
   base: "/",
 
+  // Resolve aliases
   resolve: {
     alias: [
-      { find: "@", replacement: path.resolve(__dirname, "src") }, // src alias
+      { find: "@", replacement: path.resolve(__dirname, "src") }, // @ -> src
     ],
   },
 
+  // Development server
   server: {
     port: 5173,
     open: true,
   },
 
+  // Build settings
   build: {
     outDir: "dist",
     rollupOptions: {
@@ -27,12 +31,19 @@ export default defineConfig({
     },
   },
 
+  // Optimize dependencies to pre-bundle for Vite dev & prevent runtime errors
   optimizeDeps: {
-    include: ["react-icons/fa"], // pre-bundle react-icons for dev to avoid runtime errors
+    include: [
+      "react-icons/fa",
+      "remark-math",
+      "remark-gfm",
+      "rehype-raw",
+      "rehype-sanitize",
+      "react-markdown"
+    ],
   },
 
-  // SPA fallback (important for Vercel/Netlify)
-  // ensures client-side routing works
+  // SPA preview settings for Vercel / Netlify
   preview: {
     port: 4173,
   },
