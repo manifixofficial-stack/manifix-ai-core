@@ -1,6 +1,7 @@
 // src/pages/Contact.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "../services/supabase";
+import "../styles/Contact.css"; // <-- Import the professional CSS
 
 export default function Contact() {
   const [statusMessage, setStatusMessage] = useState("");
@@ -82,7 +83,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-[#0d0d0d] via-[#1b1b1b] to-[#050505] text-white font-inter overflow-x-hidden">
+    <div className="relative min-h-screen text-white font-inter overflow-x-hidden">
       <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none" />
 
       {/* Header */}
@@ -116,24 +117,24 @@ export default function Contact() {
         </section>
 
         {/* Contact Form */}
-        <section className="card p-8 rounded-3xl max-w-3xl mx-auto bg-gradient-to-tr from-[#1b1b1b]/80 to-[#0d0d0d]/80 backdrop-blur-lg shadow-lg border border-gray-700">
+        <section className="card p-8 rounded-3xl max-w-3xl mx-auto">
           <h2 className="text-2xl font-semibold mb-6 text-center">Send us a Message</h2>
           <form onSubmit={handleSubmit} className="grid gap-4">
-            <input type="text" placeholder="Your Name" required ref={nameRef} className="p-4 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition" />
-            <input type="email" placeholder="Your Email" required ref={emailRef} className="p-4 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition" />
-            <textarea placeholder="Your Message" required rows={5} ref={messageRef} className="p-4 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition"></textarea>
+            <input type="text" placeholder="Your Name" required ref={nameRef} />
+            <input type="email" placeholder="Your Email" required ref={emailRef} />
+            <textarea placeholder="Your Message" required rows={5} ref={messageRef}></textarea>
             <button type="submit" disabled={submitting} className="btn btn-primary w-max mx-auto">
               {submitting ? "Sending..." : "Send Message"}
             </button>
           </form>
-          {statusMessage && <p className="text-center text-sm mt-4 animate-pulse">{statusMessage}</p>}
+          {statusMessage && <p className="status-message text-center mt-4">{statusMessage}</p>}
         </section>
 
         {/* Features Section */}
-        <section className="card p-10 rounded-3xl max-w-5xl mx-auto mt-20 text-center bg-gradient-to-tr from-[#1b1b1b]/70 to-[#0d0d0d]/70 backdrop-blur-lg shadow-xl border border-gray-700">
+        <section className="card p-10 rounded-3xl max-w-5xl mx-auto mt-20 text-center">
           <h2 className="text-3xl font-bold mb-6">Discover the Power of ManifiX</h2>
           <p className="text-gray-400 mb-10">
-            ManifiX is your digital partner for creation, AI , and transformation.  
+            ManifiX is your digital partner for creation, AI, and transformation.  
             Combining human energy with AI guidance to unlock your best self daily.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
@@ -144,7 +145,7 @@ export default function Contact() {
         </section>
 
         {/* Google Map */}
-        <section className="card p-6 rounded-3xl mt-12 max-w-5xl mx-auto bg-gradient-to-tr from-[#1b1b1b]/70 to-[#0d0d0d]/70 backdrop-blur-lg shadow-xl border border-gray-700">
+        <section className="card p-6 rounded-3xl mt-12 max-w-5xl mx-auto">
           <h2 className="text-2xl font-semibold mb-4 text-center">📍 Find ManifiX</h2>
           <p className="text-center text-gray-400 mb-6">
             Visit our headquarters or collaborate virtually — building the future together.
@@ -177,9 +178,9 @@ export default function Contact() {
 // Reusable Components
 function ContactCard({ title, desc, mail, btnText }) {
   return (
-    <div className="p-6 rounded-3xl bg-gradient-to-tr from-[#1b1b1b]/70 to-[#0d0d0d]/70 backdrop-blur-lg border border-gray-700 shadow-lg hover:scale-105 transition transform duration-300 text-center">
-      <h3 className="font-semibold text-xl mb-2">{title}</h3>
-      <p className="text-gray-400 text-sm mb-4">{desc}</p>
+    <div className="ContactCard">
+      <h3>{title}</h3>
+      <p>{desc}</p>
       <a href={`mailto:${mail}`} className="btn btn-outline">{btnText}</a>
     </div>
   );
@@ -187,9 +188,9 @@ function ContactCard({ title, desc, mail, btnText }) {
 
 function FeatureCard({ title, desc }) {
   return (
-    <div className="p-6 rounded-2xl bg-transparent border border-gray-700 hover:border-white transition transform hover:scale-105 duration-300 text-center">
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-gray-400 text-sm">{desc}</p>
+    <div className="FeatureCard">
+      <h3>{title}</h3>
+      <p>{desc}</p>
     </div>
   );
 }
