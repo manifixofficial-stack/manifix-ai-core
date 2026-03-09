@@ -1,0 +1,160 @@
+/* src/styles/Contact.css */
+
+/* ------------------ Global Styles ------------------ */
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: #0d0d0d;
+  color: white;
+  overflow-x: hidden;
+}
+
+a {
+  text-decoration: none;
+}
+
+h1, h2, h3 {
+  margin: 0;
+}
+
+/* ------------------ Buttons ------------------ */
+.btn {
+  display: inline-block;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.7rem 1.5rem;
+  border-radius: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;
+  user-select: none;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, #ff7cd5, #ff3c78);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255, 60, 120, 0.4);
+}
+
+.btn-primary:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(255, 60, 120, 0.6);
+}
+
+.btn-outline {
+  border: 2px solid #ff3c78;
+  color: #ff3c78;
+  background: transparent;
+}
+
+.btn-outline:hover {
+  background: rgba(255, 60, 120, 0.1);
+  transform: scale(1.05);
+}
+
+/* ------------------ Card Styles ------------------ */
+.card {
+  background: rgba(27, 27, 27, 0.7);
+  backdrop-filter: blur(15px);
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.1);
+}
+
+/* ------------------ Hero Section ------------------ */
+main section.text-center h1 {
+  font-size: 2.5rem;
+  background: linear-gradient(to right, #ffffff, #d1d1d1, #ffffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ------------------ Input Fields ------------------ */
+input, textarea {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 1rem;
+  padding: 1rem;
+  color: white;
+  font-size: 1rem;
+  transition: all 0.3s ease-in-out;
+}
+
+input:focus, textarea:focus {
+  border: 1px solid #ff3c78;
+  box-shadow: 0 4px 15px rgba(255, 60, 120, 0.3);
+  outline: none;
+}
+
+/* ------------------ Cards & Feature Cards ------------------ */
+.ContactCard, .FeatureCard {
+  transition: all 0.3s ease-in-out;
+}
+
+.ContactCard:hover, .FeatureCard:hover {
+  transform: scale(1.05);
+  border-color: #ff3c78;
+  box-shadow: 0 8px 20px rgba(255, 60, 120, 0.4);
+}
+
+/* ------------------ Sparkles Canvas ------------------ */
+canvas {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: -10;
+  pointer-events: none;
+}
+
+/* ------------------ Footer ------------------ */
+footer a {
+  transition: all 0.3s ease-in-out;
+}
+
+footer a:hover {
+  color: #ff3c78;
+  text-decoration: underline;
+}
+
+/* ------------------ Responsive ------------------ */
+@media (max-width: 768px) {
+  main section.text-center h1 {
+    font-size: 2rem;
+  }
+
+  .grid.md\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    margin: 0 auto;
+  }
+}
+
+/* ------------------ Animations ------------------ */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 60, 120, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 60, 120, 0.6);
+  }
+}
+
+.animate-glow {
+  animation: glow 2s infinite;
+}
