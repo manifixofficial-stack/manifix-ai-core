@@ -16,7 +16,7 @@ const API_BASE = "https://manifix.up.railway.app";
 const defaultWelcome = {
   id: "welcome",
   role: "bot",
-  content: "Hi👋🏻 I'm ManifiX.",I'm hear with you❤️"
+  content: "Hi👋🏻 I'm ManifiX.I'm hear with you❤️"
   type: "text",
 };
 
