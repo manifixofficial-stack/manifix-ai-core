@@ -307,23 +307,33 @@ const sendMessage = async (text) => {
   setGenerating(true);
 
   try {
+    // Use latest messages for backend
+    const latestMessages = [...messages, userMsg, botThinking];
+
     // Send to backend
     const response = await axios.post(`${API_BASE}/api/chat`, {
       userId,
-  messages: [...messages],// because setMessages updates asynchronously
+      messages: latestMessages,
       input: text,
     });
 
-    // Replace thinking with actual bot response
+    // Replace thinking placeholder with actual bot response
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === botThinking.id
-          ? { id: `bot-${Date.now()}`, role: "bot", content: response.data.reply, timestamp: new Date().toISOString() }
+          ? {
+              id: `bot-${Date.now()}`,
+              role: "bot",
+              content: response.data.reply || "No response.",
+              type: "text",
+              timestamp: new Date().toISOString(),
+            }
           : msg
       )
     );
   } catch (err) {
     console.error("Message failed:", err);
+    // Replace thinking with error message
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === botThinking.id
@@ -335,7 +345,6 @@ const sendMessage = async (text) => {
     setGenerating(false);
   }
 };
-
 try {
   // Create a new AbortController for this request
   controllerRef.current = new AbortController();
