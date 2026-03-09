@@ -1,316 +1,351 @@
 import React from "react";
+import "../styles/Privacy.css";
+import logo from "../assets/logo.png";
 
 export default function Privacy() {
   return (
-    <div style={{fontFamily:"Arial, sans-serif", lineHeight:"1.6", padding:"40px", maxWidth:"900px", margin:"auto"}}>
-      
-      {/* Logo + Title */}
-      <div style={{textAlign:"center", marginBottom:"40px"}}>
-        <img
-          src="/manifix-logo.png"
-          alt="ManifiX Logo"
-          style={{width:"80px", marginBottom:"10px"}}
-        />
+    <div className="privacy-container">
+
+      {/* Header */}
+      <div className="privacy-header">
+        <img src={logo} alt="ManifiX Logo" className="privacy-logo" />
         <h1>Privacy Policy — ManifiX</h1>
+        <p>Last Updated: January 2025</p>
         <p>© 2025 ManifiX AI Platform</p>
       </div>
 
-  {/* Overview */}
-<section>
-  <h2>Overview</h2>
-  <p>
-    ManifiX is an AI-powered creativity, productivity, and wellness platform
-    designed to help users learn, think, and maintain a healthy lifestyle.
-    The platform provides intelligent conversational assistance and structured
-    wellness tools that support daily growth and mental clarity.
-  </p>
+      {/* Overview */}
+      <section className="privacy-section">
+        <h2>Overview</h2>
+        <p>
+          ManifiX is an AI-powered creativity, productivity, and wellness
+          platform designed to help users learn, think, and maintain a
+          balanced lifestyle. The platform offers intelligent conversational
+          assistance and structured wellness tools that support daily growth,
+          learning, and mental clarity.
+        </p>
 
-  <p>
-    This Privacy Policy explains how ManifiX collects, uses, stores, and
-    protects personal information when users access our website,
-    applications, and related services. Our goal is to maintain transparency
-    and ensure that users understand how their data is handled.
-  </p>
-</section>
+        <p>
+          This Privacy Policy explains how ManifiX collects, uses, stores,
+          and protects personal information when users access our website,
+          applications, and related services.
+        </p>
 
-{/* Scope */}
-<section>
-  <h2>Scope & Applicability</h2>
-  <p>
-    This Privacy Policy applies to all ManifiX products and services including
-    our web platform, mobile applications, APIs, and integrations. It applies
-    to visitors, registered users, subscribers, and individuals interacting
-    with ManifiX services in any form.
-  </p>
+        <p>
+          Our goal is to provide transparency and ensure users clearly
+          understand how their information is handled while using the
+          ManifiX platform.
+        </p>
+      </section>
 
-  <p>
-    By using ManifiX, you agree to the collection and use of information
-    in accordance with this Privacy Policy.
-  </p>
-</section>
+      {/* Scope */}
+      <section className="privacy-section">
+        <h2>Scope & Applicability</h2>
+        <p>
+          This Privacy Policy applies to all ManifiX products and services,
+          including our website, mobile applications, APIs, and integrations.
+        </p>
 
-{/* Definitions */}
-<section>
-  <h2>Key Definitions</h2>
-  <ul>
-    <li>
-      <b>Personal Data:</b> Information that identifies or can be linked to an
-      individual, such as name, email address, or account details.
-    </li>
-    <li>
-      <b>Processing:</b> Any operation performed on personal data including
-      collection, storage, organization, analysis, or deletion.
-    </li>
-    <li>
-      <b>Controller:</b> ManifiX determines how and why personal data is used.
-    </li>
-    <li>
-      <b>Processor:</b> Trusted service providers that process data on behalf
-      of ManifiX, such as cloud hosting or authentication services.
-    </li>
-  </ul>
-</section>
+        <p>
+          It applies to visitors, registered users, subscribers, and any
+          individuals interacting with ManifiX services.
+        </p>
 
-{/* Data Collection */}
-<section>
-  <h2>What Information We Collect</h2>
+        <p>
+          By accessing or using ManifiX, you agree to the practices described
+          in this Privacy Policy.
+        </p>
+      </section>
 
-  <p>We may collect the following types of information:</p>
+      {/* Definitions */}
+      <section className="privacy-section">
+        <h2>Key Definitions</h2>
 
-  <ul>
-    <li>
-      Account information including name, email address, and login credentials.
-    </li>
+        <ul>
+          <li>
+            <b>Personal Data:</b> Information that identifies or can be
+            associated with an individual, such as name or email address.
+          </li>
 
-    <li>
-      User-generated content such as chat messages, prompts, or feedback
-      submitted while using ManifiX features.
-    </li>
+          <li>
+            <b>Processing:</b> Any action performed on personal data,
+            including collection, storage, modification, analysis,
+            or deletion.
+          </li>
 
-    <li>
-      Wellness activity inputs such as selected routines or feature usage
-      preferences.
-    </li>
+          <li>
+            <b>Controller:</b> ManifiX determines how and why personal data
+            is processed.
+          </li>
 
-    <li>
-      Technical information including browser type, device information,
-      operating system, and IP address.
-    </li>
+          <li>
+            <b>Processor:</b> Trusted third-party providers that process
+            data on behalf of ManifiX such as hosting platforms or
+            authentication services.
+          </li>
+        </ul>
+      </section>
 
-    <li>
-      Usage data such as interaction patterns, feature usage statistics,
-      and performance metrics.
-    </li>
+      {/* Data Collection */}
+      <section className="privacy-section">
+        <h2>What Information We Collect</h2>
 
-    <li>
-      Payment-related metadata when purchasing subscriptions
-      (sensitive payment details are never stored by ManifiX).
-    </li>
-  </ul>
-</section>
+        <p>We may collect the following types of information:</p>
 
-{/* Use of Data */}
-<section>
-  <h2>How We Use Information</h2>
+        <ul>
+          <li>
+            Account information including name, email address, and
+            authentication credentials.
+          </li>
 
-  <p>The information we collect helps us operate and improve the platform.</p>
+          <li>
+            User-generated content such as messages, prompts, or feedback
+            submitted while using ManifiX features.
+          </li>
 
-  <ul>
-    <li>Provide and maintain ManifiX services.</li>
-    <li>Enable secure user authentication and account access.</li>
-    <li>Deliver AI-powered conversational assistance.</li>
-    <li>Improve wellness tools and personalized experiences.</li>
-    <li>Provide customer support and respond to user inquiries.</li>
-    <li>Detect fraud, abuse, or security risks.</li>
-    <li>Analyze platform performance and improve product features.</li>
-  </ul>
-</section>
+          <li>
+            Wellness activity inputs such as selected routines or feature
+            usage preferences.
+          </li>
 
-{/* Sharing */}
-<section>
-  <h2>When We Share Information</h2>
+          <li>
+            Technical information including browser type, device
+            information, operating system, and IP address.
+          </li>
 
-  <p>
-    ManifiX does not sell personal data. Information may only be shared with
-    trusted third-party service providers when necessary to deliver services.
-  </p>
+          <li>
+            Usage data including interaction patterns, feature usage
+            statistics, and platform performance metrics.
+          </li>
 
-  <p>These providers may include:</p>
+          <li>
+            Payment metadata when purchasing subscriptions. Sensitive
+            financial information such as card numbers is never stored
+            by ManifiX.
+          </li>
+        </ul>
+      </section>
 
-  <ul>
-    <li>Cloud hosting infrastructure providers</li>
-    <li>Authentication and account management services</li>
-    <li>Analytics platforms for improving performance</li>
-    <li>Payment processors for handling subscriptions</li>
-  </ul>
+      {/* Use of Data */}
+      <section className="privacy-section">
+        <h2>How We Use Information</h2>
 
-  <p>
-    All partners are required to maintain appropriate security and privacy
-    protections.
-  </p>
-</section>
+        <p>The information we collect helps us operate and improve ManifiX.</p>
 
-{/* Security */}
-<section>
-  <h2>Storage, Security & Retention</h2>
+        <ul>
+          <li>Provide and maintain ManifiX services</li>
+          <li>Enable secure authentication and account management</li>
+          <li>Deliver AI-powered conversational assistance</li>
+          <li>Improve wellness tools and personalized experiences</li>
+          <li>Provide support and respond to user inquiries</li>
+          <li>Detect fraud, misuse, or security risks</li>
+          <li>Analyze platform performance and improve features</li>
+        </ul>
+      </section>
 
-  <p>
-    ManifiX uses modern security practices to protect user data and prevent
-    unauthorized access.
-  </p>
+      {/* Sharing */}
+      <section className="privacy-section">
+        <h2>When We Share Information</h2>
 
-  <ul>
-    <li>Encrypted data transmission (HTTPS)</li>
-    <li>Secure cloud storage infrastructure</li>
-    <li>Authentication and role-based access controls</li>
-    <li>Monitoring systems to detect suspicious activity</li>
-    <li>Data retention only for the period necessary to operate services</li>
-  </ul>
-</section>
+        <p>
+          ManifiX does not sell or rent personal data. Information may only
+          be shared with trusted service providers when necessary to deliver
+          platform services.
+        </p>
 
-{/* Features */}
-<section>
-  <h2>ManifiX Platform Features</h2>
+        <ul>
+          <li>Cloud hosting infrastructure providers</li>
+          <li>Authentication and account management platforms</li>
+          <li>Analytics tools used to improve service performance</li>
+          <li>Payment processors handling subscription transactions</li>
+        </ul>
 
-  <p>
-    ManifiX includes intelligent productivity and wellness tools designed
-    to help users think clearly, stay focused, and maintain mental balance.
-  </p>
+        <p>
+          These providers are required to maintain strict data security
+          and confidentiality standards.
+        </p>
+      </section>
 
-  <ul>
-    <li>
-      <b>AI Conversation Assistant</b><br/>
-      ManifiX provides an AI-powered conversational assistant that allows
-      users to ask questions, explore ideas, generate content, and receive
-      intelligent responses in natural language conversations. The assistant
-      can help with learning, research, productivity, creativity, and
-      everyday problem solving.
-    </li>
+      {/* Security */}
+      <section className="privacy-section">
+        <h2>Storage, Security & Retention</h2>
 
-    <li>
-      <b>Magic16 Wellness System</b><br/>
-      Magic16 is a structured daily wellness routine designed to support
-      mental clarity and physical relaxation. The routine encourages users
-      to spend:
-      <br/><br/>
-      • <b>8 minutes of guided yoga</b> to relax the body and improve flexibility.<br/>
-      • <b>8 minutes of meditation</b> to calm the mind and improve focus.<br/><br/>
-      This simple 16-minute routine helps users maintain a balanced lifestyle
-      while using digital tools responsibly.
-    </li>
-  </ul>
-</section>
+        <p>
+          ManifiX uses modern security technologies and best practices
+          to protect user information.
+        </p>
 
-{/* Moderation */}
-<section>
-  <h2>Content Moderation & Safety</h2>
+        <ul>
+          <li>Encrypted HTTPS data transmission</li>
+          <li>Secure cloud infrastructure</li>
+          <li>Role-based access control systems</li>
+          <li>Security monitoring to detect suspicious activity</li>
+          <li>Data retention limited to operational necessity</li>
+        </ul>
+      </section>
 
-  <p>
-    To maintain a safe and respectful platform environment, ManifiX may use
-    automated moderation systems and manual review processes to detect
-    harmful, abusive, or illegal content.
-  </p>
+      {/* AI Transparency */}
+      <section className="privacy-section">
+        <h2>AI Transparency</h2>
 
-  <p>
-    These systems help ensure that the platform remains safe for all users.
-  </p>
-</section>
+        <p>
+          ManifiX includes AI-powered systems that generate responses
+          based on user prompts and inputs. AI responses are generated
+          automatically and may not always be perfectly accurate.
+        </p>
 
-{/* Rights */}
-<section>
-  <h2>User Rights & Controls</h2>
+        <p>
+          Users should evaluate AI-generated responses carefully and
+          use them as informational assistance rather than professional
+          advice.
+        </p>
+      </section>
 
-  <p>
-    Users have the right to control their personal data. Depending on the
-    applicable laws in your region, you may request:
-  </p>
+      {/* Features */}
+      <section className="privacy-section">
+        <h2>ManifiX Platform Features</h2>
 
-  <ul>
-    <li>Access to your stored personal data</li>
-    <li>Correction of inaccurate information</li>
-    <li>Deletion of your account or data</li>
-    <li>Export or portability of your data</li>
-  </ul>
+        <p>
+          ManifiX provides intelligent productivity and wellness tools
+          designed to support learning, creativity, and personal balance.
+        </p>
 
-  <p>
-    Requests can be submitted through our support contact.
-  </p>
-</section>
+        <ul>
+          <li>
+            <b>AI Conversation Assistant</b><br />
+            An intelligent conversational assistant that helps users ask
+            questions, generate ideas, explore topics, and receive helpful
+            responses through natural language interaction.
+          </li>
 
-{/* Cookies */}
-<section>
-  <h2>Cookies & Tracking Technologies</h2>
+          <li>
+            <b>Magic16 Wellness System</b><br />
+            A structured daily wellness routine encouraging a balanced
+            lifestyle through a simple 16-minute practice:
+            <br /><br />
+            • 8 minutes of guided yoga to relax the body and improve
+            flexibility.<br />
+            • 8 minutes of meditation to calm the mind and improve focus.
+          </li>
+        </ul>
+      </section>
 
-  <p>
-    ManifiX uses cookies and similar technologies to maintain login sessions,
-    improve performance, and analyze how users interact with the platform.
-  </p>
+      {/* Moderation */}
+      <section className="privacy-section">
+        <h2>Content Moderation & Safety</h2>
 
-  <p>
-    Essential cookies are required for the platform to function. Optional
-    analytics cookies may be used to improve services and can be controlled
-    through browser settings.
-  </p>
-</section>
+        <p>
+          To maintain a safe platform environment, ManifiX may use
+          automated systems and moderation processes to identify harmful,
+          abusive, or illegal content.
+        </p>
 
-{/* Payments */}
-<section>
-  <h2>Payments & Billing</h2>
+        <p>
+          These measures help ensure the platform remains respectful
+          and safe for all users.
+        </p>
+      </section>
 
-  <p>
-    Subscription payments are processed through trusted third-party payment
-    providers. ManifiX does not store sensitive financial details such as
-    credit card numbers or banking credentials.
-  </p>
+      {/* Rights */}
+      <section className="privacy-section">
+        <h2>User Rights & Controls</h2>
 
-  <p>
-    Payment processors follow industry security standards to protect
-    transaction data.
-  </p>
-</section>
+        <p>
+          Users may have rights under applicable privacy laws including:
+        </p>
 
-{/* Children */}
-<section>
-  <h2>Children & Family Safety</h2>
+        <ul>
+          <li>Access to stored personal data</li>
+          <li>Correction of inaccurate information</li>
+          <li>Deletion of account data</li>
+          <li>Data portability requests</li>
+        </ul>
 
-  <p>
-    ManifiX is designed to be accessible to users of all ages while maintaining
-    strong privacy protections. We prioritize safety standards and responsible
-    design practices to protect younger users.
-  </p>
-</section>
+        <p>
+          Requests can be submitted through our support contact.
+        </p>
+      </section>
 
-{/* Policy Updates */}
-<section>
-  <h2>Policy Changes</h2>
+      {/* Cookies */}
+      <section className="privacy-section">
+        <h2>Cookies & Tracking Technologies</h2>
 
-  <p>
-    ManifiX may update this Privacy Policy from time to time to reflect
-    improvements to services or changes in legal requirements.
-  </p>
+        <p>
+          ManifiX uses cookies and similar technologies to maintain
+          login sessions, improve performance, and analyze how users
+          interact with the platform.
+        </p>
 
-  <p>
-    When significant updates occur, users will be notified through the
-    website or email notifications.
-  </p>
-</section>
+        <p>
+          Users may control cookies through browser settings.
+        </p>
+      </section>
 
-{/* Contact */}
-<section>
-  <h2>Contact & Data Protection</h2>
+      {/* Payments */}
+      <section className="privacy-section">
+        <h2>Payments & Billing</h2>
 
-  <p>
-    If you have questions regarding this Privacy Policy or your personal
-    data, please contact us.
-  </p>
+        <p>
+          Subscription payments may be processed through trusted
+          third-party payment providers. ManifiX does not store sensitive
+          financial information such as credit card numbers.
+        </p>
+      </section>
 
-  <p>Email: manifixofficial@gmail.com</p>
-  <p>Website: https://manifixai.com</p>
-</section>
+      {/* Children */}
+      <section className="privacy-section">
+        <h2>Children & Family Safety</h2>
+
+        <p>
+          ManifiX services are intended for users aged 13 and above.
+          We prioritize privacy protections and responsible design
+          practices to protect younger users.
+        </p>
+      </section>
+
+      {/* Policy Updates */}
+      <section className="privacy-section">
+        <h2>Policy Changes</h2>
+
+        <p>
+          We may update this Privacy Policy periodically to reflect
+          improvements to our services or changes in legal requirements.
+        </p>
+
+        <p>
+          When significant updates occur, users will be notified through
+          the platform or email notifications where applicable.
+        </p>
+      </section>
+
+      {/* Disclaimer */}
+      <section className="privacy-section">
+        <h2>Disclaimer</h2>
+
+        <p>
+          ManifiX AI responses and wellness tools are provided for
+          informational and general guidance purposes only. They are
+          not intended to replace professional medical, legal, or
+          financial advice.
+        </p>
+      </section>
+
+      {/* Contact */}
+      <section className="privacy-section">
+        <h2>Contact & Data Protection</h2>
+
+        <p>
+          If you have questions about this Privacy Policy or your
+          personal data, please contact us:
+        </p>
+
+        <p>Email: manifixofficial@gmail.com</p>
+        <p>Website: https://manifixai.com</p>
+      </section>
 
       {/* Footer */}
-      <footer style={{marginTop:"40px", textAlign:"center", color:"#777"}}>
-        <p>© 2025 ManifiX AI. All rights reserved.</p>
+      <footer className="privacy-footer">
+        © 2025 ManifiX AI. All rights reserved.
       </footer>
 
     </div>
