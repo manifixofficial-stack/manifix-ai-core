@@ -1,207 +1,218 @@
-/* ---------- Root Layout ---------- */
+/* src/styles/Gpt.css */
 
-.gpt-container{
-  display:flex;
-  flex-direction:column;
-  height:100vh;
-  background:#f7f7f8;
+/* ---------------- Global App ---------------- */
+.gpt-app {
   font-family: "Inter", sans-serif;
+  color: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #1e293b; /* fallback */
+  transition: background 0.3s ease-in-out;
 }
 
-/* ---------- Chat Scroll Area ---------- */
-
-.gpt-chat{
-  flex:1;
-  overflow-y:auto;
-  padding:20px 0;
+/* ---------------- Chat Window ---------------- */
+.chat-window {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #7c3aed33 transparent;
 }
 
-/* Center messages */
-
-.chat-wrapper{
-  max-width:760px;
-  margin:auto;
-  padding:0 16px;
+/* Webkit scrollbar */
+.chat-window::-webkit-scrollbar {
+  width: 8px;
 }
 
-/* ---------- Message Row ---------- */
-
-.message{
-  display:flex;
-  margin-bottom:18px;
+.chat-window::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* User message right */
-
-.message.user{
-  justify-content:flex-end;
+.chat-window::-webkit-scrollbar-thumb {
+  background-color: #7c3aed66;
+  border-radius: 4px;
 }
 
-/* Bot message left */
-
-.message.bot{
-  justify-content:flex-start;
+/* ---------------- Message Rows ---------------- */
+.message-row {
+  display: flex;
+  width: 100%;
 }
 
-/* ---------- Message Bubble ---------- */
-
-.message-content{
-  max-width:75%;
-  padding:14px 16px;
-  border-radius:12px;
-  font-size:15px;
-  line-height:1.6;
-  position:relative;
+.message-row.user {
+  justify-content: flex-end;
 }
 
-/* Bot bubble */
+.message-row.bot {
+  justify-content: flex-start;
+}
 
-.message.bot .message-content{
-  background:#ffffff;
-  border:1px solid #e5e5e5;
+/* ---------------- Message Bubbles ---------------- */
+.message-bubble {
+  max-width: 70%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  word-break: break-word;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  animation: bubbleFade 0.3s ease-in-out;
+  transition: all 0.2s ease-in-out;
+}
+
+.message-bubble:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes bubbleFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* User bubble */
-
-.message.user .message-content{
-  background:#4b5cff;
-  color:white;
+.message-row.user .message-bubble {
+  background-color: #7c3aed33;
+  color: #000;
 }
 
-/* ---------- Copy Button ---------- */
-
-.copy-msg{
-  position:absolute;
-  bottom:-24px;
-  left:0;
-  font-size:12px;
-  border:none;
-  background:transparent;
-  color:#666;
-  cursor:pointer;
+/* Bot bubble */
+.message-row.bot .message-bubble {
+  background-color: #1e293b;
+  color: #fff;
 }
 
-.copy-msg:hover{
-  color:#000;
+/* ---------------- Typing / Thinking ---------------- */
+.typing {
+  font-style: italic;
+  opacity: 0.7;
+  display: inline-block;
 }
 
-/* ---------- Code Blocks ---------- */
-
-.code-block{
-  position:relative;
-  margin-top:10px;
+.typing::after {
+  content: " .";
+  animation: dots 1.5s steps(5, end) infinite;
 }
 
-.copy-code{
-  position:absolute;
-  right:10px;
-  top:10px;
-  font-size:12px;
-  padding:4px 8px;
-  border:none;
-  border-radius:6px;
-  background:#444;
-  color:#fff;
-  cursor:pointer;
+@keyframes dots {
+  0%, 20% { content: " ."; }
+  40% { content: " .."; }
+  60% { content: " ..."; }
+  80%, 100% { content: " ."; }
 }
 
-/* ---------- Typing Indicator ---------- */
-
-.typing{
-  font-style:italic;
-  color:#777;
+/* ---------------- Markdown Code ---------------- */
+.code-block {
+  background-color: #0f172a;
+  border-radius: 8px;
+  padding: 8px;
+  overflow-x: auto;
+  position: relative;
+  margin: 12px 0;
 }
 
-/* ---------- Chat Input Area ---------- */
-
-.chat-input-area{
-  border-top:1px solid #e5e5e5;
-  background:white;
-  padding:12px 16px;
+.code-block button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
-/* Input wrapper */
-
-.chat-input-wrapper{
-  max-width:760px;
-  margin:auto;
-  display:flex;
-  align-items:center;
-  gap:10px;
+code {
+  background-color: #e5e7eb;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: "Fira Code", monospace;
 }
 
-/* ---------- Textarea ---------- */
-
-.chat-input-wrapper textarea{
-  flex:1;
-  resize:none;
-  height:44px;
-  border:1px solid #ddd;
-  border-radius:10px;
-  padding:10px 12px;
-  font-size:14px;
-  outline:none;
+/* ---------------- Footer / Input ---------------- */
+.gpt-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background-color: #f3f4f6;
+  border-top: 1px solid #ddd;
 }
 
-.chat-input-wrapper textarea:focus{
-  border-color:#4b5cff;
+.gpt-footer textarea {
+  flex: 1;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  padding: 8px;
+  resize: none;
+  font-size: 14px;
 }
 
-/* ---------- Buttons ---------- */
-
-.send-btn{
-  background:#4b5cff;
-  color:white;
-  border:none;
-  padding:10px 16px;
-  border-radius:8px;
-  cursor:pointer;
-  font-weight:500;
+.gpt-footer button {
+  border-radius: 6px;
+  border: none;
+  padding: 8px 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
 }
 
-.send-btn:hover{
-  background:#3f4de0;
+.gpt-footer button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
-/* ---------- Mic Button ---------- */
-
-.mic-btn{
-  border:none;
-  background:#f1f1f1;
-  padding:8px;
-  border-radius:8px;
-  cursor:pointer;
+/* Send button */
+.gpt-footer button.send-btn {
+  background-color: #7c3aed;
+  color: #fff;
 }
 
-.mic-btn img{
-  width:18px;
+/* Stop button */
+.gpt-footer button.stop-btn {
+  background-color: #ef4444;
+  color: #fff;
 }
 
-.mic-btn.active{
-  background:#ff4b4b;
+/* Regenerate button */
+.gpt-footer button.regen-btn {
+  background-color: #f59e0b;
+  color: #fff;
 }
 
-/* ---------- Scrollbar ---------- */
-
-.gpt-chat::-webkit-scrollbar{
-  width:6px;
+/* ---------------- Upload Button ---------------- */
+.upload-btn {
+  cursor: pointer;
+  font-size: 18px;
 }
 
-.gpt-chat::-webkit-scrollbar-thumb{
-  background:#ccc;
-  border-radius:4px;
-}
-
-/* ---------- Mobile ---------- */
-
-@media (max-width:768px){
-
-  .message-content{
-    max-width:90%;
+/* ---------------- Responsive ---------------- */
+@media (max-width: 768px) {
+  .message-bubble {
+    max-width: 85%;
+  }
+  
+  .gpt-footer textarea {
+    font-size: 13px;
   }
 
-  .chat-wrapper{
-    padding:0 12px;
+  .gpt-footer button {
+    padding: 6px 10px;
+    font-size: 13px;
   }
+}
 
+/* ---------------- Smooth Image ---------------- */
+.message-bubble img {
+  max-width: 100%;
+  border-radius: 8px;
+  transition: all 0.3s ease-in-out;
+}
+
+.message-bubble img:hover {
+  transform: scale(1.02);
 }
