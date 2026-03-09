@@ -1,9 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import "../../styles/MainLayout.css";
 import logo from "../../assets/logo.png";
 
 export default function MainLayout() {
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
 
   const navItems = [
     {
@@ -15,7 +21,6 @@ export default function MainLayout() {
         </svg>
       ),
     },
-
     {
       name: "GPT AI",
       path: "/app/gpt",
@@ -25,7 +30,6 @@ export default function MainLayout() {
         </svg>
       ),
     },
-
     {
       name: "Magic16",
       path: "/app/magic16",
@@ -36,7 +40,6 @@ export default function MainLayout() {
         </svg>
       ),
     },
-
     {
       name: "Feedback",
       path: "/app/feedback",
@@ -46,7 +49,6 @@ export default function MainLayout() {
         </svg>
       ),
     },
-
     {
       name: "Billing",
       path: "/app/billing",
@@ -56,20 +58,24 @@ export default function MainLayout() {
         </svg>
       ),
     }
-
   ];
 
   return (
+    <div className={`chatgpt-layout ${sidebarOpen ? "open" : "closed"}`}>
 
-    <div className="chatgpt-layout">
-
-      {/* SIDEBAR */}
-
+      {/* Sidebar */}
       <aside className="chatgpt-sidebar">
 
         <div className="sidebar-header">
+
+          {/* Toggle Button */}
+          <button className="menu-toggle" onClick={toggleSidebar}>
+            =
+          </button>
+
           <img src={logo} alt="ManifiX Logo" className="sidebar-logo" />
           <h1 className="sidebar-title">ManifiX</h1>
+
         </div>
 
         <nav className="sidebar-nav">
@@ -84,15 +90,12 @@ export default function MainLayout() {
               }
             >
 
-              {/* Active indicator bar */}
               <span className="active-bar" />
 
-              {/* Icon */}
               <span className="link-icon">
                 {item.icon}
               </span>
 
-              {/* Text */}
               <span className="link-text">
                 {item.name}
               </span>
@@ -105,15 +108,11 @@ export default function MainLayout() {
 
       </aside>
 
-
-      {/* MAIN CONTENT */}
-
+      {/* Main Content */}
       <main className="chatgpt-main">
         <Outlet />
       </main>
 
     </div>
-
   );
-
 }
