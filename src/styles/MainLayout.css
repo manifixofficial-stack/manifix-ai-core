@@ -1,134 +1,180 @@
 /* src/styles/MainLayout.css */
 
-/* ------------------ General Layout ------------------ */
+/* ---------- Root Layout ---------- */
+
 .chatgpt-layout {
   display: flex;
-  min-height: 100vh;
-  font-family: 'Inter', sans-serif;
-  background-color: #f5f6fa;
+  height: 100vh;
+  font-family: "Inter", sans-serif;
+  background: #f5f6fa;
   color: #333;
+  overflow: hidden;
 }
 
-/* ------------------ Sidebar ------------------ */
+/* ---------- Sidebar ---------- */
+
 .chatgpt-sidebar {
   width: 260px;
-  background-color: #1e1e2f;
+  background: #1e1e2f;
   color: #fff;
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+  overflow: hidden;
 }
+
+/* Collapsed sidebar */
+
+.chatgpt-layout.closed .chatgpt-sidebar {
+  width: 70px;
+}
+
+/* ---------- Sidebar Header ---------- */
 
 .sidebar-header {
   display: flex;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 18px;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
+/* Toggle Button */
+
+.menu-toggle {
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.menu-toggle:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* Logo */
+
 .sidebar-logo {
-  width: 40px;
-  height: 40px;
-  margin-right: 10px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
 }
 
+/* Title */
+
 .sidebar-title {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 700;
-  color: #fff;
+  white-space: nowrap;
 }
 
+/* Hide text when sidebar closed */
+
+.chatgpt-layout.closed .sidebar-title,
+.chatgpt-layout.closed .link-text {
+  display: none;
+}
+
+/* ---------- Navigation ---------- */
+
 .sidebar-nav {
-  flex: 1;
-  margin-top: 20px;
   display: flex;
   flex-direction: column;
+  margin-top: 15px;
+  flex: 1;
 }
+
+/* Sidebar Links */
 
 .sidebar-link {
   display: flex;
   align-items: center;
-  padding: 14px 20px;
-  color: rgba(255,255,255,0.8);
-  font-weight: 500;
-  text-decoration: none;
-  transition: all 0.2s ease;
-  border-radius: 8px;
+  gap: 14px;
+  padding: 13px 18px;
   margin: 4px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: rgba(255,255,255,0.85);
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
+/* Hover effect */
+
 .sidebar-link:hover {
-  background-color: #3a3a55;
+  background: #343454;
   color: #fff;
   transform: translateX(3px);
 }
 
+/* Active page */
+
 .sidebar-link.active {
-  background-color: #4b5cff;
+  background: #4b5cff;
   color: #fff;
 }
 
+/* ---------- Icons ---------- */
+
 .link-icon {
-  margin-right: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  font-size: 1.2rem;
+  min-width: 22px;
 }
 
-/* Tooltip for icons */
+/* Tooltip */
+
 .link-icon::after {
   content: attr(data-tooltip);
   position: absolute;
-  left: 100%;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 70px;
   background: #4b5cff;
   color: #fff;
   padding: 4px 8px;
+  font-size: 12px;
   border-radius: 6px;
-  font-size: 0.75rem;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  margin-left: 10px;
+  transform: translateY(-50%);
+  top: 50%;
+  transition: opacity 0.2s ease;
 }
 
-.sidebar-link:hover .link-icon::after {
+.chatgpt-layout.closed .sidebar-link:hover .link-icon::after {
   opacity: 1;
-  transform: translateY(-50%) translateX(0);
 }
 
-.link-text {
-  flex: 1;
-}
+/* ---------- Main Content ---------- */
 
-/* ------------------ Main Content ------------------ */
 .chatgpt-main {
   flex: 1;
+  background: #f5f6fa;
   padding: 30px;
-  background-color: #f5f6fa;
   overflow-y: auto;
 }
 
-/* ------------------ Buttons ------------------ */
+/* ---------- Buttons ---------- */
+
 button {
-  background-color: #4b5cff;
+  background: #4b5cff;
   color: #fff;
   border: none;
   padding: 10px 18px;
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 button:hover {
-  background-color: #3a45d1;
+  background: #3a45d1;
   transform: translateY(-2px);
 }
 
@@ -136,13 +182,14 @@ button:active {
   transform: translateY(0);
 }
 
-/* ------------------ Scrollbar ------------------ */
+/* ---------- Scrollbar ---------- */
+
 .chatgpt-main::-webkit-scrollbar {
   width: 8px;
 }
 
 .chatgpt-main::-webkit-scrollbar-thumb {
-  background-color: rgba(75,92,255,0.5);
+  background: rgba(75,92,255,0.4);
   border-radius: 4px;
 }
 
@@ -150,13 +197,21 @@ button:active {
   background: transparent;
 }
 
-/* ------------------ Responsive ------------------ */
-@media screen and (max-width: 768px) {
+/* ---------- Responsive ---------- */
+
+@media (max-width: 768px) {
+
   .chatgpt-sidebar {
     width: 70px;
   }
 
-  .link-text {
+  .link-text,
+  .sidebar-title {
     display: none;
   }
+
+  .chatgpt-main {
+    padding: 20px;
+  }
+
 }
