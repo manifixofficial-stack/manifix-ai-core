@@ -1,183 +1,163 @@
-/* Layout */
+/* src/styles/MainLayout.css */
 
-.chatgpt-layout {
-  display: flex;
-  height: 100vh;
-  width: 100%;
-  font-family: "Inter", "Segoe UI", sans-serif;
-  background: #f9fafb;
+/* Reset & basic */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
 }
 
+.layout {
+  display: flex;
+  min-height: 100vh;
+  transition: all 0.3s ease;
+}
 
-
-/* SIDEBAR */
-
-.chatgpt-sidebar {
-  width: 240px;
-  background: #0f172a;
-  color: white;
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background: #111827; /* dark modern */
+  color: #fff;
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
+  overflow: hidden;
 }
 
-
-/* COLLAPSED SIDEBAR */
-
-.chatgpt-layout.closed .chatgpt-sidebar {
+.layout.closed .sidebar {
   width: 70px;
 }
 
-
-
-/* HEADER */
-
+/* Sidebar Header */
 .sidebar-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 1rem;
+  position: relative;
 }
-
-
-
-/* MENU BUTTON */
-
-.menu-toggle {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: white;
-  cursor: pointer;
-  padding: 4px 6px;
-}
-
-.menu-toggle:hover {
-  opacity: 0.7;
-}
-
-
-
-/* LOGO */
 
 .sidebar-logo {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
+  margin-right: 0.75rem;
 }
 
-
-
-/* TITLE */
-
 .sidebar-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-
-
-/* COLLAPSED TITLE */
-
-.chatgpt-layout.closed .sidebar-title {
-  display: none;
+.menu-toggle {
+  position: absolute;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
 }
 
-
-
-/* NAV */
-
+/* Sidebar Navigation */
 .sidebar-nav {
+  margin-top: 2rem;
   display: flex;
   flex-direction: column;
-  padding-top: 8px;
 }
 
-
-
-/* LINK */
-
 .sidebar-link {
-  position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  color: #cbd5e1;
+  padding: 0.75rem 1rem;
+  color: #d1d5db;
   text-decoration: none;
-  font-size: 15px;
+  position: relative;
   transition: all 0.2s ease;
 }
 
-
-
-/* HOVER */
-
 .sidebar-link:hover {
-  background: rgba(255,255,255,0.06);
-  color: white;
+  background: #1f2937;
+  color: #fff;
 }
-
-
-
-/* ACTIVE */
 
 .sidebar-link.active {
-  background: rgba(255,255,255,0.08);
-  color: white;
+  background: #2563eb;
+  color: #fff;
 }
 
+.link-icon {
+  margin-right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
 
-
-/* ACTIVE BAR */
+.layout.closed .link-text {
+  display: none;
+}
 
 .active-bar {
   position: absolute;
   left: 0;
-  height: 60%;
-  width: 3px;
-  background: #22c55e;
-  border-radius: 3px;
+  width: 4px;
+  height: 100%;
+  background: #2563eb;
   opacity: 0;
+  transition: all 0.3s ease;
 }
 
 .sidebar-link.active .active-bar {
   opacity: 1;
 }
 
-
-
-/* ICON */
-
-.link-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-}
-
-
-
-/* TEXT */
-
-.link-text {
-  white-space: nowrap;
-}
-
-
-
-/* COLLAPSED TEXT */
-
-.chatgpt-layout.closed .link-text {
-  display: none;
-}
-
-
-
-/* MAIN CONTENT */
-
-.chatgpt-main {
+/* Main Content */
+.main-content {
   flex: 1;
-  padding: 30px;
+  background: #f9fafb;
+  padding: 2rem;
   overflow-y: auto;
+  transition: margin-left 0.3s ease;
+}
+
+.layout.closed .main-content {
+  margin-left: 70px;
+}
+
+/* Scrollbar styling */
+.main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.main-content::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.5);
+  border-radius: 4px;
+}
+
+.main-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed;
+    left: -250px;
+    top: 0;
+    height: 100%;
+    z-index: 1000;
+  }
+  .layout.open .sidebar {
+    left: 0;
+  }
+  .main-content {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .sidebar-header h1 {
+    display: none;
+  }
 }
