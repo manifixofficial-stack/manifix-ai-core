@@ -22,7 +22,7 @@ export default function MainLayout() {
       ),
     },
     {
-      name: "GPT AI",
+      name: "ManifiX AI",
       path: "/app/gpt",
       icon: (
         <svg viewBox="0 0 24 24">
