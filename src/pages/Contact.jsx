@@ -1,6 +1,6 @@
 // src/pages/Contact.jsx
 import React, { useEffect, useState, useRef } from "react";
-import { supabase } from "../services/supabase"; // Using your safe Vite import
+import { supabase } from "../services/supabase";
 
 export default function Contact() {
   const [statusMessage, setStatusMessage] = useState("");
@@ -11,7 +11,7 @@ export default function Contact() {
   const messageRef = useRef();
   const canvasRef = useRef(null);
 
-  // 🌌 Sparkles Background
+  // 🌟 Sparkles Background
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -20,7 +20,7 @@ export default function Contact() {
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      stars = Array(100)
+      stars = Array(120)
         .fill()
         .map(() => ({
           x: Math.random() * canvas.width,
@@ -51,6 +51,7 @@ export default function Contact() {
     return () => window.removeEventListener("resize", resizeCanvas);
   }, []);
 
+  // Form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -81,7 +82,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-black via-[#0b0b0b] to-[#050505] text-white font-inter overflow-x-hidden">
+    <div className="relative min-h-screen bg-gradient-to-b from-[#0d0d0d] via-[#1b1b1b] to-[#050505] text-white font-inter overflow-x-hidden">
       <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none" />
 
       {/* Header */}
@@ -93,18 +94,13 @@ export default function Contact() {
             <p className="text-sm text-gray-400">AI.Magic16</p>
           </div>
         </a>
-        <nav className="flex items-center gap-6">
-          <a className="text-gray-400 hover:text-white transition" href="/about">About</a>
-          <a className="text-gray-400 hover:text-white transition" href="/dashboard">Dashboard</a>
-          <a className="btn btn-primary" href="/contact">Contact</a>
-        </nav>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-16 relative z-10">
         {/* Hero */}
         <section className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-4">
-            Let’s Connect with <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-300 to-white animate-pulse">ManifiX</span>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 animate-pulse">
+            Connect with <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-300 to-white">ManifiX</span>
           </h1>
           <p className="text-gray-400 max-w-2xl mx-auto">
             Join the evolution of creativity — from human wellness to AI-driven innovation.  
@@ -114,45 +110,46 @@ export default function Contact() {
 
         {/* Cards */}
         <section className="grid md:grid-cols-3 gap-8 mb-12">
-          <Card title="Partnerships" desc="Collaborate with ManifiX for wellness, AI, or creative ecosystems." mail="partners@manifixai.com" btnText="Email Us" />
-          <Card title="Investors" desc="Shape the ManifiX future — invest in the next-generation creative AI platform." mail="invest@manifixai.com" btnText="Contact IR Team" />
-          <Card title="Press & Media" desc="Get access to interviews, news, and official brand media kits." mail="press@manifixai.com" btnText="Reach PR Team" />
+          <ContactCard title="Partnerships" desc="Collaborate with ManifiX for wellness, AI, or creative ecosystems." mail="partners@manifixai.com" btnText="Email Us" />
+          <ContactCard title="Investors" desc="Shape the ManifiX future — invest in the next-gen creative AI platform." mail="invest@manifixai.com" btnText="Contact IR Team" />
+          <ContactCard title="Press & Media" desc="Get access to interviews, news, and official brand media kits." mail="press@manifixai.com" btnText="Reach PR Team" />
         </section>
 
         {/* Contact Form */}
-        <section className="card p-8 rounded-2xl max-w-3xl mx-auto">
-          <h2 className="text-2xl font-semibold mb-4 text-center">Send us a Message ✨</h2>
+        <section className="card p-8 rounded-3xl max-w-3xl mx-auto bg-gradient-to-tr from-[#1b1b1b]/80 to-[#0d0d0d]/80 backdrop-blur-lg shadow-lg border border-gray-700">
+          <h2 className="text-2xl font-semibold mb-6 text-center">Send us a Message</h2>
           <form onSubmit={handleSubmit} className="grid gap-4">
-            <input type="text" placeholder="Your Name" required ref={nameRef} className="p-3 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition" />
-            <input type="email" placeholder="Your Email" required ref={emailRef} className="p-3 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition" />
-            <textarea placeholder="Your Message" required rows={5} ref={messageRef} className="p-3 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition"></textarea>
+            <input type="text" placeholder="Your Name" required ref={nameRef} className="p-4 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition" />
+            <input type="email" placeholder="Your Email" required ref={emailRef} className="p-4 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition" />
+            <textarea placeholder="Your Message" required rows={5} ref={messageRef} className="p-4 rounded-xl bg-transparent border border-gray-700 focus:border-white outline-none transition"></textarea>
             <button type="submit" disabled={submitting} className="btn btn-primary w-max mx-auto">
               {submitting ? "Sending..." : "Send Message"}
             </button>
           </form>
-          {statusMessage && <p className="text-center text-sm mt-4">{statusMessage}</p>}
+          {statusMessage && <p className="text-center text-sm mt-4 animate-pulse">{statusMessage}</p>}
         </section>
 
         {/* Features Section */}
-        <section className="card p-10 rounded-2xl max-w-5xl mx-auto mt-20 text-center">
-          <h2 className="text-3xl font-bold mb-6">🌌 Discover the Power of ManifiX</h2>
+        <section className="card p-10 rounded-3xl max-w-5xl mx-auto mt-20 text-center bg-gradient-to-tr from-[#1b1b1b]/70 to-[#0d0d0d]/70 backdrop-blur-lg shadow-xl border border-gray-700">
+          <h2 className="text-3xl font-bold mb-6">Discover the Power of ManifiX</h2>
           <p className="text-gray-400 mb-10">
-            ManifiX is your digital partner for creation, manifestation, and transformation.  
+            ManifiX is your digital partner for creation, AI , and transformation.  
             Combining human energy with AI guidance to unlock your best self daily.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             <FeatureCard title="Magic16 Wellness System" desc="16 modules guiding daily energy, mindset, and goals for manifestation." />
             <FeatureCard title="GPT-AI Smart Companion" desc="Ask anything — GPT AI responds clearly, accurately, and soulfully." />
+            <FeatureCard title="Collaboration Network" desc="Connect with innovators, investors, and creators globally." />
           </div>
         </section>
 
         {/* Google Map */}
-        <section className="card p-6 rounded-2xl mt-12 max-w-5xl mx-auto">
+        <section className="card p-6 rounded-3xl mt-12 max-w-5xl mx-auto bg-gradient-to-tr from-[#1b1b1b]/70 to-[#0d0d0d]/70 backdrop-blur-lg shadow-xl border border-gray-700">
           <h2 className="text-2xl font-semibold mb-4 text-center">📍 Find ManifiX</h2>
           <p className="text-center text-gray-400 mb-6">
             Visit our headquarters or collaborate virtually — building the future together.
           </p>
-          <div className="rounded-2xl overflow-hidden border border-gray-800 shadow-lg" style={{ height: 400 }}>
+          <div className="rounded-3xl overflow-hidden border border-gray-800 shadow-lg" style={{ height: 400 }}>
             <iframe
               src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3650.904826903009!2d90.41251821536223!3d23.810331384558733!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3755b8b8ef7c0f2f%3A0xb73c6d053c75c8b1!2sGoogle!5e0!3m2!1sen!2sin!4v1698799999999!5m2!1sen!2sin"
               width="100%"
@@ -178,10 +175,10 @@ export default function Contact() {
 }
 
 // Reusable Components
-function Card({ title, desc, mail, btnText }) {
+function ContactCard({ title, desc, mail, btnText }) {
   return (
-    <div className="card p-6 rounded-2xl text-center">
-      <h3 className="font-semibold text-lg mb-2">{title}</h3>
+    <div className="p-6 rounded-3xl bg-gradient-to-tr from-[#1b1b1b]/70 to-[#0d0d0d]/70 backdrop-blur-lg border border-gray-700 shadow-lg hover:scale-105 transition transform duration-300 text-center">
+      <h3 className="font-semibold text-xl mb-2">{title}</h3>
       <p className="text-gray-400 text-sm mb-4">{desc}</p>
       <a href={`mailto:${mail}`} className="btn btn-outline">{btnText}</a>
     </div>
@@ -190,7 +187,7 @@ function Card({ title, desc, mail, btnText }) {
 
 function FeatureCard({ title, desc }) {
   return (
-    <div className="p-6 bg-transparent rounded-xl border border-gray-800 hover:border-white transition">
+    <div className="p-6 rounded-2xl bg-transparent border border-gray-700 hover:border-white transition transform hover:scale-105 duration-300 text-center">
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
       <p className="text-gray-400 text-sm">{desc}</p>
     </div>
