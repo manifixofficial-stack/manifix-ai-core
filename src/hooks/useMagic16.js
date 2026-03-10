@@ -4,21 +4,15 @@ import useDetection from "./useDetection";
 import useStreak from "./useStreak";
 import useVoice from "./useVoice";
 
-type Magic16Step = {
-  text: string;
-  duration: number;
-};
+export default function useMagic16(steps) {
 
-export default function useMagic16(steps: Magic16Step[]) {
   const [stepIndex, setStepIndex] = useState(0);
   const [completed, setCompleted] = useState(false);
-  const [scoreHistory, setScoreHistory] = useState<number[]>([]);
+  const [scoreHistory, setScoreHistory] = useState([]);
 
   const { speak } = useVoice();
   const { score, startDetection, stopDetection } = useDetection();
   const { streak, updateStreak } = useStreak();
-
-  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
 
   const {
     totalTime,
