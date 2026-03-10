@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
 import supabase from "../services/supabase";
-import { useApp } from "../context/AppContext";
+import { useApp } from "../context/AppProvider";
 
 import logo from "../assets/logo.png";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
