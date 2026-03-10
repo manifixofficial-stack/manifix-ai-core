@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
-import supabase from "../services/supabase";
 import { useApp } from "../context/AppProvider";
 
 import logo from "../assets/logo.png";
@@ -11,62 +10,19 @@ import "../styles/Login.css";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { user, setUser } = useApp();
+  const { user, setUser, loading: appLoading } = useApp();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ---------------- SPA-ready: Handle existing session ----------------
+  // ---------------- Redirect if already logged in ----------------
   useEffect(() => {
-    const init = async () => {
-      // Check if there is a session (page refresh safe)
-      const session = await authService.getSession();
-      if (session?.user) {
-        await handleUser(session.user);
-      }
-    };
-
-    init();
-
-    // Subscribe to auth state changes (OAuth redirect safe)
-    const unsubscribe = authService.onAuthChange(async (currentUser) => {
-      if (currentUser) {
-        await handleUser(currentUser);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // ---------------- Handle user login / new user ----------------
-  const handleUser = async (loggedUser) => {
-    try {
-      // Check if profile exists
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", loggedUser.id)
-        .single();
-
-      // If profile doesn't exist, create it
-      if (!profile) {
-        await supabase.from("profiles").insert({
-          id: loggedUser.id,
-          email: loggedUser.email,
-          created_at: new Date(),
-        });
-      }
-
-      // Set user in context & navigate
-      setUser(loggedUser);
+    if (!appLoading && user) {
       navigate("/app/gpt", { replace: true });
-    } catch (err) {
-      console.error("Profile handling failed:", err);
-      setError("Login failed, please try again");
     }
-  };
+  }, [user, appLoading, navigate]);
 
   // ---------------- Email login ----------------
   const handleEmailLogin = async () => {
@@ -78,7 +34,10 @@ export default function Login() {
 
       if (!loggedUser) throw new Error("Invalid credentials");
 
-      await handleUser(loggedUser);
+      // Set user in AppProvider context
+      setUser(loggedUser);
+
+      navigate("/app/gpt", { replace: true });
     } catch (err) {
       console.error(err);
       setError(err?.message || "Login failed");
@@ -93,20 +52,35 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // This will redirect to Google OAuth, user comes back via onAuthChange
+      // Redirect to Google login; on return, AppProvider handles user
       await authService.loginWithGoogle();
     } catch (err) {
       console.error(err);
-      setError(err.message || "Google login failed");
+      setError(err?.message || "Google login failed");
       setLoading(false);
     }
   };
 
+  // ---------------- Show loading while AppProvider checks session ----------------
+  if (appLoading) {
+    return (
+      <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
+        <div className="overlay" />
+        <div className="auth-card">
+          <div className="brand">
+            <img src={logo} alt="ManifiX Logo" className="logo" />
+            <h1>ManifiX</h1>
+            <p className="tagline">Intelligence meets Intention</p>
+          </div>
+          <p>Checking your session...</p>
+          <div className="spinner"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="auth-wrapper"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
+    <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
       <div className="overlay" />
 
       <div className="auth-card">
