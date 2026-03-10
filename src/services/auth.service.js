@@ -54,22 +54,23 @@ class AuthService {
   }
 
   // ===========================================
-  // 🔑 SIGN IN WITH GOOGLE (OAUTH)
-  // ===========================================
-  async loginWithGoogle() {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
+ // 🔑 SIGN IN WITH GOOGLE (OAUTH) - v2 redirect-safe
+async loginWithGoogle() {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin, // user returns here
+      },
+    });
 
-      if (error) throw error;
-    } catch (err) {
-      throw new Error(err.message || "Google login failed");
-    }
+    if (error) throw error;
+    // Do NOT expect user here, user comes back via onAuthStateChange
+    return data; 
+  } catch (err) {
+    throw new Error(err.message || "Google login failed");
   }
+}
 
   // ===========================================
   // 🚪 SIGN OUT
