@@ -1,60 +1,81 @@
-// src/hooks/useStreak.ts
+import { useState, useEffect, useRef, useCallback } from "react";
 
-import { useEffect, useState } from "react";
+const YOGA_DURATION = 8 * 60;       // 8 minutes
+const MEDITATION_DURATION = 8 * 60; // 8 minutes
+const TOTAL_DURATION = YOGA_DURATION + MEDITATION_DURATION;
 
-const STORAGE_KEY = "manifix_streak_data";
+export default function useTimer() {
+  const [time, setTime] = useState(0);
+  const [phase, setPhase] = useState("yoga"); 
+  const [running, setRunning] = useState(false);
+  const [completed, setCompleted] = useState(false);
 
-interface StreakData {
-  lastDate: string | null;
-  currentStreak: number;
-  longestStreak: number;
-}
+  const intervalRef = useRef(null);
 
-export default function useStreak() {
-  const [streak, setStreak] = useState<StreakData>({
-    lastDate: null,
-    currentStreak: 0,
-    longestStreak: 0,
-  });
+  // start timer
+  const start = useCallback(() => {
+    if (running) return;
+    setRunning(true);
+  }, [running]);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setStreak(JSON.parse(stored));
-    }
+  // pause timer
+  const pause = useCallback(() => {
+    setRunning(false);
   }, []);
 
-  const completeToday = () => {
-    const today = new Date().toDateString();
+  // reset timer
+  const reset = useCallback(() => {
+    setRunning(false);
+    setTime(0);
+    setPhase("yoga");
+    setCompleted(false);
+  }, []);
 
-    let { lastDate, currentStreak, longestStreak } = streak;
-
-    if (lastDate === today) return;
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (lastDate === yesterday.toDateString()) {
-      currentStreak += 1;
-    } else {
-      currentStreak = 1;
+  useEffect(() => {
+    if (!running) {
+      clearInterval(intervalRef.current);
+      return;
     }
 
-    longestStreak = Math.max(longestStreak, currentStreak);
+    intervalRef.current = setInterval(() => {
+      setTime((prev) => {
+        const next = prev + 1;
 
-    const updated = {
-      lastDate: today,
-      currentStreak,
-      longestStreak,
-    };
+        // switch phase
+        if (next === YOGA_DURATION) {
+          setPhase("meditation");
+        }
 
-    setStreak(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  };
+        // finish session
+        if (next >= TOTAL_DURATION) {
+          clearInterval(intervalRef.current);
+          setRunning(false);
+          setCompleted(true);
+          return TOTAL_DURATION;
+        }
+
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalRef.current);
+  }, [running]);
+
+  // progress %
+  const progress = Math.min((time / TOTAL_DURATION) * 100, 100);
+
+  // remaining time
+  const remaining = TOTAL_DURATION - time;
 
   return {
-    currentStreak: streak.currentStreak,
-    longestStreak: streak.longestStreak,
-    completeToday,
+    time,
+    phase,
+    progress,
+    remaining,
+    running,
+    completed,
+    start,
+    pause,
+    reset
   };
 }
