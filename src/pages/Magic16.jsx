@@ -284,9 +284,14 @@ export default function Magic16() {
       {!completed && (
 
         <Magic16Controls
-          start={start}
-          stop={stop}
-        />
+  onStart={start}
+  onPause={stop}
+  onResume={start}
+  onStop={restart}
+  isActive={!completed}
+  isPaused={false}
+  phase={isMeditation ? "MEDITATION" : "YOGA"}
+/>
 
       )}
 
