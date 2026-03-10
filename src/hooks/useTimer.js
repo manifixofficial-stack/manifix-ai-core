@@ -1,35 +1,43 @@
+// src/hooks/useTimer.js
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const YOGA_DURATION = 8 * 60;       // 8 minutes
-const MEDITATION_DURATION = 8 * 60; // 8 minutes
-const TOTAL_DURATION = YOGA_DURATION + MEDITATION_DURATION;
-
-export default function useTimer() {
-  const [time, setTime] = useState(0);
-  const [phase, setPhase] = useState("yoga"); 
+/**
+ * useTimer hook for Magic16
+ * Handles per-step timer for yoga & meditation
+ *
+ * @param {Array} steps - array of step objects { duration: number }
+ * @param {number} stepIndex - current step index
+ * @param {function} setStepIndex - function to update stepIndex
+ * @param {function} onFinish - callback when session ends
+ */
+export default function useTimer({ steps, stepIndex, setStepIndex, onFinish }) {
+  const [stepTime, setStepTime] = useState(steps[stepIndex]?.duration || 0); // seconds left in current step
+  const [totalTime, setTotalTime] = useState(0); // total seconds elapsed
   const [running, setRunning] = useState(false);
   const [completed, setCompleted] = useState(false);
 
   const intervalRef = useRef(null);
 
-  // start timer
-  const start = useCallback(() => {
-    if (running) return;
+  // Start timer
+  const startTimer = useCallback(() => {
+    if (running || completed) return;
     setRunning(true);
-  }, [running]);
+  }, [running, completed]);
 
-  // pause timer
-  const pause = useCallback(() => {
+  // Stop/pause timer
+  const stopTimer = useCallback(() => {
     setRunning(false);
   }, []);
 
-  // reset timer
-  const reset = useCallback(() => {
+  // Reset timer
+  const resetTimer = useCallback(() => {
+    clearInterval(intervalRef.current);
     setRunning(false);
-    setTime(0);
-    setPhase("yoga");
     setCompleted(false);
-  }, []);
+    setStepTime(steps[0]?.duration || 0);
+    setTotalTime(0);
+    setStepIndex(0);
+  }, [steps, setStepIndex]);
 
   useEffect(() => {
     if (!running) {
@@ -38,45 +46,45 @@ export default function useTimer() {
     }
 
     intervalRef.current = setInterval(() => {
-      setTime((prev) => {
-        const next = prev + 1;
-
-        // switch phase
-        if (next === YOGA_DURATION) {
-          setPhase("meditation");
+      setStepTime((prevStepTime) => {
+        // Step finished
+        if (prevStepTime <= 1) {
+          // Advance to next step if exists
+          if (stepIndex + 1 < steps.length) {
+            setStepIndex(stepIndex + 1);
+            return steps[stepIndex + 1].duration;
+          } else {
+            // Session completed
+            clearInterval(intervalRef.current);
+            setRunning(false);
+            setCompleted(true);
+            onFinish && onFinish();
+            return 0;
+          }
         }
-
-        // finish session
-        if (next >= TOTAL_DURATION) {
-          clearInterval(intervalRef.current);
-          setRunning(false);
-          setCompleted(true);
-          return TOTAL_DURATION;
-        }
-
-        return next;
+        return prevStepTime - 1;
       });
+
+      // Increment total time
+      setTotalTime((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(intervalRef.current);
-  }, [running]);
+  }, [running, stepIndex, steps, setStepIndex, onFinish]);
 
-  // progress %
-  const progress = Math.min((time / TOTAL_DURATION) * 100, 100);
+  // Progress: overall session %
+  const totalDuration = steps.reduce((acc, s) => acc + s.duration, 0);
+  const progress = Math.min((totalTime / totalDuration) * 100, 100);
 
-  // remaining time
-  const remaining = TOTAL_DURATION - time;
-
- return {
-  totalTime: TOTAL_DURATION,
-  stepTime: TOTAL_DURATION - time, // or customize per step
-  progress,
-  startTimer: start,
-  stopTimer: pause,
-  resetTimer: reset,
-  running,
-  completed,
-  phase,
-  time
-};
+  return {
+    stepTime,
+    totalTime,
+    totalDuration,
+    progress,
+    running,
+    completed,
+    startTimer,
+    stopTimer,
+    resetTimer
+  };
 }
