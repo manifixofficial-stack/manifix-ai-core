@@ -5,7 +5,6 @@ import useStreak from "./useStreak";
 import useVoice from "./useVoice";
 
 export default function useMagic16(steps) {
-
   const [stepIndex, setStepIndex] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [scoreHistory, setScoreHistory] = useState([]);
@@ -13,6 +12,12 @@ export default function useMagic16(steps) {
   const { speak } = useVoice();
   const { score, startDetection, stopDetection } = useDetection();
   const { streak, updateStreak } = useStreak();
+
+  function finish() {
+    stop();
+    updateStreak();
+    setCompleted(true);
+  }
 
   const {
     totalTime,
@@ -37,13 +42,17 @@ export default function useMagic16(steps) {
   const stop = useCallback(() => {
     stopTimer();
     stopDetection();
+    setCompleted(true); // ensure session ends properly
   }, [stopTimer, stopDetection]);
 
-  function finish() {
-    stop();
-    updateStreak();
-    setCompleted(true);
-  }
+  const restart = useCallback(() => {
+    setCompleted(false);
+    setStepIndex(0);
+    setScoreHistory([]);
+    resetTimer();
+    startDetection(); // restart detection
+    speak("Session restarted");
+  }, [resetTimer, startDetection, speak]);
 
   useEffect(() => {
     if (score !== null && score !== undefined) {
@@ -53,17 +62,8 @@ export default function useMagic16(steps) {
 
   const averageScore =
     scoreHistory.length > 0
-      ? Math.round(
-          scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length
-        )
+      ? Math.round(scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length)
       : 0;
-
-  const restart = () => {
-    setCompleted(false);
-    setStepIndex(0);
-    setScoreHistory([]);
-    resetTimer();
-  };
 
   return {
     start,
