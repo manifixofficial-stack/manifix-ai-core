@@ -67,15 +67,16 @@ export default function useTimer() {
   // remaining time
   const remaining = TOTAL_DURATION - time;
 
-  return {
-    time,
-    phase,
-    progress,
-    remaining,
-    running,
-    completed,
-    start,
-    pause,
-    reset
-  };
+ return {
+  totalTime: TOTAL_DURATION,
+  stepTime: TOTAL_DURATION - time, // or customize per step
+  progress,
+  startTimer: start,
+  stopTimer: pause,
+  resetTimer: reset,
+  running,
+  completed,
+  phase,
+  time
+};
 }
