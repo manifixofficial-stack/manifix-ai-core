@@ -1,50 +1,87 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import useTimer from "../useTimer";
+import useDetection from "../useDetection";
+import useStreak from "../useStreak";
+import useVoice from "../useVoice";
 
-const TOTAL_TIME = 16 * 60;
-const YOGA_TIME = 8 * 60;
+type Magic16Step = {
+  text: string;
+  duration: number;
+};
 
-export default function useMagic16() {
-  const [secondsLeft, setSecondsLeft] = useState(TOTAL_TIME);
-  const [phase, setPhase] = useState(null);
-  const [running, setRunning] = useState(false);
-  const intervalRef = useRef(null);
+export default function useMagic16(steps: Magic16Step[]) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  const [scoreHistory, setScoreHistory] = useState<number[]>([]);
+
+  const { speak } = useVoice();
+  const { score, startDetection, stopDetection } = useDetection();
+  const { streak, updateStreak } = useStreak();
+
+  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
+
+  const {
+    totalTime,
+    stepTime,
+    progress,
+    startTimer,
+    stopTimer,
+    resetTimer
+  } = useTimer({
+    steps,
+    stepIndex,
+    setStepIndex,
+    onFinish: finish
+  });
+
+  const start = useCallback(() => {
+    speak("Welcome to Magic16");
+    startTimer();
+    startDetection();
+  }, [startTimer, startDetection, speak]);
+
+  const stop = useCallback(() => {
+    stopTimer();
+    stopDetection();
+  }, [stopTimer, stopDetection]);
+
+  function finish() {
+    stop();
+    updateStreak();
+    setCompleted(true);
+  }
 
   useEffect(() => {
-    if (!running) return;
+    if (score !== null && score !== undefined) {
+      setScoreHistory((prev) => [...prev, score]);
+    }
+  }, [score]);
 
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(intervalRef.current);
-          setRunning(false);
-          setPhase(null);
-          return 0;
-        }
+  const averageScore =
+    scoreHistory.length > 0
+      ? Math.round(
+          scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length
+        )
+      : 0;
 
-        if (s === YOGA_TIME) setPhase("meditation");
-        return s - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(intervalRef.current);
-  }, [running]);
-
-  const startSession = () => {
-    setPhase("yoga");
-    setSecondsLeft(TOTAL_TIME);
-    setRunning(true);
-  };
-
-  const stopSession = () => {
-    setRunning(false);
-    setPhase(null);
+  const restart = () => {
+    setCompleted(false);
+    setStepIndex(0);
+    setScoreHistory([]);
+    resetTimer();
   };
 
   return {
-    phase,
-    startSession,
-    stopSession,
-    progress: ((TOTAL_TIME - secondsLeft) / TOTAL_TIME) * 100,
-    completed: secondsLeft === 0,
+    start,
+    stop,
+    restart,
+    progress,
+    score,
+    stepIndex,
+    stepTime,
+    totalTime,
+    completed,
+    averageScore,
+    streak
   };
 }
