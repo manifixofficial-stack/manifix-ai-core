@@ -1,60 +1,107 @@
-// src/hooks/useStreak.ts
+import { useState, useEffect } from "react";
 
-import { useEffect, useState } from "react";
-
-const STORAGE_KEY = "manifix_streak_data";
-
-interface StreakData {
-  lastDate: string | null;
-  currentStreak: number;
-  longestStreak: number;
-}
+const STORAGE_KEY = "manifix_magic16_streak";
 
 export default function useStreak() {
-  const [streak, setStreak] = useState<StreakData>({
-    lastDate: null,
-    currentStreak: 0,
-    longestStreak: 0,
-  });
 
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
+  const [lastCompletedDate, setLastCompletedDate] = useState(null);
+  const [todayCompleted, setTodayCompleted] = useState(false);
+
+  // Load streak data
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setStreak(JSON.parse(stored));
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    if (saved) {
+
+      const data = JSON.parse(saved);
+
+      setCurrentStreak(data.currentStreak || 0);
+      setLongestStreak(data.longestStreak || 0);
+      setLastCompletedDate(data.lastCompletedDate || null);
+
+      const today = new Date().toDateString();
+
+      if (data.lastCompletedDate === today) {
+        setTodayCompleted(true);
+      }
+
     }
+
   }, []);
 
+  // Save streak data
+  const saveData = (data) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  };
+
+  // Call when Magic16 session finishes
   const completeToday = () => {
+
     const today = new Date().toDateString();
 
-    let { lastDate, currentStreak, longestStreak } = streak;
+    if (todayCompleted) return;
 
-    if (lastDate === today) return;
+    let newStreak = currentStreak;
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    if (lastCompletedDate) {
 
-    if (lastDate === yesterday.toDateString()) {
-      currentStreak += 1;
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const yesterdayStr = yesterday.toDateString();
+
+      if (lastCompletedDate === yesterdayStr) {
+        newStreak += 1;
+      } else if (lastCompletedDate !== today) {
+        newStreak = 1;
+      }
+
     } else {
-      currentStreak = 1;
+      newStreak = 1;
     }
 
-    longestStreak = Math.max(longestStreak, currentStreak);
+    const newLongest = Math.max(newStreak, longestStreak);
 
     const updated = {
-      lastDate: today,
-      currentStreak,
-      longestStreak,
+      currentStreak: newStreak,
+      longestStreak: newLongest,
+      lastCompletedDate: today
     };
 
-    setStreak(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setCurrentStreak(newStreak);
+    setLongestStreak(newLongest);
+    setLastCompletedDate(today);
+    setTodayCompleted(true);
+
+    saveData(updated);
+  };
+
+  // Reset streak manually (optional)
+  const resetStreak = () => {
+
+    const reset = {
+      currentStreak: 0,
+      longestStreak: 0,
+      lastCompletedDate: null
+    };
+
+    setCurrentStreak(0);
+    setLongestStreak(0);
+    setLastCompletedDate(null);
+    setTodayCompleted(false);
+
+    saveData(reset);
   };
 
   return {
-    currentStreak: streak.currentStreak,
-    longestStreak: streak.longestStreak,
+    currentStreak,
+    longestStreak,
+    lastCompletedDate,
+    todayCompleted,
     completeToday,
+    resetStreak
   };
 }
