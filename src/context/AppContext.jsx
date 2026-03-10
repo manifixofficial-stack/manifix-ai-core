@@ -16,25 +16,72 @@ export const AppProvider = ({ children }) => {
   const [vibeScore, setVibeScore] = useState(5);
 
   // 🔄 AUTH HYDRATION
-  useEffect(() => {
-    let unsubscribe;
+useEffect(() => {
+  let unsubscribe;
 
-    const initAuth = async () => {
-      const currentUser = await authService.getCurrentUser();
+  const initAuth = async () => {
+    const currentUser = await authService.getCurrentUser();
+
+    if (currentUser) {
+      // Ensure profile exists
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUser.id)
+        .single();
+
+      if (!data) {
+        await supabase.from("profiles").insert({
+          id: currentUser.id,
+          email: currentUser.email,
+          streak: 0,
+          last_streak_date: null,
+          energy: 50,
+          vibe_score: 5,
+          created_at: new Date(),
+        });
+      }
+
       setUser(currentUser);
-      setLoading(false);
+    }
 
-      unsubscribe = authService.onAuthChange((updatedUser) => {
+    setLoading(false);
+
+    // Subscribe to auth changes (Google OAuth safe)
+    unsubscribe = authService.onAuthChange(async (updatedUser) => {
+      if (updatedUser) {
+        // Ensure profile exists
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", updatedUser.id)
+          .single();
+
+        if (!data) {
+          await supabase.from("profiles").insert({
+            id: updatedUser.id,
+            email: updatedUser.email,
+            streak: 0,
+            last_streak_date: null,
+            energy: 50,
+            vibe_score: 5,
+            created_at: new Date(),
+          });
+        }
+
         setUser(updatedUser);
-      });
-    };
+      } else {
+        setUser(null);
+      }
+    });
+  };
 
-    initAuth();
+  initAuth();
 
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
+  return () => {
+    if (unsubscribe) unsubscribe();
+  };
+}, []);
 
   // 📥 LOAD PROFILE
   useEffect(() => {
