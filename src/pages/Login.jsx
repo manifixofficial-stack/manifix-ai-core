@@ -44,24 +44,38 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setError("");
-    setLoading(true);
+ const handleGoogleLogin = async () => {
+  setError("");
+  setLoading(true);
 
-    try {
-      const loggedUser = await authService.loginWithGoogle();
+  try {
+    const loggedUser = await authService.loginWithGoogle(); // Supabase OAuth
 
-      if (loggedUser) {
-        setUser(loggedUser);
-        navigate("/app/gpt", { replace: true });
+    if (loggedUser) {
+      // ✅ Ensure first-time users are added to DB
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", loggedUser.id);
+
+      if (!data?.length) {
+        await supabase.from("profiles").insert({
+          id: loggedUser.id,
+          email: loggedUser.email,
+          created_at: new Date(),
+        });
       }
 
-    } catch {
-      setError("Google sign-in failed");
-    } finally {
-      setLoading(false);
+      setUser(loggedUser);
+      navigate("/app/gpt", { replace: true });
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setError("Google sign-in failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div
