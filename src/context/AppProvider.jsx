@@ -154,6 +154,7 @@ export const AppProvider = ({ children }) => {
     <AppContext.Provider value={{
       user,
       loading,
+      setUser,
       logout,
       streak,
       energy,
