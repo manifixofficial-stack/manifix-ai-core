@@ -8,10 +8,10 @@ import confetti from "canvas-confetti";
 import "../styles/magic16.css";
 import logo from "../../assets/logo.png";
 import PostureOverlay from "../components/Magic16/PostureOverlay";
-// Audio
+import BreathingCircle from "../components/Magic16/BreathingCircle";
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-// Yoga
+// Yoga Steps
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
 import yoga3 from "../assets/steps/yoga-03.png";
@@ -23,7 +23,7 @@ import yoga72 from "../assets/steps/yoga-07-2.png";
 import yoga73 from "../assets/steps/yoga-07-3.png";
 import yoga8 from "../assets/steps/yoga-08.png";
 
-// Meditation
+// Meditation Steps
 import med1 from "../assets/steps/med-01.png";
 import med2 from "../assets/steps/med-02.png";
 import med3 from "../assets/steps/med-03.png";
@@ -33,7 +33,6 @@ import med6 from "../assets/steps/med-06.png";
 import med7 from "../assets/steps/med-07.png";
 
 export default function Magic16() {
-
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
@@ -42,7 +41,7 @@ export default function Magic16() {
   const audioRef = useRef(null);
   const lastVoiceRef = useRef(0);
 
-  // ---------- Steps ----------
+  // -------------------- Steps --------------------
   const yogaSteps = [
     { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
     { img: yoga2, text: "Forward Fold. Relax your neck.", duration: 40 },
@@ -69,7 +68,7 @@ export default function Magic16() {
   const steps = [...yogaSteps, ...meditationSteps];
   const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
 
-  // ---------- State ----------
+  // -------------------- State --------------------
   const [stepIndex, setStepIndex] = useState(0);
   const [stepTime, setStepTime] = useState(steps[0].duration);
   const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
@@ -78,24 +77,23 @@ export default function Magic16() {
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(
+    Number(localStorage.getItem("magic16_streak") || 0)
+  );
 
-  // ---------- Voice ----------
+  // -------------------- Voice --------------------
   const speak = (text) => {
     if (!("speechSynthesis" in window)) return;
-
     const now = Date.now();
     if (now - lastVoiceRef.current < 4000) return;
-
     lastVoiceRef.current = now;
-
     const utter = new SpeechSynthesisUtterance(text);
     utter.rate = 0.95;
-
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   };
 
-  // ---------- Audio ----------
+  // -------------------- Audio --------------------
   const playAudio = () => {
     const audio = new Audio(meditationAudio);
     audio.loop = true;
@@ -104,7 +102,7 @@ export default function Magic16() {
     audioRef.current = audio;
   };
 
-  // ---------- Pose ----------
+  // -------------------- Pose Detection --------------------
   const angle = (A, B, C) => {
     const AB = { x: A.x - B.x, y: A.y - B.y };
     const CB = { x: C.x - B.x, y: C.y - B.y };
@@ -116,7 +114,6 @@ export default function Magic16() {
 
   const detect = useCallback(async () => {
     if (!detectorRef.current || !videoRef.current) return;
-
     const poses = await detectorRef.current.estimatePoses(videoRef.current);
     if (!poses?.length) return;
 
@@ -132,13 +129,11 @@ export default function Magic16() {
     }
   }, []);
 
-  // ---------- Camera Init ----------
+  // -------------------- Camera Init --------------------
   useEffect(() => {
-
     const init = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-
       videoRef.current.srcObject = stream;
 
       await tf.ready();
@@ -161,51 +156,34 @@ export default function Magic16() {
       clearInterval(timerRef.current);
       clearInterval(detectRef.current);
     };
-
   }, []);
 
-  // ---------- Timer ----------
+  // -------------------- Timer --------------------
   const start = () => {
-
     if (playing) return;
-
     setPlaying(true);
 
     playAudio();
-
     speak(steps[stepIndex].text);
 
     detectRef.current = setInterval(detect, 400);
 
     timerRef.current = setInterval(() => {
-
       setTotalTime((t) => t - 1);
-
       setStepTime((prev) => {
-
         if (prev <= 1) {
-
           const next = stepIndex + 1;
-
           if (next >= steps.length) {
             finish();
             return 0;
           }
-
           setStepIndex(next);
-          setStepTime(steps[next].duration);
           speak(steps[next].text);
-
           return steps[next].duration;
         }
-
         return prev - 1;
       });
-
-      setProgress(
-        Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100)
-      );
-
+      setProgress(Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100));
     }, 1000);
   };
 
@@ -216,101 +194,96 @@ export default function Magic16() {
     setPlaying(false);
   };
 
-  const finish = () => {
+  // -------------------- Streak & Finish --------------------
+  const updateStreak = () => {
+    const last = localStorage.getItem("magic16_last");
+    const today = new Date().toDateString();
+    if (last !== today) {
+      const newStreak = streak + 1;
+      localStorage.setItem("magic16_streak", newStreak);
+      localStorage.setItem("magic16_last", today);
+      setStreak(newStreak);
+    }
+  };
 
+  const finish = () => {
     stop();
 
-    confetti({
-      particleCount: 250,
-      spread: 120,
-      origin: { y: 0.6 },
-    });
-
+    confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
     speak("Congratulations! Ritual complete!");
+    updateStreak();
 
     setCompleted(true);
   };
 
-  // ---------- Completed ----------
-  if (completed) {
+  // -------------------- Share Result --------------------
+  const shareResult = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: "Magic16 Challenge",
+        text: `I completed Magic16 with ${score}% posture score!`,
+        url: "https://manifix.ai",
+      });
+    }
+  };
 
+  // -------------------- Completed UI --------------------
+  if (completed) {
     return (
       <div className="magic16-complete">
         <h1>🎉 Ritual Complete</h1>
-        <h2>Posture Score {score}%</h2>
-        <button onClick={() => window.location.reload()}>
-          Start Again
-        </button>
+        <h2>Posture Score: {score}%</h2>
+        <h2>🔥 Magic16 Streak: {streak} days</h2>
+        <button onClick={shareResult}>Share My Result</button>
+        <button onClick={() => window.location.reload()}>Start Again</button>
+        <div className="magic16-ai-coach">
+          <h3>AI Coach Analysis</h3>
+          <p>Tree Pose needs more balance. Focus on hip stability next time.</p>
+        </div>
       </div>
     );
   }
 
-  // ---------- UI ----------
+  // -------------------- Main UI --------------------
   return (
-
     <div className="magic16">
-
-      {loading && <div className="magic16-loading">Welcome Magic16❤️</div>}
+      {loading && <div className="magic16-loading">Preparing your yoga trainer...</div>}
 
       <img src={logo} className="magic16-logo" alt="logo" />
+
       <div className="magic16-camera">
-
-      <PostureOverlay />
-
-       </div>
-
-      <div className="magic16-step">
-
-        <img
-          src={steps[stepIndex].img}
-          alt="step"
-          className="magic16-step-img"
-        />
-
-        <h1 className="magic16-step-text">
-          {steps[stepIndex].text}
-        </h1>
-
+        <PostureOverlay />
       </div>
 
+      <div className="magic16-step">
+        <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
+        <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
+      </div>
+
+      {stepIndex >= yogaSteps.length && <BreathingCircle />}
+
       <div className="magic16-timers">
-
-        <p>Total Time {Math.floor(totalTime / 60)}:
-          {String(totalTime % 60).padStart(2, "0")}
+        <p>
+          Total Time: {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}
         </p>
-
-        <p>Step Time {stepTime}s</p>
-
+        <p>Step Time: {stepTime}s</p>
       </div>
 
       <div className="magic16-progress">
         <div style={{ width: `${progress}%` }} />
       </div>
 
-      {playing && (
-        <div className="magic16-score">
-          Posture Score {score}%
-        </div>
-      )}
+      {playing && <div className="magic16-score">Posture Score: {score}%</div>}
 
       <div className="magic16-controls">
-
         {!playing ? (
           <button onClick={start}>Start Magic16</button>
         ) : (
           <button onClick={stop}>Pause</button>
         )}
-
       </div>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        hidden
-      />
-
+      <video ref={videoRef} autoPlay playsInline muted hidden />
     </div>
   );
 }
