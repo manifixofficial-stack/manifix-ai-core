@@ -23,9 +23,6 @@ export { default as useGuidedPrograms } from "./useGuidedPrograms";
 export { default as useAchievements } from "./useAchievements";
 export { default as useStreak } from "./useStreak";
 
-// ==================== Vibe System ====================
-export { default as useVibe } from "./useVibe";
-
 // ==================== Utilities ====================
 export { default as useFeatureFlags } from "./useFeatureFlags";
 export { default as useErrorHandler } from "./useErrorHandler";
