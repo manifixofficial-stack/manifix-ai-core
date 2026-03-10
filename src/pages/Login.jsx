@@ -1,178 +1,176 @@
-// src/pages/Login.jsx
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import supabase from "../services/supabase";
-import authService from "../services/auth.service";
-import { useApp } from "../context/AppContext";
+/* ==========================================================
+ * ManifiX — Auth Service (SUPABASE v2 PRODUCTION READY)
+ * ----------------------------------------------------------
+ * ✔ Supabase v2 compatible
+ * ✔ SPA-safe (refresh-proof)
+ * ✔ Web + Mobile stable
+ * ✔ Prevents white screen on reload
+ * ✔ Correct auth listener cleanup
+ * ✔ Normalized error handling
+ * ========================================================== */
 
-import logo from "../assets/logo.png";
-import bgImage from "../assets/backgrounds/dark-gradient.jpg";
-import "../styles/Login.css";
+import supabase from "./supabase";
 
-export default function Login() {
-  const navigate = useNavigate();
-  const { user, setUser } = useApp();
+// ===============================================
+// 🔒 AUTH SERVICE CLASS
+// ===============================================
+class AuthService {
+  // ===========================================
+  // 🔐 SIGN UP
+  // ===========================================
+  async signUp(email, password, metadata = {}) {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: metadata },
+      });
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+      if (error) throw error;
 
-  // ------------------------- SPA-safe session check -------------------------
-  useEffect(() => {
-    const init = async () => {
-      // Check if session exists (after redirect from OAuth)
-      const { data: { session } } = await supabase.auth.getSession();
+      return data?.user || null;
+    } catch (err) {
+      throw new Error(err.message || "Sign up failed");
+    }
+  }
 
-      if (session?.user) {
-        await handleUser(session.user);
-      }
-    };
+  // ===========================================
+  // 🔑 SIGN IN (EMAIL + PASSWORD)
+  // ===========================================
+  async login(email, password) {
+    try {
+      const { data, error } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-    init();
+      if (error) throw error;
 
-    // Subscribe to auth state changes
-    const unsubscribe = authService.onAuthChange(async (user) => {
-      if (user) await handleUser(user);
+      return data?.user || null;
+    } catch (err) {
+      throw new Error(err.message || "Login failed");
+    }
+  }
+
+  // ===========================================
+ // 🔑 SIGN IN WITH GOOGLE (OAUTH) - v2 redirect-safe
+async loginWithGoogle() {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin, // user returns here
+      },
     });
 
-    return () => unsubscribe();
-  }, []);
-
-  // ------------------------- Handle user (new or existing) -------------------------
-  const handleUser = async (user) => {
-    try {
-      // Create profile if first-time login
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (!data) {
-        await supabase.from("profiles").insert({
-          id: user.id,
-          email: user.email,
-          created_at: new Date(),
-        });
-      }
-
-      setUser(user);
-      navigate("/app/gpt", { replace: true });
-    } catch (err) {
-      console.error("Profile creation failed:", err);
-      setError("Failed to initialize user profile");
-    }
-  };
-
-  // ------------------------- Email/Password Login -------------------------
-  const handleEmailLogin = async () => {
-    setError("");
-    setLoading(true);
-
-    try {
-      const loggedUser = await authService.login(email.trim(), password);
-
-      if (loggedUser) {
-        await handleUser(loggedUser);
-      }
-    } catch (err) {
-      setError(err?.message || "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ------------------------- Google Login -------------------------
-  const handleGoogleLogin = async () => {
-    setError("");
-    setLoading(true);
-
-    try {
-      // 🔹 Trigger OAuth redirect
-      await authService.loginWithGoogle();
-      // Note: Do NOT expect user immediately. handleUser() will run after redirect.
-    } catch (err) {
-      console.error(err);
-      setError(err.message || "Google login failed");
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div
-      className="auth-wrapper"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
-      <div className="overlay" />
-
-      <div className="auth-card">
-        {/* BRAND */}
-        <div className="brand">
-          <img src={logo} alt="ManifiX Logo" className="logo" />
-          <h1>ManifiX</h1>
-          <p className="tagline">Intelligence meets Intention</p>
-        </div>
-
-        <h2>Welcome Back</h2>
-
-        {/* GOOGLE LOGIN */}
-        <button
-          className="google-btn"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-        >
-          <img
-            src="https://img.icons8.com/color/24/google-logo.png"
-            alt="Google"
-          />
-          {loading ? "Processing..." : "Continue with Google"}
-        </button>
-
-        {/* EMAIL INPUT */}
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={loading}
-        />
-
-        {/* PASSWORD INPUT */}
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={loading}
-        />
-
-        {error && <p className="error">{error}</p>}
-
-        {/* EMAIL LOGIN BUTTON */}
-        <button
-          className="primary-btn"
-          onClick={handleEmailLogin}
-          disabled={loading}
-        >
-          {loading ? "Processing..." : "Login"}
-        </button>
-
-        {/* LINKS */}
-        <p className="microcopy">
-          Forgot password?{" "}
-          <span className="link" onClick={() => navigate("/forgot-password")}>
-            Reset here
-          </span>
-        </p>
-
-        <p className="microcopy">
-          Don’t have an account?{" "}
-          <span className="link" onClick={() => navigate("/signup")}>
-            Sign Up
-          </span>
-        </p>
-      </div>
-    </div>
-  );
+    if (error) throw error;
+    // Do NOT expect user here, user comes back via onAuthStateChange
+    return data; 
+  } catch (err) {
+    throw new Error(err.message || "Google login failed");
+  }
 }
+
+  // ===========================================
+  // 🚪 SIGN OUT
+  // ===========================================
+  async signOut() {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      throw new Error(err.message || "Logout failed");
+    }
+  }
+
+  // ===========================================
+  // 👤 GET CURRENT USER (SAFE v2)
+  // ===========================================
+  async getCurrentUser() {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) return null;
+      return data?.user || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ===========================================
+  // 🧾 GET CURRENT SESSION
+  // ===========================================
+  async getSession() {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) return null;
+      return data?.session || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ===========================================
+  // 🔁 AUTH STATE LISTENER (v2 SAFE)
+  // ===========================================
+  onAuthChange(callback) {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      callback(session?.user || null);
+    });
+
+    // Proper cleanup
+    return () => subscription.unsubscribe();
+  }
+
+  // ===========================================
+  // 🔄 RESET PASSWORD (EMAIL LINK)
+  // ===========================================
+  async resetPassword(email) {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      throw new Error(err.message || "Password reset failed");
+    }
+  }
+
+  // ===========================================
+  // 🔐 UPDATE PASSWORD
+  // ===========================================
+  async updatePassword(newPassword) {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      throw new Error(err.message || "Password update failed");
+    }
+  }
+
+  // ===========================================
+  // 🧹 FORCE LOGOUT (Failsafe)
+  // ===========================================
+  async forceLogout() {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      console.warn("ManifiX: force logout fallback executed");
+    }
+  }
+}
+
+// ===============================================
+// 🔒 SINGLETON EXPORT
+// ===============================================
+const authService = new AuthService();
+export default authService;
