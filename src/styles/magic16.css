@@ -1,253 +1,289 @@
-/* src/styles/magic16.css */
+// src/pages/Magic16.jsx
+import { useRef, useEffect, useState, useCallback } from "react";
+import * as posedetection from "@tensorflow-models/pose-detection";
+import "@tensorflow/tfjs-backend-webgl";
+import * as tf from "@tensorflow/tfjs";
+import confetti from "canvas-confetti";
 
-/* ---------------- Global Reset ---------------- */
-.magic16,
-.magic16 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: "Inter", sans-serif;
-}
+import "../styles/magic16.css";
+import logo from "../../assets/logo.png";
+import PostureOverlay from "../components/Magic16/PostureOverlay";
+import BreathingCircle from "../components/Magic16/BreathingCircle";
+import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-.magic16 {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #fdfbfb, #ebedee);
-  color: #333;
-  position: relative;
-  overflow: hidden;
-  padding: 20px;
-  transition: all 0.4s ease-in-out;
-}
+// Yoga Steps
+import yoga1 from "../assets/steps/yoga-01.png";
+import yoga2 from "../assets/steps/yoga-02.png";
+import yoga3 from "../assets/steps/yoga-03.png";
+import yoga4 from "../assets/steps/yoga-04.png";
+import yoga5 from "../assets/steps/yoga-05.png";
+import yoga6 from "../assets/steps/yoga-06.png";
+import yoga71 from "../assets/steps/yoga-07-1.png";
+import yoga72 from "../assets/steps/yoga-07-2.png";
+import yoga73 from "../assets/steps/yoga-07-3.png";
+import yoga8 from "../assets/steps/yoga-08.png";
 
-/* ---------------- Loading ---------------- */
-.magic16-loading {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 40px 0;
-  color: #6c63ff;
-  animation: pulse 1.5s infinite;
-  text-align: center;
-}
+// Meditation Steps
+import med1 from "../assets/steps/med-01.png";
+import med2 from "../assets/steps/med-02.png";
+import med3 from "../assets/steps/med-03.png";
+import med4 from "../assets/steps/med-04.png";
+import med5 from "../assets/steps/med-05.png";
+import med6 from "../assets/steps/med-06.png";
+import med7 from "../assets/steps/med-07.png";
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.05); }
-}
+export default function Magic16() {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const detectorRef = useRef(null);
+  const timerRef = useRef(null);
+  const detectRef = useRef(null);
+  const audioRef = useRef(null);
+  const lastVoiceRef = useRef(0);
 
-/* ---------------- Logo ---------------- */
-.magic16-logo {
-  width: 120px;
-  height: auto;
-  margin-bottom: 20px;
-  animation: logoBounce 1s ease-in-out;
-}
+  // -------------------- Steps --------------------
+  const yogaSteps = [
+    { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
+    { img: yoga2, text: "Forward Fold. Relax your neck.", duration: 40 },
+    { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 40 },
+    { img: yoga4, text: "Plank Pose. Engage your core.", duration: 60 },
+    { img: yoga5, text: "Cobra Pose. Open your chest.", duration: 40 },
+    { img: yoga6, text: "Downward Dog. Stretch fully.", duration: 60 },
+    { img: yoga71, text: "Warrior Pose 1. Strong stance.", duration: 40 },
+    { img: yoga72, text: "Warrior Pose 2. Focus stability.", duration: 40 },
+    { img: yoga73, text: "Warrior Pose 3. Balance.", duration: 40 },
+    { img: yoga8, text: "Tree Pose. Deep focus.", duration: 60 },
+  ];
 
-@keyframes logoBounce {
-  0% { transform: translateY(-20px); opacity: 0; }
-  50% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-5px); }
-}
+  const meditationSteps = [
+    { img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
+    { img: med2, text: "Focus on your breath.", duration: 60 },
+    { img: med3, text: "Release tension.", duration: 120 },
+    { img: med4, text: "Feel calm energy.", duration: 60 },
+    { img: med5, text: "Let thoughts pass.", duration: 60 },
+    { img: med6, text: "Stay present.", duration: 60 },
+    { img: med7, text: "Visualize success.", duration: 60 },
+  ];
 
-/* ---------------- Camera ---------------- */
-.magic16-camera {
-  position: relative;
-  width: 320px;
-  height: 240px;
-  margin-bottom: 20px;
-  border-radius: 15px;
-  overflow: hidden;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-  background: #000;
-  transition: all 0.3s ease;
-}
+  const steps = [...yogaSteps, ...meditationSteps];
+  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
 
-.magic16-camera video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 15px;
-}
+  // -------------------- State --------------------
+  const [stepIndex, setStepIndex] = useState(0);
+  const [stepTime, setStepTime] = useState(steps[0].duration);
+  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [score, setScore] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(
+    Number(localStorage.getItem("magic16_streak") || 0)
+  );
 
-/* ---------------- Steps ---------------- */
-.magic16-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 20px;
-  animation: fadeInUp 0.6s ease forwards;
-}
+  // -------------------- Voice --------------------
+  const speak = (text) => {
+    if (!("speechSynthesis" in window)) return;
+    const now = Date.now();
+    if (now - lastVoiceRef.current < 4000) return;
+    lastVoiceRef.current = now;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  };
 
-.magic16-step-img {
-  width: 220px;
-  height: auto;
-  border-radius: 15px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-  margin-bottom: 10px;
-  transition: transform 0.3s ease;
-}
+  // -------------------- Audio --------------------
+  const playAudio = () => {
+    const audio = new Audio(meditationAudio);
+    audio.loop = true;
+    audio.volume = 0.4;
+    audio.play().catch(() => {});
+    audioRef.current = audio;
+  };
 
-.magic16-step-img:hover {
-  transform: scale(1.05);
-}
+  // -------------------- Pose Detection --------------------
+  const angle = (A, B, C) => {
+    const AB = { x: A.x - B.x, y: A.y - B.y };
+    const CB = { x: C.x - B.x, y: C.y - B.y };
+    const dot = AB.x * CB.x + AB.y * CB.y;
+    const magAB = Math.hypot(AB.x, AB.y);
+    const magCB = Math.hypot(CB.x, CB.y);
+    return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
+  };
 
-.magic16-step-text {
-  font-size: 1.2rem;
-  font-weight: 600;
-  text-align: center;
-  color: #444;
-  max-width: 280px;
-}
+  const detect = useCallback(async () => {
+    if (!detectorRef.current || !videoRef.current) return;
+    const poses = await detectorRef.current.estimatePoses(videoRef.current);
+    if (!poses?.length) return;
 
-@keyframes fadeInUp {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
+    const kp = poses[0].keypoints;
+    const hip = kp.find((k) => k.name === "left_hip");
+    const knee = kp.find((k) => k.name === "left_knee");
+    const ankle = kp.find((k) => k.name === "left_ankle");
 
-/* ---------------- Breathing Circle ---------------- */
-.magic16-step > .breathing-circle,
-.magic16-step + .breathing-circle {
-  margin: 20px 0;
-}
+    if (hip && knee && ankle) {
+      const a = angle(hip, knee, ankle);
+      const sc = Math.max(0, 100 - Math.abs(a - 90));
+      setScore(Math.round(sc));
+    }
+  }, []);
 
-/* ---------------- Timers ---------------- */
-.magic16-timers {
-  display: flex;
-  gap: 20px;
-  font-weight: 500;
-  font-size: 1rem;
-  color: #555;
-  margin-bottom: 15px;
-}
+  // -------------------- Camera Init --------------------
+  useEffect(() => {
+    const init = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
 
-.magic16-timers p {
-  background: rgba(108, 99, 255, 0.1);
-  padding: 6px 12px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(108, 99, 255, 0.2);
-}
+      await tf.ready();
+      await tf.setBackend("webgl");
 
-/* ---------------- Progress ---------------- */
-.magic16-progress {
-  width: 90%;
-  height: 10px;
-  background: rgba(108, 99, 255, 0.2);
-  border-radius: 12px;
-  overflow: hidden;
-  margin-bottom: 15px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-}
+      detectorRef.current = await posedetection.createDetector(
+        posedetection.SupportedModels.MoveNet,
+        { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
+      );
 
-.magic16-progress > div {
-  height: 100%;
-  background: linear-gradient(90deg, #6c63ff, #a29bfe);
-  border-radius: 12px;
-  transition: width 0.4s ease-in-out;
-}
+      setLoading(false);
+      speak("Welcome to Magic16");
+    };
 
-/* ---------------- Score ---------------- */
-.magic16-score {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #6c63ff;
-  margin-bottom: 15px;
-  animation: popIn 0.5s ease forwards;
-}
+    init();
 
-@keyframes popIn {
-  0% { transform: scale(0.8); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      audioRef.current?.pause();
+      clearInterval(timerRef.current);
+      clearInterval(detectRef.current);
+    };
+  }, []);
 
-/* ---------------- Controls ---------------- */
-.magic16-controls {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 20px;
-}
+  // -------------------- Timer --------------------
+  const start = () => {
+    if (playing) return;
+    setPlaying(true);
 
-.magic16-controls button {
-  padding: 10px 20px;
-  font-size: 1rem;
-  font-weight: 600;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(135deg, #6c63ff, #a29bfe);
-  color: #fff;
-  transition: all 0.3s ease;
-  box-shadow: 0 6px 15px rgba(108, 99, 255, 0.3);
-}
+    playAudio();
+    speak(steps[stepIndex].text);
 
-.magic16-controls button:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 8px 20px rgba(108, 99, 255, 0.4);
-}
+    detectRef.current = setInterval(detect, 400);
 
-/* ---------------- Completed ---------------- */
-.magic16-complete {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  text-align: center;
-  background: linear-gradient(135deg, #fdfbfb, #ebedee);
-  animation: fadeIn 0.6s ease forwards;
-}
+    timerRef.current = setInterval(() => {
+      setTotalTime((t) => t - 1);
+      setStepTime((prev) => {
+        if (prev <= 1) {
+          const next = stepIndex + 1;
+          if (next >= steps.length) {
+            finish();
+            return 0;
+          }
+          setStepIndex(next);
+          speak(steps[next].text);
+          return steps[next].duration;
+        }
+        return prev - 1;
+      });
+      setProgress(Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100));
+    }, 1000);
+  };
 
-.magic16-complete h1 {
-  font-size: 2rem;
-  color: #6c63ff;
-  margin-bottom: 10px;
-  animation: bounceIn 0.8s ease forwards;
-}
+  const stop = () => {
+    clearInterval(timerRef.current);
+    clearInterval(detectRef.current);
+    audioRef.current?.pause();
+    setPlaying(false);
+  };
 
-.magic16-complete h2 {
-  font-size: 1.2rem;
-  margin-bottom: 15px;
-  color: #555;
-}
+  // -------------------- Streak & Finish --------------------
+  const updateStreak = () => {
+    const last = localStorage.getItem("magic16_last");
+    const today = new Date().toDateString();
+    if (last !== today) {
+      const newStreak = streak + 1;
+      localStorage.setItem("magic16_streak", newStreak);
+      localStorage.setItem("magic16_last", today);
+      setStreak(newStreak);
+    }
+  };
 
-.magic16-complete button {
-  padding: 12px 24px;
-  margin: 5px;
-  font-weight: 600;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(135deg, #6c63ff, #a29bfe);
-  color: #fff;
-  transition: all 0.3s ease;
-}
+  const finish = () => {
+    stop();
 
-.magic16-complete button:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 8px 20px rgba(108, 99, 255, 0.4);
-}
+    confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
+    speak("Congratulations! Ritual complete!");
+    updateStreak();
 
-/* AI Coach */
-.magic16-ai-coach {
-  margin-top: 20px;
-  padding: 15px 20px;
-  border-radius: 15px;
-  background: rgba(108, 99, 255, 0.1);
-  color: #444;
-  max-width: 320px;
-  box-shadow: 0 4px 15px rgba(108, 99, 255, 0.15);
-}
+    setCompleted(true);
+  };
 
-/* ---------------- Animations ---------------- */
-@keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
+  // -------------------- Share Result --------------------
+  const shareResult = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: "Magic16 Challenge",
+        text: `I completed Magic16 with ${score}% posture score!`,
+        url: "https://manifix.ai",
+      });
+    }
+  };
 
-@keyframes bounceIn {
-  0% { transform: scale(0.5); opacity: 0; }
-  60% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(1); }
+  // -------------------- Completed UI --------------------
+  if (completed) {
+    return (
+      <div className="magic16-complete">
+        <h1>🎉 Ritual Complete</h1>
+        <h2>Posture Score: {score}%</h2>
+        <h2>🔥 Magic16 Streak: {streak} days</h2>
+        <button onClick={shareResult}>Share My Result</button>
+        <button onClick={() => window.location.reload()}>Start Again</button>
+        <div className="magic16-ai-coach">
+          <h3>AI Coach Analysis</h3>
+          <p>Tree Pose needs more balance. Focus on hip stability next time.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------- Main UI --------------------
+  return (
+    <div className="magic16">
+      {loading && <div className="magic16-loading">Preparing your yoga trainer...</div>}
+
+      <img src={logo} className="magic16-logo" alt="logo" />
+
+      <div className="magic16-camera">
+        <PostureOverlay />
+      </div>
+
+      <div className="magic16-step">
+        <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
+        <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
+      </div>
+
+      {stepIndex >= yogaSteps.length && <BreathingCircle />}
+
+      <div className="magic16-timers">
+        <p>
+          Total Time: {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}
+        </p>
+        <p>Step Time: {stepTime}s</p>
+      </div>
+
+      <div className="magic16-progress">
+        <div style={{ width: `${progress}%` }} />
+      </div>
+
+      {playing && <div className="magic16-score">Posture Score: {score}%</div>}
+
+      <div className="magic16-controls">
+        {!playing ? (
+          <button onClick={start}>Start Magic16</button>
+        ) : (
+          <button onClick={stop}>Pause</button>
+        )}
+      </div>
+
+      <video ref={videoRef} autoPlay playsInline muted hidden />
+    </div>
+  );
 }
