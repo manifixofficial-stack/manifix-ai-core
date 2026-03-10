@@ -1,4 +1,4 @@
-// src/hooks/useDetection.ts
+// src/hooks/useDetection.js
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as posedetection from "@tensorflow-models/pose-detection";
