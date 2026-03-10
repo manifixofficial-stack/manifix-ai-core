@@ -1,8 +1,8 @@
 // src/pages/Login.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import authService from "../services/auth.service";
 import supabase from "../services/supabase";
+import authService from "../services/auth.service";
 import { useApp } from "../context/AppContext";
 
 import logo from "../assets/logo.png";
@@ -18,17 +18,20 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // -------------------- SESSION CHECK & AUTH STATE --------------------
+  // ------------------------- SPA-safe session check -------------------------
   useEffect(() => {
     const init = async () => {
-      // Get current session (for new redirect after OAuth)
-      const session = await authService.getSession();
-      if (session?.user) await handleUser(session.user);
+      // Check if session exists (after redirect from OAuth)
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        await handleUser(session.user);
+      }
     };
 
     init();
 
-    // Listen to auth changes (handles OAuth redirect and real-time login)
+    // Subscribe to auth state changes
     const unsubscribe = authService.onAuthChange(async (user) => {
       if (user) await handleUser(user);
     });
@@ -36,78 +39,71 @@ export default function Login() {
     return () => unsubscribe();
   }, []);
 
-  // -------------------- HANDLE USER & CREATE PROFILE IF NEW --------------------
-  const handleUser = async (currentUser) => {
-    setUser(currentUser);
+  // ------------------------- Handle user (new or existing) -------------------------
+  const handleUser = async (user) => {
+    try {
+      // Create profile if first-time login
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
 
-    // Check if profile exists
-    const { data, error: fetchError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", currentUser.id)
-      .single();
-
-    if (fetchError && fetchError.code !== "PGRST116") {
-      console.error(fetchError);
-      setError("Failed to fetch user profile");
-      return;
-    }
-
-    // Insert new profile if first-time user
-    if (!data) {
-      const { error: insertError } = await supabase.from("profiles").insert({
-        id: currentUser.id,
-        email: currentUser.email,
-        created_at: new Date(),
-      });
-
-      if (insertError) {
-        console.error(insertError);
-        setError("Failed to create user profile");
-        return;
+      if (!data) {
+        await supabase.from("profiles").insert({
+          id: user.id,
+          email: user.email,
+          created_at: new Date(),
+        });
       }
-    }
 
-    // Navigate to main app
-    navigate("/app/gpt", { replace: true });
+      setUser(user);
+      navigate("/app/gpt", { replace: true });
+    } catch (err) {
+      console.error("Profile creation failed:", err);
+      setError("Failed to initialize user profile");
+    }
   };
 
-  // -------------------- EMAIL LOGIN --------------------
+  // ------------------------- Email/Password Login -------------------------
   const handleEmailLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
       const loggedUser = await authService.login(email.trim(), password);
-      if (loggedUser) await handleUser(loggedUser);
+
+      if (loggedUser) {
+        await handleUser(loggedUser);
+      }
     } catch (err) {
-      console.error(err);
       setError(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // -------------------- GOOGLE LOGIN --------------------
+  // ------------------------- Google Login -------------------------
   const handleGoogleLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
-      // Supabase OAuth redirects user to Google login page
+      // 🔹 Trigger OAuth redirect
       await authService.loginWithGoogle();
-      // No user is returned immediately — handleUser() is triggered on redirect
+      // Note: Do NOT expect user immediately. handleUser() will run after redirect.
     } catch (err) {
       console.error(err);
-      setError(err.message || "Google sign-in failed");
-    } finally {
+      setError(err.message || "Google login failed");
       setLoading(false);
     }
   };
 
-  // -------------------- RENDER --------------------
   return (
-    <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
+    <div
+      className="auth-wrapper"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
       <div className="overlay" />
 
       <div className="auth-card">
@@ -142,6 +138,7 @@ export default function Login() {
           disabled={loading}
         />
 
+        {/* PASSWORD INPUT */}
         <input
           type="password"
           placeholder="Password"
