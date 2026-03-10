@@ -1,14 +1,27 @@
-import { useRef, useEffect, useState, useCallback } from "react";
-import * as posedetection from "@tensorflow-models/pose-detection";
-import "@tensorflow/tfjs-backend-webgl";
-import * as tf from "@tensorflow/tfjs";
-import confetti from "canvas-confetti";
+import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
 import "../styles/magic16.css";
+
 import logo from "../../assets/logo.png";
-import PostureOverlay from "../components/Magic16/PostureOverlay";
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
+
+import {
+  Magic16Controls,
+  Magic16Timer,
+  Magic16Step,
+  Magic16Progress,
+  Magic16Score,
+  Magic16Complete,
+  Magic16Share,
+  BreathingCircle,
+  PostureOverlay
+} from "../../components/Magic16";
+
+import { useMagic16 } from "../../hooks";
+
+/* =========================
+   STEP IMAGES
+========================= */
 
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
@@ -29,14 +42,18 @@ import med5 from "../assets/steps/med-05.png";
 import med6 from "../assets/steps/med-06.png";
 import med7 from "../assets/steps/med-07.png";
 
+/* =========================
+   MAGIC16 PAGE
+========================= */
+
 export default function Magic16() {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const detectorRef = useRef(null);
-  const timerRef = useRef(null);
-  const detectRef = useRef(null);
-  const audioRef = useRef(null);
-  const lastVoiceRef = useRef(0);
+
+  const videoRef = useRef(null)
+  const audioRef = useRef(null)
+
+  /* =========================
+     YOGA STEPS (8 minutes)
+  ========================= */
 
   const yogaSteps = [
     { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
@@ -48,8 +65,12 @@ export default function Magic16() {
     { img: yoga71, text: "Warrior Pose 1. Strong stance.", duration: 40 },
     { img: yoga72, text: "Warrior Pose 2. Focus stability.", duration: 40 },
     { img: yoga73, text: "Warrior Pose 3. Balance.", duration: 40 },
-    { img: yoga8, text: "Tree Pose. Deep focus.", duration: 60 },
-  ];
+    { img: yoga8, text: "Tree Pose. Deep focus.", duration: 60 }
+  ]
+
+  /* =========================
+     MEDITATION STEPS (8 minutes)
+  ========================= */
 
   const meditationSteps = [
     { img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
@@ -58,227 +79,180 @@ export default function Magic16() {
     { img: med4, text: "Feel calm energy.", duration: 60 },
     { img: med5, text: "Let thoughts pass.", duration: 60 },
     { img: med6, text: "Stay present.", duration: 60 },
-    { img: med7, text: "Visualize success.", duration: 60 },
-  ];
+    { img: med7, text: "Visualize success.", duration: 60 }
+  ]
 
-  const steps = [...yogaSteps, ...meditationSteps];
-  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
+  const steps = [...yogaSteps, ...meditationSteps]
 
-  const [stepIndex, setStepIndex] = useState(0);
-  const [stepTime, setStepTime] = useState(steps[0].duration);
-  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [score, setScore] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [averageScore, setAverageScore] = useState(0);
-  const [scoreHistory, setScoreHistory] = useState([]);
+  /* =========================
+     MAGIC16 HOOK
+  ========================= */
 
-  // Speak step instructions
-  const speak = (text) => {
-    if (!("speechSynthesis" in window)) return;
-    const now = Date.now();
-    if (now - lastVoiceRef.current < 4000) return;
-    lastVoiceRef.current = now;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
-  };
+  const {
+    start,
+    stop,
+    restart,
+    progress,
+    score,
+    stepIndex,
+    stepTime,
+    totalTime,
+    completed,
+    averageScore,
+    streak
+  } = useMagic16(steps)
 
-  // Play meditation background audio
-  const playAudio = () => {
-    const audio = new Audio(meditationAudio);
-    audio.loop = true;
-    audio.volume = 0.4;
-    audio.play().catch(() => {});
-    audioRef.current = audio;
-  };
+  const currentStep = steps[stepIndex]
 
-  // Calculate angle between three keypoints
-  const angle = (A, B, C) => {
-    const AB = { x: A.x - B.x, y: A.y - B.y };
-    const CB = { x: C.x - B.x, y: C.y - B.y };
-    const dot = AB.x * CB.x + AB.y * CB.y;
-    const magAB = Math.hypot(AB.x, AB.y);
-    const magCB = Math.hypot(CB.x, CB.y);
-    return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
-  };
+  const isMeditation = stepIndex >= yogaSteps.length
 
-  // Pose detection logic
-  const detect = useCallback(async () => {
-    if (!detectorRef.current || !videoRef.current) return;
-    const poses = await detectorRef.current.estimatePoses(videoRef.current);
-    if (!poses?.length) return;
-    const kp = poses[0].keypoints;
-    const hip = kp.find((k) => k.name === "left_hip");
-    const knee = kp.find((k) => k.name === "left_knee");
-    const ankle = kp.find((k) => k.name === "left_ankle");
-    if (hip && knee && ankle) {
-      const a = angle(hip, knee, ankle);
-      const sc = Math.max(0, 100 - Math.abs(a - 90));
-      setScore(Math.round(sc));
-      setScoreHistory((prev) => [...prev, Math.round(sc)]);
-    }
-  }, []);
+  /* =========================
+     AUDIO CONTROL
+  ========================= */
 
-  // Initialize video stream and detector
-  useEffect(() => {
-    const init = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-      videoRef.current.srcObject = stream;
+  const startMeditationAudio = () => {
 
-      await tf.ready();
-      await tf.setBackend("webgl");
+    if (!isMeditation) return
 
-      detectorRef.current = await posedetection.createDetector(
-        posedetection.SupportedModels.MoveNet,
-        { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-      );
+    const audio = new Audio(meditationAudio)
 
-      setLoading(false);
-      speak("Welcome to Magic16");
-    };
+    audio.loop = true
+    audio.volume = 0.4
+    audio.play().catch(()=>{})
 
-    init();
+    audioRef.current = audio
+  }
 
-    return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      audioRef.current?.pause();
-      clearInterval(timerRef.current);
-      clearInterval(detectRef.current);
-    };
-  }, []);
-
-  // Start routine
-  const start = () => {
-    if (playing) return;
-    setPlaying(true);
-    playAudio();
-    speak(steps[stepIndex].text);
-
-    detectRef.current = setInterval(detect, 400);
-
-    timerRef.current = setInterval(() => {
-      setTotalTime((t) => t - 1);
-
-      setStepTime((prev) => {
-        if (prev <= 1) {
-          const next = stepIndex + 1;
-          if (next >= steps.length) {
-            finish();
-            return 0;
-          }
-          setStepIndex(next);
-          speak(steps[next].text);
-          return steps[next].duration;
-        }
-        return prev - 1;
-      });
-
-      setProgress(Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100));
-    }, 1000);
-  };
-
-  const stop = () => {
-    clearInterval(timerRef.current);
-    clearInterval(detectRef.current);
-    audioRef.current?.pause();
-    setPlaying(false);
-  };
-
-  const finish = () => {
-    stop();
-    confetti({ particleCount: 300, spread: 130, origin: { y: 0.6 } });
-
-    // Calculate final average posture score
-    const avg = scoreHistory.length ? Math.round(scoreHistory.reduce((a, b) => a + b, 0) / scoreHistory.length) : 0;
-    setAverageScore(avg);
-    setCompleted(true);
-
-    speak(`Congratulations! Ritual complete! Your average posture score is ${avg} percent.`);
-  };
+  /* =========================
+     UI
+  ========================= */
 
   return (
-    <div className="magic16">
-      <AnimatePresence>
-        {loading && (
-          <motion.div
-            className="magic16-loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            Welcome Magic16 ❤️
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      <img src={logo} className="magic16-logo" alt="logo" />
+    <div className="magic16">
+
+      {/* LOGO */}
+
+      <img src={logo} className="magic16-logo" alt="ManifiX" />
+
+      {/* CAMERA + AI POSTURE */}
 
       <div className="magic16-camera">
+
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="magic16-video"
+        />
+
         <PostureOverlay />
+
       </div>
 
-      {!completed ? (
-        <motion.div className="magic16-step" layout>
-          <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
-          <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
-        </motion.div>
-      ) : (
-        <motion.div
-          className="magic16-complete"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <h1>🎉 Magic16 Complete! 🎉</h1>
-          <p>Average Posture Score: {averageScore}%</p>
-          <button
-            onClick={() => {
-              setCompleted(false);
-              setStepIndex(0);
-              setStepTime(steps[0].duration);
-              setTotalTime(TOTAL_DURATION);
-              setProgress(0);
-              setScore(0);
-              setScoreHistory([]);
-            }}
+      {/* STEP AREA */}
+
+      <AnimatePresence mode="wait">
+
+        {!completed ? (
+
+          <motion.div
+            key={stepIndex}
+            className="magic16-step-container"
+            initial={{ opacity:0, y:20 }}
+            animate={{ opacity:1, y:0 }}
+            exit={{ opacity:0, y:-20 }}
           >
-            Restart Magic16
-          </button>
-        </motion.div>
+
+            <Magic16Step
+              stepIndex={stepIndex}
+              step={currentStep}
+              stepTime={stepTime}
+              totalSteps={steps.length}
+            />
+
+            {/* Step Image */}
+
+            <img
+              src={currentStep.img}
+              alt="pose"
+              className="magic16-step-img"
+            />
+
+            {/* Breathing Animation during meditation */}
+
+            {isMeditation && <BreathingCircle />}
+
+          </motion.div>
+
+        ) : (
+
+          <Magic16Complete
+            averageScore={averageScore}
+            streak={streak}
+            onRestart={restart}
+          />
+
+        )}
+
+      </AnimatePresence>
+
+      {/* TIMER */}
+
+      {!completed && (
+
+        <Magic16Timer
+          totalTime={totalTime}
+          stepTime={stepTime}
+        />
+
       )}
 
-      <div className="magic16-timers">
-        <p>
-          Total Time {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}
-        </p>
-        <p>Step Time {stepTime}s</p>
-      </div>
+      {/* PROGRESS */}
 
-      <div className="magic16-progress">
-        <motion.div
-          className="magic16-progress-bar"
-          style={{ width: `${progress}%` }}
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.5 }}
+      {!completed && (
+
+        <Magic16Progress
+          progress={progress}
+          totalTime={totalTime}
+          stepTime={stepTime}
         />
-      </div>
 
-      {playing && !completed && <div className="magic16-score">Posture Score {score}%</div>}
+      )}
 
-      <div className="magic16-controls">
-        {!playing && !completed ? (
-          <button onClick={start}>Start Magic16</button>
-        ) : !completed ? (
-          <button onClick={stop}>Pause</button>
-        ) : null}
-      </div>
+      {/* POSTURE SCORE */}
 
-      <video ref={videoRef} autoPlay playsInline muted hidden />
+      {!completed && stepIndex < yogaSteps.length && (
+
+        <Magic16Score score={score} />
+
+      )}
+
+      {/* CONTROLS */}
+
+      {!completed && (
+
+        <Magic16Controls
+          start={start}
+          stop={stop}
+        />
+
+      )}
+
+      {/* SHARE AFTER COMPLETE */}
+
+      {completed && (
+
+        <Magic16Share
+          averageScore={averageScore}
+          streak={streak}
+        />
+
+      )}
+
     </div>
-  );
+
+  )
+
 }
