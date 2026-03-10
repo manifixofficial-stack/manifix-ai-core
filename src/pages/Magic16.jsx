@@ -1,9 +1,10 @@
-import { useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import "../styles/magic16.css";
+import { useRef, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 
-import logo from "../../assets/logo.png";
-import meditationAudio from "../assets/audio/meditation/meditation.mp3";
+import "../styles/magic16.css"
+
+import logo from "../../assets/logo.png"
+import meditationAudio from "../assets/audio/meditation/meditation.mp3"
 
 import {
   Magic16Controls,
@@ -15,36 +16,34 @@ import {
   Magic16Share,
   BreathingCircle,
   PostureOverlay
-} from "../components/Magic16";
+} from "../components/Magic16"
 
-import { useMagic16 } from "../hooks";
+import { useMagic16 } from "../hooks"
 
 /* =========================
    STEP IMAGES
 ========================= */
 
-import yoga1 from "../assets/steps/yoga-01.png";
-import yoga2 from "../assets/steps/yoga-02.png";
-import yoga3 from "../assets/steps/yoga-03.png";
-import yoga4 from "../assets/steps/yoga-04.png";
-import yoga5 from "../assets/steps/yoga-05.png";
-import yoga6 from "../assets/steps/yoga-06.png";
-import yoga71 from "../assets/steps/yoga-07-1.png";
-import yoga72 from "../assets/steps/yoga-07-2.png";
-import yoga73 from "../assets/steps/yoga-07-3.png";
-import yoga8 from "../assets/steps/yoga-08.png";
+// Yoga
+import yoga1 from "../assets/steps/yoga-01.png"
+import yoga2 from "../assets/steps/yoga-02.png"
+import yoga3 from "../assets/steps/yoga-03.png"
+import yoga4 from "../assets/steps/yoga-04.png"
+import yoga5 from "../assets/steps/yoga-05.png"
+import yoga6 from "../assets/steps/yoga-06.png"
+import yoga71 from "../assets/steps/yoga-07-1.png"
+import yoga72 from "../assets/steps/yoga-07-2.png"
+import yoga73 from "../assets/steps/yoga-07-3.png"
+import yoga8 from "../assets/steps/yoga-08.png"
 
-import med1 from "../assets/steps/med-01.png";
-import med2 from "../assets/steps/med-02.png";
-import med3 from "../assets/steps/med-03.png";
-import med4 from "../assets/steps/med-04.png";
-import med5 from "../assets/steps/med-05.png";
-import med6 from "../assets/steps/med-06.png";
-import med7 from "../assets/steps/med-07.png";
-
-/* =========================
-   MAGIC16 PAGE
-========================= */
+// Meditation
+import med1 from "../assets/steps/med-01.png"
+import med2 from "../assets/steps/med-02.png"
+import med3 from "../assets/steps/med-03.png"
+import med4 from "../assets/steps/med-04.png"
+import med5 from "../assets/steps/med-05.png"
+import med6 from "../assets/steps/med-06.png"
+import med7 from "../assets/steps/med-07.png"
 
 export default function Magic16() {
 
@@ -52,7 +51,7 @@ export default function Magic16() {
   const audioRef = useRef(null)
 
   /* =========================
-     YOGA STEPS (8 minutes)
+     YOGA STEPS
   ========================= */
 
   const yogaSteps = [
@@ -69,7 +68,7 @@ export default function Magic16() {
   ]
 
   /* =========================
-     MEDITATION STEPS (8 minutes)
+     MEDITATION STEPS
   ========================= */
 
   const meditationSteps = [
@@ -107,21 +106,73 @@ export default function Magic16() {
   const isMeditation = stepIndex >= yogaSteps.length
 
   /* =========================
-     AUDIO CONTROL
+     CAMERA START
   ========================= */
 
-  const startMeditationAudio = () => {
+  useEffect(() => {
 
-    if (!isMeditation) return
+    async function startCamera() {
 
-    const audio = new Audio(meditationAudio)
+      try {
 
-    audio.loop = true
-    audio.volume = 0.4
-    audio.play().catch(()=>{})
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true
+        })
 
-    audioRef.current = audio
-  }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+        }
+
+      } catch (err) {
+
+        console.error("Camera access denied:", err)
+
+      }
+
+    }
+
+    startCamera()
+
+    return () => {
+
+      if (videoRef.current?.srcObject) {
+
+        videoRef.current.srcObject
+          .getTracks()
+          .forEach(track => track.stop())
+
+      }
+
+    }
+
+  }, [])
+
+  /* =========================
+     MEDITATION AUDIO CONTROL
+  ========================= */
+
+  useEffect(() => {
+
+    if (isMeditation && !completed) {
+
+      const audio = new Audio(meditationAudio)
+
+      audio.loop = true
+      audio.volume = 0.4
+
+      audio.play().catch(() => {})
+
+      audioRef.current = audio
+
+    } else {
+
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+
+    }
+
+  }, [isMeditation, completed])
 
   /* =========================
      UI
@@ -131,11 +182,13 @@ export default function Magic16() {
 
     <div className="magic16">
 
-      {/* LOGO */}
+      <img
+        src={logo}
+        alt="ManifiX"
+        className="magic16-logo"
+      />
 
-      <img src={logo} className="magic16-logo" alt="ManifiX" />
-
-      {/* CAMERA + AI POSTURE */}
+      {/* CAMERA */}
 
       <div className="magic16-camera">
 
@@ -151,7 +204,7 @@ export default function Magic16() {
 
       </div>
 
-      {/* STEP AREA */}
+      {/* STEP CONTENT */}
 
       <AnimatePresence mode="wait">
 
@@ -160,9 +213,10 @@ export default function Magic16() {
           <motion.div
             key={stepIndex}
             className="magic16-step-container"
-            initial={{ opacity:0, y:20 }}
+            initial={{ opacity:0, y:30 }}
             animate={{ opacity:1, y:0 }}
-            exit={{ opacity:0, y:-20 }}
+            exit={{ opacity:0, y:-30 }}
+            transition={{ duration:0.4 }}
           >
 
             <Magic16Step
@@ -172,15 +226,11 @@ export default function Magic16() {
               totalSteps={steps.length}
             />
 
-            {/* Step Image */}
-
             <img
               src={currentStep.img}
               alt="pose"
               className="magic16-step-img"
             />
-
-            {/* Breathing Animation during meditation */}
 
             {isMeditation && <BreathingCircle />}
 
@@ -240,7 +290,7 @@ export default function Magic16() {
 
       )}
 
-      {/* SHARE AFTER COMPLETE */}
+      {/* SHARE */}
 
       {completed && (
 
