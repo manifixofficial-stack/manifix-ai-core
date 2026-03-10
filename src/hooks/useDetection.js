@@ -1,31 +1,38 @@
-// src/hooks/useDetection.js
-
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import * as facedetection from "@tensorflow-models/face-detection";
 import "@tensorflow/tfjs-backend-webgl";
 
 export default function useDetection(videoRef, canvasRef) {
+
   const poseDetectorRef = useRef(null);
   const faceDetectorRef = useRef(null);
-}
-  const streamRef = useRef<MediaStream | null>(null);
-  const detectInterval = useRef<NodeJS.Timeout | null>(null);
 
-  const postureSamples = useRef<number[]>([]);
-  const faceSamples = useRef<number[]>([]);
-  const lastFaceX = useRef<number | null>(null);
+  const streamRef = useRef(null);
+  const detectInterval = useRef(null);
+
+  const postureSamples = useRef([]);
+  const faceSamples = useRef([]);
+  const lastFaceX = useRef(null);
 
   const [postureScore, setPostureScore] = useState(0);
   const [faceScore, setFaceScore] = useState(0);
   const [healthScore, setHealthScore] = useState(0);
 
-  // Init camera + models
+  // Initialize camera + models
   useEffect(() => {
+
     const init = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true
+      });
+
       streamRef.current = stream;
-      videoRef.current.srcObject = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
 
       poseDetectorRef.current = await posedetection.createDetector(
         posedetection.SupportedModels.MoveNet
@@ -40,16 +47,22 @@ export default function useDetection(videoRef, canvasRef) {
     init();
 
     return () => {
-      if (streamRef.current)
+
+      if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+
       stop();
     };
+
   }, [videoRef]);
 
   const detect = useCallback(async () => {
-    if (!videoRef.current) return;
+
+    if (!videoRef.current || !canvasRef.current) return;
 
     const ctx = canvasRef.current.getContext("2d");
+
     ctx.clearRect(0, 0, 640, 480);
 
     const poses = await poseDetectorRef.current?.estimatePoses(videoRef.current);
@@ -57,40 +70,51 @@ export default function useDetection(videoRef, canvasRef) {
 
     ctx.drawImage(videoRef.current, 0, 0, 640, 480);
 
-    // -------- POSTURE --------
-    if (poses?.length > 0) {
+    // POSTURE ANALYSIS
+    if (poses && poses.length > 0) {
+
       const keypoints = poses[0].keypoints;
 
-      const ls = keypoints.find((k: any) => k.name === "left_shoulder");
-      const rs = keypoints.find((k: any) => k.name === "right_shoulder");
-      const lh = keypoints.find((k: any) => k.name === "left_hip");
-      const rh = keypoints.find((k: any) => k.name === "right_hip");
+      const ls = keypoints.find((k) => k.name === "left_shoulder");
+      const rs = keypoints.find((k) => k.name === "right_shoulder");
+      const lh = keypoints.find((k) => k.name === "left_hip");
+      const rh = keypoints.find((k) => k.name === "right_hip");
 
       if (ls && rs && lh && rh) {
+
         const shoulderDiff = Math.abs(ls.y - rs.y);
         const hipDiff = Math.abs(lh.y - rh.y);
+
         const score = Math.max(0, 100 - (shoulderDiff + hipDiff) / 5);
 
         postureSamples.current.push(score);
+
         setPostureScore(Math.round(score));
       }
     }
 
-    // -------- FACE --------
-    if (faces?.length > 0) {
+    // FACE STABILITY
+    if (faces && faces.length > 0) {
+
       const box = faces[0].box;
 
       if (lastFaceX.current !== null) {
+
         const movement = Math.abs(box.xMin - lastFaceX.current);
+
         const stability = Math.max(0, 100 - movement);
+
         faceSamples.current.push(stability);
+
         setFaceScore(Math.round(stability));
       }
 
       lastFaceX.current = box.xMin;
+
       ctx.strokeStyle = "#00f5c4";
       ctx.strokeRect(box.xMin, box.yMin, box.width, box.height);
     }
+
   }, [videoRef, canvasRef]);
 
   const start = () => {
@@ -105,13 +129,14 @@ export default function useDetection(videoRef, canvasRef) {
   };
 
   const calculateFinalScore = () => {
+
     const avgPosture =
       postureSamples.current.reduce((a, b) => a + b, 0) /
-        postureSamples.current.length || 0;
+      (postureSamples.current.length || 1);
 
     const avgFace =
       faceSamples.current.reduce((a, b) => a + b, 0) /
-        faceSamples.current.length || 0;
+      (faceSamples.current.length || 1);
 
     const final = Math.round(avgPosture * 0.6 + avgFace * 0.4);
 
@@ -120,7 +145,7 @@ export default function useDetection(videoRef, canvasRef) {
     return {
       avgPosture: Math.round(avgPosture),
       avgFace: Math.round(avgFace),
-      final,
+      final
     };
   };
 
@@ -130,6 +155,6 @@ export default function useDetection(videoRef, canvasRef) {
     healthScore,
     start,
     stop,
-    calculateFinalScore,
+    calculateFinalScore
   };
 }
