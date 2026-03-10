@@ -17,7 +17,7 @@ import {
   PostureOverlay
 } from "../components/Magic16";
 
-import { useMagic16 } from "../../hooks";
+import { useMagic16 } from "../hooks";
 
 /* =========================
    STEP IMAGES
