@@ -1,198 +1,336 @@
-/* ---------------- Global Magic16 App ---------------- */
+/* ======================================================
+   MANIFIX MAGIC16 – PREMIUM UI
+   ====================================================== */
+
 .magic16 {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   color: #fff;
-  background: linear-gradient(135deg, #2b1055, #7597de);
+  background: radial-gradient(circle at top,#2b1055,#0f172a 70%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 20px;
+  padding: 30px 16px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
-/* ---------- Loading Screen ---------- */
+/* ======================================================
+   LOADING SCREEN
+   ====================================================== */
+
 .magic16-loading {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(43, 16, 85, 0.95);
+  inset: 0;
+  background: rgba(15,23,42,.96);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 2rem;
   font-weight: 700;
   z-index: 999;
-  color: #ffeb3b;
   letter-spacing: 2px;
-  text-shadow: 0 0 15px #ffeb3b, 0 0 30px #ffeb3b;
+  color: #38bdf8;
+  animation: pulseGlow 1.8s infinite;
 }
 
-/* ---------- Logo ---------- */
-.magic16-logo {
-  width: 120px;
-  margin-bottom: 20px;
-  filter: drop-shadow(0 0 15px #fff);
-  animation: floatLogo 4s ease-in-out infinite;
+@keyframes pulseGlow {
+  0%,100% { opacity:.6 }
+  50% { opacity:1 }
 }
 
-@keyframes floatLogo {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+/* ======================================================
+   LOGO
+   ====================================================== */
+
+.magic16-logo{
+  width:110px;
+  margin-bottom:22px;
+  filter:drop-shadow(0 0 15px rgba(255,255,255,.5));
+  animation:floatLogo 4s ease-in-out infinite;
 }
 
-/* ---------- Camera / Overlay ---------- */
-.magic16-camera {
-  width: 320px;
-  height: 240px;
-  border-radius: 20px;
-  overflow: hidden;
-  border: 4px solid rgba(255,255,255,0.2);
-  box-shadow: 0 0 30px rgba(255,255,255,0.2);
-  margin-bottom: 20px;
-  position: relative;
+@keyframes floatLogo{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-10px)}
 }
 
-/* ---------- Steps / Images ---------- */
-.magic16-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 20px;
+/* ======================================================
+   CAMERA SECTION
+   ====================================================== */
+
+.magic16-camera{
+  width:320px;
+  height:240px;
+  border-radius:18px;
+  overflow:hidden;
+  border:2px solid rgba(255,255,255,.2);
+  backdrop-filter: blur(10px);
+  box-shadow:0 15px 50px rgba(0,0,0,.5);
+  margin-bottom:25px;
+  position:relative;
 }
 
-.magic16-step-img {
-  width: 250px;
-  border-radius: 20px;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-  border: 2px solid rgba(255,255,255,0.3);
-  animation: floatStep 3s ease-in-out infinite;
+/* ======================================================
+   STEP AREA
+   ====================================================== */
+
+.magic16-step-wrapper{
+  text-align:center;
+  padding:20px;
+  border-radius:18px;
+  backdrop-filter: blur(14px);
+  background:rgba(15,23,42,.6);
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 15px 40px rgba(0,0,0,.4);
+  margin-bottom:20px;
 }
 
-@keyframes floatStep {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+.magic16-step-counter{
+  font-size:13px;
+  color:#94a3b8;
 }
 
-.magic16-step-text {
-  font-size: 1.2rem;
-  font-weight: 600;
-  text-align: center;
-  max-width: 320px;
-  line-height: 1.4;
-  color: #fff;
-  text-shadow: 0 0 10px rgba(0,0,0,0.4);
+.magic16-step-title{
+  font-size:26px;
+  font-weight:600;
+  margin-top:4px;
 }
 
-/* ---------- Timers ---------- */
-.magic16-timers {
-  display: flex;
-  gap: 30px;
-  font-size: 1rem;
-  font-weight: 500;
-  margin-bottom: 15px;
+.magic16-step-text{
+  font-size:15px;
+  margin-top:8px;
+  color:#cbd5f5;
 }
 
-/* ---------- Progress Bar ---------- */
-.magic16-progress {
-  width: 90%;
-  height: 14px;
-  border-radius: 20px;
-  background: rgba(255,255,255,0.2);
-  overflow: hidden;
-  margin-bottom: 15px;
-  box-shadow: inset 0 0 5px rgba(255,255,255,0.2);
+.magic16-step-img{
+  width:240px;
+  border-radius:16px;
+  margin-top:18px;
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 15px 35px rgba(0,0,0,.6);
+  animation:floatStep 3s ease-in-out infinite;
 }
 
-.magic16-progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #ffeb3b, #ff6f91);
-  border-radius: 20px;
-  box-shadow: 0 0 15px rgba(255,235,59,0.6);
+@keyframes floatStep{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-6px)}
 }
 
-/* ---------- Score ---------- */
-.magic16-score {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #ffeb3b;
-  text-shadow: 0 0 10px #ffeb3b, 0 0 20px #ff6f91;
-  margin-bottom: 20px;
+/* ======================================================
+   TIMER
+   ====================================================== */
+
+.magic16-timers{
+  display:flex;
+  justify-content:center;
+  gap:30px;
+  font-weight:500;
+  font-size:.95rem;
+  margin-top:8px;
 }
 
-/* ---------- Controls ---------- */
-.magic16-controls {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 40px;
+.magic16-step-timer{
+  font-size:28px;
+  font-weight:700;
+  color:#38bdf8;
 }
 
-.magic16-controls button {
-  padding: 12px 30px;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  background: linear-gradient(135deg, #ff6f91, #ffeb3b);
-  color: #fff;
-  box-shadow: 0 0 15px rgba(255,111,145,0.5), 0 0 25px rgba(255,235,59,0.5);
-  transition: all 0.3s ease;
+/* ======================================================
+   PROGRESS BAR
+   ====================================================== */
+
+.magic16-progress-wrapper{
+  width:100%;
+  max-width:420px;
+  margin-top:20px;
 }
 
-.magic16-controls button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 20px rgba(255,111,145,0.7), 0 0 35px rgba(255,235,59,0.7);
+.magic16-progress-times{
+  display:flex;
+  justify-content:space-between;
+  font-size:12px;
+  color:#94a3b8;
+  margin-bottom:6px;
 }
 
-/* ---------- Completion Screen ---------- */
-.magic16-complete {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  background: rgba(0,0,0,0.3);
-  padding: 30px;
-  border-radius: 25px;
-  box-shadow: 0 0 40px rgba(255,255,255,0.2);
-  text-align: center;
+.magic16-progress-bar-bg{
+  height:10px;
+  border-radius:20px;
+  overflow:hidden;
+  background:rgba(148,163,184,.2);
 }
 
-.magic16-complete h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #ffeb3b;
-  text-shadow: 0 0 15px #ffeb3b, 0 0 30px #ff6f91;
+.magic16-progress-bar-fill{
+  height:100%;
+  border-radius:20px;
+  background:linear-gradient(90deg,#38bdf8,#22c55e);
+  box-shadow:0 0 15px rgba(56,189,248,.6);
 }
 
-.magic16-complete p {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #fff;
+.magic16-progress-percent{
+  font-size:12px;
+  margin-top:6px;
+  text-align:right;
+  color:#94a3b8;
 }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 480px) {
-  .magic16-camera {
-    width: 260px;
-    height: 200px;
+/* ======================================================
+   SCORE
+   ====================================================== */
+
+.magic16-score-wrapper{
+  margin-top:25px;
+  text-align:center;
+}
+
+.magic16-score-circle{
+  width:120px;
+  height:120px;
+  border-radius:50%;
+  border:6px solid #38bdf8;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:auto;
+  box-shadow:0 0 25px rgba(56,189,248,.4);
+}
+
+.magic16-score-value{
+  font-size:28px;
+  font-weight:700;
+}
+
+.magic16-score-status{
+  margin-top:8px;
+  font-size:15px;
+}
+
+/* ======================================================
+   BREATHING ANIMATION
+   ====================================================== */
+
+.breathing-container{
+  margin-top:25px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.breathing-circle{
+  width:150px;
+  height:150px;
+  border-radius:50%;
+  background:radial-gradient(circle,#7dd3fc,#38bdf8);
+  box-shadow:0 0 40px rgba(56,189,248,.7);
+}
+
+.breathing-text{
+  margin-top:14px;
+  font-size:18px;
+  font-weight:600;
+}
+
+/* ======================================================
+   CONTROLS
+   ====================================================== */
+
+.magic16-controls{
+  margin-top:25px;
+  display:flex;
+  gap:16px;
+}
+
+.magic16-controls button{
+  border:none;
+  padding:12px 26px;
+  border-radius:30px;
+  font-weight:600;
+  cursor:pointer;
+  color:#fff;
+  background:linear-gradient(135deg,#38bdf8,#6366f1);
+  box-shadow:0 10px 30px rgba(56,189,248,.5);
+  transition:.25s;
+}
+
+.magic16-controls button:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 40px rgba(56,189,248,.6);
+}
+
+/* ======================================================
+   COMPLETION SCREEN
+   ====================================================== */
+
+.magic16-complete{
+  margin-top:30px;
+  text-align:center;
+  padding:30px;
+  border-radius:20px;
+  background:rgba(15,23,42,.8);
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 25px 60px rgba(0,0,0,.5);
+}
+
+.magic16-complete-title{
+  font-size:32px;
+  font-weight:700;
+}
+
+.magic16-complete-stats{
+  display:flex;
+  justify-content:space-around;
+  margin:22px 0;
+}
+
+.magic16-stat-value{
+  font-size:24px;
+  font-weight:600;
+  color:#38bdf8;
+}
+
+/* ======================================================
+   SHARE
+   ====================================================== */
+
+.magic16-share-wrapper{
+  margin-top:25px;
+  text-align:center;
+}
+
+.magic16-share-btn{
+  margin-top:12px;
+  padding:10px 20px;
+  border:none;
+  border-radius:10px;
+  font-weight:600;
+  color:white;
+  cursor:pointer;
+  background:linear-gradient(90deg,#38bdf8,#22c55e);
+  transition:.2s;
+}
+
+.magic16-share-btn:hover{
+  transform:translateY(-2px);
+}
+
+/* ======================================================
+   RESPONSIVE
+   ====================================================== */
+
+@media (max-width:480px){
+
+  .magic16-camera{
+    width:260px;
+    height:200px;
   }
 
-  .magic16-step-img {
-    width: 200px;
+  .magic16-step-img{
+    width:200px;
   }
 
-  .magic16-step-text {
-    font-size: 1rem;
+  .magic16-step-title{
+    font-size:22px;
   }
 
-  .magic16-timers {
-    flex-direction: column;
-    gap: 10px;
-  }
 }
