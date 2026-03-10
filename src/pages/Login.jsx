@@ -18,68 +18,85 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Redirect already logged-in users
+  // -------------------- SESSION CHECK & AUTH STATE --------------------
   useEffect(() => {
-    if (user) navigate("/app/gpt", { replace: true });
-  }, [user, navigate]);
+    const init = async () => {
+      // Get current session (for new redirect after OAuth)
+      const session = await authService.getSession();
+      if (session?.user) await handleUser(session.user);
+    };
 
-  // ----------- Email Login -----------
+    init();
+
+    // Listen to auth changes (handles OAuth redirect and real-time login)
+    const unsubscribe = authService.onAuthChange(async (user) => {
+      if (user) await handleUser(user);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // -------------------- HANDLE USER & CREATE PROFILE IF NEW --------------------
+  const handleUser = async (currentUser) => {
+    setUser(currentUser);
+
+    // Check if profile exists
+    const { data, error: fetchError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUser.id)
+      .single();
+
+    if (fetchError && fetchError.code !== "PGRST116") {
+      console.error(fetchError);
+      setError("Failed to fetch user profile");
+      return;
+    }
+
+    // Insert new profile if first-time user
+    if (!data) {
+      const { error: insertError } = await supabase.from("profiles").insert({
+        id: currentUser.id,
+        email: currentUser.email,
+        created_at: new Date(),
+      });
+
+      if (insertError) {
+        console.error(insertError);
+        setError("Failed to create user profile");
+        return;
+      }
+    }
+
+    // Navigate to main app
+    navigate("/app/gpt", { replace: true });
+  };
+
+  // -------------------- EMAIL LOGIN --------------------
   const handleEmailLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
       const loggedUser = await authService.login(email.trim(), password);
-
-      if (loggedUser) {
-        setUser(loggedUser);
-        navigate("/app/gpt", { replace: true });
-      }
+      if (loggedUser) await handleUser(loggedUser);
     } catch (err) {
+      console.error(err);
       setError(err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // ----------- Google Login -----------
+  // -------------------- GOOGLE LOGIN --------------------
   const handleGoogleLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
-      const loggedUser = await authService.loginWithGoogle(); // returns { id, email, session }
-
-      if (!loggedUser) throw new Error("Google sign-in failed");
-
-      // ✅ First-time user check
-      const { data, error: fetchError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", loggedUser.id)
-        .single();
-
-      if (fetchError && fetchError.code !== "PGRST116") {
-        console.error(fetchError);
-        throw new Error("Failed to fetch user profile");
-      }
-
-      if (!data) {
-        // Insert new user profile
-        const { error: insertError } = await supabase.from("profiles").insert({
-          id: loggedUser.id,
-          email: loggedUser.email,
-          created_at: new Date(),
-        });
-
-        if (insertError) {
-          console.error(insertError);
-          throw new Error("Failed to create user profile");
-        }
-      }
-
-      setUser(loggedUser);
-      navigate("/app/gpt", { replace: true });
+      // Supabase OAuth redirects user to Google login page
+      await authService.loginWithGoogle();
+      // No user is returned immediately — handleUser() is triggered on redirect
     } catch (err) {
       console.error(err);
       setError(err.message || "Google sign-in failed");
@@ -88,11 +105,9 @@ export default function Login() {
     }
   };
 
+  // -------------------- RENDER --------------------
   return (
-    <div
-      className="auth-wrapper"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
+    <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
       <div className="overlay" />
 
       <div className="auth-card">
@@ -127,7 +142,6 @@ export default function Login() {
           disabled={loading}
         />
 
-        {/* PASSWORD INPUT */}
         <input
           type="password"
           placeholder="Password"
