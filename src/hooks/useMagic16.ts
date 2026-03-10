@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import useTimer from "../useTimer";
-import useDetection from "../useDetection";
-import useStreak from "../useStreak";
-import useVoice from "../useVoice";
+import useTimer from "./useTimer";
+import useDetection from "./useDetection";
+import useStreak from "./useStreak";
+import useVoice from "./useVoice";
 
 type Magic16Step = {
   text: string;
