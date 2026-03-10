@@ -1,7 +1,7 @@
 // src/components/ProtectedRoute.jsx
 import React from "react";
 import { Navigate } from "react-router-dom";
-import { useApp } from "../context/AppContext";
+import { useApp } from "../context/AppProvider";
 import logo from "../assets/logo.png";
 import "../styles/ProtectedRoute.css";
 
