@@ -2,29 +2,28 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
+import supabase from "../services/supabase";
 import { useApp } from "../context/AppContext";
 
 import logo from "../assets/logo.png";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
-
 import "../styles/Login.css";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setUser, user } = useApp();
+  const { user, setUser } = useApp();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Redirect logged-in users
+  // Redirect already logged-in users
   useEffect(() => {
-    if (user) {
-      navigate("/app/gpt", { replace: true });
-    }
+    if (user) navigate("/app/gpt", { replace: true });
   }, [user, navigate]);
 
+  // ----------- Email Login -----------
   const handleEmailLogin = async () => {
     setError("");
     setLoading(true);
@@ -36,7 +35,6 @@ export default function Login() {
         setUser(loggedUser);
         navigate("/app/gpt", { replace: true });
       }
-
     } catch (err) {
       setError(err?.message || "Login failed");
     } finally {
@@ -44,38 +42,51 @@ export default function Login() {
     }
   };
 
- const handleGoogleLogin = async () => {
-  setError("");
-  setLoading(true);
+  // ----------- Google Login -----------
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
 
-  try {
-    const loggedUser = await authService.loginWithGoogle(); // Supabase OAuth
+    try {
+      const loggedUser = await authService.loginWithGoogle(); // returns { id, email, session }
 
-    if (loggedUser) {
-      // ✅ Ensure first-time users are added to DB
-      const { data } = await supabase
+      if (!loggedUser) throw new Error("Google sign-in failed");
+
+      // ✅ First-time user check
+      const { data, error: fetchError } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", loggedUser.id);
+        .eq("id", loggedUser.id)
+        .single();
 
-      if (!data?.length) {
-        await supabase.from("profiles").insert({
+      if (fetchError && fetchError.code !== "PGRST116") {
+        console.error(fetchError);
+        throw new Error("Failed to fetch user profile");
+      }
+
+      if (!data) {
+        // Insert new user profile
+        const { error: insertError } = await supabase.from("profiles").insert({
           id: loggedUser.id,
           email: loggedUser.email,
           created_at: new Date(),
         });
+
+        if (insertError) {
+          console.error(insertError);
+          throw new Error("Failed to create user profile");
+        }
       }
 
       setUser(loggedUser);
       navigate("/app/gpt", { replace: true });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Google sign-in failed");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-    setError("Google sign-in failed");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div
@@ -85,7 +96,6 @@ export default function Login() {
       <div className="overlay" />
 
       <div className="auth-card">
-
         {/* BRAND */}
         <div className="brand">
           <img src={logo} alt="ManifiX Logo" className="logo" />
@@ -105,10 +115,9 @@ export default function Login() {
             src="https://img.icons8.com/color/24/google-logo.png"
             alt="Google"
           />
-          Continue with Google
+          {loading ? "Processing..." : "Continue with Google"}
         </button>
 
-    
         {/* EMAIL INPUT */}
         <input
           type="email"
@@ -129,7 +138,7 @@ export default function Login() {
 
         {error && <p className="error">{error}</p>}
 
-        {/* LOGIN BUTTON */}
+        {/* EMAIL LOGIN BUTTON */}
         <button
           className="primary-btn"
           onClick={handleEmailLogin}
@@ -141,24 +150,17 @@ export default function Login() {
         {/* LINKS */}
         <p className="microcopy">
           Forgot password?{" "}
-          <span
-            className="link"
-            onClick={() => navigate("/forgot-password")}
-          >
+          <span className="link" onClick={() => navigate("/forgot-password")}>
             Reset here
           </span>
         </p>
 
         <p className="microcopy">
           Don’t have an account?{" "}
-          <span
-            className="link"
-            onClick={() => navigate("/signup")}
-          >
+          <span className="link" onClick={() => navigate("/signup")}>
             Sign Up
           </span>
         </p>
-
       </div>
     </div>
   );
