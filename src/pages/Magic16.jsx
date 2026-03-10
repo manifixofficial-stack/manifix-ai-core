@@ -15,7 +15,7 @@ import {
   Magic16Share,
   BreathingCircle,
   PostureOverlay
-} from "../../components/Magic16";
+} from "../components/Magic16";
 
 import { useMagic16 } from "../../hooks";
 
