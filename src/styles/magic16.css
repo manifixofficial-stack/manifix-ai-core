@@ -1,289 +1,255 @@
-// src/pages/Magic16.jsx
-import { useRef, useEffect, useState, useCallback } from "react";
-import * as posedetection from "@tensorflow-models/pose-detection";
-import "@tensorflow/tfjs-backend-webgl";
-import * as tf from "@tensorflow/tfjs";
-import confetti from "canvas-confetti";
+/* ---------- Global Page ---------- */
 
-import "../styles/magic16.css";
-import logo from "../../assets/logo.png";
-import PostureOverlay from "../components/Magic16/PostureOverlay";
-import BreathingCircle from "../components/Magic16/BreathingCircle";
-import meditationAudio from "../assets/audio/meditation/meditation.mp3";
+.magic16 {
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, #020617, #0f172a, #1e293b);
+  color: white;
+  position: relative;
+  padding-bottom: 80px;
+}
 
-// Yoga Steps
-import yoga1 from "../assets/steps/yoga-01.png";
-import yoga2 from "../assets/steps/yoga-02.png";
-import yoga3 from "../assets/steps/yoga-03.png";
-import yoga4 from "../assets/steps/yoga-04.png";
-import yoga5 from "../assets/steps/yoga-05.png";
-import yoga6 from "../assets/steps/yoga-06.png";
-import yoga71 from "../assets/steps/yoga-07-1.png";
-import yoga72 from "../assets/steps/yoga-07-2.png";
-import yoga73 from "../assets/steps/yoga-07-3.png";
-import yoga8 from "../assets/steps/yoga-08.png";
+/* ---------- Loading Overlay ---------- */
 
-// Meditation Steps
-import med1 from "../assets/steps/med-01.png";
-import med2 from "../assets/steps/med-02.png";
-import med3 from "../assets/steps/med-03.png";
-import med4 from "../assets/steps/med-04.png";
-import med5 from "../assets/steps/med-05.png";
-import med6 from "../assets/steps/med-06.png";
-import med7 from "../assets/steps/med-07.png";
+.magic16-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.85);
+  padding: 25px 40px;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+  font-size: 18px;
+  z-index: 10;
+  text-align: center;
+  animation: fadeIn 1s ease forwards;
+}
 
-export default function Magic16() {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const detectorRef = useRef(null);
-  const timerRef = useRef(null);
-  const detectRef = useRef(null);
-  const audioRef = useRef(null);
-  const lastVoiceRef = useRef(0);
+/* ---------- Logo ---------- */
 
-  // -------------------- Steps --------------------
-  const yogaSteps = [
-    { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
-    { img: yoga2, text: "Forward Fold. Relax your neck.", duration: 40 },
-    { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 40 },
-    { img: yoga4, text: "Plank Pose. Engage your core.", duration: 60 },
-    { img: yoga5, text: "Cobra Pose. Open your chest.", duration: 40 },
-    { img: yoga6, text: "Downward Dog. Stretch fully.", duration: 60 },
-    { img: yoga71, text: "Warrior Pose 1. Strong stance.", duration: 40 },
-    { img: yoga72, text: "Warrior Pose 2. Focus stability.", duration: 40 },
-    { img: yoga73, text: "Warrior Pose 3. Balance.", duration: 40 },
-    { img: yoga8, text: "Tree Pose. Deep focus.", duration: 60 },
-  ];
+.magic16-logo {
+  display: block;
+  margin: 20px auto;
+  width: 120px;
+  animation: floatLogo 4s ease-in-out infinite;
+}
 
-  const meditationSteps = [
-    { img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
-    { img: med2, text: "Focus on your breath.", duration: 60 },
-    { img: med3, text: "Release tension.", duration: 120 },
-    { img: med4, text: "Feel calm energy.", duration: 60 },
-    { img: med5, text: "Let thoughts pass.", duration: 60 },
-    { img: med6, text: "Stay present.", duration: 60 },
-    { img: med7, text: "Visualize success.", duration: 60 },
-  ];
+@keyframes floatLogo {
+  0%,100% { transform: translateY(0);}
+  50% { transform: translateY(-10px);}
+}
 
-  const steps = [...yogaSteps, ...meditationSteps];
-  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
+/* ---------- Camera Overlay ---------- */
 
-  // -------------------- State --------------------
-  const [stepIndex, setStepIndex] = useState(0);
-  const [stepTime, setStepTime] = useState(steps[0].duration);
-  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [score, setScore] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [streak, setStreak] = useState(
-    Number(localStorage.getItem("magic16_streak") || 0)
-  );
+.magic16-camera {
+  width: 100%;
+  max-width: 640px;
+  height: 360px;
+  margin: 20px auto;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+  position: relative;
+}
 
-  // -------------------- Voice --------------------
-  const speak = (text) => {
-    if (!("speechSynthesis" in window)) return;
-    const now = Date.now();
-    if (now - lastVoiceRef.current < 4000) return;
-    lastVoiceRef.current = now;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
-  };
+/* ---------- Step Display ---------- */
 
-  // -------------------- Audio --------------------
-  const playAudio = () => {
-    const audio = new Audio(meditationAudio);
-    audio.loop = true;
-    audio.volume = 0.4;
-    audio.play().catch(() => {});
-    audioRef.current = audio;
-  };
+.magic16-step {
+  text-align: center;
+  margin: 40px auto;
+}
 
-  // -------------------- Pose Detection --------------------
-  const angle = (A, B, C) => {
-    const AB = { x: A.x - B.x, y: A.y - B.y };
-    const CB = { x: C.x - B.x, y: C.y - B.y };
-    const dot = AB.x * CB.x + AB.y * CB.y;
-    const magAB = Math.hypot(AB.x, AB.y);
-    const magCB = Math.hypot(CB.x, CB.y);
-    return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
-  };
+.magic16-step-img {
+  max-width: 220px;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  animation: floatStep 4s ease-in-out infinite;
+}
 
-  const detect = useCallback(async () => {
-    if (!detectorRef.current || !videoRef.current) return;
-    const poses = await detectorRef.current.estimatePoses(videoRef.current);
-    if (!poses?.length) return;
+.magic16-step-text {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 15px;
+  background: linear-gradient(90deg, #60a5fa, #22c55e, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fadeIn 1s ease forwards;
+}
 
-    const kp = poses[0].keypoints;
-    const hip = kp.find((k) => k.name === "left_hip");
-    const knee = kp.find((k) => k.name === "left_knee");
-    const ankle = kp.find((k) => k.name === "left_ankle");
+@keyframes floatStep {
+  0%,100% { transform: translateY(0);}
+  50% { transform: translateY(-8px);}
+}
 
-    if (hip && knee && ankle) {
-      const a = angle(hip, knee, ankle);
-      const sc = Math.max(0, 100 - Math.abs(a - 90));
-      setScore(Math.round(sc));
-    }
-  }, []);
+/* ---------- Timers & Progress ---------- */
 
-  // -------------------- Camera Init --------------------
-  useEffect(() => {
-    const init = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-      videoRef.current.srcObject = stream;
+.magic16-timers {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  font-size: 16px;
+  margin: 20px 0;
+}
 
-      await tf.ready();
-      await tf.setBackend("webgl");
+.magic16-progress {
+  width: 80%;
+  height: 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
+  margin: 10px auto 30px;
+  overflow: hidden;
+}
 
-      detectorRef.current = await posedetection.createDetector(
-        posedetection.SupportedModels.MoveNet,
-        { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-      );
+.magic16-progress div {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #22c55e, #a78bfa);
+  width: 0%;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
 
-      setLoading(false);
-      speak("Welcome to Magic16");
-    };
+/* ---------- Posture Score ---------- */
 
-    init();
+.magic16-score {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 30px;
+  background: linear-gradient(90deg, #facc15, #f97316, #ef4444);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fadeIn 1s ease forwards;
+}
 
-    return () => {
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      audioRef.current?.pause();
-      clearInterval(timerRef.current);
-      clearInterval(detectRef.current);
-    };
-  }, []);
+/* ---------- Controls ---------- */
 
-  // -------------------- Timer --------------------
-  const start = () => {
-    if (playing) return;
-    setPlaying(true);
+.magic16-controls {
+  text-align: center;
+  margin-bottom: 50px;
+}
 
-    playAudio();
-    speak(steps[stepIndex].text);
+.magic16-controls button {
+  padding: 14px 35px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 40px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
 
-    detectRef.current = setInterval(detect, 400);
+.magic16-controls button:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+}
 
-    timerRef.current = setInterval(() => {
-      setTotalTime((t) => t - 1);
-      setStepTime((prev) => {
-        if (prev <= 1) {
-          const next = stepIndex + 1;
-          if (next >= steps.length) {
-            finish();
-            return 0;
-          }
-          setStepIndex(next);
-          speak(steps[next].text);
-          return steps[next].duration;
-        }
-        return prev - 1;
-      });
-      setProgress(Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100));
-    }, 1000);
-  };
+/* ---------- Completed Screen ---------- */
 
-  const stop = () => {
-    clearInterval(timerRef.current);
-    clearInterval(detectRef.current);
-    audioRef.current?.pause();
-    setPlaying(false);
-  };
+.magic16-complete {
+  text-align: center;
+  padding: 50px 20px;
+  animation: fadeIn 1s ease forwards;
+}
 
-  // -------------------- Streak & Finish --------------------
-  const updateStreak = () => {
-    const last = localStorage.getItem("magic16_last");
-    const today = new Date().toDateString();
-    if (last !== today) {
-      const newStreak = streak + 1;
-      localStorage.setItem("magic16_streak", newStreak);
-      localStorage.setItem("magic16_last", today);
-      setStreak(newStreak);
-    }
-  };
+.magic16-complete h1 {
+  font-size: 36px;
+  margin-bottom: 20px;
+  background: linear-gradient(90deg, #22c55e, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
-  const finish = () => {
-    stop();
+.magic16-complete h2 {
+  font-size: 22px;
+  margin-bottom: 15px;
+}
 
-    confetti({ particleCount: 250, spread: 120, origin: { y: 0.6 } });
-    speak("Congratulations! Ritual complete!");
-    updateStreak();
+.magic16-complete button {
+  margin: 10px 15px;
+  padding: 12px 30px;
+  font-weight: 600;
+  border-radius: 40px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg,#6366f1,#4f46e5);
+  color: white;
+  transition: all 0.3s ease;
+}
 
-    setCompleted(true);
-  };
+.magic16-complete button:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+}
 
-  // -------------------- Share Result --------------------
-  const shareResult = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: "Magic16 Challenge",
-        text: `I completed Magic16 with ${score}% posture score!`,
-        url: "https://manifix.ai",
-      });
-    }
-  };
+/* ---------- AI Coach ---------- */
 
-  // -------------------- Completed UI --------------------
-  if (completed) {
-    return (
-      <div className="magic16-complete">
-        <h1>🎉 Ritual Complete</h1>
-        <h2>Posture Score: {score}%</h2>
-        <h2>🔥 Magic16 Streak: {streak} days</h2>
-        <button onClick={shareResult}>Share My Result</button>
-        <button onClick={() => window.location.reload()}>Start Again</button>
-        <div className="magic16-ai-coach">
-          <h3>AI Coach Analysis</h3>
-          <p>Tree Pose needs more balance. Focus on hip stability next time.</p>
-        </div>
-      </div>
-    );
+.magic16-ai-coach {
+  margin-top: 40px;
+  padding: 20px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  max-width: 400px;
+  margin-left:auto;
+  margin-right:auto;
+  animation: fadeSlideIn 1s ease forwards;
+}
+
+.magic16-ai-coach h3 {
+  font-size: 18px;
+  margin-bottom: 10px;
+  color:#22c55e;
+}
+
+.magic16-ai-coach p {
+  font-size: 15px;
+  opacity: .9;
+  line-height:1.5;
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes fadeIn {
+  0% {opacity:0;}
+  100% {opacity:1;}
+}
+
+@keyframes fadeSlideIn {
+  0% {opacity:0; transform:translateY(20px);}
+  100% {opacity:1; transform:translateY(0);}
+}
+
+/* ---------- MOBILE ---------- */
+
+@media(max-width:900px){
+  .magic16-step-img{
+    max-width:180px;
   }
-
-  // -------------------- Main UI --------------------
-  return (
-    <div className="magic16">
-      {loading && <div className="magic16-loading">Preparing your yoga trainer...</div>}
-
-      <img src={logo} className="magic16-logo" alt="logo" />
-
-      <div className="magic16-camera">
-        <PostureOverlay />
-      </div>
-
-      <div className="magic16-step">
-        <img src={steps[stepIndex].img} alt="step" className="magic16-step-img" />
-        <h1 className="magic16-step-text">{steps[stepIndex].text}</h1>
-      </div>
-
-      {stepIndex >= yogaSteps.length && <BreathingCircle />}
-
-      <div className="magic16-timers">
-        <p>
-          Total Time: {Math.floor(totalTime / 60)}:{String(totalTime % 60).padStart(2, "0")}
-        </p>
-        <p>Step Time: {stepTime}s</p>
-      </div>
-
-      <div className="magic16-progress">
-        <div style={{ width: `${progress}%` }} />
-      </div>
-
-      {playing && <div className="magic16-score">Posture Score: {score}%</div>}
-
-      <div className="magic16-controls">
-        {!playing ? (
-          <button onClick={start}>Start Magic16</button>
-        ) : (
-          <button onClick={stop}>Pause</button>
-        )}
-      </div>
-
-      <video ref={videoRef} autoPlay playsInline muted hidden />
-    </div>
-  );
+  
+  .magic16-step-text{
+    font-size:18px;
+  }
+  
+  .magic16-timers{
+    flex-direction:column;
+    gap:15px;
+  }
+  
+  .magic16-controls button{
+    width:80%;
+  }
+  
+  .magic16-ai-coach{
+    max-width:90%;
+  }
 }
