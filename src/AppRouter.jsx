@@ -3,7 +3,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { useApp } from "./context/AppContext";
+import { useApp } from "./context/AppProvider";
 
 // Public Pages
 import Landing from "./pages/Landing";
