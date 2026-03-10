@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+// src/hooks/useMagic16.js
+import { useState, useEffect, useCallback } from "react";
 import useTimer from "./useTimer";
 import useDetection from "./useDetection";
 import useStreak from "./useStreak";
@@ -13,16 +14,22 @@ export default function useMagic16(steps) {
   const { score, startDetection, stopDetection } = useDetection();
   const { streak, updateStreak } = useStreak();
 
-  function finish() {
-    stop();
+  // Called when all steps are done
+  const finish = useCallback(() => {
+    stopTimer();
+    stopDetection();
     updateStreak();
     setCompleted(true);
-  }
+  }, [stopDetection, updateStreak]);
 
+  // Use per-step timer
   const {
-    totalTime,
     stepTime,
+    totalTime,
+    totalDuration,
     progress,
+    running,
+    completed: timerCompleted,
     startTimer,
     stopTimer,
     resetTimer
@@ -33,27 +40,31 @@ export default function useMagic16(steps) {
     onFinish: finish
   });
 
+  // Start session
   const start = useCallback(() => {
     speak("Welcome to Magic16");
     startTimer();
     startDetection();
   }, [startTimer, startDetection, speak]);
 
+  // Pause / stop session
   const stop = useCallback(() => {
     stopTimer();
     stopDetection();
-    setCompleted(true); // ensure session ends properly
+    setCompleted(true);
   }, [stopTimer, stopDetection]);
 
+  // Restart session
   const restart = useCallback(() => {
     setCompleted(false);
     setStepIndex(0);
     setScoreHistory([]);
     resetTimer();
-    startDetection(); // restart detection
+    startDetection();
     speak("Session restarted");
   }, [resetTimer, startDetection, speak]);
 
+  // Track score history
   useEffect(() => {
     if (score !== null && score !== undefined) {
       setScoreHistory((prev) => [...prev, score]);
@@ -69,13 +80,16 @@ export default function useMagic16(steps) {
     start,
     stop,
     restart,
-    progress,
+    stepTime,       // per-step countdown
+    totalTime,      // total elapsed time
+    totalDuration,  // total session duration
+    progress,       // overall session progress %
     score,
     stepIndex,
-    stepTime,
-    totalTime,
     completed,
     averageScore,
-    streak
+    streak,
+    running,
+    timerCompleted
   };
 }
