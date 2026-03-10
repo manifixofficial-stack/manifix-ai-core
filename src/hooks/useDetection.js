@@ -5,9 +5,10 @@ import * as posedetection from "@tensorflow-models/pose-detection";
 import * as facedetection from "@tensorflow-models/face-detection";
 import "@tensorflow/tfjs-backend-webgl";
 
-export default function useDetection(videoRef: any, canvasRef: any) {
-  const poseDetectorRef = useRef<any>(null);
-  const faceDetectorRef = useRef<any>(null);
+export default function useDetection(videoRef, canvasRef) {
+  const poseDetectorRef = useRef(null);
+  const faceDetectorRef = useRef(null);
+}
   const streamRef = useRef<MediaStream | null>(null);
   const detectInterval = useRef<NodeJS.Timeout | null>(null);
 
