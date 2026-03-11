@@ -1,0 +1,232 @@
+/* ---------------- Page ---------------- */
+
+.blog-page {
+  font-family: "Inter", sans-serif;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  min-height: 100vh;
+  color: white;
+}
+
+
+
+/* ---------------- Header ---------------- */
+
+.blog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 8%;
+}
+
+.blog-logo {
+  height: 38px;
+}
+
+.blog-header nav a {
+  color: #cbd5f5;
+  text-decoration: none;
+  margin-left: 28px;
+  font-weight: 500;
+  transition: 0.25s;
+}
+
+.blog-header nav a:hover {
+  color: white;
+}
+
+
+
+/* ---------------- Hero ---------------- */
+
+.blog-hero {
+  text-align: center;
+  padding: 100px 20px 70px;
+  max-width: 900px;
+  margin: auto;
+}
+
+.blog-hero h1 {
+  font-size: 52px;
+  font-weight: 700;
+  margin-bottom: 15px;
+
+  background: linear-gradient(90deg,#60a5fa,#a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.blog-hero p {
+  color: #cbd5f5;
+  font-size: 18px;
+}
+
+
+
+/* ---------------- Blog Section ---------------- */
+
+.blog-list {
+  padding: 60px 8% 90px;
+}
+
+
+
+/* ---------------- Grid ---------------- */
+
+.blog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(260px,1fr));
+  gap: 30px;
+  max-width: 1100px;
+  margin: auto;
+}
+
+
+
+/* ---------------- Blog Card ---------------- */
+
+.blog-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 30px;
+
+  backdrop-filter: blur(10px);
+
+  transition: all 0.3s ease;
+}
+
+.blog-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(139,92,246,0.6);
+  box-shadow: 0 20px 40px rgba(139,92,246,0.2);
+}
+
+
+
+/* ---------------- Blog Card Content ---------------- */
+
+.blog-date {
+  font-size: 13px;
+  color: #a5b4fc;
+  margin-bottom: 10px;
+}
+
+.blog-card h3 {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.blog-card p {
+  font-size: 15px;
+  color: #d1d5db;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+
+
+
+/* ---------------- Read Button ---------------- */
+
+.blog-read {
+  color: #818cf8;
+  font-weight: 600;
+  text-decoration: none;
+  transition: 0.25s;
+}
+
+.blog-read:hover {
+  color: #a78bfa;
+}
+
+
+
+/* ---------------- CTA ---------------- */
+
+.blog-cta {
+  text-align: center;
+  padding: 90px 20px 120px;
+}
+
+.blog-cta h2 {
+  font-size: 34px;
+  margin-bottom: 30px;
+}
+
+
+
+/* ---------------- CTA Buttons ---------------- */
+
+.blog-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.blog-btn {
+  background: linear-gradient(90deg,#6366f1,#8b5cf6);
+  padding: 14px 28px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: white;
+  font-weight: 600;
+  transition: 0.3s;
+  box-shadow: 0 10px 25px rgba(99,102,241,0.4);
+}
+
+.blog-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(139,92,246,0.6);
+}
+
+.blog-btn.outline {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+
+
+/* ---------------- Animations ---------------- */
+
+.blog-card {
+  animation: fadeUp 0.8s ease forwards;
+}
+
+@keyframes fadeUp {
+
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+}
+
+
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 768px) {
+
+  .blog-hero h1 {
+    font-size: 38px;
+  }
+
+  .blog-hero p {
+    font-size: 16px;
+  }
+
+  .blog-header {
+    padding: 20px 6%;
+  }
+
+  .blog-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+}
