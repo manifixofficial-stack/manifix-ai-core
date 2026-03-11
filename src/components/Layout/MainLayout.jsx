@@ -38,6 +38,7 @@ export default function MainLayout() {
     {
       title: "Resources",
       items: [
+        { name: "Home", path: "/", icon: "home" },
         { name: "About ManifiX", path: "/about", icon: "about" },
         { name: "Blog", path: "/blog", icon: "blog" },
         { name: "Features", path: "/features/gpt", icon: "features" }
@@ -164,7 +165,13 @@ function renderIcon(type) {
           <circle cx="12" cy="12" r="3"/>
         </svg>
       );
-
+     case "home":
+  return (
+    <svg viewBox="0 0 24 24">
+      <path d="M3 10L12 3l9 7"/>
+      <path d="M5 10v10h14V10"/>
+    </svg>
+  );
     case "magic":
       return (
         <svg viewBox="0 0 24 24">
