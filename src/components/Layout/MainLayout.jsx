@@ -1,5 +1,3 @@
-// src/components/Layout/MainLayout.jsx
-
 import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import "../../styles/MainLayout.css";
@@ -38,6 +36,15 @@ export default function MainLayout() {
     },
 
     {
+      title: "Resources",
+      items: [
+        { name: "About ManifiX", path: "/about", icon: "about" },
+        { name: "Blog", path: "/blog", icon: "blog" },
+        { name: "Features", path: "/features/gpt", icon: "features" }
+      ]
+    },
+
+    {
       title: "Support",
       items: [
         { name: "Contact", path: "/contact", icon: "contact" }
@@ -56,7 +63,7 @@ export default function MainLayout() {
   return (
     <div className={`layout ${sidebarCollapsed ? "collapsed" : ""}`}>
 
-      {/* Mobile overlay */}
+      {/* Mobile Overlay */}
       <div
         className={`overlay ${mobileOpen ? "show" : ""}`}
         onClick={toggleMobile}
@@ -71,7 +78,6 @@ export default function MainLayout() {
         </div>
 
         <nav>
-
           {navSections.map((section) => (
             <div key={section.title}>
 
@@ -102,7 +108,6 @@ export default function MainLayout() {
 
             </div>
           ))}
-
         </nav>
 
       </aside>
@@ -135,7 +140,8 @@ export default function MainLayout() {
 }
 
 
-/* ---------- Icons ---------- */
+
+/* ---------- ICONS ---------- */
 
 function renderIcon(type) {
 
@@ -178,6 +184,31 @@ function renderIcon(type) {
         <svg viewBox="0 0 24 24">
           <rect x="2" y="5" width="20" height="14" rx="2"/>
           <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      );
+
+    case "about":
+      return (
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+        </svg>
+      );
+
+    case "blog":
+      return (
+        <svg viewBox="0 0 24 24">
+          <rect x="4" y="3" width="16" height="18" rx="2"/>
+          <line x1="8" y1="7" x2="16" y2="7"/>
+          <line x1="8" y1="11" x2="16" y2="11"/>
+          <line x1="8" y1="15" x2="13" y2="15"/>
+        </svg>
+      );
+
+    case "features":
+      return (
+        <svg viewBox="0 0 24 24">
+          <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/>
         </svg>
       );
 
