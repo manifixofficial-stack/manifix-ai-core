@@ -15,7 +15,7 @@ export default function About() {
         <img src={logo} alt="ManifiX Logo" className="about-logo" />
 
         <nav>
-          <Link to="/Home">Home</Link>
+          <Link to="/">Home</Link>
           <Link to="/features/gpt">GPT</Link>
           <Link to="/features/magic16">Magic16</Link>
           <Link to="/blog">Blog</Link>
@@ -26,7 +26,7 @@ export default function About() {
 
 
 
-      {/* Hero Section */}
+   
 
      {/* Hero Section */}
 
