@@ -1,160 +1,221 @@
-/* src/styles/Contact.css */
+// src/pages/Contact.jsx
+import React, { useEffect, useState, useRef } from "react";
+import supabase from "../services/supabase";
+import "../styles/Contact.css";
 
-/* ------------------ Global Styles ------------------ */
-body, html {
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', sans-serif;
-  background-color: #0d0d0d;
-  color: white;
-  overflow-x: hidden;
+import logo from "../assets/logo.png";
+
+export default function Contact() {
+  const [statusMessage, setStatusMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const nameRef = useRef();
+  const emailRef = useRef();
+  const messageRef = useRef();
+  const canvasRef = useRef(null);
+
+  // ✨ Sparkles Background
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    let stars = [];
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      stars = Array.from({ length: 120 }).map(() => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.4,
+        speed: Math.random() * 0.4 + 0.2,
+      }));
+    };
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      stars.forEach((s) => {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.fill();
+
+        s.y += s.speed;
+        if (s.y > canvas.height) s.y = 0;
+      });
+
+      requestAnimationFrame(animate);
+    };
+
+    resize();
+    animate();
+    window.addEventListener("resize", resize);
+
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  // 📩 Submit Form
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setStatusMessage("");
+
+    try {
+      const { error } = await supabase.from("contact_messages").insert([
+        {
+          name: nameRef.current.value,
+          email: emailRef.current.value,
+          message: messageRef.current.value,
+          created_at: new Date(),
+        },
+      ]);
+
+      if (error) throw error;
+
+      setStatusMessage("✅ Message sent successfully. Our team will contact you soon.");
+      e.target.reset();
+    } catch (err) {
+      console.error(err);
+      setStatusMessage("⚠️ Something went wrong. Please try again.");
+    }
+
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="contact-page">
+
+      <canvas ref={canvasRef} className="sparkle-bg" />
+
+      {/* Header */}
+      <header className="contact-header">
+        <a href="/" className="brand">
+          <img src={logo} alt="ManifiX logo" className="brand-logo" />
+          <div>
+            <h1>ManifiX</h1>
+            <span>AI • Magic16</span>
+          </div>
+        </a>
+      </header>
+
+      <main className="contact-container">
+
+        {/* Hero */}
+        <section className="contact-hero">
+          <h2>Connect with ManifiX</h2>
+          <p>
+            Collaborate with innovators, creators, and investors building the future of
+            AI-powered creativity and human wellness.
+          </p>
+        </section>
+
+        {/* Contact Cards */}
+        <section className="contact-cards">
+          <Card
+            title="Partnerships"
+            text="Work with ManifiX on AI innovation and global wellness platforms."
+            email="partners@manifixai.com"
+          />
+
+          <Card
+            title="Investors"
+            text="Join our mission and invest in the next generation of creative AI."
+            email="invest@manifixai.com"
+          />
+
+          <Card
+            title="Press & Media"
+            text="Interviews, media kits and official brand resources."
+            email="press@manifixai.com"
+          />
+        </section>
+
+        {/* Contact Form */}
+        <section className="contact-form-card">
+          <h3>Send us a message</h3>
+
+          <form onSubmit={handleSubmit}>
+            <input ref={nameRef} type="text" placeholder="Your name" required />
+            <input ref={emailRef} type="email" placeholder="Your email" required />
+            <textarea ref={messageRef} rows="5" placeholder="Your message" required />
+
+            <button type="submit" disabled={submitting}>
+              {submitting ? "Sending..." : "Send Message"}
+            </button>
+          </form>
+
+          {statusMessage && (
+            <p className="status-message">{statusMessage}</p>
+          )}
+        </section>
+
+        {/* Features */}
+        <section className="features">
+          <h3>Discover ManifiX</h3>
+
+          <div className="features-grid">
+            <Feature
+              title="Magic16 Wellness System"
+              text="A structured 16-module journey to elevate energy, focus, and manifestation."
+            />
+
+            <Feature
+              title="GPT AI Companion"
+              text="Ask anything and receive clear AI guidance powered by advanced models."
+            />
+
+            <Feature
+              title="Creator Network"
+              text="Collaborate with global innovators building the future."
+            />
+          </div>
+        </section>
+
+        {/* Map */}
+        <section className="map-section">
+          <h3>Our Location</h3>
+
+          <iframe
+            title="ManifiX location"
+            src="https://maps.google.com/maps?q=visakhapatnam&t=&z=13&ie=UTF8&iwloc=&output=embed"
+            loading="lazy"
+          />
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="contact-footer">
+        © {new Date().getFullYear()} ManifiX — Where AI meets human creativity
+        <div>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+        </div>
+      </footer>
+    </div>
+  );
 }
 
-a {
-  text-decoration: none;
+/* ---------- Components ---------- */
+
+function Card({ title, text, email }) {
+  return (
+    <div className="contact-card">
+      <h4>{title}</h4>
+      <p>{text}</p>
+      <a href={`mailto:${email}`} className="card-btn">
+        Contact
+      </a>
+    </div>
+  );
 }
 
-h1, h2, h3 {
-  margin: 0;
-}
-
-/* ------------------ Buttons ------------------ */
-.btn {
-  display: inline-block;
-  font-weight: 600;
-  text-align: center;
-  padding: 0.7rem 1.5rem;
-  border-radius: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease-in-out;
-  user-select: none;
-}
-
-.btn-primary {
-  background: linear-gradient(90deg, #ff7cd5, #ff3c78);
-  color: white;
-  border: none;
-  box-shadow: 0 4px 15px rgba(255, 60, 120, 0.4);
-}
-
-.btn-primary:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(255, 60, 120, 0.6);
-}
-
-.btn-outline {
-  border: 2px solid #ff3c78;
-  color: #ff3c78;
-  background: transparent;
-}
-
-.btn-outline:hover {
-  background: rgba(255, 60, 120, 0.1);
-  transform: scale(1.05);
-}
-
-/* ------------------ Card Styles ------------------ */
-.card {
-  background: rgba(27, 27, 27, 0.7);
-  backdrop-filter: blur(15px);
-  border-radius: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-  transition: all 0.3s ease-in-out;
-}
-
-.card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.1);
-}
-
-/* ------------------ Hero Section ------------------ */
-main section.text-center h1 {
-  font-size: 2.5rem;
-  background: linear-gradient(to right, #ffffff, #d1d1d1, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-/* ------------------ Input Fields ------------------ */
-input, textarea {
-  background: rgba(0,0,0,0.4);
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 1rem;
-  padding: 1rem;
-  color: white;
-  font-size: 1rem;
-  transition: all 0.3s ease-in-out;
-}
-
-input:focus, textarea:focus {
-  border: 1px solid #ff3c78;
-  box-shadow: 0 4px 15px rgba(255, 60, 120, 0.3);
-  outline: none;
-}
-
-/* ------------------ Cards & Feature Cards ------------------ */
-.ContactCard, .FeatureCard {
-  transition: all 0.3s ease-in-out;
-}
-
-.ContactCard:hover, .FeatureCard:hover {
-  transform: scale(1.05);
-  border-color: #ff3c78;
-  box-shadow: 0 8px 20px rgba(255, 60, 120, 0.4);
-}
-
-/* ------------------ Sparkles Canvas ------------------ */
-canvas {
-  display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: -10;
-  pointer-events: none;
-}
-
-/* ------------------ Footer ------------------ */
-footer a {
-  transition: all 0.3s ease-in-out;
-}
-
-footer a:hover {
-  color: #ff3c78;
-  text-decoration: underline;
-}
-
-/* ------------------ Responsive ------------------ */
-@media (max-width: 768px) {
-  main section.text-center h1 {
-    font-size: 2rem;
-  }
-
-  .grid.md\:grid-cols-3 {
-    grid-template-columns: 1fr;
-  }
-
-  .card {
-    margin: 0 auto;
-  }
-}
-
-/* ------------------ Animations ------------------ */
-@keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(255, 60, 120, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(255, 60, 120, 0.6);
-  }
-}
-
-.animate-glow {
-  animation: glow 2s infinite;
+function Feature({ title, text }) {
+  return (
+    <div className="feature-card">
+      <h4>{title}</h4>
+      <p>{text}</p>
+    </div>
+  );
 }
