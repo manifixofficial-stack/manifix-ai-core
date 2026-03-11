@@ -33,7 +33,7 @@ export default function MainLayout() {
     {
       title: "Resources",
       items: [
-        { name: "Home", path: "/home", icon: "home" },
+        { name: "Home", path: "/", icon: "home" },
         { name: "About ManifiX", path: "/about", icon: "about" },
         { name: "Blog", path: "/blog", icon: "blog" },
         { name: "Features", path: "/features/gpt", icon: "features" }
