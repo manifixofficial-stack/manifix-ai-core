@@ -7,175 +7,124 @@ import logo from "../../assets/logo.png";
 
 export default function MainLayout() {
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
+  const toggleMobile = () => setMobileOpen(!mobileOpen);
 
-const navItems = [
-  {
-    section: "Core",
-    items: [
-      {
-        name: "Dashboard",
-        path: "/app/dashboard",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <rect x="3" y="3" width="7" height="7" rx="2"/>
-            <rect x="14" y="3" width="7" height="7" rx="2"/>
-            <rect x="14" y="14" width="7" height="7" rx="2"/>
-            <rect x="3" y="14" width="7" height="7" rx="2"/>
-          </svg>
-        )
-      }
-    ]
-  },
+  const navSections = [
+    {
+      title: "Core",
+      items: [
+        { name: "Dashboard", path: "/app/dashboard", icon: "dashboard" }
+      ]
+    },
 
-  {
-    section: "AI Platform",
-    items: [
-      {
-        name: "ManifiX AI",
-        path: "/app/gpt",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2"/>
-            <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="2"/>
-          </svg>
-        )
-      },
+    {
+      title: "AI Platform",
+      items: [
+        { name: "ManifiX AI", path: "/app/gpt", icon: "ai" },
+        { name: "Magic16", path: "/app/magic16", icon: "magic" }
+      ]
+    },
 
-      {
-        name: "Magic16",
-        path: "/app/magic16",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/>
-          </svg>
-        )
-      }
-    ]
-  },
+    {
+      title: "Account",
+      items: [
+        { name: "Feedback", path: "/app/feedback", icon: "feedback" },
+        { name: "Billing", path: "/app/billing", icon: "billing" }
+      ]
+    },
 
-  {
-    section: "Account",
-    items: [
-      {
-        name: "Feedback",
-        path: "/app/feedback",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
-          </svg>
-        )
-      },
+    {
+      title: "Support",
+      items: [
+        { name: "Contact", path: "/contact", icon: "contact" }
+      ]
+    },
 
-      {
-        name: "Billing",
-        path: "/app/billing",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <rect x="2" y="5" width="20" height="14" rx="2"/>
-            <line x1="2" y1="10" x2="22" y2="10"/>
-          </svg>
-        )
-      }
-    ]
-  },
+    {
+      title: "Legal",
+      items: [
+        { name: "Privacy Policy", path: "/privacy", icon: "privacy" },
+        { name: "Terms of Use", path: "/terms", icon: "terms" }
+      ]
+    }
+  ];
 
-  {
-    section: "Support",
-    items: [
-      {
-        name: "Contact",
-        path: "/contact",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <path d="M2 6l10 7L22 6v12H2z"/>
-          </svg>
-        )
-      }
-    ]
-  },
-
-  {
-    section: "Legal",
-    items: [
-      {
-        name: "Privacy Policy",
-        path: "/privacy",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z"/>
-          </svg>
-        )
-      },
-
-      {
-        name: "Terms of Use",
-        path: "/terms",
-        icon: (
-          <svg viewBox="0 0 24 24">
-            <path d="M6 2h9l5 5v15H6z"/>
-            <path d="M14 2v6h6"/>
-          </svg>
-        )
-      }
-    ]
-  }
-];
   return (
-    <div className="app-layout">
+    <div className={`layout ${sidebarCollapsed ? "collapsed" : ""}`}>
 
       {/* Mobile overlay */}
       <div
-        className={`sidebar-overlay ${sidebarOpen ? "show" : ""}`}
-        onClick={toggleSidebar}
+        className={`overlay ${mobileOpen ? "show" : ""}`}
+        onClick={toggleMobile}
       />
 
       {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
 
         <div className="sidebar-header">
-          <img src={logo} alt="ManifiX Logo" className="logo"/>
-          <h1>ManifiX</h1>
+          <img src={logo} alt="ManifiX" className="logo" />
+          {!sidebarCollapsed && <h1>ManifiX</h1>}
         </div>
 
-        <nav className="sidebar-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `nav-item ${isActive ? "active" : ""}`
-              }
-            >
-              <span className="icon">{item.icon}</span>
-              <span>{item.name}</span>
-            </NavLink>
+        <nav>
+
+          {navSections.map((section) => (
+            <div key={section.title}>
+
+              {!sidebarCollapsed && (
+                <div className="nav-section">{section.title}</div>
+              )}
+
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.path}
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) =>
+                    `nav-item ${isActive ? "active" : ""}`
+                  }
+                >
+
+                  <span className="nav-icon">
+                    {renderIcon(item.icon)}
+                  </span>
+
+                  {!sidebarCollapsed && (
+                    <span className="nav-text">{item.name}</span>
+                  )}
+
+                </NavLink>
+              ))}
+
+            </div>
           ))}
+
         </nav>
 
       </aside>
 
-      {/* Main area */}
-      <div className="content-area">
+      {/* Main Area */}
+      <div className="main-area">
 
-        {/* Topbar */}
         <header className="topbar">
 
-          <button className="menu-btn" onClick={toggleSidebar}>
+          <button className="mobile-menu" onClick={toggleMobile}>
             ☰
           </button>
 
-          <div className="topbar-title">
-            ManifiX AI Platform
-          </div>
+          <button className="collapse-btn" onClick={toggleSidebar}>
+            ⇔
+          </button>
+
+          <div className="title">ManifiX Platform</div>
 
         </header>
 
-        {/* Page content */}
-        <main className="main-content">
+        <main className="content">
           <Outlet />
         </main>
 
@@ -183,4 +132,79 @@ const navItems = [
 
     </div>
   );
+}
+
+
+/* ---------- Icons ---------- */
+
+function renderIcon(type) {
+
+  switch (type) {
+
+    case "dashboard":
+      return (
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="2"/>
+          <rect x="14" y="3" width="7" height="7" rx="2"/>
+          <rect x="3" y="14" width="7" height="7" rx="2"/>
+          <rect x="14" y="14" width="7" height="7" rx="2"/>
+        </svg>
+      );
+
+    case "ai":
+      return (
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" fill="none"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      );
+
+    case "magic":
+      return (
+        <svg viewBox="0 0 24 24">
+          <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/>
+        </svg>
+      );
+
+    case "feedback":
+      return (
+        <svg viewBox="0 0 24 24">
+          <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+        </svg>
+      );
+
+    case "billing":
+      return (
+        <svg viewBox="0 0 24 24">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+        </svg>
+      );
+
+    case "contact":
+      return (
+        <svg viewBox="0 0 24 24">
+          <path d="M2 6l10 7L22 6v12H2z"/>
+        </svg>
+      );
+
+    case "privacy":
+      return (
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z"/>
+        </svg>
+      );
+
+    case "terms":
+      return (
+        <svg viewBox="0 0 24 24">
+          <path d="M6 2h9l5 5v15H6z"/>
+          <path d="M14 2v6h6"/>
+        </svg>
+      );
+
+    default:
+      return null;
+  }
+
 }
