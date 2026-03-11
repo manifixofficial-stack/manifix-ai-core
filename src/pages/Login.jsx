@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
 import { useApp } from "../context/AppProvider";
+import { Helmet } from "react-helmet";
 
 import logo from "../assets/logo.png";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
@@ -20,17 +21,30 @@ export default function Login() {
   // ---------------- Redirect if already logged in ----------------
   useEffect(() => {
     if (!appLoading && user) {
-      navigate("/app/gpt", { replace: true });
+      navigate("/app/magic16", { replace: true });
     }
   }, [user, appLoading, navigate]);
 
+  // ---------------- Handle Enter key ----------------
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") {
+      handleEmailLogin();
+    }
+  };
+
   // ---------------- Email login ----------------
   const handleEmailLogin = async () => {
+    if (loading) return;
+    if (!email || !password) {
+      setError("Please enter email and password");
+      return;
+    }
+
     setError("");
     setLoading(true);
 
     try {
-      const loggedUser = await authService.login(email.trim(), password);
+      const loggedUser = await authService.login(email.trim().toLowerCase(), password);
 
       if (!loggedUser) throw new Error("Invalid credentials");
 
@@ -48,6 +62,7 @@ export default function Login() {
 
   // ---------------- Google OAuth login ----------------
   const handleGoogleLogin = async () => {
+    if (loading) return;
     setError("");
     setLoading(true);
 
@@ -65,6 +80,11 @@ export default function Login() {
   if (appLoading) {
     return (
       <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
+        <Helmet>
+          <title>Login — ManifiX AI</title>
+          <meta name="robots" content="noindex, nofollow" />
+        </Helmet>
+
         <div className="overlay" />
         <div className="auth-card">
           <div className="brand">
@@ -81,6 +101,11 @@ export default function Login() {
 
   return (
     <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
+      <Helmet>
+        <title>Login — ManifiX AI</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
+
       <div className="overlay" />
 
       <div className="auth-card">
@@ -112,6 +137,7 @@ export default function Login() {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={handleKeyPress}
           disabled={loading}
         />
 
@@ -120,6 +146,7 @@ export default function Login() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={handleKeyPress}
           disabled={loading}
         />
 
