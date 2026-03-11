@@ -22,6 +22,7 @@ bottom:0;
 transition:all .35s ease;
 z-index:1000;
 overflow-y:auto;
+box-sizing:border-box;
 }
 
 /* collapsed sidebar */
@@ -101,10 +102,18 @@ color:white;
 
 /* ---------- ICON ---------- */
 
+.nav-icon{
+display:flex;
+align-items:center;
+justify-content:center;
+flex-shrink:0;
+}
+
 .nav-icon svg{
 width:20px;
 height:20px;
 fill:currentColor;
+stroke:currentColor;
 }
 
 /* ---------- TEXT ---------- */
