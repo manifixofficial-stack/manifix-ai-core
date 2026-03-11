@@ -1,0 +1,204 @@
+/* ---------------- Page Container ---------------- */
+
+.features-page {
+  font-family: "Inter", sans-serif;
+  background: radial-gradient(circle at top, #111827, #020617);
+  min-height: 100vh;
+  color: white;
+  overflow-x: hidden;
+}
+
+
+
+/* ---------------- Header ---------------- */
+
+.features-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 8%;
+}
+
+.features-logo {
+  height: 38px;
+}
+
+.features-header nav a {
+  color: #cbd5f5;
+  margin-left: 28px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: 0.25s;
+}
+
+.features-header nav a:hover {
+  color: white;
+}
+
+
+
+/* ---------------- Hero Section ---------------- */
+
+.features-hero {
+  text-align: center;
+  padding: 100px 20px 60px;
+  max-width: 900px;
+  margin: auto;
+}
+
+.features-hero h1 {
+  font-size: 52px;
+  font-weight: 700;
+  margin-bottom: 20px;
+
+  background: linear-gradient(90deg,#60a5fa,#a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.features-description {
+  font-size: 18px;
+  color: #cbd5f5;
+  line-height: 1.6;
+  margin-bottom: 35px;
+}
+
+
+
+/* ---------------- Buttons ---------------- */
+
+.features-btn {
+  background: linear-gradient(90deg,#6366f1,#8b5cf6);
+  padding: 14px 28px;
+  border-radius: 10px;
+  color: white;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 25px rgba(99,102,241,0.4);
+}
+
+.features-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 35px rgba(139,92,246,0.6);
+}
+
+.features-btn.large {
+  padding: 16px 36px;
+  font-size: 18px;
+}
+
+
+
+/* ---------------- Feature Section ---------------- */
+
+.features-list {
+  padding: 80px 8%;
+  text-align: center;
+}
+
+.features-list h2 {
+  font-size: 34px;
+  margin-bottom: 50px;
+}
+
+
+
+/* ---------------- Feature Grid ---------------- */
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+  gap: 28px;
+  max-width: 1000px;
+  margin: auto;
+}
+
+
+
+/* ---------------- Feature Cards ---------------- */
+
+.feature-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 35px 25px;
+  border-radius: 16px;
+
+  backdrop-filter: blur(12px);
+
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(139,92,246,0.6);
+  box-shadow: 0 20px 40px rgba(139,92,246,0.2);
+}
+
+.feature-icon {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.feature-card p {
+  color: #e5e7eb;
+  font-size: 16px;
+}
+
+
+
+/* ---------------- CTA Section ---------------- */
+
+.features-cta {
+  text-align: center;
+  padding: 80px 20px 120px;
+}
+
+.features-cta h2 {
+  font-size: 32px;
+  margin-bottom: 25px;
+}
+
+
+
+/* ---------------- Animations ---------------- */
+
+.feature-card,
+.features-btn {
+  animation: fadeUp 0.8s ease forwards;
+}
+
+@keyframes fadeUp {
+
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+}
+
+
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 768px) {
+
+  .features-hero h1 {
+    font-size: 38px;
+  }
+
+  .features-description {
+    font-size: 16px;
+  }
+
+  .features-header {
+    padding: 20px 6%;
+  }
+
+}
