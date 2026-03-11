@@ -1,50 +1,162 @@
 // src/components/Layout/MainLayout.jsx
+
 import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import "../../styles/MainLayout.css";
 import logo from "../../assets/logo.png";
 
 export default function MainLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   const navItems = [
-    { name: "Dashboard", path: "/app/dashboard", icon: <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8v-10h-8v10zm0-18v6h8V3h-8z"/></svg> },
-    { name: "ManifiX AI", path: "/app/gpt", icon: <svg viewBox="0 0 24 24"><path d="M12 2L2 7v7c0 5 4 9 9 9s9-4 9-9V7l-10-5z"/></svg> },
-    { name: "Magic16", path: "/app/magic16", icon: <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M12 6v6l4 2"/></svg> },
-    { name: "Feedback", path: "/app/feedback", icon: <svg viewBox="0 0 24 24"><path d="M21 6h-2V4a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v2H3v14h18V6z"/></svg> },
-    { name: "Billing", path: "/app/billing", icon: <svg viewBox="0 0 24 24"><path d="M2 4v16h20V4H2zm18 14H4V6h16v12z"/></svg> },
-    { name: "Privacy Policy", path: "/privacy", icon: <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.25 3.75 10.25 9 11 5.25-.75 9-5.75 9-11V5l-9-4z"/></svg> },
-    { name: "Terms of Use", path: "/terms", icon: <svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg> },
-    { name: "Contact", path: "/contact", icon: <svg viewBox="0 0 24 24"><path d="M21 8V7l-3 2-2-1-2 1-3-2v1l-3-2v11h18V8z"/></svg> },
-  ];
+  {
+    name: "Dashboard",
+    path: "/app/dashboard",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="2"/>
+        <rect x="14" y="3" width="7" height="7" rx="2"/>
+        <rect x="14" y="14" width="7" height="7" rx="2"/>
+        <rect x="3" y="14" width="7" height="7" rx="2"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "ManifiX AI",
+    path: "/app/gpt",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/>
+        <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="2"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "Magic16",
+    path: "/app/magic16",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "Feedback",
+    path: "/app/feedback",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "Billing",
+    path: "/app/billing",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <rect x="2" y="5" width="20" height="14" rx="2"/>
+        <line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "Privacy Policy",
+    path: "/privacy",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "Terms of Use",
+    path: "/terms",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M6 2h9l5 5v15H6z"/>
+        <path d="M14 2v6h6"/>
+      </svg>
+    )
+  },
+
+  {
+    name: "Contact",
+    path: "/contact",
+    icon: (
+      <svg viewBox="0 0 24 24">
+        <path d="M2 6l10 7L22 6v12H2z"/>
+      </svg>
+    )
+  }
+];
 
   return (
-    <div className={`layout ${sidebarOpen ? "open" : "closed"}`}>
-      <aside className="sidebar">
+    <div className="app-layout">
+
+      {/* Mobile overlay */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? "show" : ""}`}
+        onClick={toggleSidebar}
+      />
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+
         <div className="sidebar-header">
-          <button className="menu-toggle" onClick={toggleSidebar}>=</button>
-          <img src={logo} alt="ManifiX Logo" className="sidebar-logo" />
-          <h1 className="sidebar-title">ManifiX</h1>
+          <img src={logo} alt="ManifiX Logo" className="logo"/>
+          <h1>ManifiX</h1>
         </div>
+
         <nav className="sidebar-nav">
           {navItems.map((item) => (
             <NavLink
               key={item.name}
               to={item.path}
-              className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `nav-item ${isActive ? "active" : ""}`
+              }
             >
-              <span className="link-icon">{item.icon}</span>
-              <span className="link-text">{item.name}</span>
-              <span className="active-bar" />
+              <span className="icon">{item.icon}</span>
+              <span>{item.name}</span>
             </NavLink>
           ))}
         </nav>
+
       </aside>
-      <main className="main-content">
-        <Outlet />
-      </main>
+
+      {/* Main area */}
+      <div className="content-area">
+
+        {/* Topbar */}
+        <header className="topbar">
+
+          <button className="menu-btn" onClick={toggleSidebar}>
+            ☰
+          </button>
+
+          <div className="topbar-title">
+            ManifiX AI Platform
+          </div>
+
+        </header>
+
+        {/* Page content */}
+        <main className="main-content">
+          <Outlet />
+        </main>
+
+      </div>
+
     </div>
   );
 }
