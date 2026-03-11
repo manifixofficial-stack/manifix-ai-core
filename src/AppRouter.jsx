@@ -1,4 +1,3 @@
-// src/AppRouter.jsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/Layout/MainLayout";
@@ -14,6 +13,9 @@ import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
+import Features from "./pages/Features";
+import Blog from "./pages/Blog";
+import About from "./pages/About";
 
 // App Pages (Protected)
 import Dashboard from "./pages/Dashboard";
@@ -24,10 +26,11 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 
 export default function AppRouter() {
-  const { user } = useApp(); // Get user from context
+  const { user } = useApp();
 
   return (
     <Routes>
+
       {/* ------------------ Landing Page ------------------ */}
       <Route
         path="/"
@@ -45,12 +48,30 @@ export default function AppRouter() {
       />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
-      {/* ------------------ Public Footer Pages ------------------ */}
+
+
+      {/* ------------------ Public Pages ------------------ */}
+
+      <Route path="/about" element={<About />} />
+
+      {/* Features pages */}
+      <Route path="/features/:feature" element={<Features />} />
+
+      {/* Blog */}
+      <Route path="/blog" element={<Blog />} />
+
+
+
+      {/* ------------------ Footer Pages ------------------ */}
+
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/contact" element={<Contact />} />
 
+
+
       {/* ------------------ Protected App Pages ------------------ */}
+
       <Route
         path="/app"
         element={
@@ -59,8 +80,10 @@ export default function AppRouter() {
           </ProtectedRoute>
         }
       >
+
         {/* Default redirect inside /app */}
         <Route index element={<Navigate to="gpt" replace />} />
+
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="gpt" element={<Gpt />} />
         <Route path="magic16" element={<Magic16 />} />
@@ -68,10 +91,15 @@ export default function AppRouter() {
         <Route path="settings" element={<Settings />} />
         <Route path="billing" element={<Billing />} />
         <Route path="contact" element={<Contact />} />
+
       </Route>
 
+
+
       {/* ------------------ Catch-All 404 ------------------ */}
+
       <Route path="*" element={<NotFound />} />
+
     </Routes>
   );
 }
