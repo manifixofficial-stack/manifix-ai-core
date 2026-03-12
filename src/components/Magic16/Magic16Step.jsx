@@ -13,6 +13,9 @@ export default function Magic16Step({
   stepTime = 0,
   totalSteps = 0
 }) {
+
+  if (!step) return null;
+
   return (
     <motion.div
       className="magic16-step-wrapper"
@@ -22,22 +25,26 @@ export default function Magic16Step({
       transition={{ duration: 0.4 }}
     >
 
-      {/* Step Counter */}
       <div className="magic16-step-counter">
         Step {stepIndex + 1} / {totalSteps}
       </div>
 
-      {/* Step Title */}
+      {step.img && (
+        <img
+          src={step.img}
+          alt="step"
+          className="magic16-step-image"
+        />
+      )}
+
       <h2 className="magic16-step-title">
-        {step.title || "Focus"}
+        {step.title || "Posture"}
       </h2>
 
-      {/* Step Instruction */}
       <p className="magic16-step-text">
-        {step.text || "Follow the posture instructions carefully."}
+        {step.text || "Follow the instruction."}
       </p>
 
-      {/* Step Timer */}
       <div className="magic16-step-timer">
         {formatTime(stepTime)}
       </div>
