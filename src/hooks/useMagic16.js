@@ -18,6 +18,17 @@ export default function useMagic16() {
   const { score, startDetection, stopDetection } = useDetection();
   const { streak, updateStreak } = useStreak();
 
+  // ================= Finish =================
+  const finish = useCallback(() => {
+
+    stopDetection();
+    updateStreak();
+    setCompleted(true);
+
+    speak("Congratulations. You completed Magic16.");
+
+  }, [stopDetection, updateStreak, speak]);
+
   // ================= Timer =================
   const {
     stepTime,
@@ -35,20 +46,6 @@ export default function useMagic16() {
     setStepIndex,
     onFinish: finish
   });
-
-  // ================= Session Finish =================
-  const finish = useCallback(() => {
-
-    stopTimer();
-    stopDetection();
-
-    updateStreak();
-
-    setCompleted(true);
-
-    speak("Congratulations. You completed Magic16.");
-
-  }, [stopTimer, stopDetection, updateStreak, speak]);
 
   // ================= Start =================
   const start = useCallback(() => {
@@ -82,7 +79,7 @@ export default function useMagic16() {
 
   }, [resetTimer, startDetection, speak]);
 
-  // ================= Score History =================
+  // ================= Score Tracking =================
   useEffect(() => {
 
     if (score !== null && score !== undefined) {
@@ -100,12 +97,11 @@ export default function useMagic16() {
         )
       : 0;
 
-  // ================= Health Feedback =================
   const healthImpact = (() => {
 
     if (averageScore > 90) return "Excellent posture and body alignment.";
     if (averageScore > 75) return "Good posture with minor adjustments needed.";
-    if (averageScore > 60) return "Moderate posture stability. Practice balance.";
+    if (averageScore > 60) return "Moderate posture stability.";
 
     return "Focus on alignment and slower movements.";
 
