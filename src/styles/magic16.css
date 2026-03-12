@@ -1,255 +1,475 @@
-/* ---------- Global Page ---------- */
+/* =========================================
+   MAGIC16 GLOBAL LAYOUT
+========================================= */
 
 .magic16 {
   min-height: 100vh;
-  width: 100%;
-  overflow-x: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: linear-gradient(135deg, #020617, #0f172a, #1e293b);
-  color: white;
-  position: relative;
-  padding-bottom: 80px;
+  padding: 30px 20px 60px;
+  background: radial-gradient(circle at top, #020617, #000);
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "Inter", sans-serif;
 }
 
-/* ---------- Loading Overlay ---------- */
 
-.magic16-loading {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.85);
-  padding: 25px 40px;
-  border-radius: 20px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.7);
-  font-size: 18px;
-  z-index: 10;
-  text-align: center;
-  animation: fadeIn 1s ease forwards;
-}
-
-/* ---------- Logo ---------- */
+/* =========================================
+   LOGO
+========================================= */
 
 .magic16-logo {
-  display: block;
-  margin: 20px auto;
   width: 120px;
-  animation: floatLogo 4s ease-in-out infinite;
+  margin-bottom: 25px;
+  filter: drop-shadow(0 0 20px rgba(0,255,255,0.5));
 }
 
-@keyframes floatLogo {
-  0%,100% { transform: translateY(0);}
-  50% { transform: translateY(-10px);}
-}
 
-/* ---------- Camera Overlay ---------- */
+/* =========================================
+   CAMERA
+========================================= */
 
 .magic16-camera {
-  width: 100%;
-  max-width: 640px;
-  height: 360px;
-  margin: 20px auto;
-  border-radius: 20px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.1);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
   position: relative;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 18px;
+  overflow: hidden;
+
+  background: rgba(15,23,42,0.8);
+  backdrop-filter: blur(12px);
+
+  border: 1px solid rgba(255,255,255,0.06);
+
+  box-shadow:
+  0 20px 60px rgba(0,0,0,0.6),
+  0 0 40px rgba(0,255,255,0.15);
 }
 
-/* ---------- Step Display ---------- */
+.magic16-video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
 
-.magic16-step {
+
+
+/* =========================================
+   STEP GUIDE
+========================================= */
+
+.magic16-step-wrapper {
+
+  margin-top: 25px;
+  padding: 25px;
+  width: 100%;
+  max-width: 420px;
+
+  border-radius: 16px;
+
+  background: rgba(15,23,42,0.7);
+  backdrop-filter: blur(10px);
+
+  border: 1px solid rgba(255,255,255,0.06);
+
+  box-shadow:
+  0 10px 40px rgba(0,0,0,0.5),
+  0 0 20px rgba(0,255,255,0.1);
+
   text-align: center;
-  margin: 40px auto;
+
+  transition: all .35s ease;
 }
 
-.magic16-step-img {
-  max-width: 220px;
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  animation: floatStep 4s ease-in-out infinite;
+.magic16-step-wrapper:hover {
+  transform: translateY(-3px);
+}
+
+.magic16-step-counter {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.magic16-step-title {
+  font-size: 26px;
+  font-weight: 600;
+  margin-bottom: 10px;
+
+  background: linear-gradient(90deg,#22d3ee,#a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .magic16-step-text {
-  font-size: 22px;
-  font-weight: 600;
-  margin-top: 15px;
-  background: linear-gradient(90deg, #60a5fa, #22c55e, #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: fadeIn 1s ease forwards;
-}
-
-@keyframes floatStep {
-  0%,100% { transform: translateY(0);}
-  50% { transform: translateY(-8px);}
-}
-
-/* ---------- Timers & Progress ---------- */
-
-.magic16-timers {
-  display: flex;
-  justify-content: center;
-  gap: 40px;
-  font-size: 16px;
-  margin: 20px 0;
-}
-
-.magic16-progress {
-  width: 80%;
-  height: 12px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 10px;
-  margin: 10px auto 30px;
-  overflow: hidden;
-}
-
-.magic16-progress div {
-  height: 100%;
-  background: linear-gradient(90deg, #6366f1, #22c55e, #a78bfa);
-  width: 0%;
-  border-radius: 10px;
-  transition: width 0.5s ease;
-}
-
-/* ---------- Posture Score ---------- */
-
-.magic16-score {
-  text-align: center;
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 30px;
-  background: linear-gradient(90deg, #facc15, #f97316, #ef4444);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: fadeIn 1s ease forwards;
-}
-
-/* ---------- Controls ---------- */
-
-.magic16-controls {
-  text-align: center;
-  margin-bottom: 50px;
-}
-
-.magic16-controls button {
-  padding: 14px 35px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 40px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  color: white;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-}
-
-.magic16-controls button:hover {
-  transform: translateY(-3px) scale(1.05);
-  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-}
-
-/* ---------- Completed Screen ---------- */
-
-.magic16-complete {
-  text-align: center;
-  padding: 50px 20px;
-  animation: fadeIn 1s ease forwards;
-}
-
-.magic16-complete h1 {
-  font-size: 36px;
-  margin-bottom: 20px;
-  background: linear-gradient(90deg, #22c55e, #60a5fa, #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.magic16-complete h2 {
-  font-size: 22px;
+  font-size: 15px;
+  color: #cbd5f5;
+  line-height: 1.6;
   margin-bottom: 15px;
 }
 
-.magic16-complete button {
-  margin: 10px 15px;
-  padding: 12px 30px;
+.magic16-step-timer {
+  font-size: 30px;
+  font-weight: 700;
+  color: #22d3ee;
+
+  text-shadow: 0 0 20px rgba(34,211,238,0.7);
+}
+
+
+
+/* =========================================
+   BREATHING CIRCLE
+========================================= */
+
+.breathing-container {
+  margin-top: 35px;
+  text-align: center;
+}
+
+.breathing-circle {
+
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+
+  margin: auto;
+
+  background:
+  radial-gradient(circle,#22d3ee,#6366f1);
+
+  animation: breathe 6s infinite ease-in-out;
+
+  box-shadow:
+  0 0 40px rgba(34,211,238,0.6),
+  0 0 90px rgba(99,102,241,0.3);
+}
+
+.breathing-text {
+  margin-top: 18px;
+  font-size: 20px;
   font-weight: 600;
-  border-radius: 40px;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(135deg,#6366f1,#4f46e5);
-  color: white;
-  transition: all 0.3s ease;
+  color: #e2e8f0;
 }
 
-.magic16-complete button:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+@keyframes breathe {
+
+  0% { transform: scale(0.85); }
+
+  50% { transform: scale(1.1); }
+
+  100% { transform: scale(0.85); }
+
 }
 
-/* ---------- AI Coach ---------- */
 
-.magic16-ai-coach {
-  margin-top: 40px;
-  padding: 20px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.1);
-  backdrop-filter: blur(10px);
-  max-width: 400px;
-  margin-left:auto;
-  margin-right:auto;
-  animation: fadeSlideIn 1s ease forwards;
+
+/* =========================================
+   TIMER + PROGRESS
+========================================= */
+
+.magic16-progress-wrapper {
+
+  margin-top: 30px;
+  width: 100%;
+  max-width: 420px;
+
 }
 
-.magic16-ai-coach h3 {
-  font-size: 18px;
+.magic16-progress-times {
+  display: flex;
+  justify-content: space-between;
   margin-bottom: 10px;
-  color:#22c55e;
 }
 
-.magic16-ai-coach p {
-  font-size: 15px;
-  opacity: .9;
-  line-height:1.5;
+.magic16-time-label {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-/* ---------- Animations ---------- */
-
-@keyframes fadeIn {
-  0% {opacity:0;}
-  100% {opacity:1;}
+.magic16-time-value {
+  font-size: 18px;
+  font-weight: 600;
 }
 
-@keyframes fadeSlideIn {
-  0% {opacity:0; transform:translateY(20px);}
-  100% {opacity:1; transform:translateY(0);}
+.magic16-progress-bar-bg {
+
+  height: 10px;
+  background: rgba(148,163,184,0.2);
+
+  border-radius: 20px;
+  overflow: hidden;
+
 }
 
-/* ---------- MOBILE ---------- */
+.magic16-progress-bar-fill {
 
-@media(max-width:900px){
-  .magic16-step-img{
-    max-width:180px;
+  height: 100%;
+  width: 0%;
+
+  background:
+  linear-gradient(
+  90deg,
+  #22d3ee,
+  #6366f1,
+  #22c55e);
+
+  border-radius: 20px;
+
+  transition: width .5s ease;
+
+  box-shadow:
+  0 0 20px rgba(34,211,238,0.6);
+
+}
+
+.magic16-progress-percent {
+  margin-top: 8px;
+  text-align: right;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+
+
+/* =========================================
+   POSTURE SCORE
+========================================= */
+
+.magic16-score-wrapper {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.magic16-score-circle {
+
+  width: 130px;
+  height: 130px;
+
+  border-radius: 50%;
+
+  margin: auto;
+
+  border: 6px solid #22d3ee;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow:
+  0 0 30px rgba(34,211,238,0.5);
+
+}
+
+.magic16-score-value {
+
+  font-size: 34px;
+  font-weight: 700;
+
+  color: #e2e8f0;
+
+}
+
+.magic16-score-status {
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+
+
+/* =========================================
+   CONTROLS
+========================================= */
+
+.magic16-controls {
+
+  margin-top: 35px;
+
+  display: flex;
+  gap: 14px;
+
+}
+
+.magic16-btn {
+
+  padding: 12px 22px;
+
+  border-radius: 10px;
+
+  font-weight: 600;
+
+  border: none;
+
+  cursor: pointer;
+
+  transition: all .25s ease;
+
+}
+
+.magic16-btn-primary {
+
+  background:
+  linear-gradient(
+  90deg,
+  #22d3ee,
+  #6366f1);
+
+  color: white;
+
+  box-shadow:
+  0 6px 20px rgba(34,211,238,0.4);
+
+}
+
+.magic16-btn-primary:hover {
+
+  transform: translateY(-2px);
+
+  box-shadow:
+  0 10px 30px rgba(34,211,238,0.5);
+
+}
+
+.magic16-btn-secondary {
+
+  background: transparent;
+
+  border: 1px solid #22d3ee;
+
+  color: #22d3ee;
+
+}
+
+
+
+/* =========================================
+   COMPLETION SCREEN
+========================================= */
+
+.magic16-complete {
+
+  text-align: center;
+
+  padding: 40px;
+
+  max-width: 420px;
+
+  margin-top: 60px;
+
+  border-radius: 18px;
+
+  background: rgba(15,23,42,0.8);
+
+  backdrop-filter: blur(14px);
+
+  border: 1px solid rgba(255,255,255,0.05);
+
+  box-shadow:
+  0 30px 80px rgba(0,0,0,0.6),
+  0 0 30px rgba(34,211,238,0.2);
+
+}
+
+.magic16-complete-title {
+
+  font-size: 32px;
+
+  font-weight: 700;
+
+  margin-bottom: 10px;
+
+}
+
+.magic16-complete-subtitle {
+
+  color: #94a3b8;
+
+  margin-bottom: 25px;
+
+}
+
+.magic16-complete-stats {
+
+  display: flex;
+
+  justify-content: space-around;
+
+  margin-bottom: 25px;
+
+}
+
+.magic16-stat-value {
+
+  font-size: 26px;
+
+  font-weight: 600;
+
+  color: #22d3ee;
+
+}
+
+
+
+/* =========================================
+   SHARE BUTTON
+========================================= */
+
+.magic16-share-btn {
+
+  background:
+  linear-gradient(
+  90deg,
+  #22d3ee,
+  #22c55e);
+
+  border: none;
+
+  color: white;
+
+  padding: 12px 20px;
+
+  border-radius: 10px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: all .25s ease;
+
+}
+
+.magic16-share-btn:hover {
+
+  transform: translateY(-2px);
+
+  box-shadow:
+  0 8px 20px rgba(34,211,238,0.4);
+
+}
+
+
+
+/* =========================================
+   MOBILE RESPONSIVE
+========================================= */
+
+@media (max-width: 600px) {
+
+  .magic16 {
+    padding: 20px 15px 50px;
   }
-  
-  .magic16-step-text{
-    font-size:18px;
+
+  .magic16-step-title {
+    font-size: 22px;
   }
-  
-  .magic16-timers{
-    flex-direction:column;
-    gap:15px;
+
+  .magic16-step-timer {
+    font-size: 26px;
   }
-  
-  .magic16-controls button{
-    width:80%;
+
+  .breathing-circle {
+    width: 150px;
+    height: 150px;
   }
-  
-  .magic16-ai-coach{
-    max-width:90%;
-  }
+
 }
