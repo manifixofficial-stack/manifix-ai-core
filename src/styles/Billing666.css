@@ -1,142 +1,365 @@
-/* src/styles/Billing666.css */
+/* ---------------- Global Page ---------------- */
 
-/* ---------- Page Layout ---------- */
-.billing-page {
-  font-family: "Inter", sans-serif;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f9f9f9, #ffffff);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 40px 20px;
-  color: #333;
+.billing-page{
+  min-height:100vh;
+  background:
+  radial-gradient(circle at 20% 20%,rgba(0,255,204,0.08),transparent 40%),
+  radial-gradient(circle at 80% 10%,rgba(255,0,204,0.08),transparent 40%),
+  #020617;
+
+  font-family:"Inter",sans-serif;
+  color:white;
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  padding:60px 20px;
 }
 
-/* ---------- Header ---------- */
-.billing-header {
-  text-align: center;
-  margin-bottom: 40px;
+
+
+/* ---------------- Container ---------------- */
+
+.billing-container{
+  width:100%;
+  max-width:560px;
+  text-align:center;
+
+  animation:fadeUp .8s ease;
 }
 
-.billing-logo {
-  width: 80px;
-  margin-bottom: 15px;
+
+
+/* ---------------- Logo ---------------- */
+
+.billing-logo{
+  width:70px;
+  margin-bottom:20px;
+
+  filter:
+  drop-shadow(0 0 10px #00FFD1)
+  drop-shadow(0 0 18px #ff00ff);
+
+  animation:logoGlow 3s ease-in-out infinite alternate;
 }
 
-.billing-header h1 {
-  font-size: 2.2rem;
-  font-weight: 700;
-  color: #7b1fa2;
-  margin-bottom: 8px;
+
+
+/* ---------------- Title ---------------- */
+
+.billing-title{
+  font-size:40px;
+  font-weight:700;
+  margin-bottom:10px;
 }
 
-.billing-header p {
-  font-size: 1rem;
-  color: #555;
+.billing-title span{
+
+  background:linear-gradient(90deg,#00FFD1,#FF00FF);
+
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+
+  text-shadow:
+  0 0 10px rgba(0,255,209,.4),
+  0 0 18px rgba(255,0,255,.4);
 }
 
-/* ---------- Subscription Card ---------- */
-.billing-card {
-  background: #fff;
-  border-radius: 20px;
-  padding: 40px 30px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+
+
+/* ---------------- Subtitle ---------------- */
+
+.billing-sub{
+  color:#94a3b8;
+  font-size:17px;
+  margin-bottom:40px;
 }
 
-.billing-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.12);
+
+
+/* ---------------- Pricing Card ---------------- */
+
+.pricing-card{
+
+  background:rgba(255,255,255,0.03);
+
+  border:1px solid rgba(255,255,255,0.08);
+
+  backdrop-filter:blur(16px);
+
+  border-radius:20px;
+
+  padding:45px 40px;
+
+  transition:.35s;
+
+  position:relative;
+
+  overflow:hidden;
 }
 
-.billing-card h2 {
-  font-size: 1.8rem;
-  margin-bottom: 10px;
-  color: #333;
+
+
+/* Glow border animation */
+
+.pricing-card::before{
+
+  content:"";
+
+  position:absolute;
+
+  inset:0;
+
+  border-radius:20px;
+
+  padding:1px;
+
+  background:linear-gradient(130deg,#00FFD1,#FF00FF,#00FFD1);
+
+  -webkit-mask:
+  linear-gradient(#000 0 0) content-box,
+  linear-gradient(#000 0 0);
+
+  -webkit-mask-composite:xor;
+
+  mask-composite:exclude;
+
+  opacity:.6;
 }
 
-.price {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #7b1fa2;
-  margin-bottom: 25px;
+
+
+/* Hover lift */
+
+.pricing-card:hover{
+
+  transform:translateY(-8px);
+
+  box-shadow:
+  0 20px 60px rgba(0,255,200,.15),
+  0 20px 60px rgba(255,0,255,.15);
 }
 
-/* ---------- Features List ---------- */
-.features {
-  list-style: none;
-  padding: 0;
-  margin-bottom: 30px;
-  text-align: left;
+
+
+/* ---------------- Price ---------------- */
+
+.price{
+
+  font-size:46px;
+
+  font-weight:700;
+
+  color:#00FFD1;
+
+  margin-bottom:28px;
+
+  text-shadow:0 0 12px rgba(0,255,200,.5);
 }
 
-.features li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  font-size: 1rem;
-  color: #444;
+.price span{
+
+  font-size:18px;
+
+  color:#94a3b8;
 }
 
-.features li::before {
-  content: "✅";
-  display: inline-block;
+
+
+/* ---------------- Feature List ---------------- */
+
+.feature-list{
+
+  list-style:none;
+
+  padding:0;
+
+  margin:0 0 35px 0;
+
+  text-align:left;
 }
 
-/* ---------- Subscribe Button ---------- */
-.btn-subscribe {
-  background: linear-gradient(90deg, #7b1fa2, #ab47bc);
-  color: #fff;
-  font-weight: 600;
-  font-size: 1.1rem;
-  padding: 12px 25px;
-  border: none;
-  border-radius: 30px;
-  cursor: pointer;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-  transition: all 0.3s ease;
+
+
+.feature-list li{
+
+  padding:10px 0;
+
+  border-bottom:1px solid rgba(255,255,255,.05);
+
+  color:#e2e8f0;
+
+  font-size:15px;
+
+  transition:.25s;
 }
 
-.btn-subscribe:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+
+
+.feature-list li:hover{
+
+  color:#00FFD1;
+
+  transform:translateX(4px);
 }
 
-.btn-subscribe:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+
+
+/* ---------------- Subscribe Button ---------------- */
+
+.subscribe-btn{
+
+  width:100%;
+
+  padding:16px;
+
+  border:none;
+
+  border-radius:12px;
+
+  background:linear-gradient(120deg,#00FFD1,#FF00FF);
+
+  color:white;
+
+  font-size:17px;
+
+  font-weight:600;
+
+  cursor:pointer;
+
+  transition:.3s;
+
+  box-shadow:
+  0 10px 30px rgba(0,255,200,.4),
+  0 10px 30px rgba(255,0,255,.4);
 }
 
-/* ---------- Error Message ---------- */
-.billing-error {
-  color: #d32f2f;
-  font-weight: 600;
-  margin-top: 15px;
+
+
+.subscribe-btn:hover{
+
+  transform:translateY(-3px);
+
+  box-shadow:
+  0 20px 50px rgba(0,255,200,.5),
+  0 20px 50px rgba(255,0,255,.5);
 }
 
-/* ---------- Footer ---------- */
-.billing-footer {
-  margin-top: 50px;
-  text-align: center;
-  color: #777;
-  font-size: 0.9rem;
+
+
+.subscribe-btn:disabled{
+
+  opacity:.6;
+
+  cursor:not-allowed;
 }
 
-/* ---------- Responsive ---------- */
-@media (max-width: 600px) {
-  .billing-card {
-    padding: 30px 20px;
+
+
+/* ---------------- Success / Error ---------------- */
+
+.success{
+
+  margin-top:16px;
+
+  color:#22c55e;
+
+  font-weight:500;
+}
+
+
+
+.error{
+
+  margin-top:16px;
+
+  color:#ef4444;
+
+  font-weight:500;
+}
+
+
+
+/* ---------------- Animations ---------------- */
+
+@keyframes fadeUp{
+
+  from{
+    opacity:0;
+    transform:translateY(25px);
   }
 
-  .billing-header h1 {
-    font-size: 1.8rem;
+  to{
+    opacity:1;
+    transform:translateY(0);
   }
 
-  .price {
-    font-size: 1.6rem;
+}
+
+
+
+@keyframes logoGlow{
+
+  from{
+    filter:
+    drop-shadow(0 0 6px #00FFD1)
+    drop-shadow(0 0 12px #FF00FF);
   }
+
+  to{
+    filter:
+    drop-shadow(0 0 12px #00FFD1)
+    drop-shadow(0 0 24px #FF00FF);
+  }
+
+}
+
+
+
+/* ---------------- Tablet ---------------- */
+
+@media(max-width:900px){
+
+  .billing-title{
+    font-size:34px;
+  }
+
+  .price{
+    font-size:38px;
+  }
+
+}
+
+
+
+/* ---------------- Mobile ---------------- */
+
+@media(max-width:600px){
+
+  .billing-page{
+    padding:40px 16px;
+  }
+
+  .billing-title{
+    font-size:28px;
+  }
+
+  .billing-sub{
+    font-size:15px;
+  }
+
+  .pricing-card{
+    padding:30px 24px;
+  }
+
+  .price{
+    font-size:34px;
+  }
+
+  .subscribe-btn{
+    padding:14px;
+    font-size:16px;
+  }
+
 }
