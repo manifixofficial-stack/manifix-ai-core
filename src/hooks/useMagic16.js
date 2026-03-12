@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-import { magic16Steps } from "../data/magic1666Steps";
+import { magic16Steps } from "../data/magic16Steps";
 
 import useTimer from "./useTimer";
 import useDetection from "./useDetection";
