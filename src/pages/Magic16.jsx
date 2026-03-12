@@ -37,7 +37,10 @@ export default function Magic16() {
 
   const { speak } = useVoice();
 
-  // Voice guidance when step changes
+  // Debug
+  console.log("Magic16 Steps:", steps);
+
+  // Voice guidance
   useEffect(() => {
 
     if (!running) return;
@@ -51,10 +54,7 @@ export default function Magic16() {
   // Completed screen
   if (completed) {
     return (
-      <Magic16Complete
-        score={averageScore}
-        streak={streak}
-      >
+      <Magic16Complete score={averageScore} streak={streak}>
         <Magic16Share score={averageScore} />
       </Magic16Complete>
     );
@@ -84,7 +84,7 @@ export default function Magic16() {
 
       </div>
 
-      {/* Step display */}
+      {/* Step */}
       {steps?.length > 0 && (
         <Magic16Step
           step={steps[stepIndex]}
@@ -92,7 +92,7 @@ export default function Magic16() {
         />
       )}
 
-      {/* Meditation breathing */}
+      {/* Breathing animation */}
       {stepIndex >= 10 && (
         <BreathingCircle />
       )}
