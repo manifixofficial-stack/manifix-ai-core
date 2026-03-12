@@ -33,3 +33,5 @@ export { default as VisionStats } from "./Camera/VisionStats";
 
 // ================= UI =================
 export { default as Modal } from "./Modal";
+// ================= Auth / Security =================
+export { default as ProtectedRoute } from "./ProtectedRoute";
