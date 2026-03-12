@@ -94,10 +94,12 @@ export default function Magic16() {
 
       {/* Step Card */}
       {currentStep && (
-        <Magic16Step
-          step={currentStep}
-          stepIndex={stepIndex}
-        />
+       <Magic16Step
+  step={currentStep}
+  stepIndex={stepIndex}
+  stepTime={stepTime}
+  totalSteps={steps.length}
+/>
       )}
 
       {/* Breathing Circle (Meditation phase) */}
