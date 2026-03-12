@@ -126,12 +126,14 @@ export default function Magic16() {
       )}
 
       {/* Controls */}
-      <Magic16Controls
-        running={running}
-        onStart={start}
-        onPause={stop}
-        onRestart={restart}
-      />
+     <Magic16Controls
+  running={running}
+  paused={false}          // optional: if you implement pause state
+  onStart={start}
+  onPause={stop}
+  onResume={start}        // resume just calls start again
+  onRestart={restart}
+/>
 
     </div>
   );
