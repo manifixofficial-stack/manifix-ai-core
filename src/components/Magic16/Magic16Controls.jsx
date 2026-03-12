@@ -27,3 +27,4 @@ const Magic16Controls = ({
     </div>
   );
 };
+export default Magic16Controls;
