@@ -19,8 +19,8 @@ import "../styles/magic16.css";
 
 export default function Magic16() {
 
-  const {
-    steps = [],
+ const {
+  steps = [{ text: "Test Step", duration: 30 }],
     stepIndex = 0,
     stepTime = 0,
     totalTime = 0,
