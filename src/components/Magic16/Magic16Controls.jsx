@@ -1,41 +1,29 @@
-import React from "react";
-import "../../styles/magic16.css";
-
-export default function Magic16Controls({
+const Magic16Controls = ({
   running = false,
+  completed = false,
   onStart,
   onPause,
   onRestart
-}) {
-
+}) => {
   return (
     <div className="magic16-controls">
+      <div className="magic16-buttons">
+        {!running && !completed && (
+          <button className="magic16-btn magic16-btn-primary" onClick={onStart}>
+            ▶ Start
+          </button>
+        )}
 
-      {!running && (
-        <button
-          className="magic16-btn magic16-btn-primary"
-          onClick={onStart}
-        >
-          ▶ Start
+        {running && (
+          <button className="magic16-btn magic16-btn-secondary" onClick={onPause}>
+            ⏸ Pause
+          </button>
+        )}
+
+        <button className="magic16-btn magic16-btn-danger" onClick={onRestart}>
+          ⏹ Restart
         </button>
-      )}
-
-      {running && (
-        <button
-          className="magic16-btn magic16-btn-secondary"
-          onClick={onPause}
-        >
-          ⏸ Pause
-        </button>
-      )}
-
-      <button
-        className="magic16-btn magic16-btn-secondary"
-        onClick={onRestart}
-      >
-        🔄 Restart
-      </button>
-
+      </div>
     </div>
   );
-}
+};
