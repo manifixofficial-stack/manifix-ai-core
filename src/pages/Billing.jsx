@@ -1,127 +1,159 @@
 // src/pages/Billing.jsx
 import React, { useState } from "react";
-import "../styles/Billing666.css";
+import "../styles/Billing.css";
 import authService from "../services/auth.service";
 import supabase from "../services/supabase";
 import logo from "../assets/logo.png";
 
-const BillingPage = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+export default function BillingPage() {
 
-  const handleSubscribe = async () => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const currentUser = authService?.getCurrentUser?.();
-
-      if (!currentUser) {
-        setError("You must be logged in.");
-        setLoading(false);
-        return;
-      }
-
-      // Create Razorpay order from backend
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/create-order`, {
-        method: "POST",
-      });
-
-      if (!res.ok) throw new Error("Failed to create order");
-
-      const order = await res.json();
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY, // Test Mode Key from .env
-        amount: order.amount,
-        currency: order.currency,
-        name: "ManifiX",
-        description: "Premium Subscription",
-        image: logo,
-        order_id: order.id,
-        handler: async function (response) {
-          try {
-            // Insert premium record in Supabase
-            const { error: insertError } = await supabase.from("premium").insert([
-              {
-                user_id: currentUser.id,
-                payment_id: response.razorpay_payment_id,
-                plan: "premium",
-                subscription_status: "active",
-                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-              },
-            ]);
-
-            if (insertError) throw insertError;
-
-            alert("🎉 Payment Successful! Premium activated.");
-          } catch (dbErr) {
-            console.error("Database Error:", dbErr);
-            alert("Payment succeeded but premium activation failed.");
-          }
-        },
-        prefill: {
-          name: currentUser.name || "",
-          email: currentUser.email || "",
-        },
-        theme: {
-          color: "#6366f1",
-        },
-      };
-
-      const razor = new window.Razorpay(options);
-      razor.open();
-    } catch (err) {
-      console.error(err);
-      setError("Payment service not reachable. Try later.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loading,setLoading] = useState(false)
+  const [message,setMessage] = useState("")
+  const [error,setError] = useState("")
 
   const features = [
-    "Unlimited GPT Conversations with Context Awareness",
-    "Magic16 AI-Powered Daily Rituals & Guidance",
-    "Real-Time Voice Chat (STT / TTS) Across All Features",
-    "Personalized AI Coach for Meditation & Yoga",
-    "Custom GPT Prompts & Workflow Automation",
-    "Progress Tracking & Posture Analytics",
-    "Mood & Energy Insights with Vibe Score",
-    "Adaptive Dark/Light UI with Custom Themes",
-    "Exclusive Early Access to AI Experiments",
-    "Personalized AI Recommendations for Growth & Fun",
-  ];
+    "Unlimited GPT Conversations",
+    "Magic16 Daily Ritual System",
+    "Real-Time Voice Chat",
+    "Personal AI Coach",
+    "Advanced Prompt Automation",
+    "Progress & Posture Tracking",
+    "Mood + Energy Insights",
+    "Adaptive Neon UI Themes",
+    "Early Access AI Experiments",
+    "Personalized AI Recommendations"
+  ]
+
+  const handleSubscribe = async () => {
+
+    setLoading(true)
+    setError("")
+    setMessage("")
+
+    try{
+
+      const user = authService?.getCurrentUser?.()
+
+      if(!user){
+        setError("Login required to continue")
+        setLoading(false)
+        return
+      }
+
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/create-order`,{
+        method:"POST"
+      })
+
+      if(!res.ok) throw new Error("Order creation failed")
+
+      const order = await res.json()
+
+      const options = {
+
+        key: import.meta.env.VITE_RAZORPAY_KEY,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.id,
+
+        name:"ManifiX",
+        description:"Premium Subscription",
+        image:logo,
+
+        handler: async function(response){
+
+          try{
+
+            const {error:dbError} = await supabase
+            .from("premium")
+            .insert([{
+              user_id:user.id,
+              payment_id:response.razorpay_payment_id,
+              plan:"premium",
+              subscription_status:"active",
+              expires_at:new Date(Date.now()+30*24*60*60*1000)
+            }])
+
+            if(dbError) throw dbError
+
+            setMessage("🎉 Premium Activated Successfully!")
+
+          }catch(err){
+            console.error(err)
+            setError("Payment successful but activation failed")
+          }
+
+        },
+
+        prefill:{
+          name:user.name || "",
+          email:user.email || ""
+        },
+
+        theme:{
+          color:"#00F5D4"
+        }
+
+      }
+
+      const razor = new window.Razorpay(options)
+      razor.open()
+
+    }catch(err){
+
+      console.error(err)
+      setError("Payment service unavailable")
+
+    }finally{
+      setLoading(false)
+    }
+
+  }
 
   return (
-    <div className="billing-page">
-      <header className="billing-header">
-        <img src={logo} alt="ManifiX Logo" className="billing-logo" />
-        <h1>ManifiX Premium</h1>
-        <p>Unlock full access to all premium features</p>
-      </header>
 
-      <section className="billing-card">
-        <h2>Premium Subscription</h2>
-        <p className="price">₹1,999 / month</p>
+  <div className="billing-page">
 
-        <ul className="features">
-          {features.map((feature, index) => (
-            <li key={index}>✅ {feature}</li>
+    <div className="billing-container">
+
+      <img src={logo} className="billing-logo"/>
+
+      <h1 className="billing-title">
+        Upgrade to <span>ManifiX Premium</span>
+      </h1>
+
+      <p className="billing-sub">
+        Unlock the full power of AI guidance, rituals and automation.
+      </p>
+
+      <div className="pricing-card">
+
+        <div className="price">
+          ₹1999 <span>/month</span>
+        </div>
+
+        <ul className="feature-list">
+          {features.map((f,i)=>(
+            <li key={i}>✓ {f}</li>
           ))}
         </ul>
 
-        <button className="btn-subscribe" onClick={handleSubscribe} disabled={loading}>
+        <button
+        className="subscribe-btn"
+        disabled={loading}
+        onClick={handleSubscribe}
+        >
           {loading ? "Processing..." : "Subscribe Now"}
         </button>
 
-        {error && <p className="billing-error">{error}</p>}
-      </section>
+        {message && <div className="success">{message}</div>}
+        {error && <div className="error">{error}</div>}
 
-      <footer className="billing-footer">
-        <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
-      </footer>
+      </div>
+
     </div>
-  );
-};
 
-export default BillingPage;
+  </div>
+
+  )
+
+}
