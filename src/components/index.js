@@ -13,8 +13,6 @@ export { default as Magic16Controls } from "./Magic16/Magic16Controls";
 export { default as Magic16Timer } from "./Magic16/Magic16Timer";
 export { default as PostureOverlay } from "./Magic16/PostureOverlay";
 
-export { default as Magic16Timer } from "./Magic16/Magic16Timer";
-
 export { default as Magic16Step } from "./Magic16/Magic16Step";
 export { default as Magic16Progress } from "./Magic16/Magic16Progress";
 export { default as Magic16Score } from "./Magic16/Magic16Score";
