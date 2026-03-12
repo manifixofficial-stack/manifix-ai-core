@@ -1,6 +1,6 @@
 // src/pages/Billing.jsx
 import React, { useState } from "react";
-import "../styles/Billing.css";
+import "../styles/Billing666.css";
 import authService from "../services/auth.service";
 import supabase from "../services/supabase";
 import logo from "../assets/logo.png";
