@@ -1,63 +1,40 @@
-/* ==========================================================
- * ManifiX — Magic16 Controls
- * ----------------------------------------------------------
- * Responsibilities:
- * - Start / Pause / Stop Magic16 session
- * - Display current phase (Yoga / Meditation)
- * - Device-safe (mobile, desktop, tablet)
- * - Accessible & calming UX
- * ========================================================== */
-
 import React from "react";
 
-const Magic16Controls = ({
-  isActive = false,
-  isPaused = false,
-  phase = "YOGA", // YOGA | MEDITATION
+export default function Magic16Controls({
+  running = false,
   onStart,
   onPause,
-  onResume,
-  onStop,
-}) => {
+  onRestart
+}) {
+
   return (
     <div className="magic16-controls">
-      {/* ===============================
-          PHASE INDICATOR
-      =============================== */}
-      <div className="magic16-phase">
-        {phase === "YOGA" ? "🧘 Yoga (8 min)" : "🧘‍♀️ Meditation (8 min)"}
-      </div>
 
-      {/* ===============================
-          CONTROLS
-      =============================== */}
-      <div className="magic16-buttons">
-        {!isActive && (
-          <button className="btn primary" onClick={onStart}>
-            ▶ Start
-          </button>
-        )}
+      {!running && (
+        <button
+          className="magic16-btn magic16-btn-primary"
+          onClick={onStart}
+        >
+          ▶ Start
+        </button>
+      )}
 
-        {isActive && !isPaused && (
-          <button className="btn secondary" onClick={onPause}>
-            ⏸ Pause
-          </button>
-        )}
+      {running && (
+        <button
+          className="magic16-btn magic16-btn-secondary"
+          onClick={onPause}
+        >
+          ⏸ Pause
+        </button>
+      )}
 
-        {isActive && isPaused && (
-          <button className="btn primary" onClick={onResume}>
-            ▶ Resume
-          </button>
-        )}
+      <button
+        className="magic16-btn magic16-btn-secondary"
+        onClick={onRestart}
+      >
+        🔄 Restart
+      </button>
 
-        {isActive && (
-          <button className="btn danger" onClick={onStop}>
-            ⏹ Stop
-          </button>
-        )}
-      </div>
     </div>
   );
-};
-
-export default Magic16Controls;
+}
