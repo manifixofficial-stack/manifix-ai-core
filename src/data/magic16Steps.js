@@ -20,26 +20,26 @@ import med6 from "../assets/steps/med-06.png";
 import med7 from "../assets/steps/med-07.png";
 
 export const yogaSteps = [
-  { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
-  { img: yoga2, text: "Forward Fold. Relax your neck.", duration: 40 },
-  { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 40 },
-  { img: yoga4, text: "Plank Pose. Engage your core.", duration: 60 },
-  { img: yoga5, text: "Cobra Pose. Open your chest.", duration: 40 },
-  { img: yoga6, text: "Downward Dog. Stretch fully.", duration: 60 },
-  { img: yoga71, text: "Warrior Pose 1. Strong stance.", duration: 40 },
-  { img: yoga72, text: "Warrior Pose 2. Focus stability.", duration: 40 },
-  { img: yoga73, text: "Warrior Pose 3. Balance.", duration: 40 },
-  { img: yoga8, text: "Tree Pose. Deep focus.", duration: 60 }
+  { id:1, title:"Mountain Pose", img: yoga1, text: "Stand tall and breathe deeply.", duration: 60 },
+  { id:2, title:"Forward Fold", img: yoga2, text: "Relax your neck.", duration: 40 },
+  { id:3, title:"Half Lift", img: yoga3, text: "Lengthen your spine.", duration: 40 },
+  { id:4, title:"Plank Pose", img: yoga4, text: "Engage your core.", duration: 60 },
+  { id:5, title:"Cobra Pose", img: yoga5, text: "Open your chest.", duration: 40 },
+  { id:6, title:"Downward Dog", img: yoga6, text: "Stretch fully.", duration: 60 },
+  { id:7, title:"Warrior Pose 1", img: yoga71, text: "Strong stance.", duration: 40 },
+  { id:8, title:"Warrior Pose 2", img: yoga72, text: "Focus stability.", duration: 40 },
+  { id:9, title:"Warrior Pose 3", img: yoga73, text: "Balance.", duration: 40 },
+  { id:10, title:"Tree Pose", img: yoga8, text: "Deep focus.", duration: 60 }
 ];
 
 export const meditationSteps = [
-  { img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
-  { img: med2, text: "Focus on your breath.", duration: 60 },
-  { img: med3, text: "Release tension.", duration: 120 },
-  { img: med4, text: "Feel calm energy.", duration: 60 },
-  { img: med5, text: "Let thoughts pass.", duration: 60 },
-  { img: med6, text: "Stay present.", duration: 60 },
-  { img: med7, text: "Visualize success.", duration: 60 }
+  { id:11, title:"Breathing", img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
+  { id:12, title:"Focus", img: med2, text: "Focus on your breath.", duration: 60 },
+  { id:13, title:"Release", img: med3, text: "Release tension.", duration: 120 },
+  { id:14, title:"Energy", img: med4, text: "Feel calm energy.", duration: 60 },
+  { id:15, title:"Let Go", img: med5, text: "Let thoughts pass.", duration: 60 },
+  { id:16, title:"Presence", img: med6, text: "Stay present.", duration: 60 },
+  { id:17, title:"Visualization", img: med7, text: "Visualize success.", duration: 60 }
 ];
 
 export const magic16Steps = [...yogaSteps, ...meditationSteps];
