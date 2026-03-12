@@ -20,45 +20,53 @@ import "../styles/magic16.css";
 export default function Magic16() {
 
   const {
-    steps,
-    stepIndex,
-    stepTime,
-    totalTime,
-    progress,
-    score,
+    steps = [],
+    stepIndex = 0,
+    stepTime = 0,
+    totalTime = 0,
+    progress = 0,
+    score = 0,
     start,
     stop,
     restart,
-    running,
-    completed,
-    averageScore,
-    streak
+    running = false,
+    completed = false,
+    averageScore = 0,
+    streak = 0
   } = useMagic16();
 
   const { speak } = useVoice();
 
-  // Debug
+  // Debug (remove later)
   console.log("Magic16 Steps:", steps);
 
-  // Voice guidance
+  // ================= Voice Coach =================
   useEffect(() => {
 
     if (!running) return;
 
-    if (steps?.length && steps[stepIndex]) {
-      speak(steps[stepIndex].text);
+    const step = steps?.[stepIndex];
+
+    if (step?.text) {
+      speak(step.text);
     }
 
   }, [stepIndex, running, steps, speak]);
 
-  // Completed screen
+  // ================= Completed Screen =================
   if (completed) {
     return (
-      <Magic16Complete score={averageScore} streak={streak}>
+      <Magic16Complete
+        score={averageScore}
+        streak={streak}
+      >
         <Magic16Share score={averageScore} />
       </Magic16Complete>
     );
   }
+
+  // ================= Current Step =================
+  const currentStep = steps?.[stepIndex];
 
   return (
     <div className="magic16">
@@ -84,31 +92,35 @@ export default function Magic16() {
 
       </div>
 
-      {/* Step */}
-      {steps?.length > 0 && (
+      {/* Step Card */}
+      {currentStep && (
         <Magic16Step
-          step={steps[stepIndex]}
+          step={currentStep}
           stepIndex={stepIndex}
         />
       )}
 
-      {/* Breathing animation */}
-      {stepIndex >= 10 && (
+      {/* Breathing Circle (Meditation phase) */}
+      {stepIndex >= 10 && running && (
         <BreathingCircle />
       )}
 
-      {/* Timers */}
+      {/* Timer */}
       <Magic16Timer
         totalTime={totalTime}
         stepTime={stepTime}
       />
 
       {/* Progress */}
-      <Magic16Progress progress={progress} />
+      <Magic16Progress
+        progress={progress}
+      />
 
       {/* Score */}
       {running && (
-        <Magic16Score score={score} />
+        <Magic16Score
+          score={score}
+        />
       )}
 
       {/* Controls */}
