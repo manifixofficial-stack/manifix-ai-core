@@ -1,4 +1,5 @@
 import React from "react";
+import "../../styles/magic16.css";
 
 export default function Magic16Controls({
   running = false,
@@ -12,7 +13,7 @@ export default function Magic16Controls({
 
       {!running && (
         <button
-          className="magic16-btn magic16-btn-primary"
+          className="magic16-btn primary"
           onClick={onStart}
         >
           ▶ Start
@@ -21,7 +22,7 @@ export default function Magic16Controls({
 
       {running && (
         <button
-          className="magic16-btn magic16-btn-secondary"
+          className="magic16-btn secondary"
           onClick={onPause}
         >
           ⏸ Pause
@@ -29,7 +30,7 @@ export default function Magic16Controls({
       )}
 
       <button
-        className="magic16-btn magic16-btn-secondary"
+        className="magic16-btn secondary"
         onClick={onRestart}
       >
         🔄 Restart
