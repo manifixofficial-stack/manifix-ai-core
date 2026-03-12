@@ -13,6 +13,16 @@ export { default as Magic16Controls } from "./Magic16/Magic16Controls";
 export { default as Magic16Timer } from "./Magic16/Magic16Timer";
 export { default as PostureOverlay } from "./Magic16/PostureOverlay";
 
+export { default as Magic16Timer } from "./Magic16/Magic16Timer";
+
+export { default as Magic16Step } from "./Magic16/Magic16Step";
+export { default as Magic16Progress } from "./Magic16/Magic16Progress";
+export { default as Magic16Score } from "./Magic16/Magic16Score";
+export { default as Magic16Complete } from "./Magic16/Magic16Complete";
+export { default as Magic16Share } from "./Magic16/Magic16Share";
+export { default as BreathingCircle } from "./Magic16/BreathingCircle";
+
+
 // Vibe
 export { default as ProfileCard } from "./Profile/ProfileCard";
 
