@@ -1,173 +1,207 @@
-/* src/styles/Login.css */
+/* ===================== AUTH WRAPPER ===================== */
 
-/* ======================= AUTH WRAPPER ======================= */
-.auth-wrapper {
-  position: relative;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-size: cover;
-  background-position: center;
-  font-family: 'Poppins', sans-serif;
-  overflow: hidden;
-  color: #fff;
-}
-.overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  z-index: 0;
+.auth-wrapper{
+  position:relative;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background-size:cover;
+  background-position:center;
+  font-family:"Inter",sans-serif;
+  overflow:hidden;
+  color:white;
 }
 
-/* ======================= GLASSMORPHIC CARD ======================= */
-.auth-card {
-  position: relative;
-  z-index: 1;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 3rem 2rem;
-  border-radius: 25px;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 12px 40px rgba(255, 0, 255, 0.2),
-              0 12px 40px rgba(0, 255, 255, 0.2);
-  width: 100%;
-  max-width: 440px;
-  text-align: center;
-  animation: fadeInUp 1s ease forwards;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+.overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(2,6,23,.85);
+  backdrop-filter:blur(8px);
 }
 
-/* ======================= BRAND LOGO ======================= */
-.brand img.logo {
-  width: 90px;
-  animation: bounceIn 1s ease;
-}
-.brand h1 {
-  font-size: 2.5rem;
-  background: linear-gradient(90deg, #00ffff, #8e2de2, #ff0080);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
-  margin: 0.5rem 0;
-}
-.brand .tagline {
-  font-size: 1rem;
-  color: #ddd;
-  margin-bottom: 2rem;
+/* ===================== CARD ===================== */
+
+.auth-card{
+
+  position:relative;
+  z-index:2;
+
+  width:100%;
+  max-width:420px;
+
+  padding:40px;
+
+  text-align:center;
+
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
+
+  border-radius:22px;
+
+  backdrop-filter:blur(16px);
+
+  box-shadow:
+  0 20px 50px rgba(0,0,0,.6),
+  0 0 40px rgba(255,0,255,.08);
+
+  animation:fadeUp .7s ease;
 }
 
-/* ======================= BUTTONS ======================= */
-.google-btn,
-.primary-btn {
-  width: 100%;
-  padding: 0.75rem;
-  border-radius: 50px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  margin-bottom: 1rem;
-  transition: all 0.35s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-.google-btn {
-  background: linear-gradient(45deg, #00ffff, #8e2de2, #ff0080);
-  color: #fff;
-  font-size: 1rem;
-}
-.google-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 0, 255, 0.4);
-}
-.primary-btn {
-  background: linear-gradient(45deg, #00ffff, #8e2de2, #ff0080);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 700;
-}
-.primary-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 0, 255, 0.4);
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(25px);}
+  to{opacity:1;transform:translateY(0);}
 }
 
-/* ======================= INPUT FIELDS ======================= */
-input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
-  border-radius: 50px;
-  border: none;
-  outline: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-input:focus {
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 10px #ff00ff, 0 0 20px #00ffff;
+/* ===================== BRAND ===================== */
+
+.brand img{
+  width:70px;
+  margin-bottom:10px;
+  filter:drop-shadow(0 0 12px #00ffff);
 }
 
-/* ======================= DIVIDER ======================= */
-.divider {
-  display: flex;
-  align-items: center;
-  text-align: center;
-  margin: 1.5rem 0;
-  color: #ccc;
-}
-.divider span {
-  flex: 1;
-  position: relative;
-  font-size: 0.85rem;
-}
-.divider span::before,
-.divider span::after {
-  content: "";
-  height: 1px;
-  background: #ff00ff;
-  position: absolute;
-  top: 50%;
-  width: 200%;
-}
-.divider span::before {
-  left: -100%;
-}
-.divider span::after {
-  right: -100%;
+.brand h1{
+  font-size:30px;
+  margin-bottom:6px;
+
+  background:linear-gradient(90deg,#00ffff,#8e2de2,#ff00ff);
+  -webkit-background-clip:text;
+  color:transparent;
+
+  text-shadow:0 0 18px rgba(255,0,255,.3);
 }
 
-/* ======================= ERROR & MICROCOPY ======================= */
-.error {
-  color: #ff5555;
-  margin-bottom: 1rem;
-  font-weight: 500;
-}
-.microcopy {
-  font-size: 0.85rem;
-  color: #ccc;
-  margin-top: 0.5rem;
-}
-.microcopy .link {
-  color: #ff00ff;
-  cursor: pointer;
-  transition: 0.3s ease;
-}
-.microcopy .link:hover {
-  color: #00ffff;
-  text-decoration: underline;
+.tagline{
+  font-size:13px;
+  color:#94a3b8;
+  margin-bottom:22px;
 }
 
-/* ======================= ANIMATIONS ======================= */
-@keyframes fadeInUp {
-  0% { opacity: 0; transform: translateY(30px); }
-  100% { opacity: 1; transform: translateY(0); }
+/* ===================== TEXT ===================== */
+
+.subtitle{
+  font-size:14px;
+  color:#cbd5f5;
+  margin-bottom:18px;
 }
-@keyframes bounceIn {
-  0% { opacity: 0; transform: scale(0.5); }
-  60% { opacity: 1; transform: scale(1.2); }
-  80% { transform: scale(0.9); }
-  100% { transform: scale(1); }
+
+/* ===================== INPUT ===================== */
+
+.auth-card input{
+
+  width:100%;
+
+  padding:14px;
+
+  margin-bottom:14px;
+
+  border-radius:12px;
+
+  border:1px solid rgba(255,255,255,.1);
+
+  background:rgba(255,255,255,.05);
+
+  color:white;
+
+  font-size:14px;
+
+  outline:none;
+
+  transition:.25s;
+}
+
+.auth-card input:focus{
+
+  border-color:#ff00ff;
+
+  box-shadow:
+  0 0 12px rgba(255,0,255,.6),
+  0 0 18px rgba(0,255,255,.4);
+}
+
+/* ===================== BUTTON ===================== */
+
+.primary-btn{
+
+  width:100%;
+
+  padding:14px;
+
+  border:none;
+
+  border-radius:12px;
+
+  font-weight:600;
+
+  cursor:pointer;
+
+  background:linear-gradient(90deg,#00ffff,#8e2de2,#ff00ff);
+
+  color:white;
+
+  transition:.35s;
+
+  box-shadow:
+  0 10px 25px rgba(255,0,255,.4);
+}
+
+.primary-btn:hover{
+
+  transform:translateY(-2px) scale(1.03);
+
+  box-shadow:
+  0 15px 35px rgba(255,0,255,.6),
+  0 10px 30px rgba(0,255,255,.5);
+}
+
+.primary-btn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+
+/* ===================== STATUS ===================== */
+
+.success{
+  color:#22c55e;
+  font-size:14px;
+  margin-bottom:10px;
+}
+
+.error{
+  color:#ef4444;
+  font-size:14px;
+  margin-bottom:10px;
+}
+
+/* ===================== MICROCOPY ===================== */
+
+.microcopy{
+  margin-top:18px;
+  font-size:13px;
+  color:#94a3b8;
+}
+
+.link{
+  color:#00ffff;
+  cursor:pointer;
+  margin-left:6px;
+}
+
+.link:hover{
+  text-decoration:underline;
+}
+
+/* ===================== MOBILE ===================== */
+
+@media(max-width:520px){
+
+  .auth-card{
+    padding:30px 24px;
+  }
+
+  .brand h1{
+    font-size:26px;
+  }
+
 }
