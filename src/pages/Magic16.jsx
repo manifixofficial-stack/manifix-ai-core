@@ -1,4 +1,5 @@
 // src/pages/Magic16.jsx
+
 import { useRef, useEffect, useState, useCallback } from "react";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
@@ -7,8 +8,10 @@ import confetti from "canvas-confetti";
 
 import "../styles/magic16.css";
 import logo from "../../assets/logo.png";
+
 import PostureOverlay from "../components/Magic16/PostureOverlay";
-// Audio
+import BreathingCircle from "../components/Magic16/BreathingCircle";
+
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
 // Yoga
@@ -79,8 +82,16 @@ export default function Magic16() {
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const [streak, setStreak] = useState(
+    Number(localStorage.getItem("magic16_streak") || 0)
+  );
+
+  const [level, setLevel] = useState("Beginner");
+  const [coachText, setCoachText] = useState("");
+
   // ---------- Voice ----------
   const speak = (text) => {
+
     if (!("speechSynthesis" in window)) return;
 
     const now = Date.now();
@@ -97,51 +108,132 @@ export default function Magic16() {
 
   // ---------- Audio ----------
   const playAudio = () => {
+
     const audio = new Audio(meditationAudio);
     audio.loop = true;
     audio.volume = 0.4;
     audio.play().catch(() => {});
+
     audioRef.current = audio;
   };
 
   // ---------- Pose ----------
   const angle = (A, B, C) => {
+
     const AB = { x: A.x - B.x, y: A.y - B.y };
     const CB = { x: C.x - B.x, y: C.y - B.y };
+
     const dot = AB.x * CB.x + AB.y * CB.y;
+
     const magAB = Math.hypot(AB.x, AB.y);
     const magCB = Math.hypot(CB.x, CB.y);
+
     return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
   };
 
   const detect = useCallback(async () => {
+
     if (!detectorRef.current || !videoRef.current) return;
 
     const poses = await detectorRef.current.estimatePoses(videoRef.current);
+
     if (!poses?.length) return;
 
     const kp = poses[0].keypoints;
+
     const hip = kp.find((k) => k.name === "left_hip");
     const knee = kp.find((k) => k.name === "left_knee");
     const ankle = kp.find((k) => k.name === "left_ankle");
 
     if (hip && knee && ankle) {
+
       const a = angle(hip, knee, ankle);
+
       const sc = Math.max(0, 100 - Math.abs(a - 90));
+
       setScore(Math.round(sc));
     }
+
   }, []);
+
+  // ---------- Daily Streak ----------
+  const updateStreak = () => {
+
+    const last = localStorage.getItem("magic16_last");
+
+    const today = new Date().toDateString();
+
+    if (last !== today) {
+
+      let s = Number(localStorage.getItem("magic16_streak") || 0);
+
+      s += 1;
+
+      localStorage.setItem("magic16_streak", s);
+      localStorage.setItem("magic16_last", today);
+
+      setStreak(s);
+    }
+  };
+
+  // ---------- Level System ----------
+  const updateLevel = (sessions) => {
+
+    if (sessions >= 50) setLevel("Zen Master");
+    else if (sessions >= 20) setLevel("Master");
+    else if (sessions >= 5) setLevel("Explorer");
+    else setLevel("Beginner");
+  };
+
+  // ---------- AI Coach ----------
+  const generateCoach = () => {
+
+    if (score > 90) {
+      setCoachText("Excellent posture! Maintain this consistency.");
+    } else if (score > 70) {
+      setCoachText("Good work. Focus on balance in Tree Pose.");
+    } else {
+      setCoachText("Improve knee alignment during Warrior poses.");
+    }
+  };
+
+  // ---------- Share ----------
+  const shareResult = () => {
+
+    const text = `I completed Magic16 🧘
+Posture Score: ${score}%
+🔥 Streak: ${streak} days
+
+Try it on ManifiX`;
+
+    if (navigator.share) {
+
+      navigator.share({
+        title: "Magic16 Challenge",
+        text,
+        url: "https://manifix.ai",
+      });
+
+    } else {
+
+      navigator.clipboard.writeText(text);
+      alert("Result copied to clipboard!");
+    }
+  };
 
   // ---------- Camera Init ----------
   useEffect(() => {
 
     const init = async () => {
+
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+
       streamRef.current = stream;
 
       videoRef.current.srcObject = stream;
 
       await tf.ready();
+
       await tf.setBackend("webgl");
 
       detectorRef.current = await posedetection.createDetector(
@@ -150,15 +242,21 @@ export default function Magic16() {
       );
 
       setLoading(false);
+
       speak("Welcome to Magic16");
+
     };
 
     init();
 
     return () => {
+
       streamRef.current?.getTracks().forEach((t) => t.stop());
+
       audioRef.current?.pause();
+
       clearInterval(timerRef.current);
+
       clearInterval(detectRef.current);
     };
 
@@ -188,18 +286,23 @@ export default function Magic16() {
           const next = stepIndex + 1;
 
           if (next >= steps.length) {
+
             finish();
+
             return 0;
           }
 
           setStepIndex(next);
+
           setStepTime(steps[next].duration);
+
           speak(steps[next].text);
 
           return steps[next].duration;
         }
 
         return prev - 1;
+
       });
 
       setProgress(
@@ -210,15 +313,25 @@ export default function Magic16() {
   };
 
   const stop = () => {
+
     clearInterval(timerRef.current);
+
     clearInterval(detectRef.current);
+
     audioRef.current?.pause();
+
     setPlaying(false);
   };
 
   const finish = () => {
 
     stop();
+
+    updateStreak();
+
+    updateLevel(streak);
+
+    generateCoach();
 
     confetti({
       particleCount: 250,
@@ -235,13 +348,32 @@ export default function Magic16() {
   if (completed) {
 
     return (
+
       <div className="magic16-complete">
+
         <h1>🎉 Ritual Complete</h1>
+
         <h2>Posture Score {score}%</h2>
+
+        <h3>🔥 Magic16 Streak: {streak} days</h3>
+
+        <h4>Level: {level}</h4>
+
+        <div className="magic16-coach">
+          <h3>AI Coach</h3>
+          <p>{coachText}</p>
+        </div>
+
+        <button onClick={shareResult}>
+          Share Result
+        </button>
+
         <button onClick={() => window.location.reload()}>
           Start Again
         </button>
+
       </div>
+
     );
   }
 
@@ -250,14 +382,19 @@ export default function Magic16() {
 
     <div className="magic16">
 
-      {loading && <div className="magic16-loading">Welcome Magic16❤️</div>}
+      {loading && (
+        <div className="magic16-loading">
+          Preparing your yoga trainer...
+        </div>
+      )}
 
       <img src={logo} className="magic16-logo" alt="logo" />
+
       <div className="magic16-camera">
 
-      <PostureOverlay />
+        <PostureOverlay />
 
-       </div>
+      </div>
 
       <div className="magic16-step">
 
@@ -273,15 +410,9 @@ export default function Magic16() {
 
       </div>
 
-      <div className="magic16-timers">
-
-        <p>Total Time {Math.floor(totalTime / 60)}:
-          {String(totalTime % 60).padStart(2, "0")}
-        </p>
-
-        <p>Step Time {stepTime}s</p>
-
-      </div>
+      {stepIndex >= yogaSteps.length && (
+        <BreathingCircle />
+      )}
 
       <div className="magic16-progress">
         <div style={{ width: `${progress}%` }} />
