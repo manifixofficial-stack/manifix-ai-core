@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 export default function useTimer({ steps, stepIndex, setStepIndex, onFinish }) {
-
   const [stepTime, setStepTime] = useState(steps[0]?.duration || 0);
   const [totalTime, setTotalTime] = useState(0);
   const [running, setRunning] = useState(false);
@@ -9,7 +8,7 @@ export default function useTimer({ steps, stepIndex, setStepIndex, onFinish }) {
 
   const intervalRef = useRef(null);
 
-  // update step time when step changes
+  // update step time when stepIndex changes
   useEffect(() => {
     setStepTime(steps[stepIndex]?.duration || 0);
   }, [stepIndex, steps]);
@@ -33,43 +32,39 @@ export default function useTimer({ steps, stepIndex, setStepIndex, onFinish }) {
   }, [steps, setStepIndex]);
 
   useEffect(() => {
-
     if (!running) {
       clearInterval(intervalRef.current);
       return;
     }
 
     intervalRef.current = setInterval(() => {
+      setStepTime(prevStepTime => {
+        if (prevStepTime > 1) return prevStepTime - 1;
 
-      setStepTime(prev => {
+        // Step finished
+        setStepIndex(prevIndex => {
+          const nextIndex = prevIndex + 1;
 
-        if (prev <= 1) {
-
-          if (stepIndex + 1 < steps.length) {
-            setStepIndex(prevIndex => prevIndex + 1);
-            return steps[stepIndex + 1].duration;
+          if (nextIndex < steps.length) {
+            setStepTime(steps[nextIndex].duration);
+            return nextIndex;
+          } else {
+            clearInterval(intervalRef.current);
+            setRunning(false);
+            setCompleted(true);
+            if (onFinish) onFinish();
+            return prevIndex;
           }
+        });
 
-          clearInterval(intervalRef.current);
-          setRunning(false);
-          setCompleted(true);
-
-          if (onFinish) onFinish();
-
-          return 0;
-        }
-
-        return prev - 1;
-
+        return 0;
       });
 
       setTotalTime(t => t + 1);
-
     }, 1000);
 
     return () => clearInterval(intervalRef.current);
-
-  }, [running, stepIndex, steps, setStepIndex, onFinish]);
+  }, [running, steps, setStepIndex, onFinish]);
 
   const totalDuration = steps.reduce((acc, s) => acc + s.duration, 0);
   const progress = totalDuration ? Math.min((totalTime / totalDuration) * 100, 100) : 0;
