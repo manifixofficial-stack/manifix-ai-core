@@ -1,88 +1,346 @@
-/* src/styles/Terms.css */
+/* ===================================
+GLOBAL PAGE
+=================================== */
 
-/* ---------- Container ---------- */
-.terms-container {
-  font-family: "Inter", sans-serif;
-  color: #1f2937; /* dark gray text */
-  line-height: 1.7;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px 20px;
-  background-color: #f9fafb; /* light background */
+.terms-container{
+
+max-width:1000px;
+margin:auto;
+
+padding:60px 24px;
+
+font-family: "Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+
+color:#0f172a;
+
+line-height:1.7;
+
+background:
+linear-gradient(180deg,#f8fafc,#ffffff);
+
+animation:fadePage .8s ease;
+
 }
 
-/* ---------- Header ---------- */
-.terms-header {
-  text-align: center;
-  margin-bottom: 40px;
+/* page fade animation */
+
+@keyframes fadePage{
+
+from{
+opacity:0;
+transform:translateY(10px);
 }
 
-.terms-logo {
-  width: 120px;
-  margin-bottom: 20px;
+to{
+opacity:1;
+transform:translateY(0);
 }
 
-.terms-header h1 {
-  font-size: 2.2rem;
-  font-weight: 700;
-  margin-bottom: 10px;
-  color: #111827;
 }
 
-.terms-header p {
-  font-size: 0.9rem;
-  color: #6b7280;
+
+/* ===================================
+HEADER
+=================================== */
+
+.terms-header{
+
+text-align:center;
+
+margin-bottom:60px;
+
 }
 
-/* ---------- Sections ---------- */
-.terms-section {
-  margin-bottom: 40px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #e5e7eb;
+.terms-logo{
+
+height:64px;
+
+margin-bottom:18px;
+
+transition:transform .4s ease;
+
 }
 
-.terms-section h2 {
-  font-size: 1.6rem;
-  font-weight: 600;
-  margin-bottom: 15px;
-  color: #111827;
+.terms-logo:hover{
+
+transform:scale(1.06);
+
 }
 
-.terms-section h3 {
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin-top: 15px;
-  margin-bottom: 8px;
-  color: #1f2937;
+.terms-header h1{
+
+font-size:36px;
+
+font-weight:700;
+
+letter-spacing:-0.02em;
+
+margin-bottom:10px;
+
 }
 
-.terms-section p {
-  margin-bottom: 12px;
-  font-size: 1rem;
-  color: #374151;
+.terms-header p{
+
+font-size:14px;
+
+color:#64748b;
+
 }
 
-.terms-section ul {
-  list-style-type: disc;
-  margin-left: 20px;
-  margin-bottom: 12px;
+
+/* ===================================
+SECTION CARDS
+=================================== */
+
+.terms-section{
+
+background:white;
+
+padding:32px 34px;
+
+margin-bottom:26px;
+
+border-radius:18px;
+
+border:1px solid #e2e8f0;
+
+box-shadow:
+0 10px 30px rgba(15,23,42,.05);
+
+transition:
+transform .25s ease,
+box-shadow .25s ease;
+
+animation:sectionFade .7s ease;
+
 }
 
-.terms-section ul li {
-  margin-bottom: 8px;
+/* hover interaction */
+
+.terms-section:hover{
+
+transform:translateY(-4px);
+
+box-shadow:
+0 16px 40px rgba(15,23,42,.08);
+
 }
 
-/* Links inside section */
-.terms-section a {
-  color: #3b82f6;
-  text-decoration: underline;
+
+/* entrance animation */
+
+@keyframes sectionFade{
+
+from{
+opacity:0;
+transform:translateY(15px);
 }
 
-/* ---------- Footer ---------- */
-.terms-footer {
-  text-align: center;
-  padding: 20px 0;
-  border-top: 1px solid #e5e7eb;
-  font-size: 0.9rem;
-  color: #6b7280;
+to{
+opacity:1;
+transform:translateY(0);
+}
+
+}
+
+
+/* ===================================
+SECTION TITLES
+=================================== */
+
+.terms-section h2{
+
+font-size:22px;
+
+font-weight:700;
+
+margin-bottom:16px;
+
+color:#0f172a;
+
+border-left:4px solid #2563eb;
+
+padding-left:12px;
+
+}
+
+.terms-section h3{
+
+font-size:18px;
+
+font-weight:600;
+
+margin-top:20px;
+
+margin-bottom:8px;
+
+color:#1e293b;
+
+}
+
+
+/* ===================================
+TEXT
+=================================== */
+
+.terms-section p{
+
+font-size:15px;
+
+color:#334155;
+
+margin-bottom:12px;
+
+}
+
+.terms-section b{
+
+color:#0f172a;
+
+}
+
+
+/* ===================================
+LIST
+=================================== */
+
+.terms-section ul{
+
+padding-left:20px;
+
+margin-top:8px;
+
+}
+
+.terms-section li{
+
+margin-bottom:8px;
+
+font-size:15px;
+
+color:#334155;
+
+}
+
+
+/* ===================================
+LINKS
+=================================== */
+
+.terms-section a{
+
+color:#2563eb;
+
+font-weight:500;
+
+text-decoration:none;
+
+}
+
+.terms-section a:hover{
+
+text-decoration:underline;
+
+}
+
+
+/* ===================================
+FOOTER
+=================================== */
+
+.terms-footer{
+
+text-align:center;
+
+margin-top:50px;
+
+padding-top:30px;
+
+border-top:1px solid #e2e8f0;
+
+font-size:14px;
+
+color:#64748b;
+
+}
+
+
+/* ===================================
+TABLET
+=================================== */
+
+@media (max-width:900px){
+
+.terms-container{
+
+padding:50px 20px;
+
+}
+
+.terms-header h1{
+
+font-size:30px;
+
+}
+
+.terms-section{
+
+padding:26px;
+
+}
+
+}
+
+
+/* ===================================
+MOBILE
+=================================== */
+
+@media (max-width:600px){
+
+.terms-container{
+
+padding:40px 18px;
+
+}
+
+.terms-header h1{
+
+font-size:26px;
+
+}
+
+.terms-logo{
+
+height:54px;
+
+}
+
+.terms-section{
+
+padding:22px;
+
+border-radius:16px;
+
+}
+
+.terms-section h2{
+
+font-size:20px;
+
+}
+
+.terms-section h3{
+
+font-size:17px;
+
+}
+
+.terms-section p,
+.terms-section li{
+
+font-size:14px;
+
+}
+
 }
