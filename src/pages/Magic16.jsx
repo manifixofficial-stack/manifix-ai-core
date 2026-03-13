@@ -14,7 +14,7 @@ import BreathingCircle from "../components/Magic16/BreathingCircle";
 
 import meditationAudio from "../assets/audio/meditation/meditation.mp3";
 
-// Yoga
+// Yoga images
 import yoga1 from "../assets/steps/yoga-01.png";
 import yoga2 from "../assets/steps/yoga-02.png";
 import yoga3 from "../assets/steps/yoga-03.png";
@@ -26,7 +26,7 @@ import yoga72 from "../assets/steps/yoga-07-2.png";
 import yoga73 from "../assets/steps/yoga-07-3.png";
 import yoga8 from "../assets/steps/yoga-08.png";
 
-// Meditation
+// Meditation images
 import med1 from "../assets/steps/med-01.png";
 import med2 from "../assets/steps/med-02.png";
 import med3 from "../assets/steps/med-03.png";
@@ -37,411 +37,359 @@ import med7 from "../assets/steps/med-07.png";
 
 export default function Magic16() {
 
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const detectorRef = useRef(null);
-  const timerRef = useRef(null);
-  const detectRef = useRef(null);
-  const audioRef = useRef(null);
-  const lastVoiceRef = useRef(0);
+const videoRef = useRef(null);
+const streamRef = useRef(null);
+const detectorRef = useRef(null);
+const timerRef = useRef(null);
+const detectRef = useRef(null);
+const audioRef = useRef(null);
 
-  // ---------- Steps ----------
-  const yogaSteps = [
-    { img: yoga1, text: "Mountain Pose. Stand tall and breathe deeply.", duration: 60 },
-    { img: yoga2, text: "Forward Fold. Relax your neck.", duration: 40 },
-    { img: yoga3, text: "Half Lift. Lengthen your spine.", duration: 40 },
-    { img: yoga4, text: "Plank Pose. Engage your core.", duration: 60 },
-    { img: yoga5, text: "Cobra Pose. Open your chest.", duration: 40 },
-    { img: yoga6, text: "Downward Dog. Stretch fully.", duration: 60 },
-    { img: yoga71, text: "Warrior Pose 1. Strong stance.", duration: 40 },
-    { img: yoga72, text: "Warrior Pose 2. Focus stability.", duration: 40 },
-    { img: yoga73, text: "Warrior Pose 3. Balance.", duration: 40 },
-    { img: yoga8, text: "Tree Pose. Deep focus.", duration: 60 },
-  ];
+const [loading,setLoading] = useState(true);
+const [playing,setPlaying] = useState(false);
+const [completed,setCompleted] = useState(false);
 
-  const meditationSteps = [
-    { img: med1, text: "Close your eyes and breathe slowly.", duration: 60 },
-    { img: med2, text: "Focus on your breath.", duration: 60 },
-    { img: med3, text: "Release tension.", duration: 120 },
-    { img: med4, text: "Feel calm energy.", duration: 60 },
-    { img: med5, text: "Let thoughts pass.", duration: 60 },
-    { img: med6, text: "Stay present.", duration: 60 },
-    { img: med7, text: "Visualize success.", duration: 60 },
-  ];
+const [score,setScore] = useState(0);
+const [progress,setProgress] = useState(0);
 
-  const steps = [...yogaSteps, ...meditationSteps];
-  const TOTAL_DURATION = steps.reduce((sum, s) => sum + s.duration, 0);
+const [stepIndex,setStepIndex] = useState(0);
+const [stepTime,setStepTime] = useState(60);
 
-  // ---------- State ----------
-  const [stepIndex, setStepIndex] = useState(0);
-  const [stepTime, setStepTime] = useState(steps[0].duration);
-  const [totalTime, setTotalTime] = useState(TOTAL_DURATION);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [score, setScore] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const [loading, setLoading] = useState(true);
+const [streak,setStreak] = useState(
+Number(localStorage.getItem("magic16_streak") || 0)
+);
 
-  const [streak, setStreak] = useState(
-    Number(localStorage.getItem("magic16_streak") || 0)
-  );
+const [coach,setCoach] = useState("");
+const [level,setLevel] = useState("Beginner");
 
-  const [level, setLevel] = useState("Beginner");
-  const [coachText, setCoachText] = useState("");
+/* ---------- STEPS ---------- */
 
-  // ---------- Voice ----------
-  const speak = (text) => {
+const yogaSteps = [
 
-    if (!("speechSynthesis" in window)) return;
+{img:yoga1,text:"Mountain Pose. Stand tall.",duration:60},
+{img:yoga2,text:"Forward Fold. Relax.",duration:40},
+{img:yoga3,text:"Half Lift.",duration:40},
+{img:yoga4,text:"Plank Pose.",duration:60},
+{img:yoga5,text:"Cobra Pose.",duration:40},
+{img:yoga6,text:"Downward Dog.",duration:60},
+{img:yoga71,text:"Warrior Pose 1.",duration:40},
+{img:yoga72,text:"Warrior Pose 2.",duration:40},
+{img:yoga73,text:"Warrior Pose 3.",duration:40},
+{img:yoga8,text:"Tree Pose.",duration:60},
 
-    const now = Date.now();
-    if (now - lastVoiceRef.current < 4000) return;
+];
 
-    lastVoiceRef.current = now;
+const meditationSteps = [
 
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.95;
+{img:med1,text:"Close eyes and breathe.",duration:60},
+{img:med2,text:"Focus on breath.",duration:60},
+{img:med3,text:"Release tension.",duration:120},
+{img:med4,text:"Feel calm.",duration:60},
+{img:med5,text:"Let thoughts pass.",duration:60},
+{img:med6,text:"Stay present.",duration:60},
+{img:med7,text:"Visualize success.",duration:60},
 
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
-  };
+];
 
-  // ---------- Audio ----------
-  const playAudio = () => {
+const steps=[...yogaSteps,...meditationSteps];
 
-    const audio = new Audio(meditationAudio);
-    audio.loop = true;
-    audio.volume = 0.4;
-    audio.play().catch(() => {});
+const TOTAL_DURATION = steps.reduce((s,x)=>s+x.duration,0);
 
-    audioRef.current = audio;
-  };
+const [totalTime,setTotalTime]=useState(TOTAL_DURATION);
 
-  // ---------- Pose ----------
-  const angle = (A, B, C) => {
+/* ---------- CAMERA INIT ---------- */
 
-    const AB = { x: A.x - B.x, y: A.y - B.y };
-    const CB = { x: C.x - B.x, y: C.y - B.y };
+useEffect(()=>{
 
-    const dot = AB.x * CB.x + AB.y * CB.y;
+const init=async()=>{
 
-    const magAB = Math.hypot(AB.x, AB.y);
-    const magCB = Math.hypot(CB.x, CB.y);
+const stream = await navigator.mediaDevices.getUserMedia({video:true});
+streamRef.current = stream;
 
-    return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
-  };
+videoRef.current.srcObject = stream;
 
-  const detect = useCallback(async () => {
+await tf.ready();
+await tf.setBackend("webgl");
 
-    if (!detectorRef.current || !videoRef.current) return;
+detectorRef.current = await posedetection.createDetector(
+posedetection.SupportedModels.MoveNet,
+{modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING}
+);
 
-    const poses = await detectorRef.current.estimatePoses(videoRef.current);
+setLoading(false);
 
-    if (!poses?.length) return;
+};
 
-    const kp = poses[0].keypoints;
+init();
 
-    const hip = kp.find((k) => k.name === "left_hip");
-    const knee = kp.find((k) => k.name === "left_knee");
-    const ankle = kp.find((k) => k.name === "left_ankle");
+return ()=>{
 
-    if (hip && knee && ankle) {
+streamRef.current?.getTracks().forEach(t=>t.stop());
 
-      const a = angle(hip, knee, ankle);
+clearInterval(timerRef.current);
+clearInterval(detectRef.current);
 
-      const sc = Math.max(0, 100 - Math.abs(a - 90));
+};
 
-      setScore(Math.round(sc));
-    }
+},[]);
 
-  }, []);
+/* ---------- POSE DETECTION ---------- */
 
-  // ---------- Daily Streak ----------
-  const updateStreak = () => {
+const detect = useCallback(async()=>{
 
-    const last = localStorage.getItem("magic16_last");
+if(!detectorRef.current) return;
 
-    const today = new Date().toDateString();
+const poses = await detectorRef.current.estimatePoses(videoRef.current);
 
-    if (last !== today) {
+if(!poses?.length) return;
 
-      let s = Number(localStorage.getItem("magic16_streak") || 0);
+const kp = poses[0].keypoints;
 
-      s += 1;
+const hip = kp.find(k=>k.name==="left_hip");
+const knee = kp.find(k=>k.name==="left_knee");
+const ankle = kp.find(k=>k.name==="left_ankle");
 
-      localStorage.setItem("magic16_streak", s);
-      localStorage.setItem("magic16_last", today);
+if(hip && knee && ankle){
 
-      setStreak(s);
-    }
-  };
+const angle = Math.abs(
+Math.atan2(ankle.y-knee.y,ankle.x-knee.x) -
+Math.atan2(hip.y-knee.y,hip.x-knee.x)
+)*180/Math.PI;
 
-  // ---------- Level System ----------
-  const updateLevel = (sessions) => {
+const sc = Math.max(0,100-Math.abs(angle-90));
 
-    if (sessions >= 50) setLevel("Zen Master");
-    else if (sessions >= 20) setLevel("Master");
-    else if (sessions >= 5) setLevel("Explorer");
-    else setLevel("Beginner");
-  };
+setScore(Math.round(sc));
 
-  // ---------- AI Coach ----------
-  const generateCoach = () => {
+}
 
-    if (score > 90) {
-      setCoachText("Excellent posture! Maintain this consistency.");
-    } else if (score > 70) {
-      setCoachText("Good work. Focus on balance in Tree Pose.");
-    } else {
-      setCoachText("Improve knee alignment during Warrior poses.");
-    }
-  };
+},[]);
 
-  // ---------- Share ----------
-  const shareResult = () => {
+/* ---------- SESSION START ---------- */
 
-    const text = `I completed Magic16 🧘
-Posture Score: ${score}%
-🔥 Streak: ${streak} days
+const start=()=>{
+
+if(playing) return;
+
+setPlaying(true);
+
+audioRef.current = new Audio(meditationAudio);
+audioRef.current.loop=true;
+audioRef.current.volume=0.4;
+audioRef.current.play();
+
+detectRef.current = setInterval(detect,400);
+
+timerRef.current=setInterval(()=>{
+
+setTotalTime(t=>t-1);
+
+setStepTime(prev=>{
+
+if(prev<=1){
+
+const next = stepIndex+1;
+
+if(next>=steps.length){
+
+finish();
+return 0;
+
+}
+
+setStepIndex(next);
+
+return steps[next].duration;
+
+}
+
+return prev-1;
+
+});
+
+setProgress(
+Math.round(((TOTAL_DURATION-totalTime)/TOTAL_DURATION)*100)
+);
+
+},1000);
+
+};
+
+/* ---------- STOP ---------- */
+
+const stop=()=>{
+
+clearInterval(timerRef.current);
+clearInterval(detectRef.current);
+
+audioRef.current?.pause();
+
+setPlaying(false);
+
+};
+
+/* ---------- FINISH ---------- */
+
+const finish=()=>{
+
+stop();
+
+let s = Number(localStorage.getItem("magic16_streak") || 0);
+
+s++;
+
+localStorage.setItem("magic16_streak",s);
+
+setStreak(s);
+
+if(s>50) setLevel("Zen Master");
+else if(s>20) setLevel("Master");
+else if(s>5) setLevel("Explorer");
+
+if(score>90) setCoach("Excellent posture.");
+else if(score>70) setCoach("Good work. Improve balance.");
+else setCoach("Focus on knee alignment.");
+
+confetti({particleCount:250,spread:120});
+
+setCompleted(true);
+
+};
+
+/* ---------- SHARE ---------- */
+
+const shareResult=()=>{
+
+const text=`I completed Magic16 🧘
+Score ${score}%
+🔥 Streak ${streak}
 
 Try it on ManifiX`;
 
-    if (navigator.share) {
+navigator.share?.({
+title:"Magic16 Challenge",
+text,
+url:"https://manifix.ai"
+});
 
-      navigator.share({
-        title: "Magic16 Challenge",
-        text,
-        url: "https://manifix.ai",
-      });
+};
 
-    } else {
+/* ---------- COMPLETED SCREEN ---------- */
 
-      navigator.clipboard.writeText(text);
-      alert("Result copied to clipboard!");
-    }
-  };
+if(completed){
 
-  // ---------- Camera Init ----------
-  useEffect(() => {
+return(
 
-    const init = async () => {
+<div className="magic16-complete">
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+<h1>🎉 Ritual Complete</h1>
 
-      streamRef.current = stream;
+<h2>{score}% Posture Score</h2>
 
-      videoRef.current.srcObject = stream;
+<p>🔥 {streak} Day Streak</p>
 
-      await tf.ready();
+<p>Level: {level}</p>
 
-      await tf.setBackend("webgl");
+<div className="magic16-coach">
+<h3>AI Coach</h3>
+<p>{coach}</p>
+</div>
 
-      detectorRef.current = await posedetection.createDetector(
-        posedetection.SupportedModels.MoveNet,
-        { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-      );
+<button onClick={shareResult}>Share Result</button>
 
-      setLoading(false);
+<button onClick={()=>window.location.reload()}>
+Start Again
+</button>
 
-      speak("Welcome to Magic16");
+</div>
 
-    };
+);
 
-    init();
+}
 
-    return () => {
+/* ---------- UI ---------- */
 
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+return(
 
-      audioRef.current?.pause();
+<div className="magic16-app">
 
-      clearInterval(timerRef.current);
+<header className="magic16-header">
 
-      clearInterval(detectRef.current);
-    };
+<img src={logo} alt="logo"/>
 
-  }, []);
+<div className="magic16-streak">
+🔥 {streak} day streak
+</div>
 
-  // ---------- Timer ----------
-  const start = () => {
+</header>
 
-    if (playing) return;
+{loading && (
+<div className="magic16-loading">
+Preparing your AI Yoga Trainer...
+</div>
+)}
 
-    setPlaying(true);
+<div className="magic16-layout">
 
-    playAudio();
+<div className="magic16-camera">
 
-    speak(steps[stepIndex].text);
+<video
+ref={videoRef}
+autoPlay
+playsInline
+muted
+className="magic16-video"
+/>
 
-    detectRef.current = setInterval(detect, 400);
+<PostureOverlay/>
 
-    timerRef.current = setInterval(() => {
+{stepIndex>=yogaSteps.length && (
+<BreathingCircle/>
+)}
 
-      setTotalTime((t) => t - 1);
+</div>
 
-      setStepTime((prev) => {
+<div className="magic16-panel">
 
-        if (prev <= 1) {
+<img
+src={steps[stepIndex].img}
+className="magic16-step-img"
+/>
 
-          const next = stepIndex + 1;
+<h2>{steps[stepIndex].text}</h2>
 
-          if (next >= steps.length) {
+<div className="magic16-progress">
 
-            finish();
+<div style={{width:`${progress}%`}}/>
 
-            return 0;
-          }
+</div>
 
-          setStepIndex(next);
+<div className="magic16-stats">
 
-          setStepTime(steps[next].duration);
+<span>Step {stepTime}s</span>
 
-          speak(steps[next].text);
+<span>Score {score}%</span>
 
-          return steps[next].duration;
-        }
+</div>
 
-        return prev - 1;
+<div className="magic16-controls">
 
-      });
+{!playing ? (
+<button onClick={start}>
+Start Magic16
+</button>
+) : (
+<button onClick={stop}>
+Pause
+</button>
+)}
 
-      setProgress(
-        Math.round(((TOTAL_DURATION - totalTime) / TOTAL_DURATION) * 100)
-      );
+</div>
 
-    }, 1000);
-  };
+</div>
 
-  const stop = () => {
+</div>
 
-    clearInterval(timerRef.current);
+</div>
 
-    clearInterval(detectRef.current);
+);
 
-    audioRef.current?.pause();
-
-    setPlaying(false);
-  };
-
-  const finish = () => {
-
-    stop();
-
-    updateStreak();
-
-    updateLevel(streak);
-
-    generateCoach();
-
-    confetti({
-      particleCount: 250,
-      spread: 120,
-      origin: { y: 0.6 },
-    });
-
-    speak("Congratulations! Ritual complete!");
-
-    setCompleted(true);
-  };
-
-  // ---------- Completed ----------
-  if (completed) {
-
-    return (
-
-      <div className="magic16-complete">
-
-        <h1>🎉 Ritual Complete</h1>
-
-        <h2>Posture Score {score}%</h2>
-
-        <h3>🔥 Magic16 Streak: {streak} days</h3>
-
-        <h4>Level: {level}</h4>
-
-        <div className="magic16-coach">
-          <h3>AI Coach</h3>
-          <p>{coachText}</p>
-        </div>
-
-        <button onClick={shareResult}>
-          Share Result
-        </button>
-
-        <button onClick={() => window.location.reload()}>
-          Start Again
-        </button>
-
-      </div>
-
-    );
-  }
-
-  // ---------- UI ----------
-  return (
-
-    <div className="magic16">
-
-      {loading && (
-        <div className="magic16-loading">
-          Preparing your yoga trainer...
-        </div>
-      )}
-
-      <img src={logo} className="magic16-logo" alt="logo" />
-
-      <div className="magic16-camera">
-
-        <PostureOverlay />
-
-      </div>
-
-      <div className="magic16-step">
-
-        <img
-          src={steps[stepIndex].img}
-          alt="step"
-          className="magic16-step-img"
-        />
-
-        <h1 className="magic16-step-text">
-          {steps[stepIndex].text}
-        </h1>
-
-      </div>
-
-      {stepIndex >= yogaSteps.length && (
-        <BreathingCircle />
-      )}
-
-      <div className="magic16-progress">
-        <div style={{ width: `${progress}%` }} />
-      </div>
-
-      {playing && (
-        <div className="magic16-score">
-          Posture Score {score}%
-        </div>
-      )}
-
-      <div className="magic16-controls">
-
-        {!playing ? (
-          <button onClick={start}>Start Magic16</button>
-        ) : (
-          <button onClick={stop}>Pause</button>
-        )}
-
-      </div>
-
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        hidden
-      />
-
-    </div>
-  );
 }
