@@ -124,73 +124,124 @@ export default function Gpt({ userId }) {
   };
 
   /* ---------------- Send Message ---------------- */
-  const sendMessage = async (text) => {
-    if (!text.trim() || generating) return;
+const sendMessage = (text) => {
 
-    const userMsg = createUserMessage(text);
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
+if (!text.trim() || generating) return;
 
-    const thinkingId = `bot-thinking-${Date.now()}`;
-    const thinkingMsg = {
-      id: thinkingId,
-      role: "bot",
-      content: "Thinking...",
-      type: "thinking",
-      timestamp: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, thinkingMsg]);
-    setGenerating(true);
+/* User message */
+const userMsg = createUserMessage(text);
+setMessages(prev => [...prev, userMsg]);
+setInput("");
 
-    try {
-      controllerRef.current = new AbortController();
-      const res = await axios.post(
-        `${API_BASE}/api/chat`,
-        { message: text, userId },
-        { signal: controllerRef.current.signal }
-      );
-      const reply = res.data.reply || "No response.";
+/* Thinking placeholder */
+const thinkingId = `thinking-${Date.now()}`;
 
-      const botMsg = {
-        id: `bot-${Date.now()}`,
-        role: "bot",
-        content: reply,
-        type: "text",
-        timestamp: new Date().toISOString(),
-      };
+const thinkingMsg = {
+id: thinkingId,
+role: "assistant",
+content: "ManifiX is thinking...",
+type: "thinking",
+timestamp: new Date().toISOString(),
+};
 
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === thinkingId ? botMsg : msg))
-      );
-    } catch (err) {
-      console.error("Chat error:", err);
-      if (err.name !== "CanceledError") {
-        const errorMsg = {
-          id: `bot-error-${Date.now()}`,
-          role: "bot",
-          content: "Server error. Please try again.",
-          type: "error",
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) =>
-          prev.map((msg) => (msg.id === thinkingId ? errorMsg : msg))
-        );
-      }
-    } finally {
-      setGenerating(false);
-    }
-  };
+setMessages(prev => [...prev, thinkingMsg]);
+setGenerating(true);
 
+/* Create assistant message */
+const botMsg = {
+id: `assistant-${Date.now()}`,
+role: "assistant",
+content: "",
+type: "text",
+timestamp: new Date().toISOString(),
+};
+
+/* Replace thinking with real message */
+setMessages(prev =>
+prev.map(msg =>
+msg.id === thinkingId ? botMsg : msg
+)
+);
+
+/* Streaming connection */
+const eventSource = new EventSource(
+`${API_BASE}/api/chat-stream?message=${encodeURIComponent(text)}`
+);
+
+window.currentStream = eventSource;
+
+/* Receive tokens */
+eventSource.onmessage = (event) => {
+
+if (event.data === "[DONE]") {
+
+eventSource.close();
+window.currentStream = null;
+setGenerating(false);
+return;
+
+}
+
+/* Append streamed token */
+botMsg.content += event.data;
+
+/* Update message */
+setMessages(prev =>
+prev.map(m =>
+m.id === botMsg.id
+? { ...botMsg }
+: m
+)
+);
+
+};
+
+/* Error handling */
+eventSource.onerror = (err) => {
+
+console.error("Stream error:", err);
+
+eventSource.close();
+window.currentStream = null;
+setGenerating(false);
+
+const errorMsg = {
+id: `assistant-error-${Date.now()}`,
+role: "assistant",
+content: "⚠️ ManifiX connection lost. Please try again.",
+type: "error",
+timestamp: new Date().toISOString(),
+};
+
+setMessages(prev => [...prev, errorMsg]);
+
+};
+
+};
   /* ---------------- Stop ---------------- */
-  const stopGenerating = () => {
-    if (controllerRef.current) controllerRef.current.abort();
+const stopGenerating = () => {
+
+  // Close streaming connection
+  if (window.currentStream) {
+    window.currentStream.close();
+    window.currentStream = null;
+  }
+
+  // Cancel any axios request
+  if (controllerRef.current) {
+    controllerRef.current.abort();
     controllerRef.current = null;
-    setMessages((prev) => prev.filter((m) => m.type !== "thinking"));
-    setGenerating(false);
-    setListening(false);
-    setUploading(false);
-    console.log("Generation stopped.");
-  };
+  }
+
+  // Remove thinking message
+  setMessages((prev) => prev.filter((m) => m.type !== "thinking"));
+
+  setGenerating(false);
+  setListening(false);
+  setUploading(false);
+
+  console.log("Generation stopped.");
+};
 
   /* ---------------- Regenerate ---------------- */
   const regenerate = () => {
