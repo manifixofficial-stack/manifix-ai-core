@@ -1,278 +1,303 @@
-// src/pages/Magic16.jsx
+import { useRef, useEffect, useState } from "react"
+import * as posedetection from "@tensorflow-models/pose-detection"
+import "@tensorflow/tfjs-backend-webgl"
+import * as tf from "@tensorflow/tfjs"
+import confetti from "canvas-confetti"
 
-import { useRef, useEffect, useState, useCallback } from "react";
-import * as posedetection from "@tensorflow-models/pose-detection";
-import "@tensorflow/tfjs-backend-webgl";
-import * as tf from "@tensorflow/tfjs";
-import confetti from "canvas-confetti";
+import "../styles/magic16.css"
 
-import "../styles/magic16.css";
-import logo from "../../assets/logo.png";
+import logo from "../assets/logo.png"
 
-import PostureOverlay from "../components/Magic16/PostureOverlay";
-import BreathingCircle from "../components/Magic16/BreathingCircle";
+/* yoga images */
 
-import meditationAudio from "../assets/audio/meditation/meditation.mp3";
+import yoga1 from "../assets/steps/yoga-01.png"
+import yoga2 from "../assets/steps/yoga-02.png"
+import yoga3 from "../assets/steps/yoga-03.png"
+import yoga4 from "../assets/steps/yoga-04.png"
+import yoga5 from "../assets/steps/yoga-05.png"
+import yoga6 from "../assets/steps/yoga-06.png"
+import yoga71 from "../assets/steps/yoga-07-1.png"
+import yoga72 from "../assets/steps/yoga-07-2.png"
+import yoga73 from "../assets/steps/yoga-07-3.png"
+import yoga8 from "../assets/steps/yoga-08.png"
 
-// Yoga images
-import yoga1 from "../assets/steps/yoga-01.png";
-import yoga2 from "../assets/steps/yoga-02.png";
-import yoga3 from "../assets/steps/yoga-03.png";
-import yoga4 from "../assets/steps/yoga-04.png";
-import yoga5 from "../assets/steps/yoga-05.png";
-import yoga6 from "../assets/steps/yoga-06.png";
-import yoga71 from "../assets/steps/yoga-07-1.png";
-import yoga72 from "../assets/steps/yoga-07-2.png";
-import yoga73 from "../assets/steps/yoga-07-3.png";
-import yoga8 from "../assets/steps/yoga-08.png";
+/* meditation images */
 
-// Meditation images
-import med1 from "../assets/steps/med-01.png";
-import med2 from "../assets/steps/med-02.png";
-import med3 from "../assets/steps/med-03.png";
-import med4 from "../assets/steps/med-04.png";
-import med5 from "../assets/steps/med-05.png";
-import med6 from "../assets/steps/med-06.png";
-import med7 from "../assets/steps/med-07.png";
+import med1 from "../assets/steps/med-01.png"
+import med2 from "../assets/steps/med-02.png"
+import med3 from "../assets/steps/med-03.png"
+import med4 from "../assets/steps/med-04.png"
+import med5 from "../assets/steps/med-05.png"
+import med6 from "../assets/steps/med-06.png"
+import med7 from "../assets/steps/med-07.png"
 
-export default function Magic16() {
+export default function Magic16(){
 
-const videoRef = useRef(null);
-const streamRef = useRef(null);
-const detectorRef = useRef(null);
-const timerRef = useRef(null);
-const detectRef = useRef(null);
-const audioRef = useRef(null);
+/* refs */
 
-const [loading,setLoading] = useState(true);
-const [playing,setPlaying] = useState(false);
-const [completed,setCompleted] = useState(false);
+const videoRef = useRef(null)
+const detectorRef = useRef(null)
+const timerRef = useRef(null)
+const detectRef = useRef(null)
 
-const [score,setScore] = useState(0);
-const [progress,setProgress] = useState(0);
+/* state */
 
-const [stepIndex,setStepIndex] = useState(0);
-const [stepTime,setStepTime] = useState(60);
+const [loading,setLoading] = useState(true)
+const [playing,setPlaying] = useState(false)
+const [completed,setCompleted] = useState(false)
+
+const [stepIndex,setStepIndex] = useState(0)
+const [stepTime,setStepTime] = useState(60)
+
+const [progress,setProgress] = useState(0)
+const [score,setScore] = useState(0)
+
+const [coach,setCoach] = useState("")
+const [level,setLevel] = useState("Beginner")
 
 const [streak,setStreak] = useState(
 Number(localStorage.getItem("magic16_streak") || 0)
-);
+)
 
-const [coach,setCoach] = useState("");
-const [level,setLevel] = useState("Beginner");
+/* voice guidance */
 
-/* ---------- STEPS ---------- */
+const speak = (text)=>{
 
-const yogaSteps = [
+const msg = new SpeechSynthesisUtterance(text)
+msg.rate = 0.9
+msg.pitch = 1
+msg.lang = "en-US"
 
-{img:yoga1,text:"Mountain Pose. Stand tall.",duration:60},
-{img:yoga2,text:"Forward Fold. Relax.",duration:40},
-{img:yoga3,text:"Half Lift.",duration:40},
-{img:yoga4,text:"Plank Pose.",duration:60},
-{img:yoga5,text:"Cobra Pose.",duration:40},
-{img:yoga6,text:"Downward Dog.",duration:60},
-{img:yoga71,text:"Warrior Pose 1.",duration:40},
-{img:yoga72,text:"Warrior Pose 2.",duration:40},
-{img:yoga73,text:"Warrior Pose 3.",duration:40},
-{img:yoga8,text:"Tree Pose.",duration:60},
+speechSynthesis.cancel()
+speechSynthesis.speak(msg)
 
-];
+}
 
-const meditationSteps = [
+/* steps */
 
-{img:med1,text:"Close eyes and breathe.",duration:60},
-{img:med2,text:"Focus on breath.",duration:60},
-{img:med3,text:"Release tension.",duration:120},
-{img:med4,text:"Feel calm.",duration:60},
-{img:med5,text:"Let thoughts pass.",duration:60},
-{img:med6,text:"Stay present.",duration:60},
-{img:med7,text:"Visualize success.",duration:60},
+const steps=[
 
-];
+{type:"yoga",img:yoga1,text:"Mountain Pose. Stand tall.",duration:60},
 
-const steps=[...yogaSteps,...meditationSteps];
+{type:"yoga",img:yoga2,text:"Forward Fold. Relax.",duration:60},
 
-const TOTAL_DURATION = steps.reduce((s,x)=>s+x.duration,0);
+{type:"yoga",img:yoga3,text:"Half Lift.",duration:60},
 
-const [totalTime,setTotalTime]=useState(TOTAL_DURATION);
+{type:"yoga",img:yoga4,text:"Plank Pose.",duration:60},
 
-/* ---------- CAMERA INIT ---------- */
+{type:"yoga",img:yoga5,text:"Cobra Pose.",duration:60},
+
+{type:"yoga",img:yoga6,text:"Downward Dog.",duration:60},
+
+{type:"yoga",img:yoga71,text:"Warrior Pose One.",duration:60},
+
+{type:"yoga",img:yoga72,text:"Warrior Pose Two.",duration:60},
+
+{type:"yoga",img:yoga73,text:"Warrior Pose Three.",duration:60},
+
+{type:"yoga",img:yoga8,text:"Tree Pose.",duration:60},
+
+{type:"meditation",img:med1,text:"Close eyes and breathe.",duration:120},
+
+{type:"meditation",img:med2,text:"Focus on breath.",duration:120},
+
+{type:"meditation",img:med3,text:"Release tension.",duration:120},
+
+{type:"meditation",img:med4,text:"Feel calm.",duration:120},
+
+{type:"meditation",img:med5,text:"Let thoughts pass.",duration:120},
+
+{type:"meditation",img:med6,text:"Stay present.",duration:120},
+
+{type:"meditation",img:med7,text:"Visualize success.",duration:120}
+
+]
+
+const TOTAL = steps.reduce((s,x)=>s+x.duration,0)
+
+const [totalTime,setTotalTime] = useState(TOTAL)
+
+/* camera + ai init */
 
 useEffect(()=>{
 
-const init=async()=>{
+const init = async()=>{
 
-const stream = await navigator.mediaDevices.getUserMedia({video:true});
-streamRef.current = stream;
+const stream =
+await navigator.mediaDevices.getUserMedia({video:true})
 
-videoRef.current.srcObject = stream;
+videoRef.current.srcObject = stream
 
-await tf.ready();
-await tf.setBackend("webgl");
+await tf.ready()
+await tf.setBackend("webgl")
 
-detectorRef.current = await posedetection.createDetector(
+detectorRef.current =
+await posedetection.createDetector(
 posedetection.SupportedModels.MoveNet,
 {modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING}
-);
+)
 
-setLoading(false);
+setLoading(false)
 
-};
+}
 
-init();
+init()
 
 return ()=>{
 
-streamRef.current?.getTracks().forEach(t=>t.stop());
+clearInterval(timerRef.current)
+clearInterval(detectRef.current)
 
-clearInterval(timerRef.current);
-clearInterval(detectRef.current);
+}
 
-};
+},[])
 
-},[]);
+/* pose detection */
 
-/* ---------- POSE DETECTION ---------- */
+const detectPose = async()=>{
 
-const detect = useCallback(async()=>{
+if(!detectorRef.current) return
 
-if(!detectorRef.current) return;
+const poses =
+await detectorRef.current.estimatePoses(videoRef.current)
 
-const poses = await detectorRef.current.estimatePoses(videoRef.current);
+if(!poses.length) return
 
-if(!poses?.length) return;
+const kp = poses[0].keypoints
 
-const kp = poses[0].keypoints;
-
-const hip = kp.find(k=>k.name==="left_hip");
-const knee = kp.find(k=>k.name==="left_knee");
-const ankle = kp.find(k=>k.name==="left_ankle");
+const hip = kp.find(k=>k.name==="left_hip")
+const knee = kp.find(k=>k.name==="left_knee")
+const ankle = kp.find(k=>k.name==="left_ankle")
 
 if(hip && knee && ankle){
 
 const angle = Math.abs(
 Math.atan2(ankle.y-knee.y,ankle.x-knee.x) -
 Math.atan2(hip.y-knee.y,hip.x-knee.x)
-)*180/Math.PI;
+)*180/Math.PI
 
-const sc = Math.max(0,100-Math.abs(angle-90));
+const postureScore =
+Math.max(0,100-Math.abs(angle-90))
 
-setScore(Math.round(sc));
+setScore(Math.round(postureScore))
 
 }
 
-},[]);
+}
 
-/* ---------- SESSION START ---------- */
+/* start session */
 
-const start=()=>{
+const start = ()=>{
 
-if(playing) return;
+if(playing) return
 
-setPlaying(true);
+setPlaying(true)
 
-audioRef.current = new Audio(meditationAudio);
-audioRef.current.loop=true;
-audioRef.current.volume=0.4;
-audioRef.current.play();
+speak("Welcome to Magic sixteen.")
 
-detectRef.current = setInterval(detect,400);
+speak(steps[0].text)
 
-timerRef.current=setInterval(()=>{
+detectRef.current = setInterval(detectPose,500)
 
-setTotalTime(t=>t-1);
+timerRef.current = setInterval(()=>{
+
+setTotalTime(t=>t-1)
 
 setStepTime(prev=>{
 
 if(prev<=1){
 
-const next = stepIndex+1;
+const next = stepIndex+1
 
 if(next>=steps.length){
 
-finish();
-return 0;
+finish()
+return 0
 
 }
 
-setStepIndex(next);
+setStepIndex(next)
 
-return steps[next].duration;
+speak(steps[next].text)
+
+return steps[next].duration
 
 }
 
-return prev-1;
+return prev-1
 
-});
+})
 
 setProgress(
-Math.round(((TOTAL_DURATION-totalTime)/TOTAL_DURATION)*100)
-);
+Math.round(((TOTAL-totalTime)/TOTAL)*100)
+)
 
-},1000);
+},1000)
 
-};
+}
 
-/* ---------- STOP ---------- */
+/* stop */
 
-const stop=()=>{
+const stop = ()=>{
 
-clearInterval(timerRef.current);
-clearInterval(detectRef.current);
+clearInterval(timerRef.current)
+clearInterval(detectRef.current)
 
-audioRef.current?.pause();
+speechSynthesis.cancel()
 
-setPlaying(false);
+setPlaying(false)
 
-};
+}
 
-/* ---------- FINISH ---------- */
+/* finish */
 
-const finish=()=>{
+const finish = ()=>{
 
-stop();
+stop()
 
-let s = Number(localStorage.getItem("magic16_streak") || 0);
+let s =
+Number(localStorage.getItem("magic16_streak") || 0)
 
-s++;
+s++
 
-localStorage.setItem("magic16_streak",s);
+localStorage.setItem("magic16_streak",s)
 
-setStreak(s);
+setStreak(s)
 
-if(s>50) setLevel("Zen Master");
-else if(s>20) setLevel("Master");
-else if(s>5) setLevel("Explorer");
+if(s>50) setLevel("Zen Master")
+else if(s>20) setLevel("Master")
+else if(s>5) setLevel("Explorer")
 
-if(score>90) setCoach("Excellent posture.");
-else if(score>70) setCoach("Good work. Improve balance.");
-else setCoach("Focus on knee alignment.");
+if(score>90)
+setCoach("Excellent posture control")
 
-confetti({particleCount:250,spread:120});
+else if(score>70)
+setCoach("Good work keep improving")
 
-setCompleted(true);
+else
+setCoach("Focus on posture alignment")
 
-};
+confetti({particleCount:200,spread:120})
 
-/* ---------- SHARE ---------- */
+setCompleted(true)
 
-const shareResult=()=>{
+}
 
-const text=`I completed Magic16 🧘
-Score ${score}%
-🔥 Streak ${streak}
+/* share */
 
-Try it on ManifiX`;
+const share = ()=>{
 
 navigator.share?.({
-title:"Magic16 Challenge",
-text,
+
+title:"Magic16",
+text:`I completed Magic16 🧘 Score ${score}%`,
 url:"https://manifix.ai"
-});
 
-};
+})
 
-/* ---------- COMPLETED SCREEN ---------- */
+}
+
+/* completed screen */
 
 if(completed){
 
@@ -288,12 +313,11 @@ return(
 
 <p>Level: {level}</p>
 
-<div className="magic16-coach">
-<h3>AI Coach</h3>
 <p>{coach}</p>
-</div>
 
-<button onClick={shareResult}>Share Result</button>
+<button onClick={share}>
+Share
+</button>
 
 <button onClick={()=>window.location.reload()}>
 Start Again
@@ -301,11 +325,11 @@ Start Again
 
 </div>
 
-);
+)
 
 }
 
-/* ---------- UI ---------- */
+/* main ui */
 
 return(
 
@@ -316,16 +340,18 @@ return(
 <img src={logo} alt="logo"/>
 
 <div className="magic16-streak">
-🔥 {streak} day streak
+🔥 {streak} Day Streak
 </div>
 
 </header>
 
-{loading && (
+{loading &&
+
 <div className="magic16-loading">
-Preparing your AI Yoga Trainer...
+Preparing AI Trainer...
 </div>
-)}
+
+}
 
 <div className="magic16-layout">
 
@@ -339,22 +365,16 @@ muted
 className="magic16-video"
 />
 
-<PostureOverlay/>
-
-{stepIndex>=yogaSteps.length && (
-<BreathingCircle/>
-)}
-
 </div>
 
 <div className="magic16-panel">
 
 <img
-src={steps[stepIndex].img}
+src={steps[stepIndex]?.img}
 className="magic16-step-img"
 />
 
-<h2>{steps[stepIndex].text}</h2>
+<h2>{steps[stepIndex]?.text}</h2>
 
 <div className="magic16-progress">
 
@@ -372,15 +392,19 @@ className="magic16-step-img"
 
 <div className="magic16-controls">
 
-{!playing ? (
+{!playing ?
+
 <button onClick={start}>
 Start Magic16
 </button>
-) : (
+
+:
+
 <button onClick={stop}>
 Pause
 </button>
-)}
+
+}
 
 </div>
 
@@ -390,6 +414,6 @@ Pause
 
 </div>
 
-);
+)
 
 }
