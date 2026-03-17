@@ -8,6 +8,7 @@ import "../styles/magic16.css"
 import logo from "../assets/logo.png"
 
 /* yoga images */
+
 import yoga1 from "../assets/steps/yoga-01.png"
 import yoga2 from "../assets/steps/yoga-02.png"
 import yoga3 from "../assets/steps/yoga-03.png"
@@ -19,7 +20,8 @@ import yoga72 from "../assets/steps/yoga-07-2.png"
 import yoga73 from "../assets/steps/yoga-07-3.png"
 import yoga8 from "../assets/steps/yoga-08.png"
 
-/* meditation images */
+/* meditation */
+
 import med1 from "../assets/steps/med-01.png"
 import med2 from "../assets/steps/med-02.png"
 import med3 from "../assets/steps/med-03.png"
@@ -56,25 +58,50 @@ const [streak,setStreak] = useState(
 Number(localStorage.getItem("magic16_streak") || 0)
 )
 
-/* ---------------- HUMAN COACH MESSAGES ---------------- */
+/* ---------------- STEPS ---------------- */
 
-const healthMessages = {
+const steps=[
+
+{type:"yoga",img:yoga1,text:"Mountain Pose. Stand tall.",duration:60},
+{type:"yoga",img:yoga2,text:"Forward Fold. Relax your spine.",duration:60},
+{type:"yoga",img:yoga3,text:"Half Lift. Lengthen your back.",duration:60},
+{type:"yoga",img:yoga4,text:"Plank Pose. Engage your core.",duration:60},
+{type:"yoga",img:yoga5,text:"Cobra Pose. Open your chest.",duration:60},
+{type:"yoga",img:yoga6,text:"Downward Dog. Stretch your body.",duration:60},
+{type:"yoga",img:yoga71,text:"Warrior One. Feel grounded.",duration:60},
+{type:"yoga",img:yoga72,text:"Warrior Two. Build strength.",duration:60},
+{type:"yoga",img:yoga73,text:"Warrior Three. Balance focus.",duration:60},
+{type:"yoga",img:yoga8,text:"Tree Pose. Find stability.",duration:60},
+
+{type:"meditation",img:med1,text:"Close your eyes and breathe.",duration:120},
+{type:"meditation",img:med2,text:"Focus on your breath.",duration:120},
+{type:"meditation",img:med3,text:"Release tension.",duration:120},
+{type:"meditation",img:med4,text:"Feel calm.",duration:120},
+{type:"meditation",img:med5,text:"Let thoughts pass.",duration:120},
+{type:"meditation",img:med6,text:"Stay present.",duration:120},
+{type:"meditation",img:med7,text:"Visualize success.",duration:120}
+
+]
+
+const TOTAL = steps.reduce((s,x)=>s+x.duration,0)
+const [totalTime,setTotalTime] = useState(TOTAL)
+
+/* ---------------- COACH MESSAGES ---------------- */
+
+const healthMessages={
 
 excellent:[
-"Excellent posture. Your spine alignment is strong and stable.",
-"Your balance is improving. This pose strengthens your core muscles.",
-"Great control. This movement improves circulation and flexibility."
+"Excellent posture. Your alignment is strong.",
+"Great control. Your balance is improving."
 ],
 
 good:[
-"Good posture. Keep breathing slowly and stay relaxed.",
-"You are doing well. This pose helps improve joint mobility.",
-"Nice stability. This movement supports better body balance."
+"Nice stability. Keep breathing slowly.",
+"Good posture. Stay relaxed and steady."
 ],
 
 improve:[
-"Try lifting your chest slightly. This will help your breathing and posture.",
-"Adjust your knee alignment. It will reduce strain on the joints.",
+"Lift your chest slightly.",
 "Relax your shoulders and lengthen your spine."
 ]
 
@@ -85,9 +112,9 @@ improve:[
 const speak = (text)=>{
 
 const msg = new SpeechSynthesisUtterance(text)
-msg.rate = 0.9
-msg.pitch = 1
-msg.lang = "en-US"
+msg.rate=0.9
+msg.pitch=1
+msg.lang="en-US"
 
 speechSynthesis.cancel()
 speechSynthesis.speak(msg)
@@ -96,97 +123,38 @@ speechSynthesis.speak(msg)
 
 /* ---------------- MOVEMENT ANALYSIS ---------------- */
 
-const analyzeMovement = (score)=>{
+const analyzeMovement=(sc)=>{
 
 let level
-let message
 
-if(score > 85){
-level="excellent"
-}else if(score > 65){
-level="good"
-}else{
-level="improve"
-}
+if(sc>85) level="excellent"
+else if(sc>65) level="good"
+else level="improve"
 
-const messages = healthMessages[level]
+const messages=healthMessages[level]
 
-message = messages[Math.floor(Math.random()*messages.length)]
+const message=
+messages[Math.floor(Math.random()*messages.length)]
 
 setCoach(message)
 
-if(Math.random() > 0.6){
-
-const speech = new SpeechSynthesisUtterance(message)
-speech.rate = 0.9
-speech.pitch = 1
-speech.lang="en-US"
-
-speechSynthesis.speak(speech)
-
 }
-
-}
-
-/* ---------------- STEPS ---------------- */
-
-const steps=[
-
-{type:"yoga",img:yoga1,text:"Mountain Pose. Stand tall.",duration:60},
-
-{type:"yoga",img:yoga2,text:"Forward Fold. Relax your spine.",duration:60},
-
-{type:"yoga",img:yoga3,text:"Half Lift. Lengthen your back.",duration:60},
-
-{type:"yoga",img:yoga4,text:"Plank Pose. Engage your core.",duration:60},
-
-{type:"yoga",img:yoga5,text:"Cobra Pose. Open your chest.",duration:60},
-
-{type:"yoga",img:yoga6,text:"Downward Dog. Stretch your body.",duration:60},
-
-{type:"yoga",img:yoga71,text:"Warrior Pose One.",duration:60},
-
-{type:"yoga",img:yoga72,text:"Warrior Pose Two.",duration:60},
-
-{type:"yoga",img:yoga73,text:"Warrior Pose Three.",duration:60},
-
-{type:"yoga",img:yoga8,text:"Tree Pose. Balance your body.",duration:60},
-
-{type:"meditation",img:med1,text:"Close your eyes and breathe slowly.",duration:120},
-
-{type:"meditation",img:med2,text:"Focus only on breathing.",duration:120},
-
-{type:"meditation",img:med3,text:"Release tension from your body.",duration:120},
-
-{type:"meditation",img:med4,text:"Feel calm energy in your body.",duration:120},
-
-{type:"meditation",img:med5,text:"Let thoughts pass without attachment.",duration:120},
-
-{type:"meditation",img:med6,text:"Stay present in this moment.",duration:120},
-
-{type:"meditation",img:med7,text:"Visualize your best future.",duration:120}
-
-]
-
-const TOTAL = steps.reduce((s,x)=>s+x.duration,0)
-
-const [totalTime,setTotalTime] = useState(TOTAL)
 
 /* ---------------- INIT CAMERA + AI ---------------- */
 
 useEffect(()=>{
 
-const init = async()=>{
+const init=async()=>{
 
-const stream =
+const stream=
 await navigator.mediaDevices.getUserMedia({video:true})
 
-videoRef.current.srcObject = stream
+videoRef.current.srcObject=stream
 
 await tf.ready()
 await tf.setBackend("webgl")
 
-detectorRef.current =
+detectorRef.current=
 await posedetection.createDetector(
 posedetection.SupportedModels.MoveNet,
 {modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING}
@@ -213,28 +181,28 @@ const detectPose = async()=>{
 
 if(!detectorRef.current) return
 
-const poses =
+const poses=
 await detectorRef.current.estimatePoses(videoRef.current)
 
 if(!poses.length) return
 
-const kp = poses[0].keypoints
+const kp=poses[0].keypoints
 
-const hip = kp.find(k=>k.name==="left_hip")
-const knee = kp.find(k=>k.name==="left_knee")
-const ankle = kp.find(k=>k.name==="left_ankle")
+const hip=kp.find(k=>k.name==="left_hip")
+const knee=kp.find(k=>k.name==="left_knee")
+const ankle=kp.find(k=>k.name==="left_ankle")
 
 if(hip && knee && ankle){
 
-const angle = Math.abs(
+const angle=Math.abs(
 Math.atan2(ankle.y-knee.y,ankle.x-knee.x) -
 Math.atan2(hip.y-knee.y,hip.x-knee.x)
-) * 180 / Math.PI
+)*180/Math.PI
 
-const postureScore =
+const postureScore=
 Math.max(0,100-Math.abs(angle-90))
 
-const sc = Math.round(postureScore)
+const sc=Math.round(postureScore)
 
 setScore(sc)
 
@@ -246,7 +214,7 @@ analyzeMovement(sc)
 
 /* ---------------- START SESSION ---------------- */
 
-const start = ()=>{
+const start=()=>{
 
 if(playing) return
 
@@ -256,9 +224,9 @@ speak("Welcome to Magic sixteen.")
 
 speak(steps[0].text)
 
-detectRef.current = setInterval(detectPose,500)
+detectRef.current=setInterval(detectPose,500)
 
-timerRef.current = setInterval(()=>{
+timerRef.current=setInterval(()=>{
 
 setTotalTime(t=>t-1)
 
@@ -266,7 +234,7 @@ setStepTime(prev=>{
 
 if(prev<=1){
 
-const next = stepIndex+1
+const next=stepIndex+1
 
 if(next>=steps.length){
 
@@ -297,7 +265,7 @@ Math.round(((TOTAL-totalTime)/TOTAL)*100)
 
 /* ---------------- STOP ---------------- */
 
-const stop = ()=>{
+const stop=()=>{
 
 clearInterval(timerRef.current)
 clearInterval(detectRef.current)
@@ -310,12 +278,12 @@ setPlaying(false)
 
 /* ---------------- FINISH ---------------- */
 
-const finish = ()=>{
+const finish=()=>{
 
 stop()
 
-let s =
-Number(localStorage.getItem("magic16_streak") || 0)
+let s=
+Number(localStorage.getItem("magic16_streak")||0)
 
 s++
 
@@ -335,15 +303,31 @@ setCompleted(true)
 
 /* ---------------- SHARE ---------------- */
 
-const share = ()=>{
+const share = async ()=>{
 
-navigator.share?.({
+const message=`🧘 Magic16 Complete
 
-title:"Magic16",
-text:`I completed Magic16 🧘 Score ${score}%`,
-url:"https://manifix.ai"
+Score: ${score}%
+🔥 ${streak} Day Streak
+Level: ${level}
 
+16 minutes. Mind + Body reset.
+
+https://manifix.ai`
+
+if(navigator.share){
+
+navigator.share({
+title:"Magic16 Ritual",
+text:message
 })
+
+}else{
+
+navigator.clipboard.writeText(message)
+alert("Share text copied!")
+
+}
 
 }
 
@@ -355,7 +339,7 @@ return(
 
 <div className="magic16-complete">
 
-<h1>🎉 Ritual Complete</h1>
+<h1>✨ Ritual Complete</h1>
 
 <h2>{score}% Posture Score</h2>
 
@@ -365,7 +349,9 @@ return(
 
 <p>{coach}</p>
 
-<button onClick={share}>Share</button>
+<button onClick={share}>
+Share Progress
+</button>
 
 <button onClick={()=>window.location.reload()}>
 Start Again
@@ -435,7 +421,6 @@ className="magic16-step-img"
 <div className="magic16-stats">
 
 <span>Step {stepTime}s</span>
-
 <span>Score {score}%</span>
 
 </div>
