@@ -28,6 +28,9 @@ import med5 from "../assets/steps/med-05.png"
 import med6 from "../assets/steps/med-06.png"
 import med7 from "../assets/steps/med-07.png"
 
+/* meditation audio */
+import meditationAudio from "../assets/audio/meditation/meditation.mp3"
+
 export default function Magic16(){
 
 /* ---------------- REFS ---------------- */
@@ -36,6 +39,7 @@ const videoRef = useRef(null)
 const detectorRef = useRef(null)
 const timerRef = useRef(null)
 const detectRef = useRef(null)
+const audioRef = useRef(null)
 
 /* ---------------- STATE ---------------- */
 
@@ -61,20 +65,17 @@ Number(localStorage.getItem("magic16_streak") || 0)
 const healthMessages = {
 
 excellent:[
-"Excellent posture. Your spine alignment is strong and stable.",
-"Your balance is improving. This pose strengthens your core muscles.",
-"Great control. This movement improves circulation and flexibility."
+"Excellent posture. Your spine alignment is strong.",
+"Great control. Your balance is improving."
 ],
 
 good:[
-"Good posture. Keep breathing slowly and stay relaxed.",
-"You are doing well. This pose helps improve joint mobility.",
-"Nice stability. This movement supports better body balance."
+"Good posture. Keep breathing slowly.",
+"You are doing well. Stay relaxed."
 ],
 
 improve:[
-"Try lifting your chest slightly. This will help your breathing and posture.",
-"Adjust your knee alignment. It will reduce strain on the joints.",
+"Lift your chest slightly.",
 "Relax your shoulders and lengthen your spine."
 ]
 
@@ -99,7 +100,6 @@ speechSynthesis.speak(msg)
 const analyzeMovement = (score)=>{
 
 let level
-let message
 
 if(score > 85){
 level="excellent"
@@ -111,20 +111,10 @@ level="improve"
 
 const messages = healthMessages[level]
 
-message = messages[Math.floor(Math.random()*messages.length)]
+const message =
+messages[Math.floor(Math.random()*messages.length)]
 
 setCoach(message)
-
-if(Math.random() > 0.6){
-
-const speech = new SpeechSynthesisUtterance(message)
-speech.rate = 0.9
-speech.pitch = 1
-speech.lang="en-US"
-
-speechSynthesis.speak(speech)
-
-}
 
 }
 
@@ -133,43 +123,27 @@ speechSynthesis.speak(speech)
 const steps=[
 
 {type:"yoga",img:yoga1,text:"Mountain Pose. Stand tall.",duration:60},
-
 {type:"yoga",img:yoga2,text:"Forward Fold. Relax your spine.",duration:60},
-
 {type:"yoga",img:yoga3,text:"Half Lift. Lengthen your back.",duration:60},
-
 {type:"yoga",img:yoga4,text:"Plank Pose. Engage your core.",duration:60},
-
 {type:"yoga",img:yoga5,text:"Cobra Pose. Open your chest.",duration:60},
-
 {type:"yoga",img:yoga6,text:"Downward Dog. Stretch your body.",duration:60},
-
-{type:"yoga",img:yoga71,text:"Warrior Pose One.",duration:60},
-
-{type:"yoga",img:yoga72,text:"Warrior Pose Two.",duration:60},
-
-{type:"yoga",img:yoga73,text:"Warrior Pose Three.",duration:60},
-
+{type:"yoga",img:yoga71,text:"Warrior One.",duration:60},
+{type:"yoga",img:yoga72,text:"Warrior Two.",duration:60},
+{type:"yoga",img:yoga73,text:"Warrior Three.",duration:60},
 {type:"yoga",img:yoga8,text:"Tree Pose. Balance your body.",duration:60},
 
 {type:"meditation",img:med1,text:"Close your eyes and breathe slowly.",duration:120},
-
-{type:"meditation",img:med2,text:"Focus only on breathing.",duration:120},
-
-{type:"meditation",img:med3,text:"Release tension from your body.",duration:120},
-
-{type:"meditation",img:med4,text:"Feel calm energy in your body.",duration:120},
-
-{type:"meditation",img:med5,text:"Let thoughts pass without attachment.",duration:120},
-
-{type:"meditation",img:med6,text:"Stay present in this moment.",duration:120},
-
-{type:"meditation",img:med7,text:"Visualize your best future.",duration:120}
+{type:"meditation",img:med2,text:"Focus on breathing.",duration:120},
+{type:"meditation",img:med3,text:"Release tension.",duration:120},
+{type:"meditation",img:med4,text:"Feel calm.",duration:120},
+{type:"meditation",img:med5,text:"Let thoughts pass.",duration:120},
+{type:"meditation",img:med6,text:"Stay present.",duration:120},
+{type:"meditation",img:med7,text:"Visualize success.",duration:120}
 
 ]
 
 const TOTAL = steps.reduce((s,x)=>s+x.duration,0)
-
 const [totalTime,setTotalTime] = useState(TOTAL)
 
 /* ---------------- INIT CAMERA + AI ---------------- */
@@ -191,6 +165,12 @@ await posedetection.createDetector(
 posedetection.SupportedModels.MoveNet,
 {modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING}
 )
+
+/* meditation audio */
+
+audioRef.current = new Audio(meditationAudio)
+audioRef.current.loop = true
+audioRef.current.volume = 0.4
 
 setLoading(false)
 
@@ -229,7 +209,7 @@ if(hip && knee && ankle){
 const angle = Math.abs(
 Math.atan2(ankle.y-knee.y,ankle.x-knee.x) -
 Math.atan2(hip.y-knee.y,hip.x-knee.x)
-) * 180 / Math.PI
+)*180/Math.PI
 
 const postureScore =
 Math.max(0,100-Math.abs(angle-90))
@@ -277,6 +257,14 @@ return 0
 
 setStepIndex(next)
 
+/* play meditation audio */
+
+if(steps[next].type === "meditation"){
+audioRef.current?.play()
+}else{
+audioRef.current?.pause()
+}
+
 speak(steps[next].text)
 
 return steps[next].duration
@@ -303,6 +291,8 @@ clearInterval(timerRef.current)
 clearInterval(detectRef.current)
 
 speechSynthesis.cancel()
+
+audioRef.current?.pause()
 
 setPlaying(false)
 
@@ -435,7 +425,6 @@ className="magic16-step-img"
 <div className="magic16-stats">
 
 <span>Step {stepTime}s</span>
-
 <span>Score {score}%</span>
 
 </div>
