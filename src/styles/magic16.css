@@ -1,453 +1,263 @@
-/* ================================
-   MAGIC16 GLOBAL
-================================ */
+/* ---------- GLOBAL ---------- */
 
 .magic16-app{
-  min-height:100vh;
-  background: radial-gradient(circle at top,#0f172a,#020617);
-  color:#f8fafc;
-  font-family:Inter,system-ui,Arial;
-  display:flex;
-  flex-direction:column;
+min-height:100vh;
+font-family:Inter,system-ui,-apple-system,sans-serif;
+background:linear-gradient(135deg,#0f172a,#1e293b);
+color:white;
+display:flex;
+flex-direction:column;
 }
 
-/* ================================
-   HEADER
-================================ */
+/* ---------- HEADER ---------- */
 
 .magic16-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:18px 28px;
-  backdrop-filter: blur(10px);
-  background:rgba(255,255,255,0.04);
-  border-bottom:1px solid rgba(255,255,255,0.06);
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:20px 28px;
+background:rgba(255,255,255,0.05);
+backdrop-filter:blur(20px);
+border-bottom:1px solid rgba(255,255,255,0.08);
 }
 
 .magic16-header img{
-  height:36px;
+height:36px;
 }
 
 .magic16-streak{
-  font-size:14px;
-  font-weight:600;
-  padding:6px 12px;
-  border-radius:30px;
-  background:linear-gradient(90deg,#f97316,#ef4444);
-  color:white;
-  box-shadow:0 0 10px rgba(255,80,40,.4);
+font-size:15px;
+font-weight:600;
+background:rgba(255,255,255,0.08);
+padding:8px 14px;
+border-radius:999px;
 }
 
-/* ================================
-   LOADING SCREEN
-================================ */
+/* ---------- LOADING ---------- */
 
 .magic16-loading{
-  text-align:center;
-  padding:40px;
-  font-size:18px;
-  opacity:.8;
-  animation:pulse 2s infinite;
+display:flex;
+justify-content:center;
+align-items:center;
+flex:1;
+font-size:20px;
+opacity:0.8;
+animation:pulse 2s infinite;
 }
 
 @keyframes pulse{
-
-0%{opacity:.4}
+0%{opacity:.5}
 50%{opacity:1}
-100%{opacity:.4}
-
+100%{opacity:.5}
 }
 
-/* ================================
-   MAIN LAYOUT
-================================ */
+/* ---------- LAYOUT ---------- */
 
 .magic16-layout{
-
-  display:grid;
-  grid-template-columns:1fr 420px;
-  gap:40px;
-  padding:40px;
-  flex:1;
-
+flex:1;
+display:grid;
+grid-template-columns:1fr 380px;
+gap:30px;
+padding:40px;
 }
 
-/* ================================
-   CAMERA AREA
-================================ */
+/* ---------- CAMERA ---------- */
 
 .magic16-camera{
-
-  position:relative;
-  border-radius:24px;
-  overflow:hidden;
-  background:black;
-  box-shadow:
-  0 20px 60px rgba(0,0,0,.6);
-
+position:relative;
+border-radius:20px;
+overflow:hidden;
+background:black;
+box-shadow:0 30px 80px rgba(0,0,0,0.6);
 }
 
 .magic16-video{
-
-  width:100%;
-  height:100%;
-  object-fit:cover;
-
+width:100%;
+height:100%;
+object-fit:cover;
 }
 
-/* overlay glow */
-
-.magic16-camera::after{
-
-content:"";
-position:absolute;
-inset:0;
-background:linear-gradient(
-transparent,
-rgba(0,0,0,.2)
-);
-
-pointer-events:none;
-
-}
-
-/* ================================
-   CONTROL PANEL
-================================ */
+/* ---------- PANEL ---------- */
 
 .magic16-panel{
-
-  display:flex;
-  flex-direction:column;
-  gap:24px;
-
-  padding:28px;
-
-  border-radius:24px;
-
-  background:rgba(255,255,255,.04);
-  backdrop-filter:blur(12px);
-
-  border:1px solid rgba(255,255,255,.08);
-
-  box-shadow:
-  0 10px 40px rgba(0,0,0,.4);
-
+background:rgba(255,255,255,0.05);
+backdrop-filter:blur(30px);
+border-radius:20px;
+padding:30px;
+display:flex;
+flex-direction:column;
+align-items:center;
+text-align:center;
+box-shadow:0 20px 60px rgba(0,0,0,0.5);
 }
 
-/* ================================
-   STEP IMAGE
-================================ */
+/* ---------- STEP IMAGE ---------- */
 
 .magic16-step-img{
-
-  width:100%;
-  border-radius:16px;
-  object-fit:cover;
-
-  transition:transform .3s;
-
+width:220px;
+border-radius:18px;
+margin-bottom:20px;
+box-shadow:0 20px 40px rgba(0,0,0,0.5);
+animation:float 6s ease-in-out infinite;
 }
 
-.magic16-step-img:hover{
-
-transform:scale(1.04);
-
+@keyframes float{
+0%{transform:translateY(0)}
+50%{transform:translateY(-10px)}
+100%{transform:translateY(0)}
 }
 
-/* ================================
-   STEP TEXT
-================================ */
+/* ---------- STEP TEXT ---------- */
 
 .magic16-panel h2{
-
-  font-size:22px;
-  line-height:1.4;
-  font-weight:600;
-
+font-size:22px;
+font-weight:600;
+margin-bottom:20px;
+line-height:1.4;
 }
 
-/* ================================
-   PROGRESS BAR
-================================ */
+/* ---------- PROGRESS ---------- */
 
 .magic16-progress{
-
-  width:100%;
-  height:10px;
-  background:#1e293b;
-  border-radius:10px;
-  overflow:hidden;
-
+width:100%;
+height:10px;
+background:rgba(255,255,255,0.08);
+border-radius:999px;
+overflow:hidden;
+margin:20px 0;
 }
 
 .magic16-progress div{
-
-  height:100%;
-  background:linear-gradient(
-  90deg,
-  #22c55e,
-  #06b6d4
-  );
-
-  transition:width .4s ease;
-
+height:100%;
+background:linear-gradient(90deg,#6366f1,#22c55e);
+transition:width .4s ease;
 }
 
-/* ================================
-   STATS
-================================ */
+/* ---------- STATS ---------- */
 
 .magic16-stats{
-
-  display:flex;
-  justify-content:space-between;
-
-  font-size:15px;
-
-  opacity:.85;
-
+display:flex;
+justify-content:space-between;
+width:100%;
+margin-bottom:20px;
+font-weight:500;
+opacity:.9;
 }
 
-/* ================================
-   BUTTONS
-================================ */
-
-.magic16-controls{
-
-  margin-top:8px;
-
-}
+/* ---------- BUTTONS ---------- */
 
 .magic16-controls button{
-
-  width:100%;
-  padding:14px 16px;
-
-  font-size:16px;
-  font-weight:600;
-
-  border:none;
-  border-radius:14px;
-
-  cursor:pointer;
-
-  transition:all .2s ease;
-
-  background:linear-gradient(
-  90deg,
-  #06b6d4,
-  #3b82f6
-  );
-
-  color:white;
-
-  box-shadow:
-  0 6px 20px rgba(0,0,0,.4);
-
+background:linear-gradient(135deg,#6366f1,#4f46e5);
+border:none;
+color:white;
+padding:14px 26px;
+font-size:16px;
+border-radius:12px;
+cursor:pointer;
+font-weight:600;
+transition:all .25s ease;
+box-shadow:0 10px 25px rgba(99,102,241,0.4);
 }
 
 .magic16-controls button:hover{
-
 transform:translateY(-2px);
-box-shadow:
-0 10px 24px rgba(0,0,0,.6);
-
+box-shadow:0 15px 35px rgba(99,102,241,0.6);
 }
 
 .magic16-controls button:active{
-
-transform:scale(.97);
-
+transform:scale(.96);
 }
 
-/* ================================
-   COMPLETION SCREEN
-================================ */
+/* ---------- COMPLETE SCREEN ---------- */
 
 .magic16-complete{
-
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-
-  min-height:100vh;
-
-  gap:18px;
-
-  background:radial-gradient(circle,#020617,#000);
-
-  text-align:center;
-
+min-height:100vh;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+text-align:center;
+gap:18px;
+background:linear-gradient(135deg,#1e293b,#020617);
 }
 
 .magic16-complete h1{
-
-font-size:36px;
-
+font-size:42px;
+font-weight:700;
 }
 
 .magic16-complete h2{
-
-font-size:26px;
+font-size:34px;
 color:#22c55e;
-
 }
 
-.magic16-coach{
-
-max-width:420px;
-background:#020617;
-
-padding:18px;
-
-border-radius:16px;
-
-border:1px solid rgba(255,255,255,.06);
-
+.magic16-complete p{
+font-size:18px;
+opacity:.9;
 }
-
-/* buttons */
 
 .magic16-complete button{
-
-padding:12px 20px;
-
+margin-top:10px;
+padding:12px 24px;
 border:none;
 border-radius:12px;
-
-font-weight:600;
-
-cursor:pointer;
-
-background:linear-gradient(
-90deg,
-#22c55e,
-#10b981
-);
-
+background:#6366f1;
 color:white;
-
-transition:.2s;
-
+font-weight:600;
+cursor:pointer;
+transition:.25s;
 }
 
 .magic16-complete button:hover{
-
-transform:translateY(-2px);
-
+background:#4f46e5;
 }
 
-/* ================================
-   BREATHING ANIMATION SUPPORT
-================================ */
-
-.breathing-container{
-
-position:absolute;
-
-top:50%;
-left:50%;
-
-transform:translate(-50%,-50%);
-
-pointer-events:none;
-
-}
-
-.breathing-circle{
-
-width:160px;
-height:160px;
-
-border-radius:50%;
-
-background:radial-gradient(
-circle,
-#38bdf8,
-#0ea5e9
-);
-
-animation:breath 8s infinite;
-
-}
-
-@keyframes breath{
-
-0%{transform:scale(.8)}
-25%{transform:scale(1.2)}
-50%{transform:scale(1.2)}
-75%{transform:scale(.8)}
-100%{transform:scale(.8)}
-
-}
-
-/* ================================
-   MOBILE RESPONSIVE
-================================ */
+/* ---------- MOBILE RESPONSIVE ---------- */
 
 @media(max-width:900px){
 
 .magic16-layout{
-
 grid-template-columns:1fr;
-
 padding:20px;
-
-gap:24px;
-
+gap:20px;
 }
 
 .magic16-panel{
+padding:22px;
+}
 
-padding:20px;
-
+.magic16-step-img{
+width:180px;
 }
 
 .magic16-panel h2{
-
 font-size:18px;
-
 }
 
 .magic16-header{
-
-padding:14px 18px;
-
+padding:16px;
 }
 
 .magic16-streak{
-
 font-size:13px;
-
 }
 
 }
 
-/* ================================
-   SMALL MOBILE
-================================ */
+/* ---------- SMALL MOBILE ---------- */
 
 @media(max-width:480px){
 
-.magic16-progress{
-
-height:8px;
-
-}
-
-.magic16-panel{
-
-gap:18px;
-
+.magic16-step-img{
+width:150px;
 }
 
 .magic16-panel h2{
-
 font-size:16px;
+}
 
+.magic16-controls button{
+width:100%;
 }
 
 }
