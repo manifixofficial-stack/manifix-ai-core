@@ -50,9 +50,13 @@ export { API_BASE, defaultWelcome, createAssistantMessage, createUserMessage };
 
 export default function Gpt({ userId }) {
   const [messages, setMessages] = useState(() => {
+  try {
     const saved = localStorage.getItem(`chatMessages_${userId || "default"}`);
     return saved ? JSON.parse(saved) : [defaultWelcome];
-  });
+  } catch {
+    return [defaultWelcome];
+  }
+});
 
   const [input, setInput] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -63,65 +67,82 @@ export default function Gpt({ userId }) {
   const recognitionRef = useRef(null);
   const controllerRef = useRef(null);
 
-  /* ---------------- Speech Recognition ---------------- */
-  useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+/* ---------------- Speech Recognition ---------------- */
+useEffect(() => {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    const rec = new SpeechRecognition();
-    rec.lang = navigator.language || "en-US";
-    rec.continuous = false;
-    rec.interimResults = false;
+  if (!SpeechRecognition) return;
 
-    recognitionRef.current = rec;
+  const rec = new SpeechRecognition();
+  rec.lang = navigator.language || "en-US";
+  rec.continuous = false;
+  rec.interimResults = false;
 
-    rec.onstart = () => setListening(true);
-    rec.onend = () => setListening(false);
-    rec.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript.trim();
-      if (transcript) setInput(transcript);
-    };
-    rec.onerror = (err) => {
-      console.error("Speech recognition error:", err);
-      setListening(false);
-    };
+  recognitionRef.current = rec;
 
-    return () => {
-      rec.stop();
-      recognitionRef.current = null;
-    };
-  }, []);
+  rec.onstart = () => setListening(true);
+  rec.onend = () => setListening(false);
 
-  /* ---------------- Auto-scroll & Persist ---------------- */
-  useEffect(() => {
-    if (!chatRef.current) return;
+  rec.onresult = (event) => {
+    const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+    if (transcript) setInput(transcript);
+  };
 
-    chatRef.current.scrollTo({
-      top: chatRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+  rec.onerror = (err) => {
+    console.error("Speech recognition error:", err);
+    setListening(false);
+  };
 
-    try {
-      localStorage.setItem(
-        `chatMessages_${userId || "default"}`,
-        JSON.stringify(messages)
-      );
-    } catch (err) {
-      console.error("Failed to save chat messages:", err);
-    }
-  }, [messages, userId]);
+  return () => {
+    rec.stop();
+    recognitionRef.current = null;
+  };
+}, []);
 
-  /* ---------------- Copy ---------------- */
-  const copyText = async (text) => {
-    if (!navigator.clipboard) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      console.log("Copied ✅");
-    } catch (err) {
-      console.error("Copy failed:", err);
+
+/* ---------------- Auto-scroll & Persist ---------------- */
+useEffect(() => {
+  if (!chatRef.current) return;
+
+  chatRef.current.scrollTo({
+    top: chatRef.current.scrollHeight,
+    behavior: "smooth",
+  });
+
+  try {
+    localStorage.setItem(
+      `chatMessages_${userId || "default"}`,
+      JSON.stringify(messages)
+    );
+  } catch (err) {
+    console.error("Failed to save chat messages:", err);
+  }
+}, [messages, userId]);
+
+
+/* ---------------- Stream Cleanup ---------------- */
+useEffect(() => {
+  return () => {
+    if (window.currentStream) {
+      window.currentStream.close();
+      window.currentStream = null;
     }
   };
+}, []);
+
+
+/* ---------------- Copy ---------------- */
+const copyText = async (text) => {
+  if (!navigator.clipboard) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    console.log("Copied ✅");
+  } catch (err) {
+    console.error("Copy failed:", err);
+  }
+};
 
   /* ---------------- Send Message ---------------- */
 const sendMessage = (text) => {
@@ -182,16 +203,13 @@ return;
 
 }
 
-/* Append streamed token */
-botMsg.content += event.data;
-
 /* Update message */
 setMessages(prev =>
-prev.map(m =>
-m.id === botMsg.id
-? { ...botMsg }
-: m
-)
+  prev.map(m =>
+    m.id === botMsg.id
+      ? { ...m, content: m.content + event.data }
+      : m
+  )
 );
 
 };
@@ -267,7 +285,7 @@ const stopGenerating = () => {
     const uploadingId = `uploading-${Date.now()}`;
     const tempMsg = {
       id: uploadingId,
-      role: "bot",
+      role: "assistant",
       content: "Uploading image...",
       type: "thinking",
     };
@@ -395,7 +413,7 @@ const stopGenerating = () => {
                 </ReactMarkdown>
               )}
 
-              {msg.role === "bot" && msg.type !== "thinking" && (
+              {msg.role === "assistant" && msg.type !== "thinking" && (
                 <button
                   onClick={() => copyText(msg.content)}
                   style={{ marginTop: 6, fontSize: 12, padding: "2px 6px", borderRadius: 4, cursor: "pointer", backgroundColor: "#7c3aed", color: "#fff", border: "none" }}
@@ -417,7 +435,11 @@ const stopGenerating = () => {
         <textarea
           value={input}
           placeholder="Ask ManifiX anything..."
-          onChange={(e) => setInput(e.target.value)}
+         onChange={(e) => {
+  setInput(e.target.value);
+  e.target.style.height = "auto";
+  e.target.style.height = e.target.scrollHeight + "px";
+}}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
