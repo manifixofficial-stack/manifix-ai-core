@@ -240,22 +240,30 @@ detectRef.current = setInterval(detectPose,500)
 
 timerRef.current = setInterval(()=>{
 
-setTotalTime(t=>t-1)
+setTotalTime(prevTotal => {
 
-setStepTime(prev=>{
+const newTotal = prevTotal - 1
 
-if(prev<=1){
+setProgress(
+Math.round(((TOTAL - newTotal) / TOTAL) * 100)
+)
 
-const next = stepIndex+1
+return newTotal
 
-if(next>=steps.length){
+})
 
+setStepTime(prev => {
+
+if(prev <= 1){
+
+setStepIndex(prevIndex => {
+
+const next = prevIndex + 1
+
+if(next >= steps.length){
 finish()
-return 0
-
+return prevIndex
 }
-
-setStepIndex(next)
 
 /* play meditation audio */
 
@@ -267,20 +275,21 @@ audioRef.current?.pause()
 
 speak(steps[next].text)
 
-return steps[next].duration
+setStepTime(steps[next].duration)
 
-}
-
-return prev-1
+return next
 
 })
 
-setProgress(
-Math.round(((TOTAL-totalTime)/TOTAL)*100)
-)
+return prev
+
+}
+
+return prev - 1
+
+})
 
 },1000)
-
 }
 
 /* ---------------- STOP ---------------- */
