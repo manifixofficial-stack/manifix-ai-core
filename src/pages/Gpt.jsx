@@ -6,7 +6,9 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+
 import micIcon from "../assets/mic.png";
+import shareIcon from "../assets/share.png";
 import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
@@ -14,7 +16,7 @@ const API_BASE = "https://manifix.up.railway.app";
 const defaultWelcome = {
   id: "welcome",
   role: "bot",
-  content: "Hi 👋 I'm ManifiX.I'm hear with you❤️.",
+  content: "Hi 👋🏻 I'm ManifiX. I'm here with you ❤️",
   type: "text",
 };
 
@@ -26,15 +28,14 @@ export default function Gpt({ userId }) {
   });
 
   const [input, setInput] = useState("");
-  const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   const chatRef = useRef(null);
   const recognitionRef = useRef(null);
-  const controllerRef = useRef(null);
 
-  /* ---------------- Speech Recognition ---------------- */
+  // ---------------- Speech Recognition ----------------
 
   useEffect(() => {
 
@@ -59,7 +60,7 @@ export default function Gpt({ userId }) {
 
   }, []);
 
-  /* ---------------- Auto Scroll ---------------- */
+  // ---------------- Auto Scroll ----------------
 
   useEffect(() => {
 
@@ -71,22 +72,39 @@ export default function Gpt({ userId }) {
 
   }, [messages]);
 
-  /* ---------------- Copy ---------------- */
+  // ---------------- TTS ----------------
 
-  const copyText = (text) => {
-    navigator.clipboard.writeText(text);
+  const speak = (text) => {
+
+    if (!voiceEnabled) return;
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-IN";
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+
   };
 
-  /* ---------------- Send Message ---------------- */
+  // ---------------- Copy ----------------
 
-  const sendMessage = async (text) => {
+  const copyMessage = (text) => {
 
-    if (!text || generating) return;
+    navigator.clipboard.writeText(text);
+
+  };
+
+  // ---------------- Send Message ----------------
+
+  const sendMessage = async (text, type = "text") => {
+
+    if (!text) return;
 
     const userMsg = {
       id: Date.now(),
       role: "user",
       content: text,
+      type,
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -95,23 +113,18 @@ export default function Gpt({ userId }) {
     const thinking = {
       id: "thinking",
       role: "bot",
-      content: "Thinking...",
       type: "thinking",
+      content: "Thinking...",
     };
 
     setMessages((prev) => [...prev, thinking]);
 
-    setGenerating(true);
-
     try {
 
-      controllerRef.current = new AbortController();
-
-      const res = await axios.post(
-        `${API_BASE}/api/chat`,
-        { message: text, userId },
-        { signal: controllerRef.current.signal }
-      );
+      const res = await axios.post(`${API_BASE}/api/chat`, {
+        message: text,
+        userId,
+      });
 
       const reply = res.data.reply || "No response.";
 
@@ -123,58 +136,30 @@ export default function Gpt({ userId }) {
         id: Date.now() + 1,
         role: "bot",
         content: reply,
+        type: "text",
       };
 
       setMessages((prev) => [...prev, botMsg]);
 
-    } catch (err) {
+      speak(reply);
 
-      if (err.name !== "CanceledError") {
+    } catch {
 
-        setMessages((prev) => [
-          ...prev.filter((m) => m.id !== "thinking"),
-          {
-            id: Date.now(),
-            role: "bot",
-            content: "Server error. Please try again.",
-          },
-        ]);
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== "thinking"),
+        {
+          id: Date.now(),
+          role: "bot",
+          content: "Server error. Please try again.",
+          type: "text",
+        },
+      ]);
 
-      }
-
-    }
-
-    setGenerating(false);
-
-  };
-
-  /* ---------------- Stop Generation ---------------- */
-
-  const stopGenerating = () => {
-
-    if (controllerRef.current) {
-      controllerRef.current.abort();
-    }
-
-    setGenerating(false);
-
-  };
-
-  /* ---------------- Regenerate ---------------- */
-
-  const regenerate = () => {
-
-    const lastUser = [...messages]
-      .reverse()
-      .find((m) => m.role === "user");
-
-    if (lastUser) {
-      sendMessage(lastUser.content);
     }
 
   };
 
-  /* ---------------- Upload Image ---------------- */
+  // ---------------- Upload Image/File ----------------
 
   const handleUpload = async (e) => {
 
@@ -191,21 +176,24 @@ export default function Gpt({ userId }) {
       const res = await axios.post(
         `${API_BASE}/api/upload`,
         formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
       );
 
       const url = res.data.url;
 
-      const imgMsg = {
-        id: Date.now(),
-        role: "user",
-        content: url,
-        type: "image",
-      };
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: "user",
+          content: url,
+          type: "image",
+        },
+      ]);
 
-      setMessages((prev) => [...prev, imgMsg]);
-
-      sendMessage(url);
+      sendMessage(url, "image");
 
     } catch {
 
@@ -214,27 +202,31 @@ export default function Gpt({ userId }) {
     }
 
     setUploading(false);
+    e.target.value = null;
 
   };
 
-  /* ---------------- Mic ---------------- */
+  // ---------------- Mic ----------------
 
   const handleMic = () => {
 
     const rec = recognitionRef.current;
+
     if (!rec) return;
 
     listening ? rec.stop() : rec.start();
 
   };
 
-  /* ---------------- Render ---------------- */
+  // ---------------- Render ----------------
 
   return (
 
     <div
       className="gpt-app"
-      style={{ backgroundImage: `url(${backgroundPurple})` }}
+      style={{
+        backgroundImage: `url(${backgroundPurple})`,
+      }}
     >
 
       <Header
@@ -278,29 +270,15 @@ export default function Gpt({ userId }) {
                         /language-(\w+)/.exec(className || "");
 
                       return !inline && match ? (
-                        <div className="code-block">
-
-                          <button
-                            className="copy-code"
-                            onClick={() =>
-                              copyText(children.toString())
-                            }
-                          >
-                            Copy
-                          </button>
-
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                          >
-                            {children}
-                          </SyntaxHighlighter>
-
-                        </div>
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match[1]}
+                        >
+                          {children}
+                        </SyntaxHighlighter>
                       ) : (
                         <code>{children}</code>
                       );
-
                     },
                   }}
                 >
@@ -309,14 +287,25 @@ export default function Gpt({ userId }) {
 
               )}
 
-              {msg.role === "bot" && (
+              {/* Message Actions */}
+
+              <div className="message-actions">
+
                 <button
-                  className="copy-msg"
-                  onClick={() => copyText(msg.content)}
+                  onClick={() => copyMessage(msg.content)}
+                  className="msg-btn"
                 >
                   Copy
                 </button>
-              )}
+
+                <button
+                  onClick={() => navigator.share?.({ text: msg.content })}
+                  className="msg-btn"
+                >
+                  <img src={shareIcon} alt="share" />
+                </button>
+
+              </div>
 
             </div>
 
@@ -331,7 +320,7 @@ export default function Gpt({ userId }) {
       <footer className="gpt-footer">
 
         <button onClick={handleMic}>
-          <img src={micIcon} alt="mic"/>
+          <img src={micIcon} alt="mic" />
         </button>
 
         <textarea
@@ -339,41 +328,40 @@ export default function Gpt({ userId }) {
           placeholder="Ask ManifiX anything..."
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               sendMessage(input);
             }
-
           }}
         />
 
+        {/* File Upload */}
+
         <label className="upload-btn">
+
           📎
+
           <input
             type="file"
             accept="image/*"
+            capture="environment"
             onChange={handleUpload}
             disabled={uploading}
           />
+
         </label>
 
-        {!generating ? (
+        <button
+          onClick={() => sendMessage(input)}
+          disabled={!input}
+        >
+          ➤
+        </button>
 
-          <button onClick={() => sendMessage(input)}>
-            Send
-          </button>
-
-        ) : (
-
-          <button onClick={stopGenerating}>
-            Stop
-          </button>
-
-        )}
-
-        <button onClick={regenerate}>
-          Regenerate
+        <button
+          onClick={() => setVoiceEnabled((v) => !v)}
+        >
+          {voiceEnabled ? "🔊" : "🔇"}
         </button>
 
       </footer>
