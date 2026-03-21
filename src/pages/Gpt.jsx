@@ -1,5 +1,3 @@
-// src/pages/Gpt.jsx
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -14,14 +12,18 @@ const API_BASE = "https://manifix.up.railway.app";
 const defaultWelcome = {
   id: "welcome",
   role: "assistant",
-  content: "Hey 👋 I’m ManifiX… I’m here with you ✨",
+  content: "Hey 👋 I’m ManifiX,I’m here with you ❤️",
 };
 
 /* ================= COMPONENT ================= */
 export default function Gpt() {
   const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem("chatMessages");
-    return saved ? JSON.parse(saved) : [defaultWelcome];
+    try {
+      const saved = localStorage.getItem("chatMessages");
+      return saved ? JSON.parse(saved) : [defaultWelcome];
+    } catch {
+      return [defaultWelcome];
+    }
   });
 
   const [input, setInput] = useState("");
@@ -30,9 +32,8 @@ export default function Gpt() {
 
   const chatRef = useRef(null);
   const recognitionRef = useRef(null);
-  const speechRef = useRef(null);
 
-  /* ================= SCROLL ================= */
+  /* ================= AUTO SCROLL ================= */
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
@@ -42,7 +43,7 @@ export default function Gpt() {
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  /* ================= STT ================= */
+  /* ================= STT (MIC) ================= */
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -51,6 +52,7 @@ export default function Gpt() {
 
     const rec = new SpeechRecognition();
     rec.lang = "en-IN";
+    rec.interimResults = false;
 
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
@@ -77,15 +79,16 @@ export default function Gpt() {
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
+    utter.rate = 1;
+    utter.pitch = 1;
 
-    speechRef.current = utter;
     window.speechSynthesis.speak(utter);
   };
 
   /* ================= DELAY ================= */
   const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-  /* ================= SEND ================= */
+  /* ================= SEND MESSAGE ================= */
   const sendMessage = async (text) => {
     if (!text.trim() || generating) return;
 
@@ -99,7 +102,7 @@ export default function Gpt() {
     setInput("");
     setGenerating(true);
 
-    const thinkingId = "thinking";
+    const thinkingId = Date.now() + "-thinking";
 
     setMessages((prev) => [
       ...prev,
@@ -107,20 +110,22 @@ export default function Gpt() {
     ]);
 
     try {
-      const res = await axios.post(`${API_BASE}/api/chat`, {
-        message: text,
-      });
+      const res = await axios.post(
+        `${API_BASE}/api/chat`,
+        { message: text },
+        { timeout: 15000 }
+      );
 
-      const reply = res.data.reply || "No response.";
+      const reply = res.data?.reply || "Hmm… I couldn’t respond.";
 
       await delay(500);
 
       let current = "";
-      const id = Date.now();
+      const msgId = Date.now() + "-bot";
 
       setMessages((prev) =>
         prev.filter((m) => m.id !== thinkingId).concat({
-          id,
+          id: msgId,
           role: "assistant",
           content: "",
         })
@@ -132,15 +137,16 @@ export default function Gpt() {
 
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === id ? { ...m, content: current } : m
+            m.id === msgId ? { ...m, content: current } : m
           )
         );
       }
 
-      speak(reply);
+      // speak only short replies (better UX)
+      if (reply.length < 200) speak(reply);
 
     } catch (err) {
-      console.log("FRONTEND ERROR:", err.response?.data || err.message);
+      console.log("❌ FRONTEND ERROR:", err);
 
       setMessages((prev) =>
         prev
@@ -148,7 +154,9 @@ export default function Gpt() {
           .concat({
             id: Date.now(),
             role: "assistant",
-            content: "⚠️ Connection issue. Try again.",
+            content:
+              err.response?.data?.reply ||
+              "⚠️ Server not responding. Try again.",
           })
       );
     }
@@ -165,7 +173,7 @@ export default function Gpt() {
   return (
     <div className="gpt-container">
 
-      {/* CHAT */}
+      {/* CHAT AREA */}
       <main className="chat-area" ref={chatRef}>
         {messages.map((msg) => (
           <motion.div
@@ -176,6 +184,7 @@ export default function Gpt() {
           >
             <div className="msg-bubble">
 
+              {/* Copy button */}
               {msg.role === "assistant" && msg.content && (
                 <button
                   className="copy-btn"
@@ -200,13 +209,15 @@ export default function Gpt() {
         ))}
       </main>
 
-      {/* INPUT */}
+      {/* INPUT AREA */}
       <div className="input-area">
 
+        {/* MIC */}
         <button onClick={handleMic} className="mic-btn">
           {listening ? "🎙️" : "🎤"}
         </button>
 
+        {/* TEXTAREA */}
         <textarea
           value={input}
           placeholder="Talk to ManifiX..."
@@ -219,11 +230,12 @@ export default function Gpt() {
           }}
         />
 
+        {/* SEND */}
         <button
           className="send-btn"
           onClick={() => sendMessage(input)}
         >
-          ➤
+          {generating ? "..." : "➤"}
         </button>
 
       </div>
