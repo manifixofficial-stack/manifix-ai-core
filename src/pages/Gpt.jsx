@@ -1,5 +1,3 @@
-// src/pages/Gpt.jsx
-
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -7,44 +5,35 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { motion } from "framer-motion";
 
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
-import micIcon from "../assets/mic.png";
 import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-/* ---------------- Default Message ---------------- */
+/* ---------------- Default ---------------- */
 const defaultWelcome = {
   id: crypto.randomUUID(),
   role: "assistant",
-  content: "Hey 👋 I’m ManifiX. Ask me anything ✨",
+  content: "Hey 👋 I’m ManifiX… I’m here with you ✨",
   type: "text",
 };
 
 /* ---------------- Helpers ---------------- */
-const createAssistantMessage = (text) => ({
+const createMessage = (role, content, type = "text") => ({
   id: crypto.randomUUID(),
-  role: "assistant",
-  content: text,
-  type: "text",
+  role,
+  content,
+  type,
 });
 
-const createUserMessage = (text) => ({
-  id: crypto.randomUUID(),
-  role: "user",
-  content: text,
-  type: "text",
-});
-
+/* ---------------- Component ---------------- */
 export default function Gpt({ userId }) {
   const [messages, setMessages] = useState(() => {
     try {
-      const saved = localStorage.getItem(`chatMessages_${userId || "default"}`);
+      const saved = localStorage.getItem(`chat_${userId}`);
       return saved ? JSON.parse(saved) : [defaultWelcome];
     } catch {
       return [defaultWelcome];
@@ -54,12 +43,11 @@ export default function Gpt({ userId }) {
   const [input, setInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   const chatRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  /* ---------------- Speech ---------------- */
+  /* ---------------- Speech (STT) ---------------- */
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -89,144 +77,154 @@ export default function Gpt({ userId }) {
       behavior: "smooth",
     });
 
-    localStorage.setItem(
-      `chatMessages_${userId || "default"}`,
-      JSON.stringify(messages)
-    );
+    localStorage.setItem(`chat_${userId}`, JSON.stringify(messages));
   }, [messages, userId]);
 
-  /* ---------------- Send Message ---------------- */
-  const sendMessage = async (text) => {
+  /* ---------------- TTS ---------------- */
+  const speak = (text) => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95;
+    utter.pitch = 1;
+    speechSynthesis.speak(utter);
+  };
+
+  /* ---------------- Emotion Detection ---------------- */
+  const detectEmotion = (text) => {
+    const t = text.toLowerCase();
+
+    if (t.includes("sad") || t.includes("tired")) return "soft";
+    if (t.includes("angry") || t.includes("hate")) return "calm";
+    if (t.includes("happy") || t.includes("win")) return "excited";
+
+    return "normal";
+  };
+
+  /* ---------------- Send Message (STREAMING) ---------------- */
+  const sendMessage = (text) => {
     if (!text.trim() || generating) return;
 
-    const userMsg = createUserMessage(text);
+    const userMsg = createMessage("user", text);
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-
-    const thinkingId = Date.now();
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: thinkingId,
-        role: "assistant",
-        content: "Thinking...",
-        type: "thinking",
-      },
-    ]);
-
     setGenerating(true);
 
-    try {
-      const res = await axios.post(`${API_BASE}/api/chat`, {
-        message: text,
-      });
+    const emotion = detectEmotion(text);
 
-      const reply = res.data.reply;
+    const botMsg = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: "",
+      type: "text",
+    };
 
+    setMessages((prev) => [...prev, botMsg]);
+
+    /* STREAM */
+    const eventSource = new EventSource(
+      `${API_BASE}/api/chat-stream?message=${encodeURIComponent(text)}&emotion=${emotion}`
+    );
+
+    window.currentStream = eventSource;
+
+    eventSource.onmessage = (event) => {
+      if (event.data === "[DONE]") {
+        eventSource.close();
+        window.currentStream = null;
+        setGenerating(false);
+
+        // Speak final message
+        setTimeout(() => {
+          const finalText = botMsg.content;
+          if (finalText) speak(finalText);
+        }, 200);
+
+        return;
+      }
+
+      /* Streaming append */
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === thinkingId ? createAssistantMessage(reply) : m
-        )
-      );
-    } catch (err) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === thinkingId
-            ? createAssistantMessage("❌ Server error")
+          m.id === botMsg.id
+            ? { ...m, content: m.content + event.data }
             : m
         )
       );
-    }
+    };
 
-    setGenerating(false);
+    eventSource.onerror = () => {
+      eventSource.close();
+      setGenerating(false);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botMsg.id
+            ? { ...m, content: "⚠️ Connection lost" }
+            : m
+        )
+      );
+    };
   };
 
   /* ---------------- Stop ---------------- */
   const stopGenerating = () => {
-    setGenerating(false);
-    setMessages((prev) => prev.filter((m) => m.type !== "thinking"));
-  };
-
-  /* ---------------- Upload ---------------- */
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-
-    const tempId = Date.now();
-    setMessages((prev) => [
-      ...prev,
-      { id: tempId, role: "assistant", content: "Uploading...", type: "thinking" },
-    ]);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await axios.post(`${API_BASE}/api/upload`, formData);
-      const url = res.data.url;
-
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "user",
-          content: url,
-          type: "image",
-        },
-      ]);
-
-      sendMessage(url);
-    } catch {
-      alert("Upload failed");
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    if (window.currentStream) {
+      window.currentStream.close();
+      window.currentStream = null;
     }
-
-    setUploading(false);
+    setGenerating(false);
   };
 
   /* ---------------- Mic ---------------- */
   const handleMic = () => {
     const rec = recognitionRef.current;
-    if (!rec) return alert("Not supported");
+    if (!rec) return alert("Mic not supported");
     listening ? rec.stop() : rec.start();
   };
 
   /* ---------------- UI ---------------- */
   return (
-    <div className="gpt-app" style={{ backgroundImage: `url(${backgroundPurple})` }}>
+    <div
+      className="gpt-app"
+      style={{
+        backgroundImage: `url(${backgroundPurple})`,
+        backgroundSize: "cover",
+      }}
+    >
       <Header
         onNewChat={() => {
-          localStorage.clear();
+          localStorage.removeItem(`chat_${userId}`);
           setMessages([defaultWelcome]);
         }}
       />
 
       <div ref={chatRef} className="chat-window">
         {messages.map((msg) => (
-          <motion.div key={msg.id} className={`message-row ${msg.role}`}>
+          <motion.div
+            key={msg.id}
+            className={`message-row ${msg.role}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
             <div className="message-bubble">
-              {msg.type === "image" ? (
-                <img src={msg.content} alt="" />
-              ) : msg.type === "thinking" ? (
-                <i>{msg.content}</i>
-              ) : (
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
-              )}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+              >
+                {msg.content || "…"}
+              </ReactMarkdown>
             </div>
           </motion.div>
         ))}
       </div>
 
       <footer className="chat-footer">
-        <button onClick={handleMic}>🎤</button>
+        <button onClick={handleMic}>
+          {listening ? "🎙️" : "🎤"}
+        </button>
 
         <textarea
           value={input}
+          placeholder="Talk to ManifiX…"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -235,8 +233,6 @@ export default function Gpt({ userId }) {
             }
           }}
         />
-
-        <input type="file" onChange={handleUpload} />
 
         {!generating ? (
           <button onClick={() => sendMessage(input)}>Send</button>
