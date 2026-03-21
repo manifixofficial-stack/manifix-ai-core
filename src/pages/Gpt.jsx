@@ -6,7 +6,6 @@ import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
 
 import "../styles/Gpt.css";
-import Header from "../components/Header";
 
 /* ================= CONFIG ================= */
 const API_BASE = "https://manifix.up.railway.app";
@@ -52,7 +51,6 @@ export default function Gpt() {
 
     const rec = new SpeechRecognition();
     rec.lang = "en-IN";
-    rec.interimResults = false;
 
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
@@ -78,15 +76,13 @@ export default function Gpt() {
     window.speechSynthesis.cancel();
 
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1;
-    utter.pitch = 1;
     utter.lang = "en-IN";
 
     speechRef.current = utter;
     window.speechSynthesis.speak(utter);
   };
 
-  /* ================= HUMAN DELAY ================= */
+  /* ================= DELAY ================= */
   const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
   /* ================= SEND ================= */
@@ -107,11 +103,7 @@ export default function Gpt() {
 
     setMessages((prev) => [
       ...prev,
-      {
-        id: thinkingId,
-        role: "assistant",
-        type: "thinking",
-      },
+      { id: thinkingId, role: "assistant", type: "thinking" },
     ]);
 
     try {
@@ -121,9 +113,8 @@ export default function Gpt() {
 
       const reply = res.data.reply || "No response.";
 
-      await delay(600); // human thinking delay
+      await delay(500);
 
-      /* typing simulation */
       let current = "";
       const id = Date.now();
 
@@ -137,8 +128,7 @@ export default function Gpt() {
 
       for (let char of reply) {
         current += char;
-
-        await delay(8); // typing speed
+        await delay(10);
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -149,20 +139,20 @@ export default function Gpt() {
 
       speak(reply);
 
-  catch (err) {
+    } catch (err) {
+      console.log("FRONTEND ERROR:", err.response?.data || err.message);
 
-  console.log("FRONTEND ERROR:", err.response?.data || err.message);
+      setMessages((prev) =>
+        prev
+          .filter((m) => m.id !== thinkingId)
+          .concat({
+            id: Date.now(),
+            role: "assistant",
+            content: "⚠️ Connection issue. Try again.",
+          })
+      );
+    }
 
-  setMessages((prev) =>
-    prev
-      .filter((m) => m.id !== thinkingId)
-      .concat({
-        id: Date.now(),
-        role: "assistant",
-        content: `⚠️ ${err.response?.data?.reply || "Server error"}`,
-      })
-  );
-}
     setGenerating(false);
   };
 
@@ -174,20 +164,18 @@ export default function Gpt() {
   /* ================= UI ================= */
   return (
     <div className="gpt-container">
-      <Header />
 
       {/* CHAT */}
       <main className="chat-area" ref={chatRef}>
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`msg-row ${msg.role}`}
           >
             <div className="msg-bubble">
 
-              {/* Copy button */}
               {msg.role === "assistant" && msg.content && (
                 <button
                   className="copy-btn"
@@ -215,12 +203,10 @@ export default function Gpt() {
       {/* INPUT */}
       <div className="input-area">
 
-        {/* Mic */}
         <button onClick={handleMic} className="mic-btn">
-          {listening ? "🎙️..." : "🎤"}
+          {listening ? "🎙️" : "🎤"}
         </button>
 
-        {/* Input */}
         <textarea
           value={input}
           placeholder="Talk to ManifiX..."
@@ -233,12 +219,11 @@ export default function Gpt() {
           }}
         />
 
-        {/* Send */}
         <button
           className="send-btn"
           onClick={() => sendMessage(input)}
         >
-          {generating ? "..." : "➤"}
+          ➤
         </button>
 
       </div>
