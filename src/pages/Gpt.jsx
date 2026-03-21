@@ -149,18 +149,20 @@ export default function Gpt() {
 
       speak(reply);
 
-    } catch (err) {
-      setMessages((prev) =>
-        prev
-          .filter((m) => m.id !== thinkingId)
-          .concat({
-            id: Date.now(),
-            role: "assistant",
-            content: "⚠️ Connection lost. Try again.",
-          })
-      );
-    }
+  catch (err) {
 
+  console.log("FRONTEND ERROR:", err.response?.data || err.message);
+
+  setMessages((prev) =>
+    prev
+      .filter((m) => m.id !== thinkingId)
+      .concat({
+        id: Date.now(),
+        role: "assistant",
+        content: `⚠️ ${err.response?.data?.reply || "Server error"}`,
+      })
+  );
+}
     setGenerating(false);
   };
 
