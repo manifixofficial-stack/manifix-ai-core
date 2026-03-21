@@ -1,19 +1,19 @@
+// src/pages/Gpt.jsx
+
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
 import { motion } from "framer-motion";
 
 import "../styles/Gpt.css";
 import backgroundPurple from "../assets/backgrounds/purple-vibe.jpg";
+import micIcon from "../assets/mic.png";
 import Header from "../components/Header";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-/* ---------------- Default ---------------- */
+/* ---------------- DEFAULT ---------------- */
 const defaultWelcome = {
   id: crypto.randomUUID(),
   role: "assistant",
@@ -21,19 +21,19 @@ const defaultWelcome = {
   type: "text",
 };
 
-/* ---------------- Helpers ---------------- */
-const createMessage = (role, content, type = "text") => ({
+/* ---------------- HELPERS ---------------- */
+const createMsg = (role, content) => ({
   id: crypto.randomUUID(),
   role,
   content,
-  type,
+  type: "text",
 });
 
-/* ---------------- Component ---------------- */
+/* ================= COMPONENT ================= */
 export default function Gpt({ userId }) {
   const [messages, setMessages] = useState(() => {
     try {
-      const saved = localStorage.getItem(`chat_${userId}`);
+      const saved = localStorage.getItem(`chat_${userId || "default"}`);
       return saved ? JSON.parse(saved) : [defaultWelcome];
     } catch {
       return [defaultWelcome];
@@ -46,8 +46,22 @@ export default function Gpt({ userId }) {
 
   const chatRef = useRef(null);
   const recognitionRef = useRef(null);
+  const eventRef = useRef(null);
 
-  /* ---------------- Speech (STT) ---------------- */
+  /* ---------------- SCROLL + SAVE ---------------- */
+  useEffect(() => {
+    chatRef.current?.scrollTo({
+      top: chatRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+
+    localStorage.setItem(
+      `chat_${userId || "default"}`,
+      JSON.stringify(messages)
+    );
+  }, [messages]);
+
+  /* ---------------- SPEECH ---------------- */
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -70,133 +84,87 @@ export default function Gpt({ userId }) {
     return () => rec.stop();
   }, []);
 
-  /* ---------------- Scroll + Save ---------------- */
-  useEffect(() => {
-    chatRef.current?.scrollTo({
-      top: chatRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-
-    localStorage.setItem(`chat_${userId}`, JSON.stringify(messages));
-  }, [messages, userId]);
-
-  /* ---------------- TTS ---------------- */
-  const speak = (text) => {
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.95;
-    utter.pitch = 1;
-    speechSynthesis.speak(utter);
-  };
-
-  /* ---------------- Emotion Detection ---------------- */
-  const detectEmotion = (text) => {
-    const t = text.toLowerCase();
-
-    if (t.includes("sad") || t.includes("tired")) return "soft";
-    if (t.includes("angry") || t.includes("hate")) return "calm";
-    if (t.includes("happy") || t.includes("win")) return "excited";
-
-    return "normal";
-  };
-
-  /* ---------------- Send Message (STREAMING) ---------------- */
+  /* ---------------- SEND MESSAGE ---------------- */
   const sendMessage = (text) => {
     if (!text.trim() || generating) return;
 
-    const userMsg = createMessage("user", text);
+    const userMsg = createMsg("user", text);
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+
+    const botId = crypto.randomUUID();
+
+    setMessages((prev) => [
+      ...prev,
+      { id: botId, role: "assistant", content: "", type: "stream" },
+    ]);
+
     setGenerating(true);
 
-    const emotion = detectEmotion(text);
-
-    const botMsg = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      type: "text",
-    };
-
-    setMessages((prev) => [...prev, botMsg]);
-
-    /* STREAM */
-    const eventSource = new EventSource(
-      `${API_BASE}/api/chat-stream?message=${encodeURIComponent(text)}&emotion=${emotion}`
+    const es = new EventSource(
+      `${API_BASE}/api/chat-stream?message=${encodeURIComponent(text)}`
     );
 
-    window.currentStream = eventSource;
+    eventRef.current = es;
 
-    eventSource.onmessage = (event) => {
+    es.onmessage = (event) => {
       if (event.data === "[DONE]") {
-        eventSource.close();
-        window.currentStream = null;
+        es.close();
         setGenerating(false);
-
-        // Speak final message
-        setTimeout(() => {
-          const finalText = botMsg.content;
-          if (finalText) speak(finalText);
-        }, 200);
-
         return;
       }
 
-      /* Streaming append */
+      // streaming append
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === botMsg.id
-            ? { ...m, content: m.content + event.data }
-            : m
+          m.id === botId ? { ...m, content: m.content + event.data } : m
         )
       );
     };
 
-    eventSource.onerror = () => {
-      eventSource.close();
+    es.onerror = () => {
+      es.close();
       setGenerating(false);
 
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === botMsg.id
-            ? { ...m, content: "⚠️ Connection lost" }
-            : m
-        )
-      );
+      setMessages((prev) => [
+        ...prev,
+        createMsg("assistant", "⚠️ Connection lost. Try again."),
+      ]);
     };
   };
 
-  /* ---------------- Stop ---------------- */
+  /* ---------------- STOP ---------------- */
   const stopGenerating = () => {
-    if (window.currentStream) {
-      window.currentStream.close();
-      window.currentStream = null;
+    if (eventRef.current) {
+      eventRef.current.close();
+      eventRef.current = null;
     }
     setGenerating(false);
   };
 
-  /* ---------------- Mic ---------------- */
+  /* ---------------- MIC ---------------- */
   const handleMic = () => {
     const rec = recognitionRef.current;
     if (!rec) return alert("Mic not supported");
     listening ? rec.stop() : rec.start();
   };
 
-  /* ---------------- UI ---------------- */
+  /* ================= UI ================= */
   return (
     <div
       className="gpt-app"
       style={{
         backgroundImage: `url(${backgroundPurple})`,
-        backgroundSize: "cover",
       }}
     >
       <Header
         onNewChat={() => {
-          localStorage.removeItem(`chat_${userId}`);
+          localStorage.clear();
           setMessages([defaultWelcome]);
         }}
       />
 
+      {/* CHAT */}
       <div ref={chatRef} className="chat-window">
         {messages.map((msg) => (
           <motion.div
@@ -206,20 +174,18 @@ export default function Gpt({ userId }) {
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="message-bubble">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
-              >
-                {msg.content || "…"}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {msg.content}
               </ReactMarkdown>
             </div>
           </motion.div>
         ))}
       </div>
 
+      {/* INPUT */}
       <footer className="chat-footer">
         <button onClick={handleMic}>
-          {listening ? "🎙️" : "🎤"}
+          <img src={micIcon} alt="mic" />
         </button>
 
         <textarea
