@@ -36,9 +36,17 @@ export default function Dashboard() {
       document.removeEventListener("mousemove", handleMouse);
     };
   }, []);
+
+  const toggleFAQ = (e) => {
+    e.currentTarget.classList.toggle("active");
+  };
+
+  return (
+    <div className="dashboard-page">
+      <div id="particles"></div>
 <header className="navbar">
   <div className="nav-left">
-    <img src={logo} alt="ManifiX" />
+    <img src={logo} alt="ManifiX Logo" />
     <span>ManifiX</span>
   </div>
 
@@ -47,14 +55,6 @@ export default function Dashboard() {
     <Link to="/app/magic16">Magic16</Link>
   </div>
 </header>
-  const toggleFAQ = (e) => {
-    e.currentTarget.classList.toggle("active");
-  };
-
-  return (
-    <div className="dashboard-page">
-      <div id="particles"></div>
-
 {/* HERO */}
 <section className="hero">
   <div className="hero-text">
