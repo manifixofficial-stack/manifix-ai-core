@@ -7,7 +7,7 @@ export default function Dashboard() {
     const particlesContainer = document.getElementById("particles");
     if (!particlesContainer) return;
 
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 40; i++) {
       const p = document.createElement("div");
       p.className = "particle";
       p.style.left = Math.random() * window.innerWidth + "px";
@@ -36,7 +36,17 @@ export default function Dashboard() {
       document.removeEventListener("mousemove", handleMouse);
     };
   }, []);
+<header className="navbar">
+  <div className="nav-left">
+    <img src={logo} alt="ManifiX" />
+    <span>ManifiX</span>
+  </div>
 
+  <div className="nav-right">
+    <Link to="/app/gpt">GPT</Link>
+    <Link to="/app/magic16">Magic16</Link>
+  </div>
+</header>
   const toggleFAQ = (e) => {
     e.currentTarget.classList.toggle("active");
   };
@@ -45,54 +55,75 @@ export default function Dashboard() {
     <div className="dashboard-page">
       <div id="particles"></div>
 
-      {/* HERO */}
-      <section className="hero">
-        <div className="hero-text">
-          <h1>Ask, Learn & Boost Your Energy</h1>
+{/* HERO */}
+<section className="hero">
+  <div className="hero-text">
 
-          <p>
-            ManifiX is your AI-powered guide to unleash energy, boost prosperity,
-            and transform your wellness.
-          </p>
+    <h1>
+      Upgrade Your Brain. <br />
+      <span>Control Your Life with ManifiX</span>
+    </h1>
 
-          <div className="hero-buttons">
-            <Link to="/app/gpt" className="primary">
-              Start Chatting
-            </Link>
+    <p>
+      AI + Magic16 system to help you think clearly, stay focused,
+      and build a powerful life — every single day.
+    </p>
 
-            <Link to="/app/magic16" className="secondary">
-              Improve Your Health
-            </Link>
-          </div>
-        </div>
+    <div className="hero-buttons">
+      <Link to="/app/gpt" className="primary">
+        Start Free →
+      </Link>
 
-        <div className="hero-image">
-          <img src="/assets/images/bot.png" alt="AI Illustration" />
-        </div>
-      </section>
+      <Link to="/app/magic16" className="secondary">
+        Try Magic16
+      </Link>
+    </div>
 
-      {/* FEATURES */}
-      <section className="features">
-        <div className="feature">
-          <h3>Instant AI Answers</h3>
-          <p>Get precise and fast responses to any questions.</p>
-        </div>
+    {/* trust line */}
+    <p className="hero-trust">
+      Used daily by future builders, creators & high performers ⚡
+    </p>
 
-        <div className="feature">
-          <h3>ManifiX Guidance</h3>
-          <p>Receive personalized tips to boost your success.</p>
-        </div>
+  </div>
 
-        <div className="feature">
-          <h3>Magic16 Wellness</h3>
-          <p>Daily routines to enhance focus.</p>
-        </div>
+  <div className="hero-image">
+    <img src="/assets/images/bot.png" alt="ManifiX AI" />
+  </div>
+</section>
 
-        <div className="feature">
-          <h3>Voice & Text Chat</h3>
-          <p>Communicate naturally via voice or text.</p>
-        </div>
-      </section>
+
+{/* FEATURES */}
+<section className="features">
+
+  <div className="feature">
+    <h3>⚡ Instant AI Thinking</h3>
+    <p>
+      Ask anything. Get powerful, clear answers instantly.
+    </p>
+  </div>
+
+  <div className="feature">
+    <h3>🧠 Focus Like Never Before</h3>
+    <p>
+      Eliminate distractions and enter deep focus mode daily.
+    </p>
+  </div>
+
+  <div className="feature">
+    <h3>🔥 Magic16 System</h3>
+    <p>
+      16-minute daily ritual to boost energy, clarity, and discipline.
+    </p>
+  </div>
+
+  <div className="feature">
+    <h3>🚀 Build Your Future Faster</h3>
+    <p>
+      Learn, plan, and execute your goals with AI guidance.
+    </p>
+  </div>
+
+</section>
 
    {/* TESTIMONIALS */}
       <section className="testimonials">
