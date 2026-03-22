@@ -203,7 +203,7 @@ export default function Home() {
 
         <div className="footer-links">
           <Link to="/about">About</Link>
-          <Link to="/features">Features</Link>
+          <Link to="/features/gpt">Features</Link>
           <Link to="/blog">Blog</Link>
           <Link to="/contact">Contact</Link>
           <Link to="/privacy">Privacy</Link>
