@@ -1,19 +1,19 @@
 // src/pages/Landing.jsx
 import React, { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Helmet } from "react-helmet";
 
 import logo from "../assets/logo.png";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
 
 import authService from "../services/auth.service";
-
 import "../styles/Landing.css";
 
 export default function Landing() {
   const navigate = useNavigate();
   const testimonialRef = useRef(null);
 
-  // 🔐 Auto-redirect if user already logged in
+  // 🔐 Auto-redirect if logged in
   useEffect(() => {
     try {
       const user = authService?.getCurrentUser?.();
@@ -41,18 +41,22 @@ export default function Landing() {
     }
   ];
 
-  // Auto-scroll testimonials
+  // auto scroll (smooth)
   useEffect(() => {
     let index = 0;
     const interval = setInterval(() => {
       if (!testimonialRef.current) return;
-      const width = testimonialRef.current.offsetWidth;
-      testimonialRef.current.scrollTo({
+
+      const container = testimonialRef.current;
+      const width = container.offsetWidth;
+
+      container.scrollTo({
         left: width * index,
         behavior: "smooth",
       });
+
       index = (index + 1) % testimonials.length;
-    }, 5000);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, []);
@@ -62,16 +66,74 @@ export default function Landing() {
       className="landing-container"
       style={{ backgroundImage: `url(${bgImage})` }}
     >
+
+    <Helmet>
+  <title>
+    ManifiX AI – Focus Better, Think Smarter, Build Your Life Faster
+  </title>
+
+  <meta
+    name="description"
+    content="ManifiX AI helps you boost focus, productivity, and mental clarity using GPT AI and the powerful Magic16 system. Build better habits, think smarter, and achieve more every day."
+  />
+
+  <meta name="keywords" content="
+    ManifiX,
+    ManifiX AI,
+    AI productivity app,
+    focus app,
+    Magic16,
+    AI assistant,
+    productivity tools,
+    self improvement app,
+    deep focus system
+  " />
+
+  <meta name="author" content="ManifiX AI" />
+
+  {/* Open Graph (for social sharing) */}
+  <meta property="og:title" content="ManifiX AI – Focus. Build. Win." />
+  <meta
+    property="og:description"
+    content="Transform your focus and productivity with AI-powered tools like GPT and Magic16."
+  />
+  <meta property="og:url" content="https://www.manifixai.com" />
+  <meta property="og:type" content="website" />
+    {/* ✅ ADD SCHEMA HERE */}
+  <script type="application/ld+json">
+    {JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ManifiX AI",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web",
+      "url": "https://www.manifixai.com"
+    })}
+  </script>
+  {/* Twitter */}
+  <meta name="twitter:card" content="summary_large_image" />
+</Helmet>
+
       <div className="overlay" />
 
-      {/* ---------------- HERO SECTION ---------------- */}
-      <header className="landing-header">
-        <img src={logo} alt="ManifiX Logo" className="landing-logo" />
-        <h1 className="brand-name">ManifiX</h1>
-        <p className="brand-tagline">
-          Master Your Mind. Elevate Your Energy. Transform Your Life.
-        </p>
-      </header>
+                                                                    
+
+    {/* ---------------- HERO SECTION ---------------- */}
+<header className="landing-header">
+
+  <img src={logo} alt="ManifiX Logo" className="landing-logo" />
+
+  <h1 className="brand-name">ManifiX</h1>
+
+  <p className="brand-tagline">
+    Build Faster. Think Smarter. Win Bigger.
+  </p>
+
+  <h2 className="hero-title">
+    Your Life Changes in 16 Minutes a Day.
+  </h2>
+
+</header>
 
       {/* ---------------- CORE VALUE SECTION ---------------- */}
       <section className="landing-hero">
@@ -106,44 +168,54 @@ export default function Landing() {
         </div>
 
         {/* ---------------- CALL TO ACTION ---------------- */}
-        <div className="cta-container">
-          <button
-            className="landing-button primary"
-            onClick={() => navigate("/signup")}
-          >
-            Start Free →
-          </button>
+       <div className="cta-container">
+  <Link to="/signup" className="landing-button primary">
+    Start Free →
+  </Link>
 
-          <button
-            className="landing-button secondary"
-            onClick={() => navigate("/login")}
-          >
-            Already a Member?
-          </button>
-        </div>
-
+  <Link to="/login" className="landing-button secondary">
+    Already a Member?
+  </Link>
+</div>
         <p className="landing-quote">
           Built for creators. Designed for leaders. Trusted by visionaries.
         </p>
       </section>
 
-      {/* ---------------- TESTIMONIALS SECTION ---------------- */}
+      {/* ---------- TESTIMONIALS ---------- */}
       <section className="landing-testimonials" ref={testimonialRef}>
-        <h2 className="testimonial-title">What Our Users Say</h2>
+
+        <h2 className="testimonial-title">What Users Say</h2>
+
         <div className="testimonial-cards">
+
           {testimonials.map((t, index) => (
             <div key={index} className="testimonial-card">
               <p className="testimonial-text">"{t.text}"</p>
-              <p className="testimonial-author">- {t.name}</p>
+              <p className="testimonial-author">— {t.name}</p>
             </div>
           ))}
+
         </div>
+
       </section>
 
-      {/* ---------------- FOOTER ---------------- */}
+      {/* ---------- FINAL CTA ---------- */}
+      <section className="final-cta">
+
+        <h2>Start Your Transformation Today</h2>
+
+        <Link to="/signup" className="landing-button primary big">
+          Join ManifiX Free
+        </Link>
+
+      </section>
+
+      {/* ---------- FOOTER ---------- */}
       <footer className="landing-footer">
         <span>© {new Date().getFullYear()} ManifiX. All rights reserved.</span>
       </footer>
+
     </div>
   );
 }
