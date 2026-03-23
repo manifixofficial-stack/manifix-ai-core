@@ -44,117 +44,120 @@ export default function Dashboard() {
   return (
     <div className="dashboard-page">
       <div id="particles"></div>
-<header className="navbar">
-  <div className="nav-left">
-    <img src={logo} alt="ManifiX Logo" />
-    <span>ManifiX</span>
-  </div>
 
-  <div className="nav-right">
-    <Link to="/app/gpt">GPT</Link>
-    <Link to="/app/magic16">Magic16</Link>
-  </div>
-</header>
-{/* HERO */}
-<section className="hero">
-  <div className="hero-text">
+      <header className="navbar">
+        <div className="nav-left">
+          <span>ManifiX</span>
+        </div>
 
-    <h1>
-      Upgrade Your Brain. <br />
-      <span>Control Your Life with ManifiX</span>
-    </h1>
+        <div className="nav-right">
+          <Link to="/app/gpt">GPT</Link>
+          <Link to="/app/magic16">Magic16</Link>
+        </div>
+      </header>
 
-    <p>
-      AI + Magic16 system to help you think clearly, stay focused,
-      and build a powerful life — every single day.
-    </p>
+      {/* HERO */}
+      <section className="hero">
+        <div className="hero-text">
+          <h1>
+            Upgrade Your Brain. <br />
+            <span>Control Your Life with ManifiX</span>
+          </h1>
 
-    <div className="hero-buttons">
-      <Link to="/app/gpt" className="primary">
-        Start Free →
-      </Link>
+          <p>
+            AI + Magic16 system to help you think clearly, stay focused,
+            and build a powerful life — every single day.
+          </p>
 
-      <Link to="/app/magic16" className="secondary">
-        Try Magic16
-      </Link>
-    </div>
+          <div className="hero-buttons">
+            <Link to="/app/gpt" className="primary">
+              Start Free →
+            </Link>
 
-    {/* trust line */}
-    <p className="hero-trust">
-      Used daily by future builders, creators & high performers ⚡
-    </p>
+            <Link to="/app/magic16" className="secondary">
+              Try Magic16
+            </Link>
+          </div>
 
-  </div>
+          {/* trust line */}
+          <p className="hero-trust">
+            Used daily by future builders, creators & high performers ⚡
+          </p>
+        </div>
 
-  <div className="hero-image">
-    <img src="/assets/images/bot.png" alt="ManifiX AI" />
-  </div>
-</section>
+        <div className="hero-image">
+          <img src="/assets/images/bot.png" alt="ManifiX AI" />
+        </div>
+      </section>
 
+      {/* FEATURES */}
+      <section className="features">
+        <div className="feature">
+          <h3>⚡ Instant AI Thinking</h3>
+          <p>Ask anything. Get powerful, clear answers instantly.</p>
+        </div>
 
-{/* FEATURES */}
-<section className="features">
+        <div className="feature">
+          <h3>🧠 Focus Like Never Before</h3>
+          <p>Eliminate distractions and enter deep focus mode daily.</p>
+        </div>
 
-  <div className="feature">
-    <h3>⚡ Instant AI Thinking</h3>
-    <p>
-      Ask anything. Get powerful, clear answers instantly.
-    </p>
-  </div>
+        <div className="feature">
+          <h3>🔥 Magic16 System</h3>
+          <p>16-minute daily ritual to boost energy, clarity, and discipline.</p>
+        </div>
 
-  <div className="feature">
-    <h3>🧠 Focus Like Never Before</h3>
-    <p>
-      Eliminate distractions and enter deep focus mode daily.
-    </p>
-  </div>
+        <div className="feature">
+          <h3>🚀 Build Your Future Faster</h3>
+          <p>Learn, plan, and execute your goals with AI guidance.</p>
+        </div>
+      </section>
 
-  <div className="feature">
-    <h3>🔥 Magic16 System</h3>
-    <p>
-      16-minute daily ritual to boost energy, clarity, and discipline.
-    </p>
-  </div>
-
-  <div className="feature">
-    <h3>🚀 Build Your Future Faster</h3>
-    <p>
-      Learn, plan, and execute your goals with AI guidance.
-    </p>
-  </div>
-
-</section>
-
-   {/* TESTIMONIALS */}
+      {/* TESTIMONIALS */}
       <section className="testimonials">
         <h2>What Our Users Say</h2>
 
         <div className="testimonial-cards">
           <div className="testimonial">
             <h4>Shyam</h4>
-
             <p>
-             This app is a masterclass in user experience. The design is absolutely gorgeous—clean, modern, and easy on the eyes. More importantly, it is incredibly intuitive. I found exactly what I needed right away, and navigating through different features is a breeze. It's fast, stable, and a genuine pleasure to use. The developers clearly put a lot of thought into making this the best version possible. Highly, highly recommend!
+              This app is a masterclass in user experience. The design is
+              absolutely gorgeous—clean, modern, and easy on the eyes. More
+              importantly, it is incredibly intuitive. I found exactly what I
+              needed right away, and navigating through different features is a
+              breeze. It's fast, stable, and a genuine pleasure to use. The
+              developers clearly put a lot of thought into making this the best
+              version possible. Highly, highly recommend!
             </p>
           </div>
 
           <div className="testimonial">
             <h4>Priya</h4>
-
             <p>
-              I’m honestly loving ManifiX! It’s so easy to use and super helpful for planning my day. The AI assistant answers my questions right away, and the Magic16 wellness routines keep me calm and motivated. I feel more focused and less stressed now. The personalized wellness tips are spot-on and really help me improve. Definitely a must-have app!
+              I’m honestly loving ManifiX! It’s so easy to use and super helpful
+              for planning my day. The AI assistant answers my questions right
+              away, and the Magic16 wellness routines keep me calm and
+              motivated. I feel more focused and less stressed now. The
+              personalized wellness tips are spot-on and really help me improve.
+              Definitely a must-have app!
             </p>
           </div>
-           <div className="testimonial">
-            <h4>Nikil</h4>
 
+          <div className="testimonial">
+            <h4>Nikil</h4>
             <p>
-            ManifiX is like having a personal coach and assistant together. Magic16 wellness exercises keep me calm, focused, and energized. ManifiXGPT answers any question quickly and accurately. It helps me improve my health, creativity, and daily habits. The app is professional, intuitive, and easy to navigate. I feel more confident and organized in my daily life. I truly love using ManifiX every single day
+              ManifiX is like having a personal coach and assistant together.
+              Magic16 wellness exercises keep me calm, focused, and energized.
+              ManifiXGPT answers any question quickly and accurately. It helps me
+              improve my health, creativity, and daily habits. The app is
+              professional, intuitive, and easy to navigate. I feel more
+              confident and organized in my daily life. I truly love using
+              ManifiX every single day
             </p>
           </div>
         </div>
       </section>
-      
+
       {/* FAQ */}
       <section className="faq">
         <h2>Frequently Asked Questions</h2>
