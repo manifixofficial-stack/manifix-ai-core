@@ -25,7 +25,7 @@ export default function BillingPage() {
   ];
 
   const handleSubscribe = async () => {
-    if (loading) return; // prevent double clicks
+    if (loading) return;
 
     setLoading(true);
     setError("");
@@ -40,17 +40,24 @@ export default function BillingPage() {
         return;
       }
 
-      // Razorpay script check
       if (!window.Razorpay) {
         setError("Payment gateway not loaded. Refresh page.");
         setLoading(false);
         return;
       }
 
-      // Create order from backend
+      // ✅ FIXED: Send user_id to backend
       const res = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/create-order`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            user_id: user.id
+          })
+        }
       );
 
       if (!res.ok) throw new Error("Order creation failed");
@@ -69,7 +76,7 @@ export default function BillingPage() {
 
         handler: async function (response) {
           try {
-            // 🔐 VERIFY PAYMENT (CRITICAL STEP)
+            // 🔐 VERIFY PAYMENT
             const verifyRes = await fetch(
               `${import.meta.env.VITE_API_BASE_URL}/api/verify-payment`,
               {
@@ -88,11 +95,11 @@ export default function BillingPage() {
               throw new Error("Payment verification failed");
             }
 
-            // 📅 Expiry calculation
+            // ❌ REMOVE THIS BLOCK (backend already saves)
+            /*
             const expiry = new Date();
             expiry.setDate(expiry.getDate() + 30);
 
-            // 💾 Save subscription
             const { error: dbError } = await supabase
               .from("premium")
               .upsert([
@@ -106,6 +113,7 @@ export default function BillingPage() {
               ]);
 
             if (dbError) throw dbError;
+            */
 
             setMessage("🎉 Premium Activated Successfully!");
           } catch (err) {
@@ -132,6 +140,7 @@ export default function BillingPage() {
 
       const razor = new window.Razorpay(options);
       razor.open();
+
     } catch (err) {
       console.error(err);
 
