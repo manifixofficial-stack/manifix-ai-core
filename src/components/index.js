@@ -21,7 +21,7 @@ export { default as Magic16Complete } from "./Magic16/Magic16Complete";
 export { default as Magic16Share } from "./Magic16/Magic16Share";
 export { default as PostureOverlay } from "./Magic16/PostureOverlay";
 export { default as BreathingCircle } from "./Magic16/BreathingCircle";
-
+export { default as CookieBanner } from "./CookieBanner"; // ✅ ADD THIS
 // ================= Profile =================
 export { default as ProfileCard } from "./Profile/ProfileCard";
 
