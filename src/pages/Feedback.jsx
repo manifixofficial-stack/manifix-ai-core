@@ -1,15 +1,21 @@
 import React, { useState } from "react";
-import supabase from "../services/supabase";
 import "../styles/Feedback.css";
 import logo from "../assets/logo.png";
+import authService from "../services/auth.service";
 
-export default function Feedback() {
+export default function FeedbackPage() {
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState(0);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submitFeedback = async () => {
+    const user = authService?.getCurrentUser?.();
+    if (!user) {
+      setStatus("⚠ Please login first");
+      return;
+    }
+
     if (!message.trim()) {
       setStatus("⚠ Please enter your feedback.");
       return;
@@ -19,18 +25,22 @@ export default function Feedback() {
     setStatus("");
 
     try {
-      const { error } = await supabase.from("user_feedback").insert([
-        {
-        message: message.trim(),
-          rating: rating || null,
-        },
-      ]);
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          message: message.trim(),
+          rating: rating || null
+        })
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error("Failed to send feedback");
 
       setStatus("✅ Thank you for your feedback!");
       setMessage("");
       setRating(0);
+
     } catch (err) {
       console.error(err);
       setStatus("❌ Failed to send feedback. Please try again.");
@@ -42,7 +52,7 @@ export default function Feedback() {
   return (
     <div className="feedback-page">
       <header className="feedback-header">
-        <img src={logo} alt="ManifiX Logo" className="feedback-logo" />
+        <img src={logo} alt="logo" className="feedback-logo" />
         <h1>ManifiX Feedback</h1>
       </header>
 
@@ -58,9 +68,8 @@ export default function Feedback() {
           />
 
           <label>Rate Us</label>
-
           <div className="rating">
-            {[1, 2, 3, 4, 5].map((star) => (
+            {[1,2,3,4,5].map(star => (
               <span
                 key={star}
                 className={`star ${rating >= star ? "active" : ""}`}
@@ -71,11 +80,7 @@ export default function Feedback() {
             ))}
           </div>
 
-          <button
-            className="submit-btn"
-            onClick={submitFeedback}
-            disabled={loading}
-          >
+          <button className="submit-btn" onClick={submitFeedback} disabled={loading}>
             {loading ? "Submitting..." : "Submit Feedback"}
           </button>
 
