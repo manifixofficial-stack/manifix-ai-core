@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import "../styles/Gpt.css";
 
 /* ================= CONFIG ================= */
-const API_BASE = "https://manifixai.com";
+const API_BASE = "https://manifix.up.railway.app";
 
 /* ================= DEFAULT ================= */
 const defaultWelcome = {
