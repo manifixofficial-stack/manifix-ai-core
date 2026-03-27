@@ -1,9 +1,6 @@
-// src/pages/Billing.jsx
-
 import React, { useState } from "react";
 import "../styles/Billing666.css";
 import authService from "../services/auth.service";
-import { supabase } from "../services/supabase";
 import logo from "../assets/logo.png";
 
 export default function BillingPage() {
@@ -26,42 +23,27 @@ export default function BillingPage() {
 
   const handleSubscribe = async () => {
     if (loading) return;
-
     setLoading(true);
     setError("");
     setMessage("");
 
     try {
       const user = authService?.getCurrentUser?.();
+      if (!user) throw new Error("⚠️ Please login first");
 
-      if (!user) {
-        setError("⚠️ Please login first");
-        setLoading(false);
-        return;
-      }
+      if (!window.Razorpay) throw new Error("Payment gateway not loaded");
 
-      if (!window.Razorpay) {
-        setError("Payment gateway not loaded. Refresh page.");
-        setLoading(false);
-        return;
-      }
+      // Create order via backend
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/create-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: 199900, // ₹1999 in paise
+          user_id: user.id
+        }),
+      });
 
-      // ✅ FIXED: Send user_id to backend
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/create-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            user_id: user.id
-          })
-        }
-      );
-
-      if (!res.ok) throw new Error("Order creation failed");
-
+      if (!res.ok) throw new Error("Server issue while creating order");
       const order = await res.json();
 
       const options = {
@@ -69,73 +51,31 @@ export default function BillingPage() {
         amount: order.amount,
         currency: order.currency,
         order_id: order.id,
-
         name: "ManifiX",
         description: "Premium Subscription",
         image: logo,
-
-        handler: async function (response) {
+        handler: async (response) => {
           try {
-            // 🔐 VERIFY PAYMENT
-            const verifyRes = await fetch(
-              `${import.meta.env.VITE_API_BASE_URL}/api/verify-payment`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  ...response,
-                  user_id: user.id
-                })
-              }
-            );
-
-            if (!verifyRes.ok) {
-              throw new Error("Payment verification failed");
-            }
-
-            // ❌ REMOVE THIS BLOCK (backend already saves)
-            /*
-            const expiry = new Date();
-            expiry.setDate(expiry.getDate() + 30);
-
-            const { error: dbError } = await supabase
-              .from("premium")
-              .upsert([
-                {
-                  user_id: user.id,
-                  payment_id: response.razorpay_payment_id,
-                  plan: "premium",
-                  subscription_status: "active",
-                  expires_at: expiry
-                }
-              ]);
-
-            if (dbError) throw dbError;
-            */
-
+            const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/verify-payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...response, user_id: user.id }),
+            });
+            if (!verifyRes.ok) throw new Error("Payment verification failed");
             setMessage("🎉 Premium Activated Successfully!");
           } catch (err) {
             console.error(err);
             setError("Payment done but activation failed");
           }
         },
-
         modal: {
-          ondismiss: function () {
-            setError("Payment cancelled");
-          }
+          ondismiss: () => setError("Payment cancelled"),
         },
-
         prefill: {
           name: user.name || "",
           email: user.email || ""
         },
-
-        theme: {
-          color: "#00F5D4"
-        }
+        theme: { color: "#00F5D4" },
       };
 
       const razor = new window.Razorpay(options);
@@ -143,12 +83,7 @@ export default function BillingPage() {
 
     } catch (err) {
       console.error(err);
-
-      if (err.message.includes("Order")) {
-        setError("Server issue while creating order");
-      } else {
-        setError("Payment service unavailable");
-      }
+      setError(err.message.includes("Server") ? "Server issue while creating order" : err.message);
     } finally {
       setLoading(false);
     }
@@ -157,32 +92,18 @@ export default function BillingPage() {
   return (
     <div className="billing-page">
       <div className="billing-container">
-        <img src={logo} className="billing-logo" alt="logo" />
-
-        <h1 className="billing-title">
-          Upgrade to <span>ManifiX Premium</span>
-        </h1>
-
-        <p className="billing-sub">
-          Unlock the full power of AI guidance, rituals and automation.
-        </p>
+        <img src={logo} alt="logo" className="billing-logo" />
+        <h1 className="billing-title">Upgrade to <span>ManifiX Premium</span></h1>
+        <p className="billing-sub">Unlock the full power of AI guidance, rituals and automation.</p>
 
         <div className="pricing-card">
-          <div className="price">
-            ₹1999 <span>/month</span>
-          </div>
+          <div className="price">₹1999 <span>/month</span></div>
 
           <ul className="feature-list">
-            {features.map((f, i) => (
-              <li key={i}>✓ {f}</li>
-            ))}
+            {features.map((f, i) => <li key={i}>✓ {f}</li>)}
           </ul>
 
-          <button
-            className="subscribe-btn"
-            disabled={loading}
-            onClick={handleSubscribe}
-          >
+          <button className="subscribe-btn" disabled={loading} onClick={handleSubscribe}>
             {loading ? "🔄 Processing..." : "🚀 Subscribe Now"}
           </button>
 
