@@ -30,6 +30,7 @@ export { default as CameraView } from "./Camera/CameraView";
 export { default as CameraStats } from "./Camera/CameraStats";
 export { default as EmotionOverlay } from "./Camera/EmotionOverlay";
 export { default as VisionStats } from "./Camera/VisionStats";
+export { default as Balatro } from "./Balatro";
 
 // ================= UI =================
 export { default as Modal } from "./Modal";
