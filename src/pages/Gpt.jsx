@@ -113,7 +113,7 @@ export default function Gpt() {
       const res = await axios.post(
         `${API_BASE}/api/chat`,
         { message: text },
-        { timeout: 15000 }
+        { timeout: 55000 }
       );
 
       const reply = res.data?.reply || "Hmm… I couldn’t respond.";
