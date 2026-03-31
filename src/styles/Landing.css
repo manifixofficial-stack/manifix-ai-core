@@ -1,345 +1,255 @@
 /* =====================================
-   MANIFIX LANDING PAGE — PREMIUM UI
-   Clean + Neon + SaaS Grade
+   MANIFIX LANDING PAGE — FINAL PREMIUM UI
 ===================================== */
 
-.landing-container{
-  min-height:100vh;
-  font-family:"Inter",sans-serif;
-  color:#ffffff;
-  background-size:cover;
-  background-position:center;
-  position:relative;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  overflow-x:hidden;
+/* RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-/* ---------- GLOBAL GLOW BACKGROUND ---------- */
+body {
+  font-family: "Inter", sans-serif;
+  color: #ffffff;
+  background: #020617;
+  overflow-x: hidden;
+}
 
-.landing-container::before{
-  content:"";
-  position:fixed;
-  inset:0;
+/* =====================================
+   CONTAINER
+===================================== */
+
+.landing-container {
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* =====================================
+   BALATRO BACKGROUND (FIXED)
+===================================== */
+
+.background-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+/* EXTRA GLOW LAYER */
+.landing-container::before {
+  content: "";
+  position: fixed;
+  inset: 0;
   background:
     radial-gradient(circle at 20% 20%, rgba(0,255,208,0.12), transparent 40%),
     radial-gradient(circle at 80% 70%, rgba(255,0,255,0.12), transparent 40%);
-  z-index:0;
+  z-index: 0;
 }
 
-.overlay{
-  position:absolute;
-  inset:0;
-  background:rgba(2,6,23,.82);
-  backdrop-filter:blur(10px);
-  z-index:1;
+/* OVERLAY */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,.82);
+  backdrop-filter: blur(10px);
+  z-index: 1;
 }
 
-.landing-container > *{
-  position:relative;
-  z-index:2;
+/* CONTENT ABOVE EVERYTHING */
+.landing-container > *:not(.background-wrapper):not(.overlay) {
+  position: relative;
+  z-index: 2;
 }
 
 /* =====================================
    HEADER
 ===================================== */
 
-.landing-header{
-  margin-top:90px;
-  text-align:center;
-  animation:fadeDown .7s ease;
+.landing-header {
+  margin-top: 90px;
+  text-align: center;
+  animation: fadeDown .7s ease;
 }
 
-@keyframes fadeDown{
-  from{ opacity:0; transform:translateY(-20px); }
-  to{ opacity:1; transform:translateY(0); }
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.landing-logo{
-  width:72px;
-  margin-bottom:12px;
-  filter:drop-shadow(0 0 14px rgba(0,255,208,.6));
+.landing-logo {
+  width: 72px;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 0 14px rgba(0,255,208,.6));
 }
 
-.brand-name{
-  font-size:36px;
-  font-weight:800;
-  letter-spacing:.5px;
-  background:linear-gradient(90deg,#00ffd0,#ff00ff);
-  -webkit-background-clip:text;
-  color:transparent;
+.brand-name {
+  font-size: 42px;
+  font-weight: 800;
+  background: linear-gradient(90deg,#00ffd0,#ff00ff);
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
-.brand-tagline{
-  font-size:15px;
-  color:#94a3b8;
-  margin-top:6px;
-}
-
-/* =====================================
-   HERO SECTION
-===================================== */
-
-.landing-hero{
-  max-width:960px;
-  padding:90px 20px;
-  text-align:center;
-  animation:fadeUp .8s ease;
-}
-
-@keyframes fadeUp{
-  from{ opacity:0; transform:translateY(25px); }
-  to{ opacity:1; transform:translateY(0); }
-}
-
-.hero-title{
-  font-size:56px;
-  font-weight:800;
-  line-height:1.15;
-  margin-bottom:20px;
-}
-
-.hero-title span{
-  background:linear-gradient(90deg,#00ffd0,#ff00ff);
-  -webkit-background-clip:text;
-  color:transparent;
-}
-
-.hero-description{
-  font-size:18px;
-  color:#94a3b8;
-  margin-bottom:50px;
-  max-width:720px;
-  margin-left:auto;
-  margin-right:auto;
+.brand-tagline {
+  font-size: 15px;
+  color: #94a3b8;
+  margin-top: 6px;
 }
 
 /* =====================================
-   FEATURES GRID
+   HERO
 ===================================== */
 
-.hero-features{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-  gap:28px;
-  margin-bottom:60px;
+.landing-hero {
+  max-width: 960px;
+  padding: 90px 20px;
+  text-align: center;
+  animation: fadeUp .8s ease;
 }
 
-.feature{
-  background:rgba(255,255,255,.035);
-  border:1px solid rgba(255,255,255,.08);
-  padding:26px;
-  border-radius:18px;
-  backdrop-filter:blur(12px);
-  transition:all .3s ease;
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(25px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.feature:hover{
-  transform:translateY(-6px) scale(1.02);
-  border-color:rgba(0,255,208,.4);
+.hero-title {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 20px;
+}
+
+.hero-description {
+  font-size: 18px;
+  color: #94a3b8;
+  margin-bottom: 50px;
+}
+
+/* =====================================
+   FEATURES
+===================================== */
+
+.hero-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 28px;
+  margin-bottom: 60px;
+}
+
+.feature {
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+  padding: 26px;
+  border-radius: 18px;
+  backdrop-filter: blur(12px);
+  transition: .3s;
+}
+
+.feature:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: rgba(0,255,208,.4);
   box-shadow:
     0 25px 50px rgba(0,255,208,.15),
     0 25px 50px rgba(255,0,255,.12);
 }
 
-.feature h3{
-  margin-bottom:10px;
-  font-size:18px;
-}
-
-.feature p{
-  font-size:14px;
-  color:#94a3b8;
-  line-height:1.6;
-}
-
 /* =====================================
-   CTA BUTTONS
+   BUTTONS
 ===================================== */
 
-.cta-container{
-  display:flex;
-  justify-content:center;
-  gap:16px;
-  flex-wrap:wrap;
-  margin-bottom:20px;
+.cta-container {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.landing-button{
-  padding:14px 30px;
-  border-radius:12px;
-  font-weight:600;
-  text-decoration:none;
-  transition:all .25s ease;
+.landing-button {
+  padding: 14px 30px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: .25s;
 }
 
-/* PRIMARY */
-
-.landing-button.primary{
-  background:linear-gradient(90deg,#00ffd0,#ff00ff);
-  color:#000;
+.landing-button.primary {
+  background: linear-gradient(90deg,#00ffd0,#ff00ff);
+  color: #000;
   box-shadow:
     0 10px 30px rgba(0,255,208,.4),
     0 10px 30px rgba(255,0,255,.3);
 }
 
-.landing-button.primary:hover{
-  transform:translateY(-3px) scale(1.03);
-  box-shadow:
-    0 20px 45px rgba(0,255,208,.6),
-    0 20px 45px rgba(255,0,255,.4);
+.landing-button.primary:hover {
+  transform: translateY(-3px) scale(1.03);
 }
 
-/* SECONDARY */
-
-.landing-button.secondary{
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.12);
-  color:#fff;
+.landing-button.secondary {
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #fff;
 }
 
-.landing-button.secondary:hover{
-  background:rgba(255,255,255,.08);
+.landing-button.secondary:hover {
+  background: rgba(255,255,255,.08);
 }
 
-/* BIG BUTTON */
-
-.landing-button.big{
-  padding:16px 36px;
-  font-size:16px;
-}
-
-/* QUOTE */
-
-.landing-quote{
-  margin-top:16px;
-  font-size:14px;
-  color:#64748b;
+.landing-button.big {
+  padding: 16px 36px;
 }
 
 /* =====================================
    TESTIMONIALS
 ===================================== */
 
-.landing-testimonials{
-  width:100%;
-  max-width:1100px;
-  padding:90px 20px;
+.landing-testimonials {
+  max-width: 1100px;
+  padding: 90px 20px;
 }
 
-.testimonial-title{
-  text-align:center;
-  font-size:34px;
-  margin-bottom:45px;
+.testimonial-title {
+  text-align: center;
+  font-size: 34px;
+  margin-bottom: 45px;
 }
 
-.testimonial-cards{
-  display:flex;
-  gap:24px;
-  overflow-x:auto;
-  scroll-behavior:smooth;
+.testimonial-cards {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
 }
 
-.testimonial-cards::-webkit-scrollbar{
-  display:none;
-}
-
-.testimonial-card{
-  min-width:320px;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:20px;
-  padding:30px;
-  backdrop-filter:blur(12px);
-  transition:.3s;
-}
-
-.testimonial-card:hover{
-  transform:translateY(-6px);
-  box-shadow:0 20px 40px rgba(0,0,0,.4);
-}
-
-.testimonial-text{
-  font-size:14px;
-  line-height:1.7;
-  color:#e2e8f0;
-  margin-bottom:16px;
-}
-
-.testimonial-author{
-  font-weight:600;
-  color:#00ffd0;
-}
-
-/* =====================================
-   FINAL CTA
-===================================== */
-
-.final-cta{
-  padding:100px 20px;
-  text-align:center;
-}
-
-.final-cta h2{
-  font-size:34px;
-  margin-bottom:20px;
+.testimonial-card {
+  min-width: 320px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 20px;
+  padding: 30px;
+  backdrop-filter: blur(12px);
 }
 
 /* =====================================
    FOOTER
 ===================================== */
 
-.landing-footer{
-  margin-top:60px;
-  padding:30px;
-  border-top:1px solid rgba(255,255,255,.08);
-  width:100%;
-  text-align:center;
-  font-size:13px;
-  color:#64748b;
+.landing-footer {
+  margin-top: 60px;
+  padding: 30px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
 }
 
 /* =====================================
    RESPONSIVE
 ===================================== */
 
-@media(max-width:768px){
-
-.hero-title{
-  font-size:38px;
-}
-
-.hero-description{
-  font-size:16px;
-}
-
-.hero-features{
-  grid-template-columns:1fr;
-}
-
-.testimonial-card{
-  min-width:260px;
-}
-
-}
-
-@media(max-width:480px){
-
-.landing-header{
-  margin-top:60px;
-}
-
-.hero-title{
-  font-size:30px;
-}
-
-.cta-container{
-  flex-direction:column;
-}
-
-.landing-button{
-  width:100%;
-}
-
+@media(max-width:768px) {
+  .hero-title { font-size: 36px; }
+  .hero-features { grid-template-columns: 1fr; }
 }
