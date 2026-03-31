@@ -39,6 +39,7 @@
     "react-syntax-highlighter": "^16.1.0",
     "socket.io": "^4.8.3",
     "uuid": "^9.0.1",
+    "ogl": "^1.x.x",
     "react-icons": "^4.10.1",
     "vite": "^5.4.21"
   }
