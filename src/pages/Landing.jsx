@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 
 import logo from "../assets/logo.png";
-import bgImage from "../assets/backgrounds/dark-gradient.jpg";
+import Balatro from "../components/Balatro"; // ✅ added (ONLY background)
 
 import authService from "../services/auth.service";
 import "../styles/Landing.css";
@@ -62,78 +62,78 @@ export default function Landing() {
   }, []);
 
   return (
-    <div
-      className="landing-container"
-      style={{ backgroundImage: `url(${bgImage})` }}
-    >
+    <div className="landing-container">
 
-    <Helmet>
-  <title>
-    ManifiX AI – Focus Better, Think Smarter, Build Your Life Faster
-  </title>
+      {/* ✅ ONLY BACKGROUND */}
+      <div className="background-wrapper">
+        <Balatro />
+      </div>
 
-  <meta
-    name="description"
-    content="ManifiX AI helps you boost focus, productivity, and mental clarity using GPT AI and the powerful Magic16 system. Build better habits, think smarter, and achieve more every day."
-  />
+      <Helmet>
+        <title>
+          ManifiX AI – Focus Better, Think Smarter, Build Your Life Faster
+        </title>
 
-  <meta name="keywords" content="
-    ManifiX,
-    ManifiX AI,
-    AI productivity app,
-    focus app,
-    Magic16,
-    AI assistant,
-    productivity tools,
-    self improvement app,
-    deep focus system
-  " />
+        <meta
+          name="description"
+          content="ManifiX AI helps you boost focus, productivity, and mental clarity using GPT AI and the powerful Magic16 system. Build better habits, think smarter, and achieve more every day."
+        />
 
-  <meta name="author" content="ManifiX AI" />
+        <meta name="keywords" content="
+          ManifiX,
+          ManifiX AI,
+          AI productivity app,
+          focus app,
+          Magic16,
+          AI assistant,
+          productivity tools,
+          self improvement app,
+          deep focus system
+        " />
 
-  {/* Open Graph (for social sharing) */}
-  <meta property="og:title" content="ManifiX AI – Focus. Build. Win." />
-  <meta
-    property="og:description"
-    content="Transform your focus and productivity with AI-powered tools like GPT and Magic16."
-  />
-  <meta property="og:url" content="https://www.manifixai.com" />
-  <meta property="og:type" content="website" />
-    {/* ✅ ADD SCHEMA HERE */}
-  <script type="application/ld+json">
-    {JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "ManifiX AI",
-      "applicationCategory": "ProductivityApplication",
-      "operatingSystem": "Web",
-      "url": "https://www.manifixai.com"
-    })}
-  </script>
-  {/* Twitter */}
-  <meta name="twitter:card" content="summary_large_image" />
-</Helmet>
+        <meta name="author" content="ManifiX AI" />
 
+        <meta property="og:title" content="ManifiX AI – Focus. Build. Win." />
+        <meta
+          property="og:description"
+          content="Transform your focus and productivity with AI-powered tools like GPT and Magic16."
+        />
+        <meta property="og:url" content="https://www.manifixai.com" />
+        <meta property="og:type" content="website" />
+
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "ManifiX AI",
+            applicationCategory: "ProductivityApplication",
+            operatingSystem: "Web",
+            url: "https://www.manifixai.com"
+          })}
+        </script>
+
+        <meta name="twitter:card" content="summary_large_image" />
+      </Helmet>
+
+      {/* ✅ overlay */}
       <div className="overlay" />
 
-                                                                    
+      {/* ---------------- HERO SECTION ---------------- */}
+      <header className="landing-header">
 
-    {/* ---------------- HERO SECTION ---------------- */}
-<header className="landing-header">
+        <img src={logo} alt="ManifiX Logo" className="landing-logo" />
 
-  <img src={logo} alt="ManifiX Logo" className="landing-logo" />
+        <h1 className="brand-name">ManifiX</h1>
 
-  <h1 className="brand-name">ManifiX</h1>
+        <p className="brand-tagline">
+          Build Faster. Think Smarter. Win Bigger.
+        </p>
 
-  <p className="brand-tagline">
-    Build Faster. Think Smarter. Win Bigger.
-  </p>
+        <h2 className="hero-title">
+          Your Life Changes in 16 Minutes a Day.
+        </h2>
 
-  <h2 className="hero-title">
-    Your Life Changes in 16 Minutes a Day.
-  </h2>
-
-</header>
+      </header>
 
       {/* ---------------- CORE VALUE SECTION ---------------- */}
       <section className="landing-hero">
@@ -168,15 +168,16 @@ export default function Landing() {
         </div>
 
         {/* ---------------- CALL TO ACTION ---------------- */}
-       <div className="cta-container">
-  <Link to="/signup" className="landing-button primary">
-    Start Free →
-  </Link>
+        <div className="cta-container">
+          <Link to="/signup" className="landing-button primary">
+            Start Free →
+          </Link>
 
-  <Link to="/login" className="landing-button secondary">
-    Already a Member?
-  </Link>
-</div>
+          <Link to="/login" className="landing-button secondary">
+            Already a Member?
+          </Link>
+        </div>
+
         <p className="landing-quote">
           Built for creators. Designed for leaders. Trusted by visionaries.
         </p>
