@@ -28,7 +28,13 @@ export default function BillingPage() {
     setMessage("");
 
     try {
-      const user = authService?.getCurrentUser?.();
+    const user = authService?.getCurrentUser?.();
+
+console.log("USER DATA:", user); // 🔍 DEBUG
+
+if (!user || !user.id) {
+  throw new Error("User not logged in properly");
+}
       if (!user) throw new Error("⚠️ Please login first");
 
       if (!window.Razorpay) throw new Error("Payment gateway not loaded");
@@ -38,7 +44,6 @@ export default function BillingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: 199900, // ₹1999 in paise
           user_id: user.id
         }),
       });
