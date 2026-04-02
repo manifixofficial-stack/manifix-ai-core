@@ -1,33 +1,40 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import "../styles/dashboard.css";
 
 export default function Dashboard() {
-  useEffect(() => {
-    const particlesContainer = document.getElementById("particles");
-    if (!particlesContainer) return;
+  const particlesRef = useRef(null);
 
-    for (let i = 0; i < 40; i++) {
+  /* ================= PARTICLES SYSTEM ================= */
+  useEffect(() => {
+    const container = particlesRef.current;
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    for (let i = 0; i < 30; i++) {
       const p = document.createElement("div");
       p.className = "particle";
+
       p.style.left = Math.random() * window.innerWidth + "px";
       p.style.top = Math.random() * window.innerHeight + "px";
-      p.style.width = p.style.height = Math.random() * 3 + 1 + "px";
-      p.style.opacity = Math.random() * 0.6 + 0.3;
+      p.style.width = p.style.height = Math.random() * 2 + 1 + "px";
+      p.style.opacity = Math.random() * 0.5 + 0.2;
 
-      particlesContainer.appendChild(p);
+      container.appendChild(p);
     }
 
     const handleMouse = (e) => {
       const particle = document.createElement("div");
       particle.className = "particle";
+
       particle.style.left = e.clientX + "px";
       particle.style.top = e.clientY + "px";
       particle.style.width = particle.style.height = "2px";
 
       document.body.appendChild(particle);
 
-      setTimeout(() => particle.remove(), 1500);
+      setTimeout(() => particle.remove(), 1000);
     };
 
     document.addEventListener("mousemove", handleMouse);
@@ -37,17 +44,20 @@ export default function Dashboard() {
     };
   }, []);
 
+  /* ================= FAQ ================= */
   const toggleFAQ = (e) => {
-    e.currentTarget.classList.toggle("active");
+    const item = e.currentTarget;
+    item.classList.toggle("active");
   };
 
   return (
     <div className="dashboard-page">
-      <div id="particles"></div>
+      <div id="particles" ref={particlesRef}></div>
 
+      {/* ================= NAVBAR ================= */}
       <header className="navbar">
         <div className="nav-left">
-          <span>ManifiX</span>
+          <span className="logo-text">ManifiX</span>
         </div>
 
         <div className="nav-right">
@@ -56,15 +66,15 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* HERO */}
+      {/* ================= HERO ================= */}
       <section className="hero">
         <div className="hero-text">
           <h1>
-            Upgrade Your Brain. <br />
+            Upgrade Your Brain <br />
             <span>Control Your Life with ManifiX</span>
           </h1>
 
-          <p>
+          <p className="hero-sub">
             AI + Magic16 system to help you think clearly, stay focused,
             and build a powerful life — every single day.
           </p>
@@ -79,18 +89,17 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {/* trust line */}
           <p className="hero-trust">
-            Used daily by future builders, creators & high performers ⚡
+            🔒 Secure • Fast • Built for high performers ⚡
           </p>
         </div>
 
         <div className="hero-image">
-          <img src="/assets/images/bot.png" alt="ManifiX AI" />
+          <img src="/assets/images/bot.png" alt="ManifiX AI" loading="lazy" />
         </div>
       </section>
 
-      {/* FEATURES */}
+      {/* ================= FEATURES ================= */}
       <section className="features">
         <div className="feature">
           <h3>⚡ Instant AI Thinking</h3>
@@ -98,87 +107,73 @@ export default function Dashboard() {
         </div>
 
         <div className="feature">
-          <h3>🧠 Focus Like Never Before</h3>
-          <p>Eliminate distractions and enter deep focus mode daily.</p>
+          <h3>🧠 Deep Focus Mode</h3>
+          <p>Eliminate distractions and enter high-performance thinking.</p>
         </div>
 
         <div className="feature">
           <h3>🔥 Magic16 System</h3>
-          <p>16-minute daily ritual to boost energy, clarity, and discipline.</p>
+          <p>16-minute daily ritual to boost energy & discipline.</p>
         </div>
 
         <div className="feature">
-          <h3>🚀 Build Your Future Faster</h3>
-          <p>Learn, plan, and execute your goals with AI guidance.</p>
+          <h3>🚀 Future Builder Tools</h3>
+          <p>Plan, learn, and execute goals with AI guidance.</p>
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
+      {/* ================= TESTIMONIALS ================= */}
       <section className="testimonials">
-        <h2>What Our Users Say</h2>
+        <h2>What Users Say</h2>
 
         <div className="testimonial-cards">
           <div className="testimonial">
             <h4>Shyam</h4>
             <p>
-              This app is a masterclass in user experience. The design is
-              absolutely gorgeous—clean, modern, and easy on the eyes. More
-              importantly, it is incredibly intuitive. I found exactly what I
-              needed right away, and navigating through different features is a
-              breeze. It's fast, stable, and a genuine pleasure to use. The
-              developers clearly put a lot of thought into making this the best
-              version possible. Highly, highly recommend!
+              Clean design, super fast, and extremely intuitive. Everything feels
+              smooth and premium. Easily one of the best apps I've used.
             </p>
           </div>
 
           <div className="testimonial">
             <h4>Priya</h4>
             <p>
-              I’m honestly loving ManifiX! It’s so easy to use and super helpful
-              for planning my day. The AI assistant answers my questions right
-              away, and the Magic16 wellness routines keep me calm and
-              motivated. I feel more focused and less stressed now. The
-              personalized wellness tips are spot-on and really help me improve.
-              Definitely a must-have app!
+              ManifiX helps me stay focused and calm. The AI is instant and the
+              Magic16 routine actually works. I use it daily now.
             </p>
           </div>
 
           <div className="testimonial">
             <h4>Nikil</h4>
             <p>
-              ManifiX is like having a personal coach and assistant together.
-              Magic16 wellness exercises keep me calm, focused, and energized.
-              ManifiXGPT answers any question quickly and accurately. It helps me
-              improve my health, creativity, and daily habits. The app is
-              professional, intuitive, and easy to navigate. I feel more
-              confident and organized in my daily life. I truly love using
-              ManifiX every single day
+              It's like having a personal coach + AI assistant. I feel more
+              productive, organized, and confident every day.
             </p>
           </div>
         </div>
       </section>
 
-      {/* FAQ */}
+      {/* ================= FAQ ================= */}
       <section className="faq">
-        <h2>Frequently Asked Questions</h2>
+        <h2>FAQs</h2>
 
         <div className="faq-item" onClick={toggleFAQ}>
           <h3>What is ManifiX?</h3>
-          <p>ManifiX is your AI assistant for growth, wellness, and success.</p>
+          <p>AI-powered system for growth, focus, and daily success.</p>
         </div>
 
         <div className="faq-item" onClick={toggleFAQ}>
-          <h3>Can I chat for free?</h3>
-          <p>Yes! Unlimited chatting at no cost.</p>
+          <h3>Is it free?</h3>
+          <p>Yes. You can start free and upgrade anytime.</p>
         </div>
 
         <div className="faq-item" onClick={toggleFAQ}>
-          <h3>How do I use Magic16?</h3>
-          <p>Magic16 includes daily yoga & meditation to boost your energy.</p>
+          <h3>What is Magic16?</h3>
+          <p>A 16-minute daily system for clarity, discipline, and energy.</p>
         </div>
       </section>
 
-      {/* FOOTER */}
+      {/* ================= FOOTER ================= */}
       <footer className="dashboard-footer">
         <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
       </footer>
