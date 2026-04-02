@@ -162,25 +162,31 @@ export default function Privacy() {
         </p>
       </section>
 
-      {/* Features */}
-      <section className="privacy-section">
-        <h2>ManifiX Platform Features</h2>
-        <ul>
-          <li>
-            <b>AI Conversation Assistant</b><br />
-            An intelligent conversational assistant that helps users ask
-            questions, generate ideas, explore topics, and receive helpful
-            responses through natural language interaction.
-          </li>
-          <li>
-            <b>Magic16 Wellness System</b><br />
-            A structured daily wellness routine encouraging a balanced
-            lifestyle through a simple 16-minute practice:
-            <br />• 8 minutes of guided yoga<br />• 8 minutes of meditation
-          </li>
-        </ul>
-      </section>
-
+    {/* Features */}
+<section className="privacy-section">
+  <h2>ManifiX Platform Features</h2>
+  <ul>
+    <li>
+      <b>AI Conversation Assistant</b>
+      <div>
+        An intelligent conversational assistant that helps users ask
+        questions, generate ideas, explore topics, and receive helpful
+        responses through natural language interaction.
+      </div>
+    </li>
+    <li>
+      <b>Magic16 Wellness System</b>
+      <div>
+        A structured daily wellness routine encouraging a balanced
+        lifestyle through a simple 16-minute practice:
+      </div>
+      <ul>
+        <li>8 minutes of guided yoga</li>
+        <li>8 minutes of meditation</li>
+      </ul>
+    </li>
+  </ul>
+</section>
       {/* Moderation */}
       <section className="privacy-section">
         <h2>Content Moderation & Safety</h2>
@@ -240,7 +246,6 @@ export default function Privacy() {
         <p>Website: https://manifixai.com</p>
       </section>
 
-    <main className="privacy-content">
              {/* Footer */}
         <footer className="privacy-footer">
           © 2025 ManifiX AI. All rights reserved.
