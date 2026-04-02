@@ -1,4 +1,3 @@
-// src/pages/Login.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
@@ -18,81 +17,82 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ---------------- Redirect if already logged in ----------------
+  // ✅ Redirect if logged in
   useEffect(() => {
     if (!appLoading && user) {
-      navigate("/app/magic16", { replace: true });
+      navigate("/app/dashboard", { replace: true }); // 🔥 unified route
     }
   }, [user, appLoading, navigate]);
 
-  // ---------------- Handle Enter key ----------------
+  // ✅ Enter key support
   const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleEmailLogin();
-    }
+    if (e.key === "Enter") handleEmailLogin();
   };
 
-  // ---------------- Email login ----------------
+  // ✅ Error mapping (PRO UX)
+  const getFriendlyError = (msg) => {
+    if (!msg) return "Something went wrong";
+    if (msg.includes("Invalid login")) return "Incorrect email or password";
+    if (msg.includes("Email not confirmed")) return "Please verify your email";
+    return msg;
+  };
+
+  // ✅ Email login
   const handleEmailLogin = async () => {
     if (loading) return;
+
     if (!email || !password) {
       setError("Please enter email and password");
       return;
     }
 
-    setError("");
     setLoading(true);
+    setError("");
 
     try {
-      const loggedUser = await authService.login(email.trim().toLowerCase(), password);
+      const loggedUser = await authService.login(
+        email.trim().toLowerCase(),
+        password
+      );
 
-      if (!loggedUser) throw new Error("Invalid credentials");
+      if (!loggedUser) throw new Error("Invalid login");
 
-      // Set user in AppProvider context
       setUser(loggedUser);
 
-      navigate("/app/gpt", { replace: true });
+      navigate("/app/dashboard", { replace: true });
     } catch (err) {
       console.error(err);
-      setError(err?.message || "Login failed");
+      setError(getFriendlyError(err.message));
     } finally {
       setLoading(false);
     }
   };
 
-  // ---------------- Google OAuth login ----------------
+  // ✅ Google login (better UX)
   const handleGoogleLogin = async () => {
     if (loading) return;
-    setError("");
+
     setLoading(true);
+    setError("");
 
     try {
-      // Redirect to Google login; on return, AppProvider handles user
       await authService.loginWithGoogle();
+      // ⚠️ no setLoading(false) (redirect happens)
     } catch (err) {
       console.error(err);
-      setError(err?.message || "Google login failed");
+      setError(getFriendlyError(err.message));
       setLoading(false);
     }
   };
 
-  // ---------------- Show loading while AppProvider checks session ----------------
+  // ✅ Session loading screen
   if (appLoading) {
     return (
       <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
-        <Helmet>
-          <title>Login — ManifiX AI</title>
-          <meta name="robots" content="noindex, nofollow" />
-        </Helmet>
-
         <div className="overlay" />
         <div className="auth-card">
-          <div className="brand">
-            <img src={logo} alt="ManifiX Logo" className="logo" />
-            <h1>ManifiX</h1>
-            <p className="tagline">Intelligence meets Intention</p>
-          </div>
-          <p>Checking your session...</p>
+          <img src={logo} alt="logo" className="logo" />
+          <h2>Welcome back...</h2>
           <div className="spinner"></div>
         </div>
       </div>
@@ -103,10 +103,12 @@ export default function Login() {
     <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
       <Helmet>
         <title>Login — ManifiX AI</title>
-        <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
       <div className="overlay" />
+
+      {/* 🔥 Loading Overlay */}
+      {loading && <div className="loading-overlay">Processing...</div>}
 
       <div className="auth-card">
         {/* Brand */}
@@ -118,36 +120,33 @@ export default function Login() {
 
         <h2>Welcome Back</h2>
 
-        {/* Google Login */}
+        {/* Google */}
         <button
           className="google-btn"
           onClick={handleGoogleLogin}
           disabled={loading}
         >
-          <img
-            src="https://img.icons8.com/color/24/google-logo.png"
-            alt="Google"
-          />
-          {loading ? "Processing..." : "Continue with Google"}
+          <img src="https://img.icons8.com/color/24/google-logo.png" alt="g" />
+          Continue with Google
         </button>
 
-        {/* Email login */}
+        {/* Email */}
         <input
           type="email"
           placeholder="Email"
           value={email}
+          disabled={loading}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={handleKeyPress}
-          disabled={loading}
         />
 
         <input
           type="password"
           placeholder="Password"
           value={password}
+          disabled={loading}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={handleKeyPress}
-          disabled={loading}
         />
 
         {error && <p className="error">{error}</p>}
@@ -157,22 +156,17 @@ export default function Login() {
           onClick={handleEmailLogin}
           disabled={loading}
         >
-          {loading ? "Processing..." : "Login"}
+          {loading ? "Signing in..." : "Login"}
         </button>
 
-        {/* Links */}
         <p className="microcopy">
           Forgot password?{" "}
-          <span className="link" onClick={() => navigate("/forgot-password")}>
-            Reset here
-          </span>
+          <span onClick={() => navigate("/forgot-password")}>Reset</span>
         </p>
 
         <p className="microcopy">
-          Don’t have an account?{" "}
-          <span className="link" onClick={() => navigate("/signup")}>
-            Sign Up
-          </span>
+          New here?{" "}
+          <span onClick={() => navigate("/signup")}>Create account</span>
         </p>
       </div>
     </div>
