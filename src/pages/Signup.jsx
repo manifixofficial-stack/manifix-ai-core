@@ -12,28 +12,50 @@ export default function Signup() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  // Helper validation
+  // ✅ Live validation
   const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
   const isValidPassword = (password) => password.length >= 6;
 
   const handleEmailSignup = async () => {
     setError("");
+    setSuccess("");
 
-    if (!isValidEmail(email)) return setError("Please enter a valid email.");
-    if (!isValidPassword(password))
-      return setError("Password must be at least 6 characters.");
+    if (!isValidEmail(email)) {
+      return setError("Enter a valid email address");
+    }
+
+    if (!isValidPassword(password)) {
+      return setError("Password must be at least 6 characters");
+    }
 
     setLoading(true);
+
     try {
-      const user = await authService.signUp(email.trim(), password);
-      if (user) navigate("/app", { replace: true });
+      const user = await authService.signUp(
+        email.trim().toLowerCase(),
+        password
+      );
+
+      if (!user) throw new Error("Signup failed");
+
+      // 🎉 Success UX
+      setSuccess("Account created successfully 🎉");
+
+      setTimeout(() => {
+        navigate("/app/dashboard", { replace: true });
+      }, 1200);
+
     } catch (err) {
-      const message =
+      const msg =
         err?.response?.data?.message || err?.message || "Signup failed";
-      setError(message);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -42,14 +64,12 @@ export default function Signup() {
   const handleGoogleSignup = async () => {
     setError("");
     setLoading(true);
+
     try {
-      const user = await authService.loginWithGoogle();
-      if (user) navigate("/app", { replace: true });
+      await authService.loginWithGoogle();
+      // redirect handled externally
     } catch (err) {
-      const message =
-        err?.response?.data?.message || err?.message || "Google sign-up failed";
-      setError(message);
-    } finally {
+      setError(err.message || "Google signup failed");
       setLoading(false);
     }
   };
@@ -60,6 +80,14 @@ export default function Signup() {
       style={{ backgroundImage: `url(${bgImage})` }}
     >
       <div className="overlay" />
+
+      {/* 🔥 Loading overlay */}
+      {loading && (
+        <div className="loading-overlay">
+          Creating your account...
+        </div>
+      )}
+
       <div className="auth-card">
         {/* Brand */}
         <div className="brand">
@@ -68,76 +96,87 @@ export default function Signup() {
           <p className="tagline">Intelligence meets Intention</p>
         </div>
 
-        {/* Signup Form */}
+        {/* Title */}
         <h2>Create Account</h2>
-        <p className="subtitle">Join the daily alignment journey</p>
+        <p className="subtitle">Start your aligned journey</p>
 
-        {/* Google Signup */}
+        {/* 🔥 Google button */}
         <button
           className="google-btn"
           onClick={handleGoogleSignup}
           disabled={loading}
-          aria-label="Continue with Google"
         >
-          {loading ? "Please wait..." : "Continue with Google"}
+          <img
+            src="https://img.icons8.com/color/24/google-logo.png"
+            alt="google"
+          />
+          Continue with Google
         </button>
 
         <div className="divider">
-          <span>or continue with email</span>
+          <span>or use email</span>
         </div>
 
-        {/* Email Input */}
-        <label htmlFor="signup-email" className="sr-only">
-          Email
-        </label>
+        {/* Email */}
         <input
-          id="signup-email"
           type="email"
           placeholder="Email"
           value={email}
-          onChange={({ target: { value } }) => setEmail(value)}
           disabled={loading}
-          required
-          aria-required="true"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError("");
+          }}
         />
 
-        {/* Password Input */}
-        <label htmlFor="signup-password" className="sr-only">
-          Password
-        </label>
-        <input
-          id="signup-password"
-          type="password"
-          placeholder="Password (min 6 chars)"
-          value={password}
-          onChange={({ target: { value } }) => setPassword(value)}
-          disabled={loading}
-          required
-          aria-required="true"
-        />
+        {/* Password with toggle 👁 */}
+        <div className="password-wrapper">
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Password (min 6 chars)"
+            value={password}
+            disabled={loading}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError("");
+            }}
+          />
 
-        {/* Error message */}
-        {error && <p className="error" role="alert">{error}</p>}
+          <span
+            className="toggle-eye"
+            onClick={() => setShowPassword(!showPassword)}
+          >
+            {showPassword ? "🙈" : "👁"}
+          </span>
+        </div>
 
-        {/* Signup Button */}
+        {/* Live hint */}
+        {password && password.length < 6 && (
+          <p className="hint">Password is too short</p>
+        )}
+
+        {/* Status */}
+        {error && <p className="error">{error}</p>}
+        {success && <p className="success">{success}</p>}
+
+        {/* Submit */}
         <button
           className="primary-btn"
           onClick={handleEmailSignup}
           disabled={loading}
         >
-          {loading ? "Creating Account..." : "Sign Up"}
+          {loading ? "Creating..." : "Sign Up"}
         </button>
 
-        {/* Login Link */}
+        {/* Trust line */}
+        <p className="trust">
+          🔒 Secure • No spam • Private
+        </p>
+
+        {/* Login link */}
         <p className="microcopy">
-          Already have an account?{" "}
-          <span
-            className="link"
-            onClick={() => navigate("/login")}
-            role="button"
-            tabIndex={0}
-            onKeyPress={(e) => e.key === "Enter" && navigate("/login")}
-          >
+          Already have an account?
+          <span className="link" onClick={() => navigate("/login")}>
             Login
           </span>
         </p>
