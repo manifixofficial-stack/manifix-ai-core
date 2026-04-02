@@ -28,9 +28,9 @@ export default function BillingPage() {
     setMessage("");
 
     try {
-    const user = authService?.getCurrentUser?.();
+   const user = await authService.getCurrentUser();
 
-console.log("USER DATA:", user); // 🔍 DEBUG
+console.log("USER:", user);
 
 if (!user || !user.id) {
   throw new Error("User not logged in properly");
