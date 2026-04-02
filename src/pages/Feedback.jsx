@@ -25,17 +25,20 @@ export default function FeedbackPage() {
     setStatus("");
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: user.id,
-          message: message.trim(),
-          rating: rating || null
-        })
-      });
+     const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/feedback`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    user_id: user.id,
+    message: message.trim(),
+    rating: rating || null
+  })
+});
 
-      if (!res.ok) throw new Error("Failed to send feedback");
+const data = await res.json();   // ✅ ADD THIS
+console.log("API RESPONSE:", data);  // ✅ DEBUG
+
+if (!res.ok) throw new Error(data.error || "Failed to send feedback");
 
       setStatus("✅ Thank you for your feedback!");
       setMessage("");
