@@ -5,7 +5,7 @@ import logo from "../assets/logo.png";
 
 export default function Features() {
 
-  const { feature } = useParams();
+ const { feature = "gpt" } = useParams(); // ✅ default here
  const defaultFeature = feature || "gpt"; // fallback
  const data = pages[defaultFeature];
   const pages = {
