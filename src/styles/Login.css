@@ -1,3 +1,15 @@
+/* ===================== GLOBAL OPTIMIZATION ===================== */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+*:focus-visible {
+  outline: 2px solid #00f5d4;
+  outline-offset: 2px;
+}
+
 /* ===================== AUTH WRAPPER ===================== */
 
 .auth-wrapper {
@@ -13,11 +25,12 @@
   color: white;
 }
 
+/* Overlay optimized */
 .overlay {
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.85);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(6px); /* reduced for performance */
 }
 
 /* ===================== CARD ===================== */
@@ -27,26 +40,33 @@
   z-index: 2;
   width: 100%;
   max-width: 420px;
-  padding: 42px;
+  padding: 36px; /* calmer spacing */
+
   text-align: center;
 
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
+  border-radius: 20px;
 
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(14px);
 
+  /* optimized shadow */
   box-shadow:
-    0 25px 60px rgba(0, 0, 0, 0.7),
-    0 0 50px rgba(255, 0, 255, 0.08);
+    0 15px 40px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(255, 0, 255, 0.06);
 
-  animation: fadeUp 0.7s ease;
+  animation: fadeUp 0.6s ease;
+  transition: transform 0.3s ease;
+}
+
+.auth-card:hover {
+  transform: translateY(-3px);
 }
 
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(25px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -57,26 +77,38 @@
 /* ===================== BRAND ===================== */
 
 .brand img {
-  width: 72px;
+  width: 68px;
   margin-bottom: 10px;
-  filter: drop-shadow(0 0 14px #00ffff);
+  filter: drop-shadow(0 0 10px #00ffff);
 }
 
 .brand h1 {
-  font-size: 30px;
+  font-size: 28px;
   margin-bottom: 6px;
 
   background: linear-gradient(90deg, #00ffff, #8e2de2, #ff00ff);
   -webkit-background-clip: text;
   color: transparent;
-
-  text-shadow: 0 0 18px rgba(255, 0, 255, 0.3);
 }
 
 .tagline {
   font-size: 13px;
-  color: #94a3b8;
-  margin-bottom: 22px;
+  color: #cbd5f5; /* improved contrast */
+  margin-bottom: 20px;
+}
+
+/* ===================== TEXT ===================== */
+
+h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #cbd5f5;
+  margin-bottom: 18px;
 }
 
 /* ===================== INPUT ===================== */
@@ -93,7 +125,6 @@
   color: white;
 
   font-size: 14px;
-
   transition: all 0.25s ease;
 }
 
@@ -103,9 +134,7 @@
 
 .auth-card input:focus {
   border-color: #00f5d4;
-  box-shadow:
-    0 0 10px rgba(0, 245, 212, 0.5),
-    0 0 20px rgba(255, 0, 255, 0.3);
+  box-shadow: 0 0 8px rgba(0, 245, 212, 0.4);
 }
 
 /* ===================== BUTTON ===================== */
@@ -122,18 +151,14 @@
   background: linear-gradient(90deg, #00ffff, #8e2de2, #ff00ff);
   color: white;
 
-  transition: all 0.35s ease;
+  transition: all 0.3s ease;
 
-  box-shadow:
-    0 10px 25px rgba(255, 0, 255, 0.4);
+  box-shadow: 0 8px 20px rgba(255, 0, 255, 0.3);
 }
 
 .primary-btn:hover {
-  transform: translateY(-2px) scale(1.03);
-
-  box-shadow:
-    0 18px 40px rgba(255, 0, 255, 0.6),
-    0 10px 30px rgba(0, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(255, 0, 255, 0.4);
 }
 
 .primary-btn:active {
@@ -145,36 +170,42 @@
   cursor: not-allowed;
 }
 
-/* Google button upgrade */
+/* ===================== GOOGLE BUTTON ===================== */
+
 .google-btn {
   width: 100%;
   padding: 12px;
   margin-bottom: 14px;
+
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.08);
+
+  background: rgba(255,255,255,.06);
   color: white;
+
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
+
   cursor: pointer;
-  transition: .3s;
+  transition: 0.25s ease;
 }
 
 .google-btn:hover {
-  background: rgba(255,255,255,.15);
-  transform: translateY(-2px);
+  background: rgba(255,255,255,.12);
 }
 
-/* Divider */
+/* ===================== DIVIDER ===================== */
+
 .divider {
   margin: 16px 0;
   font-size: 12px;
   color: #94a3b8;
 }
 
-/* Password eye */
+/* ===================== PASSWORD ===================== */
+
 .password-wrapper {
   position: relative;
 }
@@ -187,35 +218,43 @@
   font-size: 14px;
 }
 
-/* Hint */
+/* ===================== FEEDBACK ===================== */
+
 .hint {
   font-size: 12px;
   color: #facc15;
   margin-bottom: 8px;
 }
 
-/* Trust text */
+.success,
+.error {
+  font-size: 14px;
+  margin-bottom: 10px;
+  animation: fadeIn 0.3s ease;
+}
+
+.success {
+  color: #22c55e;
+}
+
+.error {
+  color: #ef4444;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===================== TRUST ===================== */
+
 .trust {
   margin-top: 12px;
   font-size: 12px;
   color: #94a3b8;
 }
 
-/* ===================== STATUS ===================== */
-
-.success {
-  color: #22c55e;
-  font-size: 14px;
-  margin-bottom: 10px;
-}
-
-.error {
-  color: #ef4444;
-  font-size: 14px;
-  margin-bottom: 10px;
-}
-
-/* ===================== MICROCOPY ===================== */
+/* ===================== LINKS ===================== */
 
 .microcopy {
   margin-top: 18px;
@@ -233,7 +272,7 @@
   text-decoration: underline;
 }
 
-/* ===================== LOADING OVERLAY ===================== */
+/* ===================== LOADING ===================== */
 
 .loading-overlay {
   position: fixed;
@@ -259,10 +298,10 @@
 
 @media (max-width: 520px) {
   .auth-card {
-    padding: 30px 22px;
+    padding: 28px 20px;
   }
 
   .brand h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
 }
