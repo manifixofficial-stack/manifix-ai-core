@@ -6,7 +6,8 @@ import logo from "../assets/logo.png";
 export default function Features() {
 
   const { feature } = useParams();
-
+ const defaultFeature = feature || "gpt"; // fallback
+ const data = pages[defaultFeature];
   const pages = {
     gpt: {
       title: "ManifiX GPT",
