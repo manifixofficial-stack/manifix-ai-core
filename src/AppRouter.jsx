@@ -55,7 +55,8 @@ export default function AppRouter() {
 
         {/* ---------------- Public Info Pages ---------------- */}
         <Route path="/about" element={<About />} />
-        <Route path="/features/:feature?" element={<Features />} />
+        <Route path="/features" element={<Navigate to="/features/gpt" replace />} />
+        <Route path="/features/:feature" element={<Features />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
