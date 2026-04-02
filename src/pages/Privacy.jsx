@@ -4,8 +4,19 @@ import "../styles/Privacy.css";
 import logo from "../assets/logo.png";
 
 export default function Privacy() {
-  return (
-    <div className="privacy-container">
+ return (
+  <div className="privacy-container">
+    <div className="privacy-layout">
+
+      {/* SIDEBAR */}
+      <aside className="privacy-sidebar">
+        <a href="#overview">Overview</a>
+        <a href="#data">Data</a>
+        <a href="#security">Security</a>
+        <a href="#rights">Your Rights</a>
+      </aside>
+
+      <main className="privacy-content">
 
       {/* Header */}
       <div className="privacy-header">
@@ -16,7 +27,7 @@ export default function Privacy() {
       </div>
 
       {/* Overview */}
-      <section className="privacy-section">
+     <section id="overview" className="privacy-section">
         <h2>Overview</h2>
         <p>
           ManifiX is an AI-powered creativity, productivity, and wellness
@@ -80,7 +91,7 @@ export default function Privacy() {
       </section>
 
       {/* Data Collection */}
-      <section className="privacy-section">
+    <section id="data" className="privacy-section">
         <h2>What Information We Collect</h2>
         <p>We may collect the following types of information:</p>
         <ul>
@@ -126,7 +137,7 @@ export default function Privacy() {
       </section>
 
       {/* Security */}
-      <section className="privacy-section">
+    <section id="security" className="privacy-section">
         <h2>Storage, Security & Retention</h2>
         <ul>
           <li>Encrypted HTTPS data transmission</li>
@@ -178,7 +189,7 @@ export default function Privacy() {
       </section>
 
       {/* Rights */}
-      <section className="privacy-section">
+     <section id="rights" className="privacy-section">
         <h2>User Rights & Controls</h2>
         <ul>
           <li>Access to stored personal data</li>
@@ -229,11 +240,19 @@ export default function Privacy() {
         <p>Website: https://manifixai.com</p>
       </section>
 
-      {/* Footer */}
-      <footer className="privacy-footer">
-        © 2025 ManifiX AI. All rights reserved.
-      </footer>
+    <main className="privacy-content">
+             {/* Footer */}
+        <footer className="privacy-footer">
+          © 2025 ManifiX AI. All rights reserved.
+        </footer>
 
+      </main>
     </div>
-  );
+
+    <div className="highlight-box">
+      🔒 We NEVER sell your personal data.
+    </div>
+
+  </div>
+);
 }
