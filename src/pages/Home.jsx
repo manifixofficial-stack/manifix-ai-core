@@ -7,7 +7,7 @@ import "../styles/Home.css";
 import logo from "../assets/logo.png";
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
+  hidden: { opacity: 0, y: 40 },
   show: (i = 1) => ({
     opacity: 1,
     y: 0,
@@ -25,10 +25,10 @@ export default function Home() {
 
       {/* ================= SEO ================= */}
       <Helmet>
-        <title>ManifiX AI – Future of AI Productivity</title>
+        <title>ManifiX AI – Think Clearly. Execute Faster.</title>
         <meta
           name="description"
-          content="ManifiX AI helps creators and teams think faster, build smarter, and stay focused with GPT + Magic16."
+          content="ManifiX AI helps you eliminate overthinking, stay focused, and execute faster using AI and the Magic16 system."
         />
       </Helmet>
 
@@ -53,8 +53,8 @@ export default function Home() {
             animate="show"
             custom={2}
           >
-            Think Faster. Build Smarter. <br />
-            <span>With ManifiX AI</span>
+            Stop Overthinking. <br />
+            <span>Start Executing.</span>
           </motion.h1>
 
           <motion.p
@@ -64,11 +64,11 @@ export default function Home() {
             animate="show"
             custom={3}
           >
-            AI + Magic16 system designed for creators, developers,
-            and teams who want clarity, speed, and control.
+            ManifiX AI helps creators, developers, and teams think clearly,
+            act faster, and build without distraction using AI and the Magic16 system.
           </motion.p>
 
-          {/* 🔥 TRUST BOOST */}
+          {/* TRUST LINE */}
           <motion.div
             className="hero-proof"
             variants={fadeUp}
@@ -76,7 +76,7 @@ export default function Home() {
             animate="show"
             custom={4}
           >
-            ⚡ Fast • 🔒 Secure • 🚀 Built for high performers
+            Trusted by creators, developers, and high-performance teams worldwide
           </motion.div>
 
           <motion.div
@@ -87,7 +87,7 @@ export default function Home() {
             custom={5}
           >
             <Link to="/signup" className="btn-primary">
-              Start Free →
+              Start Free
             </Link>
 
             <Link to="/features" className="btn-secondary">
@@ -102,19 +102,37 @@ export default function Home() {
       <section className="features">
 
         <div className="features-header">
-          <h2>Why ManifiX Wins</h2>
-          <p>Everything you need to think clearly and execute faster.</p>
+          <h2>Why ManifiX</h2>
+          <p>Everything you need to think clearly and execute without friction.</p>
         </div>
 
         <div className="feature-grid">
 
           {[
-            { icon: "⚡", title: "AI Thinking", desc: "Instant answers & execution" },
-            { icon: "🧠", title: "Deep Focus", desc: "Distraction-free workflow" },
-            { icon: "🔥", title: "Magic16", desc: "Daily clarity system" },
-            { icon: "🚀", title: "Speed", desc: "Blazing fast performance" },
-            { icon: "🔒", title: "Security", desc: "Safe & private platform" },
-            { icon: "🌍", title: "Global", desc: "Built for everyone" },
+            {
+              title: "Instant Clarity",
+              desc: "Get answers and structured thinking in seconds, not minutes.",
+            },
+            {
+              title: "Deep Focus",
+              desc: "Remove distractions and stay locked into meaningful work.",
+            },
+            {
+              title: "Magic16 System",
+              desc: "A daily framework designed to guide decisions and execution.",
+            },
+            {
+              title: "High Performance",
+              desc: "Optimized for speed, reliability, and continuous workflow.",
+            },
+            {
+              title: "Private by Design",
+              desc: "Your data stays secure and fully under your control.",
+            },
+            {
+              title: "Built for Builders",
+              desc: "Designed for creators, developers, and ambitious teams.",
+            },
           ].map((f, i) => (
             <motion.div
               key={i}
@@ -125,7 +143,6 @@ export default function Home() {
               viewport={{ once: true }}
               custom={i}
             >
-              <div className="feature-icon">{f.icon}</div>
               <h3>{f.title}</h3>
               <p>{f.desc}</p>
             </motion.div>
@@ -134,26 +151,56 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ================= HOW IT WORKS ================= */}
+      <section className="how-it-works">
+
+        <div className="how-header">
+          <h2>How It Works</h2>
+          <p>A simple system designed for clarity and execution.</p>
+        </div>
+
+        <div className="steps">
+
+          <motion.div className="step" variants={fadeUp} initial="hidden" whileInView="show">
+            <h3>01. Define</h3>
+            <p>Describe what you want to achieve or solve.</p>
+          </motion.div>
+
+          <motion.div className="step" variants={fadeUp} initial="hidden" whileInView="show">
+            <h3>02. Think</h3>
+            <p>ManifiX structures your thinking with AI and Magic16.</p>
+          </motion.div>
+
+          <motion.div className="step" variants={fadeUp} initial="hidden" whileInView="show">
+            <h3>03. Execute</h3>
+            <p>Take action with clarity, confidence, and speed.</p>
+          </motion.div>
+
+        </div>
+
+      </section>
+
       {/* ================= CTA ================= */}
       <section className="cta">
 
         <motion.div
           className="cta-container"
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           whileInView={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
         >
           <h2>
-            Build Your Future With <span>ManifiX</span>
+            Your Future Doesn’t Wait.
           </h2>
 
           <p className="cta-subtext">
-            Start free. Upgrade anytime. No limits on your growth.
+            Start using ManifiX today and take control of your thinking,
+            focus, and execution.
           </p>
 
           <div className="cta-buttons">
             <Link to="/signup" className="btn-primary big">
-              Create Free Account
+              Start Free Now
             </Link>
           </div>
         </motion.div>
@@ -162,7 +209,7 @@ export default function Home() {
 
       {/* ================= FOOTER ================= */}
       <footer className="home-footer">
-        <p>© {new Date().getFullYear()} ManifiX AI</p>
+        <p>© {new Date().getFullYear()} ManifiX AI. All rights reserved.</p>
       </footer>
 
     </div>
