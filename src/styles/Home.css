@@ -1,229 +1,188 @@
-/* ===============================
-   DESIGN SYSTEM (🔥 NEW)
-=============================== */
+/* Home.css */
 
-:root{
-  --bg:#020617;
-  --card:rgba(255,255,255,.03);
-  --border:rgba(255,255,255,.08);
-
-  --text:#e2e8f0;
-  --muted:#94a3b8;
-
-  --primary:#00ffd0;
-  --secondary:#8b5cf6;
-
-  --radius:16px;
-  --radius-lg:22px;
-
-  --space-1:8px;
-  --space-2:16px;
-  --space-3:24px;
-  --space-4:40px;
-  --space-5:80px;
-
-  --transition:all .25s ease;
+/* ================= GLOBAL ================= */
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: #f9fafb;
+  color: #111827;
 }
 
-/* ===============================
-   GLOBAL
-=============================== */
-
-.home{
-  font-family:"Inter",sans-serif;
-  color:var(--text);
-  background:var(--bg);
-  overflow-x:hidden;
-  max-width:1400px;
-  margin:auto;
+a {
+  text-decoration: none;
 }
 
-/* smooth scroll */
-html{
-  scroll-behavior:smooth;
+/* ================= HERO ================= */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 90vh;
+  background: linear-gradient(135deg, #4f46e5, #3b82f6);
+  color: #fff;
+  text-align: center;
+  padding: 2rem 1rem;
 }
 
-/* 🔥 optimized background */
-.home::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  background:
-    radial-gradient(circle at 10% 20%, rgba(0,255,208,.06), transparent 40%),
-    radial-gradient(circle at 90% 70%, rgba(139,92,246,.08), transparent 40%);
-  z-index:0;
-  will-change:transform;
+.hero-content {
+  max-width: 800px;
+  margin: 0 auto;
 }
 
-/* ===============================
-   HERO
-=============================== */
-
-.hero{
-  min-height:100vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:120px 20px;
-  text-align:center;
+.hero-logo {
+  width: 120px;
+  margin-bottom: 1.5rem;
 }
 
-.hero-title{
-  font-size:clamp(32px,5vw,56px);
-  font-weight:800;
-  line-height:1.2;
-  margin-bottom:var(--space-2);
+.hero-title {
+  font-size: 2.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  margin-bottom: 1rem;
 }
 
-.hero-title span{
-  background:linear-gradient(90deg,var(--primary),var(--secondary));
-  -webkit-background-clip:text;
-  color:transparent;
+.hero-title span {
+  color: #facc15;
 }
 
-.hero-text{
-  font-size:16px;
-  color:var(--muted);
-  margin-bottom:var(--space-3);
+.hero-text {
+  font-size: 1.125rem;
+  margin-bottom: 1.5rem;
 }
 
-/* ===============================
-   BUTTONS (🔥 FIXED UX)
-=============================== */
-
-.btn-primary,
-.btn-secondary{
-  transition:var(--transition);
-  cursor:pointer;
-  position:relative;
+.hero-proof {
+  font-weight: 500;
+  margin-bottom: 2rem;
+  font-size: 1rem;
 }
 
-/* primary */
-.btn-primary{
-  background:linear-gradient(90deg,var(--primary),var(--secondary));
-  padding:14px 28px;
-  border-radius:12px;
-  font-weight:600;
-  color:#020617;
-
-  box-shadow:0 8px 25px rgba(0,255,208,.25);
+.hero-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
-/* hover */
-.btn-primary:hover{
-  transform:translateY(-2px);
-  box-shadow:0 14px 35px rgba(0,255,208,.35);
+.btn-primary, .btn-secondary {
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-/* 🔥 click feedback */
-.btn-primary:active{
-  transform:scale(.97);
+.btn-primary {
+  background-color: #facc15;
+  color: #111827;
 }
 
-/* 🔥 focus (ACCESSIBILITY) */
-.btn-primary:focus-visible{
-  outline:2px solid var(--primary);
-  outline-offset:2px;
+.btn-primary:hover {
+  background-color: #eab308;
 }
 
-/* secondary */
-.btn-secondary{
-  border:1px solid var(--border);
-  padding:14px 28px;
-  border-radius:12px;
-  color:white;
+.btn-secondary {
+  background-color: rgba(255,255,255,0.2);
+  color: #fff;
 }
 
-.btn-secondary:hover{
-  background:rgba(255,255,255,.05);
+.btn-secondary:hover {
+  background-color: rgba(255,255,255,0.35);
 }
 
-.btn-secondary:focus-visible{
-  outline:2px solid var(--secondary);
+/* ================= FEATURES ================= */
+.features {
+  padding: 5rem 1rem;
+  background-color: #fff;
+  text-align: center;
 }
 
-/* ===============================
-   FEATURES (🔥 OPTIMIZED)
-=============================== */
-
-.features{
-  padding:var(--space-5) 20px;
-  max-width:1100px;
-  margin:auto;
+.features-header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
 }
 
-.feature-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-  gap:var(--space-3);
+.features-header p {
+  font-size: 1.125rem;
+  color: #6b7280;
+  margin-bottom: 3rem;
 }
 
-/* 🔥 card improved */
-.feature-card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:var(--space-3);
-
-  backdrop-filter:blur(10px);
-
-  transition:var(--transition);
-  will-change:transform;
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-.feature-card:hover{
-  transform:translateY(-6px);
-  border-color:rgba(0,255,208,.3);
-  box-shadow:0 15px 35px rgba(0,255,208,.1);
+.feature-card {
+  background-color: #f3f4f6;
+  border-radius: 1rem;
+  padding: 2rem 1.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* 🔥 click feel */
-.feature-card:active{
-  transform:scale(.98);
+.feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
 }
 
-/* ===============================
-   CTA
-=============================== */
-
-.cta{
-  padding:var(--space-5) 20px;
-  display:flex;
-  justify-content:center;
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
 }
 
-.cta-container{
-  background:var(--card);
-  border:1px solid var(--border);
-  padding:50px;
-  border-radius:var(--radius-lg);
-  text-align:center;
-  max-width:750px;
-
-  backdrop-filter:blur(10px);
-  transition:.3s;
+/* ================= CTA ================= */
+.cta {
+  background-color: #4f46e5;
+  color: #fff;
+  padding: 4rem 1rem;
+  text-align: center;
 }
 
-.cta-container:hover{
-  box-shadow:0 20px 50px rgba(0,255,208,.15);
+.cta-container h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
 }
 
-/* ===============================
-   FOOTER
-=============================== */
-
-.home-footer{
-  border-top:1px solid var(--border);
-  padding:40px 20px;
-  text-align:center;
+.cta-container h2 span {
+  color: #facc15;
 }
 
-/* ===============================
-   RESPONSIVE
-=============================== */
+.cta-subtext {
+  margin-bottom: 2rem;
+  font-size: 1.125rem;
+  color: #e5e7eb;
+}
 
-@media(max-width:768px){
-  .hero{
-    padding:80px 20px;
+.cta-buttons .btn-primary.big {
+  font-size: 1.125rem;
+  padding: 1rem 2rem;
+}
+
+/* ================= FOOTER ================= */
+.home-footer {
+  text-align: center;
+  padding: 2rem 1rem;
+  background-color: #111827;
+  color: #f3f4f6;
+  font-size: 0.875rem;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-text {
+    font-size: 1rem;
+  }
+
+  .cta-container h2 {
+    font-size: 1.75rem;
   }
 }
