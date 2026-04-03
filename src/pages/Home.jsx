@@ -76,7 +76,7 @@ export default function Home() {
             animate="show"
             custom={4}
           >
-            ⚡ Fast • 🔒 Secure • 🚀 Built for high performers
+            Fast • Secure • Built for high performers
           </motion.div>
 
           <motion.div
