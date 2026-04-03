@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+
 import "../styles/Gpt.css";
 
 /* ================= CONFIG ================= */
 const API_BASE = "https://manifix.up.railway.app";
+
+/* ================= DEFAULT ================= */
 const defaultWelcome = {
   id: "welcome",
   role: "assistant",
-  content: "Hey 👋 I’m ManifiX, I’m here with you ❤️",
-  timestamp: new Date().toISOString(),
+  content: "Hey 👋 I’m ManifiX,I’m here with you ❤️",
 };
 
 /* ================= COMPONENT ================= */
@@ -23,9 +25,11 @@ export default function Gpt() {
       return [defaultWelcome];
     }
   });
+
   const [input, setInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
+
   const chatRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -35,6 +39,7 @@ export default function Gpt() {
       top: chatRef.current.scrollHeight,
       behavior: "smooth",
     });
+
     localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
@@ -42,14 +47,21 @@ export default function Gpt() {
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
+
     if (!SpeechRecognition) return;
 
     const rec = new SpeechRecognition();
     rec.lang = "en-IN";
     rec.interimResults = false;
+
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
-    rec.onresult = (e) => setInput(e.results[0][0].transcript);
+
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      setInput(text);
+    };
+
     recognitionRef.current = rec;
   }, []);
 
@@ -62,11 +74,14 @@ export default function Gpt() {
   /* ================= TTS ================= */
   const speak = (text) => {
     if (!window.speechSynthesis) return;
+
     window.speechSynthesis.cancel();
+
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
     utter.rate = 1;
     utter.pitch = 1;
+
     window.speechSynthesis.speak(utter);
   };
 
@@ -81,16 +96,17 @@ export default function Gpt() {
       id: Date.now(),
       role: "user",
       content: text,
-      timestamp: new Date().toISOString(),
     };
+
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setGenerating(true);
 
     const thinkingId = Date.now() + "-thinking";
+
     setMessages((prev) => [
       ...prev,
-      { id: thinkingId, role: "assistant", type: "thinking", timestamp: new Date().toISOString() },
+      { id: thinkingId, role: "assistant", type: "thinking" },
     ]);
 
     try {
@@ -99,9 +115,11 @@ export default function Gpt() {
         { message: text },
         { timeout: 55000 }
       );
+
       const reply = res.data?.reply || "Hmm… I couldn’t respond.";
 
-      await delay(300);
+      await delay(500);
+
       let current = "";
       const msgId = Date.now() + "-bot";
 
@@ -110,20 +128,26 @@ export default function Gpt() {
           id: msgId,
           role: "assistant",
           content: "",
-          timestamp: new Date().toISOString(),
         })
       );
 
       for (let char of reply) {
         current += char;
         await delay(10);
+
         setMessages((prev) =>
-          prev.map((m) => (m.id === msgId ? { ...m, content: current } : m))
+          prev.map((m) =>
+            m.id === msgId ? { ...m, content: current } : m
+          )
         );
       }
 
+      // speak only short replies (better UX)
       if (reply.length < 200) speak(reply);
+
     } catch (err) {
+      console.log("❌ FRONTEND ERROR:", err);
+
       setMessages((prev) =>
         prev
           .filter((m) => m.id !== thinkingId)
@@ -133,15 +157,17 @@ export default function Gpt() {
             content:
               err.response?.data?.reply ||
               "⚠️ Server not responding. Try again.",
-            timestamp: new Date().toISOString(),
           })
       );
     }
+
     setGenerating(false);
   };
 
   /* ================= COPY ================= */
-  const copyText = (text) => navigator.clipboard.writeText(text);
+  const copyText = (text) => {
+    navigator.clipboard.writeText(text);
+  };
 
   /* ================= UI ================= */
   return (
@@ -149,47 +175,49 @@ export default function Gpt() {
 
       {/* CHAT AREA */}
       <main className="chat-area" ref={chatRef}>
-        <AnimatePresence>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={`msg-row ${msg.role}`}
-            >
-              <div className="msg-avatar">
-                {msg.role === "assistant" ? "🤖" : "🧑"}
-              </div>
+        {messages.map((msg) => (
+          <motion.div
+            key={msg.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`msg-row ${msg.role}`}
+          >
+            <div className="msg-bubble">
 
-              <div className="msg-bubble">
-                {msg.type === "thinking" ? (
-                  <div className="typing">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                ) : (
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                )}
-                {msg.role === "assistant" && msg.content && (
-                  <button className="copy-btn" onClick={() => copyText(msg.content)}>Copy</button>
-                )}
-                <div className="msg-time">
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {/* Copy button */}
+              {msg.role === "assistant" && msg.content && (
+                <button
+                  className="copy-btn"
+                  onClick={() => copyText(msg.content)}
+                >
+                  Copy
+                </button>
+              )}
+
+              {msg.type === "thinking" ? (
+                <div className="typing">
+                  <span></span>
+                  <span></span>
+                  <span></span>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              ) : (
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
+              )}
+
+            </div>
+          </motion.div>
+        ))}
       </main>
 
       {/* INPUT AREA */}
       <div className="input-area">
-        <button onClick={handleMic} className={`mic-btn ${listening ? "active" : ""}`}>
+
+        {/* MIC */}
+        <button onClick={handleMic} className="mic-btn">
           {listening ? "🎙️" : "🎤"}
         </button>
 
+        {/* TEXTAREA */}
         <textarea
           value={input}
           placeholder="Talk to ManifiX..."
@@ -202,9 +230,14 @@ export default function Gpt() {
           }}
         />
 
-        <button className="send-btn" onClick={() => sendMessage(input)}>
+        {/* SEND */}
+        <button
+          className="send-btn"
+          onClick={() => sendMessage(input)}
+        >
           {generating ? "..." : "➤"}
         </button>
+
       </div>
     </div>
   );
