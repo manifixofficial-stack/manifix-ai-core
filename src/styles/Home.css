@@ -34,7 +34,7 @@
   min-height:100vh;
 }
 
-/* centered container */
+/* shared container */
 .hero-content,
 .features,
 .how-it-works,
@@ -49,7 +49,7 @@
 =============================== */
 
 .hero{
-  height:90vh;
+  min-height:90vh;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -92,9 +92,12 @@
   display:flex;
   justify-content:center;
   gap:16px;
+  flex-wrap:wrap;
 }
 
-/* BUTTONS */
+/* ===============================
+   BUTTONS
+=============================== */
 
 .btn-primary{
   padding:14px 32px;
@@ -151,13 +154,15 @@
   font-size:16px;
 }
 
-/* GRID */
+/* GRID FIXED (2 columns) */
 
 .feature-grid{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(2,1fr);
   gap:24px;
 }
+
+/* CARD */
 
 .feature-card{
   padding:28px;
@@ -171,15 +176,35 @@
   transform:translateY(-4px);
 }
 
+/* BIG VARIANT (for your JSX) */
+
+.feature-card.big{
+  padding:32px;
+  background:linear-gradient(180deg,#0b1220,#020617);
+}
+
+/* TEXT */
+
 .feature-card h3{
-  font-size:18px;
-  margin-bottom:10px;
+  font-size:20px;
+  margin-bottom:12px;
 }
 
 .feature-card p{
   font-size:14px;
   color:var(--muted);
   line-height:1.6;
+}
+
+/* MAGIC DETAILS (MISSING FIXED) */
+
+.magic-details{
+  margin-top:16px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  font-size:13px;
+  color:#94a3b8;
 }
 
 /* ===============================
@@ -271,4 +296,48 @@
   border-top:1px solid var(--border);
   color:#64748b;
   font-size:14px;
+}
+
+/* ===============================
+   RESPONSIVE (IMPORTANT)
+=============================== */
+
+@media (max-width:900px){
+
+  .hero-title{
+    font-size:42px;
+  }
+
+  .hero-text{
+    font-size:16px;
+  }
+
+  .feature-grid{
+    grid-template-columns:1fr;
+  }
+
+  .steps{
+    grid-template-columns:1fr;
+  }
+
+  .cta-container{
+    padding:40px 25px;
+  }
+}
+
+@media (max-width:500px){
+
+  .hero-title{
+    font-size:32px;
+  }
+
+  .hero-logo{
+    width:80px;
+  }
+
+  .btn-primary,
+  .btn-secondary{
+    width:100%;
+    text-align:center;
+  }
 }
