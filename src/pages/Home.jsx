@@ -25,10 +25,10 @@ export default function Home() {
 
       {/* ================= SEO ================= */}
       <Helmet>
-        <title>ManifiX AI – Think Clearly. Execute Faster.</title>
+        <title>ManifiX – Think Clearly. Live With Clarity.</title>
         <meta
           name="description"
-          content="ManifiX AI helps you eliminate overthinking, stay focused, and execute faster using AI and the Magic16 system."
+          content="ManifiX combines AI conversations with a 16-minute daily system to improve thinking, focus, and mental clarity."
         />
       </Helmet>
 
@@ -53,8 +53,8 @@ export default function Home() {
             animate="show"
             custom={2}
           >
-            Stop Overthinking. <br />
-            <span>Start Executing.</span>
+            Think Clearly. <br />
+            <span>Live With Clarity.</span>
           </motion.h1>
 
           <motion.p
@@ -64,11 +64,10 @@ export default function Home() {
             animate="show"
             custom={3}
           >
-            ManifiX AI helps creators, developers, and teams think clearly,
-            act faster, and build without distraction using AI and the Magic16 system.
+            ManifiX combines AI conversations with a 16-minute daily system
+            to improve your thinking, focus, and mental clarity.
           </motion.p>
 
-          {/* TRUST LINE */}
           <motion.div
             className="hero-proof"
             variants={fadeUp}
@@ -76,7 +75,7 @@ export default function Home() {
             animate="show"
             custom={4}
           >
-            Trusted by creators, developers, and high-performance teams worldwide
+            Trusted by creators, developers, and focused individuals worldwide
           </motion.div>
 
           <motion.div
@@ -98,57 +97,55 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ================= FEATURES ================= */}
+      {/* ================= CORE FEATURES ================= */}
       <section className="features">
 
         <div className="features-header">
-          <h2>Why ManifiX</h2>
-          <p>Everything you need to think clearly and execute without friction.</p>
+          <h2>Two Systems. One Powerful Mind.</h2>
+          <p>ManifiX combines intelligence and clarity into a single workflow.</p>
         </div>
 
         <div className="feature-grid">
 
-          {[
-            {
-              title: "Instant Clarity",
-              desc: "Get answers and structured thinking in seconds, not minutes.",
-            },
-            {
-              title: "Deep Focus",
-              desc: "Remove distractions and stay locked into meaningful work.",
-            },
-            {
-              title: "Magic16 System",
-              desc: "A daily framework designed to guide decisions and execution.",
-            },
-            {
-              title: "High Performance",
-              desc: "Optimized for speed, reliability, and continuous workflow.",
-            },
-            {
-              title: "Private by Design",
-              desc: "Your data stays secure and fully under your control.",
-            },
-            {
-              title: "Built for Builders",
-              desc: "Designed for creators, developers, and ambitious teams.",
-            },
-          ].map((f, i) => (
-            <motion.div
-              key={i}
-              className="feature-card"
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              custom={i}
-            >
-              <h3>{f.title}</h3>
-              <p>{f.desc}</p>
-            </motion.div>
-          ))}
+          {/* AI SYSTEM */}
+          <motion.div
+            className="feature-card big"
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
+          >
+            <h3>AI Conversations</h3>
+            <p>
+              Ask anything, think clearly, and get structured answers instantly.
+              Designed to eliminate confusion and accelerate execution.
+            </p>
+          </motion.div>
+
+          {/* MAGIC16 SYSTEM */}
+          <motion.div
+            className="feature-card big"
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="show"
+          >
+            <h3>Magic16 System</h3>
+            <p>
+              A daily 16-minute reset. Eight minutes of guided yoga and eight minutes
+              of meditation that adapts to your moment and tracks your mental clarity score.
+            </p>
+
+            {/* DETAILS */}
+            <div className="magic-details">
+              <div>8 min Yoga — Body Activation</div>
+              <div>8 min Meditation — Mind Clarity</div>
+              <div>Real-time Detection — Understand your state</div>
+              <div>Clarity Score — Track your progress</div>
+            </div>
+
+          </motion.div>
 
         </div>
+
       </section>
 
       {/* ================= HOW IT WORKS ================= */}
@@ -189,13 +186,10 @@ export default function Home() {
           whileInView={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
         >
-          <h2>
-            Your Future Doesn’t Wait.
-          </h2>
+          <h2>Your Mind Is Your Advantage.</h2>
 
           <p className="cta-subtext">
-            Start using ManifiX today and take control of your thinking,
-            focus, and execution.
+            Start using ManifiX to think better, stay focused, and perform at your best every day.
           </p>
 
           <div className="cta-buttons">
@@ -209,7 +203,7 @@ export default function Home() {
 
       {/* ================= FOOTER ================= */}
       <footer className="home-footer">
-        <p>© {new Date().getFullYear()} ManifiX AI. All rights reserved.</p>
+        <p>© {new Date().getFullYear()} ManifiX. All rights reserved.</p>
       </footer>
 
     </div>
