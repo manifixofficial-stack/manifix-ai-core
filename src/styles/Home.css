@@ -1,23 +1,19 @@
 /* ===============================
-   ROOT SYSTEM (NEON THEME)
+   ROOT SYSTEM (DESKTOP PRO UI)
 =============================== */
 
 :root{
   --bg:#020617;
-  --bg-soft:#020617;
   --text:#e2e8f0;
   --muted:#94a3b8;
 
   --primary:#00ffd0;
   --accent:#ff00ff;
-  --blue:#3b82f6;
 
   --glass:rgba(255,255,255,0.04);
   --border:rgba(255,255,255,0.08);
 
-  --radius:18px;
-  --radius-sm:12px;
-
+  --radius:20px;
   --transition: all .3s cubic-bezier(.4,0,.2,1);
 }
 
@@ -33,28 +29,21 @@
 }
 
 .home{
-  min-height:100vh;
   background:var(--bg);
   color:var(--text);
+  min-height:100vh;
   overflow-x:hidden;
-  position:relative;
 }
 
-/* animated neon glow background */
+/* cinematic background glow */
 .home::before{
   content:"";
   position:fixed;
   inset:0;
   background:
-    radial-gradient(circle at 20% 30%, rgba(0,255,208,0.08), transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(255,0,255,0.08), transparent 40%);
-  animation: glowMove 10s linear infinite alternate;
+    radial-gradient(circle at 25% 20%, rgba(0,255,208,0.12), transparent 45%),
+    radial-gradient(circle at 80% 70%, rgba(255,0,255,0.12), transparent 45%);
   z-index:0;
-}
-
-@keyframes glowMove{
-  from{ transform:translateY(0px); }
-  to{ transform:translateY(-40px); }
 }
 
 .home > *{
@@ -63,34 +52,35 @@
 }
 
 /* ===============================
-   HERO
+   HERO (DESKTOP FOCUS)
 =============================== */
 
 .hero{
   display:flex;
-  justify-content:center;
   align-items:center;
-  text-align:center;
-  padding:120px 20px 90px;
+  justify-content:center;
+  height:90vh;
+  padding:0 60px;
 }
 
 .hero-content{
-  max-width:900px;
+  max-width:1100px;
+  text-align:center;
 }
 
 /* LOGO */
 .hero-logo{
-  width:110px;
-  margin-bottom:20px;
-  filter: drop-shadow(0 0 15px rgba(0,255,208,.6));
+  width:130px;
+  margin-bottom:30px;
+  filter: drop-shadow(0 0 25px rgba(0,255,208,.8));
 }
 
 /* TITLE */
 .hero-title{
-  font-size:56px;
-  font-weight:800;
-  line-height:1.2;
-  margin-bottom:20px;
+  font-size:68px;
+  font-weight:900;
+  line-height:1.1;
+  margin-bottom:24px;
 }
 
 .hero-title span{
@@ -99,63 +89,61 @@
   color:transparent;
 
   text-shadow:
-    0 0 20px rgba(0,255,208,.5),
-    0 0 40px rgba(255,0,255,.4);
+    0 0 30px rgba(0,255,208,.6),
+    0 0 60px rgba(255,0,255,.5);
 }
 
 /* TEXT */
 .hero-text{
-  font-size:18px;
+  font-size:20px;
   color:var(--muted);
-  max-width:650px;
-  margin:0 auto 20px;
+  max-width:700px;
+  margin:0 auto 30px;
 }
 
-/* TRUST LINE */
+/* TRUST */
 .hero-proof{
-  font-size:14px;
+  font-size:15px;
   color:#64748b;
-  margin-bottom:25px;
+  margin-bottom:35px;
 }
 
 /* BUTTONS */
 .hero-buttons{
   display:flex;
   justify-content:center;
-  gap:14px;
-  flex-wrap:wrap;
+  gap:20px;
 }
 
 .btn-primary{
-  background:linear-gradient(90deg,var(--primary),var(--accent));
-  color:#000;
-  padding:14px 32px;
-  border-radius:var(--radius-sm);
+  padding:16px 40px;
+  border-radius:14px;
   font-weight:700;
+  font-size:16px;
+  color:#000;
   text-decoration:none;
 
+  background:linear-gradient(90deg,var(--primary),var(--accent));
+
   box-shadow:
-    0 0 15px rgba(0,255,208,.6),
-    0 0 30px rgba(255,0,255,.3);
+    0 0 25px rgba(0,255,208,.7),
+    0 0 50px rgba(255,0,255,.4);
 
   transition:var(--transition);
 }
 
 .btn-primary:hover{
-  transform:translateY(-3px) scale(1.03);
-  box-shadow:
-    0 0 25px rgba(0,255,208,1),
-    0 0 50px rgba(255,0,255,.7);
+  transform:translateY(-4px) scale(1.05);
 }
 
 .btn-secondary{
+  padding:16px 36px;
+  border-radius:14px;
   border:1px solid var(--border);
-  padding:14px 28px;
-  border-radius:var(--radius-sm);
   color:#fff;
   text-decoration:none;
 
-  backdrop-filter:blur(10px);
+  backdrop-filter:blur(12px);
   background:rgba(255,255,255,0.03);
 
   transition:var(--transition);
@@ -163,96 +151,99 @@
 
 .btn-secondary:hover{
   background:rgba(255,255,255,0.08);
-  transform:translateY(-2px);
+  transform:translateY(-3px);
 }
 
 /* ===============================
-   FEATURES
+   FEATURES (WIDE GRID)
 =============================== */
 
 .features{
-  padding:100px 20px;
-  max-width:1200px;
-  margin:auto;
+  max-width:1300px;
+  margin:120px auto;
+  padding:0 60px;
 }
 
 .features-header{
   text-align:center;
-  margin-bottom:50px;
+  margin-bottom:60px;
 }
 
 .features-header h2{
-  font-size:36px;
-  margin-bottom:10px;
+  font-size:42px;
+  margin-bottom:12px;
 }
 
 .features-header p{
+  font-size:18px;
   color:var(--muted);
 }
 
+/* GRID */
 .feature-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:24px;
+  grid-template-columns:repeat(3, 1fr);
+  gap:28px;
 }
 
 /* CARD */
 .feature-card{
+  padding:32px;
+  border-radius:var(--radius);
+
   background:var(--glass);
   border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:28px;
-
-  backdrop-filter:blur(12px);
+  backdrop-filter:blur(14px);
 
   transition:var(--transition);
 }
 
 .feature-card:hover{
-  transform:translateY(-6px) scale(1.02);
+  transform:translateY(-8px) scale(1.03);
 
   box-shadow:
-    0 0 20px rgba(0,255,208,.2),
-    0 0 40px rgba(255,0,255,.15);
+    0 0 30px rgba(0,255,208,.2),
+    0 0 60px rgba(255,0,255,.2);
 }
 
 .feature-icon{
-  font-size:32px;
-  margin-bottom:12px;
+  font-size:36px;
+  margin-bottom:14px;
 }
 
 /* ===============================
-   CTA
+   CTA (CENTERPIECE)
 =============================== */
 
 .cta{
-  padding:100px 20px;
-  text-align:center;
+  display:flex;
+  justify-content:center;
+  margin:140px 0;
 }
 
 .cta-container{
-  display:inline-block;
-  padding:50px 60px;
+  padding:70px 120px;
+  border-radius:var(--radius);
 
   background:var(--glass);
   border:1px solid var(--border);
-  border-radius:var(--radius);
+  backdrop-filter:blur(16px);
 
-  backdrop-filter:blur(15px);
+  text-align:center;
 
   box-shadow:
-    0 0 40px rgba(0,255,208,.15);
+    0 0 60px rgba(0,255,208,.15);
 
   transition:var(--transition);
 }
 
 .cta-container:hover{
-  transform:scale(1.03);
+  transform:scale(1.04);
 }
 
 .cta-container h2{
-  font-size:38px;
-  margin-bottom:15px;
+  font-size:46px;
+  margin-bottom:20px;
 }
 
 .cta-container span{
@@ -262,8 +253,9 @@
 }
 
 .cta-subtext{
+  font-size:18px;
   color:var(--muted);
-  margin-bottom:25px;
+  margin-bottom:30px;
 }
 
 /* ===============================
@@ -272,26 +264,7 @@
 
 .home-footer{
   text-align:center;
-  padding:40px 20px;
-  color:#64748b;
+  padding:50px;
   border-top:1px solid var(--border);
-}
-
-/* ===============================
-   RESPONSIVE
-=============================== */
-
-@media(max-width:768px){
-
-  .hero-title{
-    font-size:36px;
-  }
-
-  .cta-container{
-    padding:30px 20px;
-  }
-
-  .features-header h2{
-    font-size:28px;
-  }
+  color:#64748b;
 }
