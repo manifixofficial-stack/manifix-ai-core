@@ -67,7 +67,6 @@ const [reward, setReward] = useState("");
 const [lastScore, setLastScore] = useState(0);
 const [coach, setCoach] = useState("");
 const [userId, setUserId] = useState(localStorage.getItem("magic16_user") || crypto.randomUUID());
-const [coach, setCoach] = useState("");
 const audioRef = useRef(null);
 
 // 📊 progress
@@ -220,7 +219,6 @@ const steps=[
 {type:"meditation",img:med7,text:"Visualize success.",duration:120}
 
 ]
- const winSound = new Audio(winSoundFile);
 const loadChallenge = async (id) => {
 
   const { data } = await supabase
@@ -265,21 +263,7 @@ const challengeId = urlParams.get("challenge")
     alert("🔥 Challenge link copied!")
   }
 }
-  const createChallenge = async () => {
-
-  const { data } = await supabase
-    .from("challenges")
-    .insert([{ host_id: userId }])
-    .select()
-
-  if (data) {
-    const id = data[0].id
-    const link = `${window.location.origin}?challenge=${id}`
-
-    await navigator.clipboard.writeText(link)
-    alert("🔥 Challenge link copied!")
-  }
-}
+ 
 /* ---------------- INIT MAGIC16 ---------------- */
 useEffect(() => {
 
@@ -471,14 +455,36 @@ const detectPose = async () => {
   // 🔁 Loop detection at ~10 FPS
   detectRef.current = requestAnimationFrame(detectPose)
 }
- /* - - - - - - quickstart- - - - - - - - - */
-  
-const quickStart = ()=>{
-setCombo(0)
-setPoints(0)
-setXp(0)
-setLastScore(0)
-setScore(0)
+/* - - - - - - quickstart & start - - - - - - */
+
+const timerRef = useRef(null)
+const detectRef = useRef(null)
+const timeoutRef = useRef(null)
+
+const runDetection = () => {
+  detectPose()
+  detectRef.current = requestAnimationFrame(runDetection)
+}
+
+const finish = () => {
+  // Example finish logic, adjust per your app
+  setPlaying(false)
+  clearInterval(timerRef.current)
+  clearTimeout(timeoutRef.current)
+  cancelAnimationFrame(detectRef.current)
+  speechSynthesis.cancel()
+  setCombo(0)
+  setPoints(0)
+  setLastScore(0)
+  setScores([])
+}
+
+const quickStart = () => {
+  setCombo(0)
+  setPoints(0)
+  setXp(0)
+  setLastScore(0)
+  setScore(0)
   setScores([])
   setPlaying(true)
 
@@ -487,90 +493,68 @@ setScore(0)
   // only 2 steps (short)
   setStepIndex(0)
   setStepTime(30)
-runDetection()
-  timerRef.current = setTimeout(()=>{
+
+  runDetection()
+
+  timeoutRef.current = setTimeout(() => {
     finish()
   }, 120000) // 2 minutes
-
-const runDetection = async () => {
-  await detectPose();
-}
-detectRef.current = requestAnimationFrame(runDetection);
-const start = ()=>{
-setScores([])
-setPoints(0)
-setLastScore(0)
-
-if(playing) return
-
-setPlaying(true)
-
-speak(`Welcome to Magic sixteen. ${dailySteps[0]?.text}`)
-  runDetection() 
-
-timerRef.current = setInterval(()=>{
-
-setTotalTime(prevTotal => {
-
-const newTotal = prevTotal - 1
-
-setProgress(
-  Math.round(((initialTotal - newTotal) / initialTotal) * 100)
-)
-
-return newTotal
-})
-
-setStepTime(prev => {
-
-if(prev <= 1){
-
-setStepIndex(prevIndex => {
-
-const next = prevIndex + 1
-
-if(next >= dailySteps.length){
-finish()
-return prevIndex
 }
 
-if(dailySteps[next].type === "meditation"){
-audioRef.current?.play()
-}else{
-audioRef.current?.pause()
-}
+const start = () => {
+  setScores([])
+  setPoints(0)
+  setLastScore(0)
 
-speak(dailySteps[next].text)
-setStepTime(dailySteps[next].duration)
+  if (playing) return
 
-return next
-})
+  setPlaying(true)
 
-return prev
-}
+  speak(`Welcome to Magic sixteen. ${dailySteps[0]?.text}`)
 
-return prev - 1
+  runDetection()
 
-})
+  timerRef.current = setInterval(() => {
+    setTotalTime(prevTotal => {
+      const newTotal = prevTotal - 1
+      setProgress(Math.round(((initialTotal - newTotal) / initialTotal) * 100))
+      return newTotal
+    })
 
-},1000)
+    setStepTime(prev => {
+      if (prev <= 1) {
+        setStepIndex(prevIndex => {
+          const next = prevIndex + 1
+          if (next >= dailySteps.length) {
+            finish()
+            return prevIndex
+          }
+
+          if (dailySteps[next].type === "meditation") {
+            audioRef.current?.play()
+          } else {
+            audioRef.current?.pause()
+          }
+
+          speak(dailySteps[next].text)
+          setStepTime(dailySteps[next].duration)
+          return next
+        })
+        return 0
+      }
+      return prev - 1
+    })
+  }, 1000)
 }
 
 const stop = () => {
-  // Stop timers
   clearInterval(timerRef.current)
-  clearTimeout(timeoutRef.current) // if you separate quickStart timeout
-  // Stop detection loop
+  clearTimeout(timeoutRef.current)
   cancelAnimationFrame(detectRef.current)
-
-  // Stop voice coach
   speechSynthesis.cancel()
-
-  // Pause audio and reset
   audioRef.current?.pause()
   audioRef.current.currentTime = 0
 
-  // Reset state
   setPlaying(false)
   setCombo(0)
   setPoints(0)
@@ -598,9 +582,7 @@ const finish = async () => {
   })
   if (historyData.length > 7) historyData.shift()
   localStorage.setItem("magic16_history", JSON.stringify(historyData))
-const [yesterdayScore, setYesterdayScore] = useState(
-  Number(localStorage.getItem("magic16_lastScore") || 0)
-);
+
   // ✅ update streak
   let s = Number(localStorage.getItem("magic16_streak") || 0)
   if (lastDate !== today) {
@@ -622,8 +604,9 @@ const [yesterdayScore, setYesterdayScore] = useState(
 
   setFinalScore(calculatedFinalScore)
   setGoalAchieved(calculatedFinalScore >= dailyGoal)
+  
+  // ✅ Save yesterday score outside hook
   localStorage.setItem("magic16_lastScore", calculatedFinalScore)
-  setYesterdayScore(calculatedFinalScore)
   localStorage.setItem("magic16_lastDate", today)
   setCompleted(true)
 
@@ -666,7 +649,6 @@ const [yesterdayScore, setYesterdayScore] = useState(
     allScores.findIndex(p => p.score === calculatedFinalScore) + 1
   setUserRank(rank)
 }
-
 /* ---------------- ONE MINUTE RESET ---------------- */
 
 const oneMinReset = () => {
