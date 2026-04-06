@@ -505,7 +505,10 @@ const start = () => {
   speak(`Welcome to Magic sixteen. ${dailySteps[0]?.text}`)
 
   runDetection()
-
+// calculate total time from dailySteps
+  const initialTotal = dailySteps.reduce((sum, step) => sum + step.duration, 0)
+  setTotalTime(initialTotal)
+  setProgress(0)
   timerRef.current = setInterval(() => {
     const [initialTotal, setInitialTotal] = useState(dailySteps.reduce((sum, step) => sum + step.duration, 0))
     setTotalTime(prevTotal => {
