@@ -2,7 +2,7 @@ import * as posedetection from "@tensorflow-models/pose-detection"
 import "@tensorflow/tfjs-backend-webgl"
 import * as tf from "@tensorflow/tfjs"
 import confetti from "canvas-confetti"
-import { supabase } from "../supabaseClient"
+import supabaseClient from "../services/supabase";
 import "../styles/magic16.css"
 import logo from "../assets/logo.png"
 import html2canvas from "html2canvas"
