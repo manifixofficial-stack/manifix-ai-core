@@ -1,4 +1,4 @@
-this is gpt code import * as posedetection from "@tensorflow-models/pose-detection"
+import * as posedetection from "@tensorflow-models/pose-detection"
 import "@tensorflow/tfjs-backend-webgl"
 import * as tf from "@tensorflow/tfjs"
 import confetti from "canvas-confetti"
@@ -269,4 +269,4 @@ export default function Magic16(){
       </div>
     </div>
   )
-} this is gpt generte code
+} 
