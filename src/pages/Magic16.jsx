@@ -2,7 +2,7 @@ import * as posedetection from "@tensorflow-models/pose-detection"
 import "@tensorflow/tfjs-backend-webgl"
 import * as tf from "@tensorflow/tfjs"
 import confetti from "canvas-confetti"
-import { supabase } from "../supabaseClient"
+import { supabase } from "../services/supabase"
 import "../styles/magic16.css"
 import logo from "../assets/logo.png"
 import html2canvas from "html2canvas"
@@ -31,7 +31,7 @@ import successSound from "../assets/audio/success.mp3"
 import failSound from "../assets/audio/fail.mp3"
 import comboSound from "../assets/audio/combo.mp3"
 import countdownSound from "../assets/audio/countdown.mp3" 
-const winSound = new Audio("../assets/audio/win.mp3")
+import winSoundFile from "../assets/audio/win.mp3"
 
 /* meditation audio */
 import meditationAudio from "../assets/audio/meditation/meditation.mp3"
@@ -43,7 +43,9 @@ const videoRef = useRef(null)
 const detectorRef = useRef(null)
 const detectRef = useRef(null)
 const timerRef = useRef(null)
-
+const timeoutRef = useRef(null)
+const rewardTimeoutRef = useRef(null)
+  const lastRunRef = useRef(0)
 // 🔊 AUDIO SYSTEM (FIXED PATHS)
 const successSoundRef = useRef(new Audio(successSound))
 const failSoundRef = useRef(new Audio(failSound))
@@ -67,7 +69,7 @@ const [lastScore, setLastScore] = useState(0);
 const [coach, setCoach] = useState("");
 const [userId, setUserId] = useState(localStorage.getItem("magic16_user") || crypto.randomUUID());
 const audioRef = useRef(null);
-
+const [initialTotal, setInitialTotal] = useState(0)
 // 📊 progress
 const [progress, setProgress] = useState(0)
 const [xp, setXp] = useState(0)
@@ -160,24 +162,20 @@ const speak = (text, options = {}) => {
   speechSynthesis.speak(msg)
 }
 
-// Example usage:
-speak("🔥 Excellent posture! Keep going!", { rate: 1, pitch: 1.1 })
-speak("💪 Great flow! Streak +1!", { rate: 0.95, pitch: 1 })
-
 /* ---------------- MOVEMENT ANALYSIS ---------------- */
 const analyzeMovement = (score) => {
   let level
 
   if (score > 85) {
     level = "excellent"
-    successSoundRef.current.play()
+    successSoundRef.current.play().catch(() => {})
     confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } })
   } else if (score > 65) {
     level = "good"
-    comboSoundRef.current.play()
+    comboSoundRef.current.play().catch(() => {})
   } else {
     level = "improve"
-    failSoundRef.current.play()
+ failSoundRef.current.play().catch(() => {})
   }
 
   const messages = healthMessages[level]
@@ -289,8 +287,6 @@ const quickStartFinish = () => {
   confetti({ particleCount: 50, spread: 100 })
   speak("Quick session complete! Well done.")
 }
-  const urlParams = new URLSearchParams(window.location.search)
-  const challengeId = urlParams.get("challenge")
 
   const init = async () => {
     const userId =
@@ -369,21 +365,28 @@ const quickStartFinish = () => {
 
   init()
 
-  return () => {
-    clearInterval(timerRef.current)
-    cancelAnimationFrame(detectRef.current)
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-    }
+return () => {
+  clearInterval(timerRef.current)
+  clearTimeout(timeoutRef.current)
+  clearTimeout(rewardTimeoutRef.current)
+  cancelAnimationFrame(detectRef.current)
+
+  if (videoRef.current?.srcObject) {
+    videoRef.current.srcObject.getTracks().forEach(track => track.stop())
   }
+}
 }, [])
 /* ---------------- POSE DETECTION ---------------- */
+
+let lastRun = 0   // ✅ ADD THIS ABOVE
+
 const detectPose = async () => {
+  const now = Date.now()                     // ✅ ADD
+  if (now - lastRun < 100) return           // ✅ ADD (limits speed)
+  lastRun = now     // ✅ ADD
   if (!detectorRef.current || !videoRef.current) return
-
-  const poses = await detectorRef.current.estimatePoses(videoRef.current)
+ const poses = await detectorRef.current.estimatePoses(videoRef.current)
   if (!poses.length) return
-
   const kp = poses[0].keypoints
   const hip = kp.find(k => k.name === "left_hip")
   const knee = kp.find(k => k.name === "left_knee")
@@ -398,10 +401,9 @@ const detectPose = async () => {
     const sc = Math.round(Math.max(0, 100 - Math.abs(angle - 90)))
 
     setScore(sc)
-
-    // ✅ Compute new combo value correctly
-    const newCombo = sc > 80 ? combo + 1 : 0
-    setCombo(newCombo)
+const newCombo = sc > 80 ? combo + 1 : 0
+setCombo(newCombo)
+  
 
     // 🎯 Update score array & rewards
     setScores(prev => {
@@ -424,7 +426,7 @@ const detectPose = async () => {
     if (sc > lastScore + 8) {
       try {
         successSoundRef.current.currentTime = 0
-        successSoundRef.current.play()
+      successSoundRef.current.play().catch(() => {})
       } catch {}
       setReward("🔥 Great posture! +8")
     }
@@ -432,7 +434,7 @@ const detectPose = async () => {
     if (newCombo === 4) {
       try {
         comboSoundRef.current.currentTime = 0
-        comboSoundRef.current.play()
+       comboSoundRef.current.play().catch(() => {})
       } catch {}
       confetti({ particleCount: 50, spread: 90, origin: { y: 0.5 } })
     }
@@ -441,38 +443,20 @@ const detectPose = async () => {
     setPoints(prev => prev + 8)
     setXp(prev => Math.min(prev + 5, xpToNext))
 
-    // 🕒 Reward timer
-    clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => setReward(""), 1500)
+   clearTimeout(rewardTimeoutRef.current)
+rewardTimeoutRef.current = setTimeout(() => setReward(""), 1500)
 
     setLastScore(sc)
 
     // 💡 Human coach feedback
     analyzeMovement(sc)
   }
-
-  // 🔁 Loop detection at ~10 FPS
-  detectRef.current = requestAnimationFrame(detectPose)
-}
-/* - - - - - - quickstart & start - - - - - - */
 const runDetection = () => {
   detectPose()
   detectRef.current = requestAnimationFrame(runDetection)
 }
-
-const finish = () => {
-  // Example finish logic, adjust per your app
-  setPlaying(false)
-  clearInterval(timerRef.current)
-  clearTimeout(timeoutRef.current)
-  cancelAnimationFrame(detectRef.current)
-  speechSynthesis.cancel()
-  setCombo(0)
-  setPoints(0)
-  setLastScore(0)
-  setScores([])
-}
-
+/* - - - - - - quickstart & start - - - - - - */
+// ⚡ Quick session (2 min)
 const quickStart = () => {
   setCombo(0)
   setPoints(0)
@@ -480,39 +464,53 @@ const quickStart = () => {
   setLastScore(0)
   setScore(0)
   setScores([])
+
+  setStepIndex(0)
+  setStepTime(30)
+
   setPlaying(true)
 
   speak("Quick recovery session started")
-
-  // only 2 steps (short)
-  setStepIndex(0)
-  setStepTime(30)
 
   runDetection()
 
   timeoutRef.current = setTimeout(() => {
     finish()
-  }, 120000) // 2 minutes
+  }, 120000) // 2 min
 }
 
+// 🚀 Main start
 const start = () => {
+  if (playing) return
+
   setScores([])
   setPoints(0)
   setLastScore(0)
 
-  if (playing) return
+  // ✅ calculate once
+  const total = dailySteps.reduce((sum, step) => sum + step.duration, 0)
+
+  setInitialTotal(total)
+  setTotalTime(total)
+
+  // ✅ initialize first step
+  setStepIndex(0)
+  setStepTime(dailySteps[0]?.duration || 0)
 
   setPlaying(true)
 
-  speak(`Welcome to Magic sixteen. ${dailySteps[0]?.text}`)
+  speak(`Welcome to Magic sixteen. ${dailySteps[0]?.text || ""}`)
 
   runDetection()
 
   timerRef.current = setInterval(() => {
-    const [initialTotal, setInitialTotal] = useState(dailySteps.reduce((sum, step) => sum + step.duration, 0))
     setTotalTime(prevTotal => {
       const newTotal = prevTotal - 1
-      setProgress(Math.round(((initialTotal - newTotal) / initialTotal) * 100))
+
+      if (total > 0) {
+        setProgress(Math.round(((total - newTotal) / total) * 100))
+      }
+
       return newTotal
     })
 
@@ -520,35 +518,47 @@ const start = () => {
       if (prev <= 1) {
         setStepIndex(prevIndex => {
           const next = prevIndex + 1
+
+          // ✅ finish when steps end
           if (next >= dailySteps.length) {
             finish()
             return prevIndex
           }
 
+          // 🎧 meditation audio
           if (dailySteps[next].type === "meditation") {
-            audioRef.current?.play()
+            audioRef.current?.play()?.catch(() => {})
           } else {
             audioRef.current?.pause()
+            if (audioRef.current) audioRef.current.currentTime = 0
           }
 
+          // 🔊 speak next step
           speak(dailySteps[next].text)
+
           setStepTime(dailySteps[next].duration)
+
           return next
         })
+
         return 0
       }
+
       return prev - 1
     })
   }, 1000)
 }
 
+// 🛑 Stop manually
 const stop = () => {
   clearInterval(timerRef.current)
   clearTimeout(timeoutRef.current)
   cancelAnimationFrame(detectRef.current)
+
   speechSynthesis.cancel()
+
   audioRef.current?.pause()
-  audioRef.current.currentTime = 0
+  if (audioRef.current) audioRef.current.currentTime = 0
 
   setPlaying(false)
   setCombo(0)
@@ -594,9 +604,9 @@ const finish = async () => {
 
   // ✅ visual/audio feedback
   confetti({ particleCount: 200, spread: 120 })
-  const winSound = new Audio("../assets/audio/win.mp3")
-  winSound.play().catch(() => {})
-
+const winSound = new Audio(winSoundFile)
+winSound.play().catch(() => {})
+ 
   setFinalScore(calculatedFinalScore)
   setGoalAchieved(calculatedFinalScore >= dailyGoal)
   
