@@ -32,7 +32,7 @@ import failSound from "../assets/audio/fail.mp3"
 import comboSound from "../assets/audio/combo.mp3"
 import countdownSound from "../assets/audio/countdown.mp3" 
 const winSound = new Audio("../assets/audio/win.mp3")
-const winSound = new Audio(winSoundFile);
+
 /* meditation audio */
 import meditationAudio from "../assets/audio/meditation/meditation.mp3"
 import { useRef, useEffect, useState } from "react"
@@ -48,7 +48,6 @@ const timerRef = useRef(null)
 const successSoundRef = useRef(new Audio(successSound))
 const failSoundRef = useRef(new Audio(failSound))
 const comboSoundRef = useRef(new Audio(comboSound))
-const winSoundRef = useRef(new Audio("/assets/audio/win.mp3"))
 const meditationRef = useRef(new Audio(meditationAudio))
 
 /* ---------------- CORE STATE ---------------- */
@@ -456,11 +455,6 @@ const detectPose = async () => {
   detectRef.current = requestAnimationFrame(detectPose)
 }
 /* - - - - - - quickstart & start - - - - - - */
-
-const timerRef = useRef(null)
-const detectRef = useRef(null)
-const timeoutRef = useRef(null)
-
 const runDetection = () => {
   detectPose()
   detectRef.current = requestAnimationFrame(runDetection)
@@ -515,6 +509,7 @@ const start = () => {
   runDetection()
 
   timerRef.current = setInterval(() => {
+    const [initialTotal, setInitialTotal] = useState(dailySteps.reduce((sum, step) => sum + step.duration, 0))
     setTotalTime(prevTotal => {
       const newTotal = prevTotal - 1
       setProgress(Math.round(((initialTotal - newTotal) / initialTotal) * 100))
@@ -682,6 +677,7 @@ const share = async () => {
 
   const canvas = await html2canvas(card)
   const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"))
+ if (!blob) return alert("Failed to capture image")
   const file = new File([blob], "magic16.png", { type: "image/png" })
 
   // 🎉 combo shake effect
