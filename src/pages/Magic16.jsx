@@ -374,7 +374,7 @@ const quickStartFinish = () => {
       videoRef.current.srcObject.getTracks().forEach(track => track.stop())
     }
   }
-}, [])
+}, []) 
 /* ---------------- POSE DETECTION ---------------- */
 const detectPose = async () => {
   if (!detectorRef.current || !videoRef.current) return
@@ -506,42 +506,39 @@ const start = () => {
 
   runDetection()
 // calculate total time from dailySteps
-  const initialTotal = dailySteps.reduce((sum, step) => sum + step.duration, 0)
-  setTotalTime(initialTotal)
-  setProgress(0)
-  timerRef.current = setInterval(() => {
-    const [initialTotal, setInitialTotal] = useState(dailySteps.reduce((sum, step) => sum + step.duration, 0))
-    setTotalTime(prevTotal => {
-      const newTotal = prevTotal - 1
-      setProgress(Math.round(((initialTotal - newTotal) / initialTotal) * 100))
-      return newTotal
-    })
+ const initialTotal = dailySteps.reduce((sum, step) => sum + step.duration, 0)
 
-    setStepTime(prev => {
-      if (prev <= 1) {
-        setStepIndex(prevIndex => {
-          const next = prevIndex + 1
-          if (next >= dailySteps.length) {
-            finish()
-            return prevIndex
-          }
+timerRef.current = setInterval(() => {
+  setTotalTime(prevTotal => {
+    const newTotal = prevTotal - 1
+    setProgress(Math.round(((initialTotal - newTotal) / initialTotal) * 100))
+    return newTotal
+  })
 
-          if (dailySteps[next].type === "meditation") {
-            audioRef.current?.play()
-          } else {
-            audioRef.current?.pause()
-          }
+  setStepTime(prev => {
+    if (prev <= 1) {
+      setStepIndex(prevIndex => {
+        const next = prevIndex + 1
+        if (next >= dailySteps.length) {
+          finish()
+          return prevIndex
+        }
 
-          speak(dailySteps[next].text)
-          setStepTime(dailySteps[next].duration)
-          return next
-        })
-        return 0
-      }
-      return prev - 1
-    })
-  }, 1000)
-}
+        if (dailySteps[next].type === "meditation") {
+          audioRef.current?.play()
+        } else {
+          audioRef.current?.pause()
+        }
+
+        speak(dailySteps[next].text)
+        setStepTime(dailySteps[next].duration)
+        return next
+      })
+      return 0
+    }
+    return prev - 1
+  })
+}, 1000)
 
 const stop = () => {
   clearInterval(timerRef.current)
