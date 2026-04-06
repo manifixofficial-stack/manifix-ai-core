@@ -289,8 +289,6 @@ const quickStartFinish = () => {
   confetti({ particleCount: 50, spread: 100 })
   speak("Quick session complete! Well done.")
 }
-  const urlParams = new URLSearchParams(window.location.search)
-  const challengeId = urlParams.get("challenge")
 
   const init = async () => {
     const userId =
@@ -376,7 +374,7 @@ const quickStartFinish = () => {
       videoRef.current.srcObject.getTracks().forEach(track => track.stop())
     }
   }
-}, [])
+} [])
 /* ---------------- POSE DETECTION ---------------- */
 const detectPose = async () => {
   if (!detectorRef.current || !videoRef.current) return
