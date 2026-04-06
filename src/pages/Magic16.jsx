@@ -374,7 +374,7 @@ const quickStartFinish = () => {
       videoRef.current.srcObject.getTracks().forEach(track => track.stop())
     }
   }
-} [])
+}, [])
 /* ---------------- POSE DETECTION ---------------- */
 const detectPose = async () => {
   if (!detectorRef.current || !videoRef.current) return
