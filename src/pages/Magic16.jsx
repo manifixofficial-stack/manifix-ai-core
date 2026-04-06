@@ -670,23 +670,20 @@ const oneMinReset = () => {
   }, 1000)
 }
 
-/* ---------------- SHARE ---------------- */
-
 const share = async () => {
   const card = document.getElementById("share-card")
   if (!card) return
 
+  // HTML → canvas
   const canvas = await html2canvas(card)
+
+  // convert canvas → Blob
   const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"))
- if (!blob) return alert("Failed to capture image")
+  if (!blob) return alert("Failed to capture image")  // <- this line handles errors
+
   const file = new File([blob], "magic16.png", { type: "image/png" })
 
-  // 🎉 combo shake effect
-  if (combo >= 4) {
-    document.body.classList.add("shake")
-    setTimeout(() => document.body.classList.remove("shake"), 200)
-  }
-
+  // Share via Web Share API or fallback download
   try {
     if (navigator.share) {
       await navigator.share({
