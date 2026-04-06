@@ -26,8 +26,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     rollupOptions: {
-      // Externalize react-icons/fa to avoid Vite resolution issues
-      external: ["react-icons/fa"],
+      // Externalize modules to prevent Vite resolution issues
+      external: ["react-icons/fa", "html2canvas"],
     },
   },
 
@@ -39,7 +39,8 @@ export default defineConfig({
       "remark-gfm",
       "rehype-raw",
       "rehype-sanitize",
-      "react-markdown"
+      "react-markdown",
+      "html2canvas", // pre-bundle html2canvas for dev server
     ],
   },
 
