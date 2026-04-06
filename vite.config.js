@@ -27,7 +27,7 @@ export default defineConfig({
     outDir: "dist",
     rollupOptions: {
       // Externalize modules to prevent Vite resolution issues
-      external: ["react-icons/fa", "html2canvas"],
+      external: ["react-icons/fa"],
     },
   },
 
