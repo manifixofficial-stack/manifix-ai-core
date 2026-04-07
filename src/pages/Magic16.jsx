@@ -31,7 +31,6 @@ import successSound from "../assets/audio/success.mp3"
 import failSound from "../assets/audio/fail.mp3"
 import comboSound from "../assets/audio/combo.mp3"
 import countdownSound from "../assets/audio/countdown.mp3" 
-import winSoundFile from "../assets/audio/win.mp3"
 
 /* meditation audio */
 import meditationAudio from "../assets/audio/meditation/meditation.mp3"
