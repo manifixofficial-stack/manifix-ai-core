@@ -126,7 +126,7 @@ export default function Landing() {
         <h1 className="brand-name">ManifiX</h1>
 
         <p className="brand-tagline">
-          Build Faster. Think Smarter. Win Bigger.
+          A simple 16-minute daily system to improve focus, clarity, and discipline.
         </p>
 
         <h2 className="hero-title">
@@ -139,38 +139,32 @@ export default function Landing() {
       <section className="landing-hero">
         <h2 className="hero-title">16 Minutes. Infinite Power.</h2>
         <p className="hero-description">
-          Unlock clarity, focus, and energy using AI-guided rituals and tools
-          designed for high performers and future leaders.
+         If you struggle to stay focused, this 16-minute system will help you build discipline daily.
         </p>
 
-        <div className="hero-features">
-          <div className="feature">
-            <h3>Magic16 Ritual</h3>
-            <p>
-              8 minutes meditation + 8 minutes reflection.
-              Track your posture, energy, and progress daily.
-            </p>
-          </div>
+     <div className="feature">
+  <h3>🔥 Magic16 Routine</h3>
+  <p>16-minute daily system to build focus.</p>
+</div>
 
-          <div className="feature">
-            <h3>AI Coach</h3>
-            <p>
-              Ask deep questions and receive contextual guidance powered by GPT.
-            </p>
-          </div>
-          
-          <div className="feature">
-            <h3>Premium Tools</h3>
-            <p>
-              Access unlimited Magic16 sessions, advanced analytics, and personalized recommendations.
-            </p>
-          </div>
-        </div>
+<div className="feature">
+  <h3>📊 Daily Score</h3>
+  <p>Track your discipline every day.</p>
+</div>
 
+<div className="feature">
+  <h3>🧘 Guided Flow</h3>
+  <p>Yoga + meditation with AI support.</p>
+</div>
+
+<div className="feature">
+  <h3>🤖 AI Coach</h3>
+  <p>Ask anything and get instant clarity.</p>
+</div>
         {/* ---------------- CALL TO ACTION ---------------- */}
         <div className="cta-container">
           <Link to="/signup" className="landing-button primary">
-            Start Free →
+             Start Your 16-Min Routine →
           </Link>
 
           <Link to="/login" className="landing-button secondary">
@@ -179,7 +173,7 @@ export default function Landing() {
         </div>
 
         <p className="landing-quote">
-          Built for creators. Designed for leaders. Trusted by visionaries.
+           Start small. Build daily. See results in 16 minutes.
         </p>
       </section>
 
@@ -204,11 +198,11 @@ export default function Landing() {
       {/* ---------- FINAL CTA ---------- */}
       <section className="final-cta">
 
-        <h2>Start Your Transformation Today</h2>
+       <h2>Start Your 16-Minute Routine Today</h2>
 
-        <Link to="/signup" className="landing-button primary big">
-          Join ManifiX Free
-        </Link>
+<Link to="/signup" className="landing-button primary big">
+  Start Your 16-Min Routine →
+</Link>
 
       </section>
 
