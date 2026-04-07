@@ -380,17 +380,23 @@ useEffect(() => {
     clearTimeout(rewardTimeoutRef.current)
   clearInterval(timerRef.current)              // ✅ ADD THIS
   cancelAnimationFrame(detectRef.current)   // ✅ ADD THIS
-    audioRef.current?.pause()
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-    }
+    
+    // 🔊 SAFE AUDIO CLEANUP
+  if (audioRef.current) {
+    audioRef.current.pause()
+    audioRef.current.currentTime = 0
   }
 
+  if (videoRef.current?.srcObject) {
+    videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+  }
+}
 }, [])
  
 /* ---------------- POSE DETECTION ---------------- */
 const detectPose = async () => {
     if (!playing) return
+  if (!videoRef.current) return
   const now = Date.now()
   if (now - lastRunRef.current < 100) return
   lastRunRef.current = now
