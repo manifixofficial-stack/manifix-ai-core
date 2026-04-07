@@ -145,27 +145,24 @@ const healthMessages = {
   ]
 }
 
-/* ---------------- VOICE COACH ---------------- */
 const speak = (text, options = {}) => {
   if (!window.speechSynthesis) return
-if (speechSynthesis.speaking) {
-  speechSynthesis.cancel()
-}
 
-setTimeout(() => {
-  speechSynthesis.speak(msg)
-}, 100)
-  const msg = new SpeechSynthesisUtterance(text)
+  if (speechSynthesis.speaking) {
+    speechSynthesis.cancel()
+  }
 
-  // Randomize slightly for more human-like vibe
+  const msg = new SpeechSynthesisUtterance(text) // ✅ DEFINE FIRST
+
   msg.rate = options.rate || (0.85 + Math.random() * 0.15)
   msg.pitch = options.pitch || (0.9 + Math.random() * 0.2)
   msg.lang = "en-US"
 
-  // Optional callback when done speaking
   if (options.onEnd) msg.onend = options.onEnd
 
-  speechSynthesis.speak(msg)
+  setTimeout(() => {
+    speechSynthesis.speak(msg)
+  }, 100)
 }
 
 const analyzeMovement = (score) => {
