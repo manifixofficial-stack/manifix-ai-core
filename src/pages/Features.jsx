@@ -2,7 +2,7 @@ import React from "react";
 import { useParams, Link } from "react-router-dom";
 import "../styles/Features.css";
 import logo from "../assets/logo.png";
-import { LightningBoltIcon, ClockIcon, SparklesIcon, ChatBubbleOvalLeftEllipsisIcon } from "@heroicons/react/24/outline";
+import { BoltIcon, ClockIcon, SparklesIcon, ChatBubbleOvalLeftEllipsisIcon } from "@heroicons/react/24/outline";
 
 export default function Features() {
   const { feature = "gpt" } = useParams();
