@@ -46,6 +46,8 @@ const timerRef = useRef(null)
 const timeoutRef = useRef(null)
 const rewardTimeoutRef = useRef(null)
   const lastRunRef = useRef(0)
+  const lastSpeakRef = useRef(0)
+  const lastLevelRef = useRef("")
 // 🔊 AUDIO SYSTEM (FIXED PATHS)
 const successSoundRef = useRef(new Audio(successSound))
 const failSoundRef = useRef(new Audio(failSound))
@@ -146,9 +148,13 @@ const healthMessages = {
 /* ---------------- VOICE COACH ---------------- */
 const speak = (text, options = {}) => {
   if (!window.speechSynthesis) return
-
+if (speechSynthesis.speaking) {
   speechSynthesis.cancel()
+}
 
+setTimeout(() => {
+  speechSynthesis.speak(msg)
+}, 100)
   const msg = new SpeechSynthesisUtterance(text)
 
   // Randomize slightly for more human-like vibe
@@ -162,36 +168,52 @@ const speak = (text, options = {}) => {
   speechSynthesis.speak(msg)
 }
 
-/* ---------------- MOVEMENT ANALYSIS ---------------- */
 const analyzeMovement = (score) => {
   let level
 
   if (score > 85) {
     level = "excellent"
-    successSoundRef.current.play().catch(() => {})
-    confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } })
   } else if (score > 65) {
     level = "good"
-    comboSoundRef.current.play().catch(() => {})
   } else {
     level = "improve"
- failSoundRef.current.play().catch(() => {})
   }
 
   const messages = healthMessages[level]
 
-  // Randomly pick a message & add hype emoji
   const message =
     messages[Math.floor(Math.random() * messages.length)] +
     (level === "excellent" ? " 🔥💪" : level === "good" ? " ⚡😊" : " ⚠️🤏")
 
-  // Update coach text
+  // ✅ Always update UI text (fast)
   setCoach(message)
 
-  // Speak message dynamically
-  speak(message)
-}
+  const now = Date.now()
 
+  // ✅ ONLY trigger effects when level changes
+  if (lastLevelRef.current !== level) {
+    lastLevelRef.current = level
+
+    if (level === "excellent") {
+      successSoundRef.current.currentTime = 0
+      successSoundRef.current.play().catch(() => {})
+
+      confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } })
+    } else if (level === "good") {
+      comboSoundRef.current.currentTime = 0
+      comboSoundRef.current.play().catch(() => {})
+    } else {
+      failSoundRef.current.currentTime = 0
+      failSoundRef.current.play().catch(() => {})
+    }
+  }
+
+  // ✅ VOICE THROTTLE (every 3 sec only)
+  if (now - lastSpeakRef.current > 3000) {
+    speak(message)
+    lastSpeakRef.current = now
+  }
+}
 /* ---------------- STEPS ---------------- */
 
 const steps=[
@@ -272,21 +294,6 @@ useEffect(() => {
     }
     return arr
   }
- if(combo >= 3){
-    confetti({ particleCount: 25, spread: 80 })
-    comboSoundRef.current.currentTime = 0
-    comboSoundRef.current.play().catch(()=>{})
-  }
-}, [combo])
-
-// ⚡ reward at quickStart end
-const quickStartFinish = () => {
-  setPlaying(false)
-  setReward("🏆 Quick session complete! +10 XP")
-  setXp(prev => Math.min(prev + 10, xpToNext))
-  confetti({ particleCount: 50, spread: 100 })
-  speak("Quick session complete! Well done.")
-}
 
   const init = async () => {
     const userId =
@@ -298,45 +305,49 @@ const quickStartFinish = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
       if (videoRef.current) videoRef.current.srcObject = stream
     } catch (err) {
-      console.error("Camera error:", err)
       alert("Camera access is required")
       return
     }
 
-    // 📅 STREAK SYSTEM
+    // 📅 STREAK
     const today = new Date().toDateString()
     const lastDate = localStorage.getItem("magic16_lastDate")
+
     if (lastDate) {
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
+
       if (lastDate !== today && lastDate !== yesterday.toDateString()) {
         setStreak(0)
         localStorage.setItem("magic16_streak", 0)
-        alert("⚠ You lost your streak!")
       }
     }
 
     // 📊 LEADERBOARD
     await loadLeaderboard()
 
-    // 🔗 CHALLENGE SYSTEM
+    // 🔗 CHALLENGE
     if (challengeId) {
       await supabase
         .from("challenges")
         .update({ friend_id: userId })
         .eq("id", challengeId)
+
       await loadChallenge(challengeId)
     }
 
     // 🎯 DAILY VARIATION
     let savedDate = localStorage.getItem("magic16_variation_date")
     let savedSteps = localStorage.getItem("magic16_variation_steps")
+
     if (savedDate === today && savedSteps) {
       setDailySteps(JSON.parse(savedSteps))
     } else {
       const yogaSteps = steps.filter(s => s.type === "yoga")
       const meditationSteps = steps.filter(s => s.type === "meditation")
+
       const newSteps = [...shuffleArray(yogaSteps), ...meditationSteps]
+
       setDailySteps(newSteps)
       localStorage.setItem("magic16_variation_date", today)
       localStorage.setItem("magic16_variation_steps", JSON.stringify(newSteps))
@@ -345,6 +356,7 @@ const quickStartFinish = () => {
     // 🧠 POSE DETECTION
     await tf.ready()
     await tf.setBackend("webgl")
+
     detectorRef.current = await posedetection.createDetector(
       posedetection.SupportedModels.MoveNet,
       { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
@@ -355,7 +367,6 @@ const quickStartFinish = () => {
     audioRef.current.loop = true
     audioRef.current.volume = 0.4
 
-    // ✅ VIRAL HOOKS: preload success/fail/combo sounds
     successSoundRef.current = new Audio(successSound)
     failSoundRef.current = new Audio(failSound)
     comboSoundRef.current = new Audio(comboSound)
@@ -365,28 +376,33 @@ const quickStartFinish = () => {
 
   init()
 
-return () => {
-  clearInterval(timerRef.current)
-  clearTimeout(timeoutRef.current)
-  clearTimeout(rewardTimeoutRef.current)
-  cancelAnimationFrame(detectRef.current)
-
-  if (videoRef.current?.srcObject) {
-    videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+  // ✅ CLEANUP (IMPORTANT)
+  return () => {
+   
+    clearTimeout(timeoutRef.current)
+    clearTimeout(rewardTimeoutRef.current)
+  clearInterval(timerRef.current)              // ✅ ADD THIS
+  cancelAnimationFrame(detectRef.current)   // ✅ ADD THIS
+    audioRef.current?.pause()
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+    }
   }
-}
+
 }, [])
+ 
 /* ---------------- POSE DETECTION ---------------- */
-
-let lastRun = 0   // ✅ ADD THIS ABOVE
-
 const detectPose = async () => {
-  const now = Date.now()                     // ✅ ADD
-  if (now - lastRun < 100) return           // ✅ ADD (limits speed)
-  lastRun = now     // ✅ ADD
+    if (!playing) return
+  const now = Date.now()
+  if (now - lastRunRef.current < 100) return
+  lastRunRef.current = now
+
   if (!detectorRef.current || !videoRef.current) return
- const poses = await detectorRef.current.estimatePoses(videoRef.current)
+
+  const poses = await detectorRef.current.estimatePoses(videoRef.current)
   if (!poses.length) return
+
   const kp = poses[0].keypoints
   const hip = kp.find(k => k.name === "left_hip")
   const knee = kp.find(k => k.name === "left_knee")
@@ -400,58 +416,71 @@ const detectPose = async () => {
 
     const sc = Math.round(Math.max(0, 100 - Math.abs(angle - 90)))
 
-    setScore(sc)
-const newCombo = sc > 80 ? combo + 1 : 0
-setCombo(newCombo)
-  
+  setScore(sc)
 
-    // 🎯 Update score array & rewards
-    setScores(prev => {
-      const updated = [...prev, sc].slice(-50)
+// ✅ FIXED PROGRESS
+const duration = dailySteps[stepIndex]?.duration || 60
+setProgress(duration ? (stepTime / duration) * 100 : 0)
 
-      if (updated.length === 20) {
-        speak(`Your posture score is ${sc}%`)
-        setReward(`⚡ Your posture: ${sc}%`)
+// ✅ scores tracking
+setScores(prev => {
+  const updated = [...prev, sc]
+  return updated.length > 300 ? updated.slice(-300) : updated
+})
+    // 🔥 COMBO SYSTEM (MORE ADDICTIVE)
+    setCombo(prev => {
+      const newCombo = sc > 80 ? prev + 1 : 0
+
+      if (newCombo === 3) {
+        comboSoundRef.current.currentTime = 0
+        comboSoundRef.current.play().catch(()=>{})
+        confetti({ particleCount: 30, spread: 80 })
+        speak("Combo streak!")
       }
 
-      if (sc > 90) {
-        setReward("💥 PERFECT!")
-        confetti({ particleCount: 30, spread: 70, origin: { y: 0.6 } })
+      if (newCombo === 6) {
+        confetti({ particleCount: 80, spread: 120 })
+        speak("Insane combo!")
       }
 
-      return updated
+      return newCombo
     })
 
-    // 🔊 Sound feedback
-    if (sc > lastScore + 8) {
-      try {
-        successSoundRef.current.currentTime = 0
-      successSoundRef.current.play().catch(() => {})
-      } catch {}
-      setReward("🔥 Great posture! +8")
+    // 🎯 REWARD SYSTEM
+  if (sc > 90 && lastScore <= 90) {
+  setReward("💥 PERFECT FORM!")
+  confetti({ particleCount: 40, spread: 70 })
+}
+  else if (sc > 80) {
+      setReward("🔥 Great posture!")
+    } else {
+      setReward("⚠️ Adjust posture")
     }
 
-    if (newCombo === 4) {
-      try {
-        comboSoundRef.current.currentTime = 0
-       comboSoundRef.current.play().catch(() => {})
-      } catch {}
-      confetti({ particleCount: 50, spread: 90, origin: { y: 0.5 } })
+    // 🔊 SOUND BOOST
+    if (sc > lastScore + 5) {
+      successSoundRef.current.currentTime = 0
+      successSoundRef.current.play().catch(()=>{})
     }
 
-    // ✅ Points & XP
-    setPoints(prev => prev + 8)
-    setXp(prev => Math.min(prev + 5, xpToNext))
-
-   clearTimeout(rewardTimeoutRef.current)
-rewardTimeoutRef.current = setTimeout(() => setReward(""), 1500)
+    setPoints(prev => prev + 5)
+  setXp(prev => {
+  const newXp = prev + 3
+  return newXp >= xpToNext ? newXp - xpToNext : newXp
+})
 
     setLastScore(sc)
 
-    // 💡 Human coach feedback
     analyzeMovement(sc)
   }
+}
 const runDetection = () => {
+  if (!playing) return
+
+  if (detectRef.current) {
+    cancelAnimationFrame(detectRef.current)
+  }
+
   detectPose()
   detectRef.current = requestAnimationFrame(runDetection)
 }
@@ -479,87 +508,58 @@ const quickStart = () => {
   }, 120000) // 2 min
 }
 
-// 🚀 Main start
 const start = () => {
   if (playing) return
 
-  setScores([])
+  setScore(0)
   setPoints(0)
-  setLastScore(0)
-
-  // ✅ calculate once
-  const total = dailySteps.reduce((sum, step) => sum + step.duration, 0)
-
-  setInitialTotal(total)
-  setTotalTime(total)
-
-  // ✅ initialize first step
-  setStepIndex(0)
-  setStepTime(dailySteps[0]?.duration || 0)
+  setCombo(0)
+  setXp(0)
+  setScores([])
 
   setPlaying(true)
 
-  speak(`Welcome to Magic sixteen. ${dailySteps[0]?.text || ""}`)
+  speak("Let's go. Beat yesterday version of you.")
 
   runDetection()
 
   timerRef.current = setInterval(() => {
-    setTotalTime(prevTotal => {
-      const newTotal = prevTotal - 1
-
-      if (total > 0) {
-        setProgress(Math.round(((total - newTotal) / total) * 100))
-      }
-
-      return newTotal
-    })
-
     setStepTime(prev => {
-      if (prev <= 1) {
-        setStepIndex(prevIndex => {
-          const next = prevIndex + 1
+  if (prev <= 1) {
+    let nextIndex
 
-          // ✅ finish when steps end
-          if (next >= dailySteps.length) {
-            finish()
-            return prevIndex
-          }
+    setStepIndex(prevIndex => {
+      nextIndex = prevIndex + 1
 
-          // 🎧 meditation audio
-          if (dailySteps[next].type === "meditation") {
-            audioRef.current?.play()?.catch(() => {})
-          } else {
-            audioRef.current?.pause()
-            if (audioRef.current) audioRef.current.currentTime = 0
-          }
-
-          // 🔊 speak next step
-          speak(dailySteps[next].text)
-
-          setStepTime(dailySteps[next].duration)
-
-          return next
-        })
-
-        return 0
+      if (nextIndex >= dailySteps.length) {
+        finish()
+        return prevIndex
       }
 
-      return prev - 1
+      speak(dailySteps[nextIndex].text)
+      return nextIndex
     })
+
+    return dailySteps[nextIndex]?.duration || 60
+  }
+
+  return prev - 1
+})
   }, 1000)
 }
 
 // 🛑 Stop manually
 const stop = () => {
+  // ✅ STOP LOOPS FIRST
+  cancelAnimationFrame(detectRef.current)
   clearInterval(timerRef.current)
   clearTimeout(timeoutRef.current)
-  cancelAnimationFrame(detectRef.current)
 
-  speechSynthesis.cancel()
-
+  // ✅ STOP AUDIO
   audioRef.current?.pause()
   if (audioRef.current) audioRef.current.currentTime = 0
 
+  // ✅ RESET STATE
   setPlaying(false)
   setCombo(0)
   setPoints(0)
@@ -569,7 +569,6 @@ const stop = () => {
 const finish = async () => {
   const lastDate = localStorage.getItem("magic16_lastDate")
   const today = new Date().toDateString()
-
   // ✅ calculate average score
   const avgScore =
     scores.length > 0
@@ -654,6 +653,7 @@ winSound.play().catch(() => {})
     allScores.findIndex(p => p.score === calculatedFinalScore) + 1
   setUserRank(rank)
 }
+
 /* ---------------- ONE MINUTE RESET ---------------- */
 
 const oneMinReset = () => {
