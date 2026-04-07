@@ -287,11 +287,12 @@ const urlParams =
   }
 }
 useEffect(() => {
-const challengeId =
-  typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("challenge")
-    : null
-  if (typeof window === "undefined") return; // ✅ CRITICAL FIX
+  const challengeId =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("challenge")
+      : null
+
+  if (typeof window === "undefined") return
 
   const shuffleArray = (array) => {
     const arr = [...array]
@@ -303,44 +304,52 @@ const challengeId =
   }
 
   const init = async () => {
+    // ✅ USER ID
     const id =
-  localStorage.getItem("magic16_user") ||
-  (crypto?.randomUUID?.() || Date.now().toString())
+      localStorage.getItem("magic16_user") ||
+      (crypto?.randomUUID?.() || Date.now().toString())
 
-localStorage.setItem("magic16_user", id)
-setUserId(id)
+    localStorage.setItem("magic16_user", id)
+    setUserId(id)
 
-  if (window.speechSynthesis) {
-  speechSynthesis.cancel()
-}
- 
- const today = new Date().toDateString()
-   const lastDate = localStorage.getItem("magic16_lastDate")
+    // ✅ STOP OLD SPEECH
+    if (window.speechSynthesis) {
+      speechSynthesis.cancel()
+    }
+
+    // ✅ DATE + STREAK FIX
+    const today = new Date().toDateString()
+    const lastDate = localStorage.getItem("magic16_lastDate")
 
     if (lastDate) {
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
 
-      
+      if (lastDate !== today && lastDate !== yesterday.toDateString()) {
         setStreak(0)
         localStorage.setItem("magic16_streak", 0)
+        setMissedDay(true)
       }
+    } else {
+      // first time user
+      setStreak(1)
+      localStorage.setItem("magic16_streak", 1)
     }
 
-    // 📊 LEADERBOARD
+    // ✅ LEADERBOARD
     await loadLeaderboard()
 
-    // 🔗 CHALLENGE
+    // ✅ CHALLENGE
     if (challengeId) {
       await supabase
         .from("challenges")
-        .update({ friend_id: id})
+        .update({ friend_id: id })
         .eq("id", challengeId)
 
       await loadChallenge(challengeId)
     }
 
-    // 🎯 DAILY VARIATION
+    // ✅ DAILY VARIATION
     let savedDate = localStorage.getItem("magic16_variation_date")
     let savedSteps = localStorage.getItem("magic16_variation_steps")
 
@@ -357,7 +366,7 @@ setUserId(id)
       localStorage.setItem("magic16_variation_steps", JSON.stringify(newSteps))
     }
 
-    // 🧠 POSE DETECTION
+    // ✅ POSE DETECTION
     await tf.ready()
     await tf.setBackend("webgl")
 
@@ -366,7 +375,7 @@ setUserId(id)
       { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
     )
 
-    // 🔊 AUDIO
+    // ✅ AUDIO
     audioRef.current = new Audio(meditationAudio)
     audioRef.current.loop = true
     audioRef.current.volume = 0.4
@@ -375,11 +384,13 @@ setUserId(id)
     failSoundRef.current = new Audio(failSound)
     comboSoundRef.current = new Audio(comboSound)
 
+    // ✅ DONE
     setLoading(false)
   }
 
   init()
 
+  // ✅ CLEANUP (CORRECT)
   return () => {
     clearTimeout(timeoutRef.current)
     clearTimeout(rewardTimeoutRef.current)
@@ -388,11 +399,10 @@ setUserId(id)
 
     audioRef.current?.pause()
 
-   if (videoRef.current?.srcObject) {
-  videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-}
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+    }
   }
-
 }, [])
  
 /* ---------------- POSE DETECTION ---------------- */
@@ -400,7 +410,8 @@ const detectPose = async () => {
 
   if (!videoRef.current) return
   const now = Date.now()
-  
+  if (now - lastRunRef.current < 100) return
+lastRunRef.current = now
   if (!detectorRef.current || !videoRef.current) return
 
   const poses = await detectorRef.current.estimatePoses(videoRef.current)
