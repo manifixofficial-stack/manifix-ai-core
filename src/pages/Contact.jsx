@@ -1,6 +1,7 @@
 // src/pages/Contact.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "../services/supabase";
+import { Helmet } from "react-helmet-async";
 import "../styles/Contact.css"; // Professional CSS
 
 export default function Contact() {
@@ -17,11 +18,16 @@ export default function Contact() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     let stars = [];
+    let starCount = 120;
 
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      stars = Array(120)
+
+      // Clamp star count for small screens
+      const count = canvas.width < 640 ? 60 : starCount;
+
+      stars = Array(count)
         .fill()
         .map(() => ({
           x: Math.random() * canvas.width,
@@ -52,7 +58,7 @@ export default function Contact() {
     return () => window.removeEventListener("resize", resizeCanvas);
   }, []);
 
-  // Form submission
+  // 🌟 Form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -109,10 +115,19 @@ export default function Contact() {
 
   return (
     <div className="relative min-h-screen text-white font-inter overflow-x-hidden">
+      <Helmet>
+        <title>Contact Us — ManifiX AI</title>
+        <meta
+          name="description"
+          content="Connect with ManifiX AI for partnerships, investments, press inquiries, and more."
+        />
+      </Helmet>
+
       {/* Sparkles Background */}
       <canvas
         ref={canvasRef}
         className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none"
+        aria-hidden="true"
       />
 
       {/* Header */}
@@ -172,31 +187,40 @@ export default function Contact() {
           <h2 className="text-2xl font-semibold mb-6 text-center">Send us a Message</h2>
 
           <form onSubmit={handleSubmit} className="grid gap-4">
-            <label htmlFor="contact-name" className="sr-only">Your Name</label>
+            <label htmlFor="contact-name" className="sr-only">
+              Your Name
+            </label>
             <input
               id="contact-name"
               type="text"
               placeholder="Your Name"
               required
               ref={nameRef}
+              disabled={submitting}
             />
 
-            <label htmlFor="contact-email" className="sr-only">Your Email</label>
+            <label htmlFor="contact-email" className="sr-only">
+              Your Email
+            </label>
             <input
               id="contact-email"
               type="email"
               placeholder="Your Email"
               required
               ref={emailRef}
+              disabled={submitting}
             />
 
-            <label htmlFor="contact-message" className="sr-only">Your Message</label>
+            <label htmlFor="contact-message" className="sr-only">
+              Your Message
+            </label>
             <textarea
               id="contact-message"
               placeholder="Your Message"
               required
               rows={5}
               ref={messageRef}
+              disabled={submitting}
             ></textarea>
 
             <button
@@ -209,15 +233,16 @@ export default function Contact() {
           </form>
 
           {statusMessage && (
-            <p className="status-message text-center mt-4" role="alert">
+            <p
+              className={`status-message text-center mt-4 ${
+                statusMessage.startsWith("✅") ? "success" : "error"
+              }`}
+              role="alert"
+              aria-live="polite"
+            >
               {statusMessage}
             </p>
           )}
-
-          {/* Optional reCAPTCHA placeholder */}
-          {/* <div className="recaptcha-container mt-4">
-            <ReCAPTCHA sitekey="YOUR_SITE_KEY" onChange={handleRecaptcha} />
-          </div> */}
         </section>
 
         {/* Features */}
@@ -284,7 +309,11 @@ function ContactCard({ title, desc, mail, btnText }) {
     <div className="ContactCard">
       <h3>{title}</h3>
       <p>{desc}</p>
-      <a href={`mailto:${mail}`} className="btn btn-outline" aria-label={`Email ${title}`}>
+      <a
+        href={`mailto:${mail}`}
+        className="btn btn-outline"
+        aria-label={`Email ${title}`}
+      >
         {btnText}
       </a>
     </div>
