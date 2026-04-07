@@ -112,7 +112,7 @@ export default function Home() {
   { title: "Daily Score", desc: "Track your discipline every day" },
   { title: "Guided Flow", desc: "Yoga + meditation with AI support" },
   { title: "AI Coach", desc: "Ask anything and get instant clarity" },
-]}.map((f, i) => (
+].map((f, i) => (
             <motion.div
               key={i}
               className="feature-card"
