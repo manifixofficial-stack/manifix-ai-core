@@ -48,11 +48,12 @@ const rewardTimeoutRef = useRef(null)
   const lastRunRef = useRef(0)
   const lastSpeakRef = useRef(0)
   const lastLevelRef = useRef("")
+  const lastScoreUpdateRef = useRef(0)
 // 🔊 AUDIO SYSTEM (FIXED PATHS)
 const successSoundRef = useRef(new Audio(successSound))
 const failSoundRef = useRef(new Audio(failSound))
 const comboSoundRef = useRef(new Audio(comboSound))
-
+const challengeId = new URLSearchParams(window.location.search).get("challenge")
 
 /* ---------------- CORE STATE ---------------- */
 
@@ -316,7 +317,7 @@ setUserId(id)
       alert("Camera access is required")
       return
     }
-
+   speechSynthesis.cancel()
     // 📅 STREAK
     const today = new Date().toDateString()
     const lastDate = localStorage.getItem("magic16_lastDate")
@@ -427,14 +428,14 @@ const detectPose = async () => {
 
   setScore(sc)
 
-// ✅ progress (single calculation)
 if (dailySteps.length) {
   const duration = dailySteps[stepIndex]?.duration || 60
-  setProgress(duration ? (stepTime / duration) * 100 : 0)
+  setProgress(duration ? ((duration - stepTime) / duration) * 100 : 0)
 }
 
-// ✅ optimized scores
-if (now - lastRunRef.current > 200) {
+// ✅ THROTTLED scores update (PLACE HERE)
+if (now - lastScoreUpdateRef.current > 200) {
+  lastScoreUpdateRef.current = now
   setScores(prev => [...prev, sc].slice(-300))
 }
 
@@ -442,7 +443,7 @@ if (now - lastRunRef.current > 200) {
 setCombo(prev => {
   const newCombo = sc > 80 ? prev + 1 : 0
 
-  if (newCombo === 3 && prev !== 3) {
+if (newCombo > 0 && newCombo % 3 === 0 && prev !== newCombo) {
     comboSoundRef.current.currentTime = 0
     comboSoundRef.current.play().catch(()=>{})
     confetti({ particleCount: 30, spread: 80 })
@@ -529,29 +530,32 @@ const start = () => {
 
   runDetection()
 
-  timerRef.current = setInterval(() => {
-    setStepTime(prev => {
-  if (prev <= 1) {
-   
-    setStepIndex(prevIndex => {
-     const nextIndex = prevIndex + 1
+timerRef.current = setInterval(() => {
+  setStepTime(prev => {
+    if (prev <= 1) {
 
-      if (nextIndex >= dailySteps.length) {
-        finish()
-        return prevIndex
-      }
+      setStepIndex(prevIndex => {
+        const nextIndex = prevIndex + 1
 
-      speak(dailySteps[nextIndex].text)
-      return nextIndex
-    })
+        if (nextIndex >= dailySteps.length) {
+          finish()
+          return prevIndex
+        }
 
-    return dailySteps[nextIndex]?.duration || 60
-  }
+        speak(dailySteps[nextIndex].text)
 
-  return prev - 1
-})
-  }, 1000)
-}
+        // ✅ FIX: set new step time here
+        setStepTime(dailySteps[nextIndex]?.duration || 60)
+
+        return nextIndex
+      })
+
+      return 0 // ✅ important
+    }
+
+    return prev - 1
+  })
+}, 1000)
 
 // 🛑 Stop manually
 const stop = () => {
