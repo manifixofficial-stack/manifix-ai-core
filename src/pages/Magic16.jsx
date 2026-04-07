@@ -372,26 +372,17 @@ useEffect(() => {
   }
 
   init()
-
-  // ✅ CLEANUP (IMPORTANT)
-  return () => {
-   
-    clearTimeout(timeoutRef.current)
-    clearTimeout(rewardTimeoutRef.current)
-  clearInterval(timerRef.current)              // ✅ ADD THIS
-  cancelAnimationFrame(detectRef.current)   // ✅ ADD THIS
-    
-    // 🔊 SAFE AUDIO CLEANUP
-  if (audioRef.current) {
-    audioRef.current.pause()
-    audioRef.current.currentTime = 0
-  }
-
+ const video = document.createElement("video"); 
+ return () => {
+  clearTimeout(timeoutRef.current);
+  clearTimeout(rewardTimeoutRef.current);
+  clearInterval(timerRef.current);
+  cancelAnimationFrame(detectRef.current);
+  audioRef.current?.pause();
   if (videoRef.current?.srcObject) {
-    videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+    videoRef.current.srcObject.getTracks().forEach(track => track.stop());
   }
-}
-}, [])
+};
  
 /* ---------------- POSE DETECTION ---------------- */
 const detectPose = async () => {
