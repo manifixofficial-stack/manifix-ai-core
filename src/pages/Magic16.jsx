@@ -494,7 +494,7 @@ const runDetection = () => {
 }
 /* - - - - - - quickstart & start - - - - - - */
 // ⚡ Quick session (2 min)
-const quickStart = () => {
+const quickStart =async () => {
  const stream = await navigator.mediaDevices.getUserMedia({ video: true })
 videoRef.current.srcObject = stream
   scoresRef.current = []
