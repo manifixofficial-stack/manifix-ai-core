@@ -53,7 +53,7 @@ export default function Home() {
             animate="show"
             custom={2}
           >
-            Think Faster. Build Smarter. <br />
+            Your Life Changes in 16 Minutes a Day. <br />
             <span>With ManifiX AI</span>
           </motion.h1>
 
@@ -64,8 +64,7 @@ export default function Home() {
             animate="show"
             custom={3}
           >
-            AI + Magic16 system designed for creators, developers,
-            and teams who want clarity, speed, and control.
+             A simple 16-minute daily system to improve your focus, clarity, and discipline.
           </motion.p>
 
           {/* 🔥 TRUST BOOST */}
@@ -76,7 +75,7 @@ export default function Home() {
             animate="show"
             custom={4}
           >
-            Fast • Secure •Built for high performers
+           Magic16 • Daily Score • Guided Flow
           </motion.div>
 
           <motion.div
@@ -87,11 +86,11 @@ export default function Home() {
             custom={5}
           >
             <Link to="/signup" className="btn-primary">
-              Start Free →
+             Start Your 16-Min Routine →
             </Link>
 
             <Link to="/features" className="btn-secondary">
-              Explore Features
+              Start Your 16-Min Routine →
             </Link>
           </motion.div>
 
@@ -108,14 +107,12 @@ export default function Home() {
 
         <div className="feature-grid">
 
-          {[
-            { icon: "⚡", title: "AI Thinking", desc: "Instant answers & execution" },
-            { icon: "🧠", title: "Deep Focus", desc: "Distraction-free workflow" },
-            { icon: "🔥", title: "Magic16", desc: "Daily clarity system" },
-            { icon: "🚀", title: "Speed", desc: "Blazing fast performance" },
-            { icon: "🔒", title: "Security", desc: "Safe & private platform" },
-            { icon: "🌍", title: "Global", desc: "Built for everyone" },
-          ].map((f, i) => (
+         {[
+  { title: "Magic16 Routine", desc: "16-minute daily system to build focus" },
+  { title: "Daily Score", desc: "Track your discipline every day" },
+  { title: "Guided Flow", desc: "Yoga + meditation with AI support" },
+  { title: "AI Coach", desc: "Ask anything and get instant clarity" },
+]}.map((f, i) => (
             <motion.div
               key={i}
               className="feature-card"
@@ -125,7 +122,7 @@ export default function Home() {
               viewport={{ once: true }}
               custom={i}
             >
-              <div className="feature-icon">{f.icon}</div>
+             
               <h3>{f.title}</h3>
               <p>{f.desc}</p>
             </motion.div>
@@ -144,16 +141,16 @@ export default function Home() {
           transition={{ duration: 0.5 }}
         >
           <h2>
-            Build Your Future With <span>ManifiX</span>
+          Start Your 16-Minute Routine Today <span>ManifiX</span>
           </h2>
 
           <p className="cta-subtext">
-            Start free. Upgrade anytime. No limits on your growth.
+           Experience focus, clarity, and discipline daily.
           </p>
 
           <div className="cta-buttons">
             <Link to="/signup" className="btn-primary big">
-              Create Free Account
+              Start Your 16-Min Routine →
             </Link>
           </div>
         </motion.div>
