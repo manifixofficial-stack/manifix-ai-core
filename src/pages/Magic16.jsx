@@ -1,11 +1,12 @@
+import { useRef, useEffect, useState } from "react"
 import * as posedetection from "@tensorflow-models/pose-detection"
 import "@tensorflow/tfjs-backend-webgl"
 import * as tf from "@tensorflow/tfjs"
 import confetti from "canvas-confetti"
-import { supabase } from "../services/supabase"
+
 import "../styles/magic16.css"
 import logo from "../assets/logo.png"
-import html2canvas from "html2canvas"
+
 /* yoga images */
 import yoga1 from "../assets/steps/yoga-01.png"
 import yoga2 from "../assets/steps/yoga-02.png"
@@ -27,189 +28,96 @@ import med5 from "../assets/steps/med-05.png"
 import med6 from "../assets/steps/med-06.png"
 import med7 from "../assets/steps/med-07.png"
 
-import successSound from "../assets/audio/success.mp3"
-import failSound from "../assets/audio/fail.mp3"
-import comboSound from "../assets/audio/combo.mp3"
-import countdownSound from "../assets/audio/countdown.mp3" 
-
 /* meditation audio */
 import meditationAudio from "../assets/audio/meditation/meditation.mp3"
-import { useRef, useEffect, useState } from "react"
+
 export default function Magic16(){
 
 /* ---------------- REFS ---------------- */
+
 const videoRef = useRef(null)
 const detectorRef = useRef(null)
-const detectRef = useRef(null)
 const timerRef = useRef(null)
-const timeoutRef = useRef(null)
-const rewardTimeoutRef = useRef(null)
-  const lastRunRef = useRef(0)
-  const lastSpeakRef = useRef(0)
-  const lastLevelRef = useRef("")
-  const lastScoreUpdateRef = useRef(0)
-// 🔊 AUDIO SYSTEM (FIXED PATHS)
-const successSoundRef = useRef(new Audio(successSound))
-const failSoundRef = useRef(new Audio(failSound))
-const comboSoundRef = useRef(new Audio(comboSound))
+const detectRef = useRef(null)
+const audioRef = useRef(null)
 
-/* ---------------- CORE STATE ---------------- */
+/* ---------------- STATE ---------------- */
 
-// 🎮 gameplay
-const [score, setScore] = useState(0)
-const [combo, setCombo] = useState(0)
-const [stepIndex, setStepIndex] = useState(0)
-const [stepTime, setStepTime] = useState(60)
-const [playing, setPlaying] = useState(false)
-const [completed, setCompleted] = useState(false)
-const [dailySteps, setDailySteps] = useState([]);
-const [points, setPoints] = useState(0);
-const [reward, setReward] = useState("");
-const [lastScore, setLastScore] = useState(0);
-  const scoresRef = useRef([])
-const [coach, setCoach] = useState("");
-const [userId, setUserId] = useState(null)
-const audioRef = useRef(null);
-const [initialTotal, setInitialTotal] = useState(0)
-// 📊 progress
-const [progress, setProgress] = useState(0)
-const [xp, setXp] = useState(0)
-const xpToNext = 100
-const [level, setLevel] = useState("Beginner")
+const [loading,setLoading] = useState(true)
+const [playing,setPlaying] = useState(false)
+const [completed,setCompleted] = useState(false)
 
-// 🏆 results
-const [finalScore, setFinalScore] = useState(0)
-const [leaderboard, setLeaderboard] = useState([])
-const [userRank, setUserRank] = useState(null)
+const [stepIndex,setStepIndex] = useState(0)
+const [stepTime,setStepTime] = useState(60)
 
-// 👥 social
-const [friendScore, setFriendScore] = useState(0)
-const [ghostScore, setGhostScore] = useState(0)
+const [progress,setProgress] = useState(0)
+const [score,setScore] = useState(0)
 
-// 🔥 streak system
-const [streak, setStreak] = useState(() =>
-  Number(localStorage.getItem("magic16_streak") || 0)
-)
-const [missedDay, setMissedDay] = useState(false)
+const [coach,setCoach] = useState("")
+const [level,setLevel] = useState("Beginner")
 
-// 📅 history (FIXED)
-const [history, setHistory] = useState(() =>
-  JSON.parse(localStorage.getItem("magic16_history") || "[]")
-)
-
-// 🎯 goals
-const [dailyGoal] = useState(80)
-const [goalAchieved, setGoalAchieved] = useState(false)
-
-// ⚡ UX states
-const [loading, setLoading] = useState(true)
-
-// 🎲 variation text
-const variationMessages = [
-  "New energy today 🔥",
-  "Different flow, better growth 💪",
-  "Your body adapts faster today ⚡"
-]
-
-const [variationText] = useState(
-  variationMessages[Math.floor(Math.random() * variationMessages.length)]
-)
-
-// 📊 yesterday comparison
-const [yesterdayScore] = useState(() =>
-  Number(localStorage.getItem("magic16_lastScore") || 0)
+const [streak,setStreak] = useState(
+Number(localStorage.getItem("magic16_streak") || 0)
 )
 
 /* ---------------- HUMAN COACH MESSAGES ---------------- */
+
 const healthMessages = {
-  excellent: [
-    "🔥 Excellent posture! Spine alignment on point.",
-    "💪 Great control! Balance improving fast.",
-    "⚡ Epic! Keep slaying your yoga flow.",
-    "🏆 Legendary! Your body is leveling up."
-  ],
 
-  good: [
-    "🙂 Good posture! Keep breathing slowly.",
-    "👌 Doing well! Stay relaxed and focused.",
-    "✨ Nice flow! You're getting stronger each time.",
-    "💎 Solid! Keep the streak going."
-  ],
+excellent:[
+"Excellent posture. Your spine alignment is strong.",
+"Great control. Your balance is improving."
+],
 
-  improve: [
-    "⬆️ Lift your chest slightly for perfect form.",
-    "🧘 Relax your shoulders and lengthen your spine.",
-    "⚠️ Adjust your posture, you got this!",
-    "🔥 Focus! Small tweaks = big gains."
-  ]
+good:[
+"Good posture. Keep breathing slowly.",
+"You are doing well. Stay relaxed."
+],
+
+improve:[
+"Lift your chest slightly.",
+"Relax your shoulders and lengthen your spine."
+]
+
 }
 
-const speak = (text, options = {}) => {
-  if (!window.speechSynthesis) return
+/* ---------------- VOICE COACH ---------------- */
 
-  if (speechSynthesis.speaking) {
-    speechSynthesis.cancel()
-  }
+const speak = (text)=>{
 
-  const msg = new SpeechSynthesisUtterance(text) // ✅ DEFINE FIRST
+const msg = new SpeechSynthesisUtterance(text)
+msg.rate = 0.9
+msg.pitch = 1
+msg.lang = "en-US"
 
-  msg.rate = options.rate || (0.85 + Math.random() * 0.15)
-  msg.pitch = options.pitch || (0.9 + Math.random() * 0.2)
-  msg.lang = "en-US"
+speechSynthesis.cancel()
+speechSynthesis.speak(msg)
 
-  if (options.onEnd) msg.onend = options.onEnd
-
-  setTimeout(() => {
-    speechSynthesis.speak(msg)
-  }, 100)
 }
 
-const analyzeMovement = (score) => {
-  let level
+/* ---------------- MOVEMENT ANALYSIS ---------------- */
 
-  if (score > 85) {
-    level = "excellent"
-  } else if (score > 65) {
-    level = "good"
-  } else {
-    level = "improve"
-  }
+const analyzeMovement = (score)=>{
 
-  const messages = healthMessages[level]
+let level
 
-  const message =
-    messages[Math.floor(Math.random() * messages.length)] +
-    (level === "excellent" ? " 🔥💪" : level === "good" ? " ⚡😊" : " ⚠️🤏")
-
-  // ✅ Always update UI text (fast)
-  setCoach(message)
-
-  const now = Date.now()
-
-  // ✅ ONLY trigger effects when level changes
-  if (lastLevelRef.current !== level) {
-    lastLevelRef.current = level
-
-    if (level === "excellent") {
-      successSoundRef.current.currentTime = 0
-      successSoundRef.current.play().catch(() => {})
-
-      confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } })
-    } else if (level === "good") {
-      comboSoundRef.current.currentTime = 0
-      comboSoundRef.current.play().catch(() => {})
-    } else {
-      failSoundRef.current.currentTime = 0
-      failSoundRef.current.play().catch(() => {})
-    }
-  }
-
-  // ✅ VOICE THROTTLE (every 3 sec only)
-  if (now - lastSpeakRef.current > 3000) {
-    speak(message)
-    lastSpeakRef.current = now
-  }
+if(score > 85){
+level="excellent"
+}else if(score > 65){
+level="good"
+}else{
+level="improve"
 }
+
+const messages = healthMessages[level]
+
+const message =
+messages[Math.floor(Math.random()*messages.length)]
+
+setCoach(message)
+
+}
+
 /* ---------------- STEPS ---------------- */
 
 const steps=[
@@ -234,783 +142,327 @@ const steps=[
 {type:"meditation",img:med7,text:"Visualize success.",duration:120}
 
 ]
-const loadChallenge = async (id) => {
 
-  const { data } = await supabase
-    .from("challenges")
-    .select("*")
-    .eq("id", id)
-    .single()
+const TOTAL = steps.reduce((s,x)=>s+x.duration,0)
+const [totalTime,setTotalTime] = useState(TOTAL)
 
-  if (!data) return
+/* ---------------- INIT CAMERA + AI ---------------- */
 
-  if (data.host_id === userId) {
-    setFriendScore(data.friend_score || 0)
-  } else {
-    setFriendScore(data.host_score || 0)
-  }
-}
-// ✅ state
-const [totalTime, setTotalTime] = useState(0)
-const urlParams =
-  typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search)
-    : null
-  const loadLeaderboard = async () => {
-  const { data, error } = await supabase
-    .from("leaderboard")
-    .select("*")
-    .order("score", { ascending: false })
-    .limit(10)
+useEffect(()=>{
 
-  if (!error) setLeaderboard(data)
-}
- const createChallenge = async () => {
-  if (typeof window === "undefined") return
+const init = async()=>{
 
-  const { data } = await supabase
-    .from("challenges")
-    .insert([{ host_id: userId }])
-    .select()
+const stream =
+await navigator.mediaDevices.getUserMedia({video:true})
 
-  if (data) {
-    const id = data[0].id
-    const link = `${window.location.origin}?challenge=${id}`
-
-    try {
-      await navigator.clipboard.writeText(link)
-      alert("🔥 Challenge link copied!")
-    } catch {
-      alert(link) // fallback
-    }
-  }
-}
-useEffect(() => {
-  const challengeId =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("challenge")
-      : null
-
-  if (typeof window === "undefined") return
-
-  const shuffleArray = (array) => {
-    const arr = [...array]
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    return arr
-  }
-
-  const init = async () => {
-    // ✅ USER ID
-    const id =
-      localStorage.getItem("magic16_user") ||
-      (crypto?.randomUUID?.() || Date.now().toString())
-
-    localStorage.setItem("magic16_user", id)
-    setUserId(id)
-
-    // ✅ STOP OLD SPEECH
-    if (window.speechSynthesis) {
-      speechSynthesis.cancel()
-    }
-
-    // ✅ DATE + STREAK FIX
-    const today = new Date().toDateString()
-    const lastDate = localStorage.getItem("magic16_lastDate")
-
-    if (lastDate) {
-      const yesterday = new Date()
-      yesterday.setDate(yesterday.getDate() - 1)
-
-      if (lastDate !== today && lastDate !== yesterday.toDateString()) {
-        setStreak(0)
-        localStorage.setItem("magic16_streak", 0)
-        setMissedDay(true)
-      }
-    } else {
-      // first time user
-      setStreak(1)
-      localStorage.setItem("magic16_streak", 1)
-    }
-
-    // ✅ LEADERBOARD
-    await loadLeaderboard()
-
-    // ✅ CHALLENGE
-    if (challengeId) {
-      await supabase
-        .from("challenges")
-        .update({ friend_id: id })
-        .eq("id", challengeId)
-
-      await loadChallenge(challengeId)
-    }
-
-    // ✅ DAILY VARIATION
-    let savedDate = localStorage.getItem("magic16_variation_date")
-    let savedSteps = localStorage.getItem("magic16_variation_steps")
-
-    if (savedDate === today && savedSteps) {
-      setDailySteps(JSON.parse(savedSteps))
-    } else {
-      const yogaSteps = steps.filter(s => s.type === "yoga")
-      const meditationSteps = steps.filter(s => s.type === "meditation")
-
-      const newSteps = [...shuffleArray(yogaSteps), ...meditationSteps]
-
-      setDailySteps(newSteps)
-      localStorage.setItem("magic16_variation_date", today)
-      localStorage.setItem("magic16_variation_steps", JSON.stringify(newSteps))
-    }
-
-    // ✅ POSE DETECTION
-    await tf.ready()
-    await tf.setBackend("webgl")
-
-    detectorRef.current = await posedetection.createDetector(
-      posedetection.SupportedModels.MoveNet,
-      { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-    )
-
-    // ✅ AUDIO
-    audioRef.current = new Audio(meditationAudio)
-    audioRef.current.loop = true
-    audioRef.current.volume = 0.4
-
-    successSoundRef.current = new Audio(successSound)
-    failSoundRef.current = new Audio(failSound)
-    comboSoundRef.current = new Audio(comboSound)
-
-    // ✅ DONE
-    setLoading(false)
-  }
-
-  init()
-
-  // ✅ CLEANUP (CORRECT)
-  return () => {
-    clearTimeout(timeoutRef.current)
-    clearTimeout(rewardTimeoutRef.current)
-    clearInterval(timerRef.current)
-    cancelAnimationFrame(detectRef.current)
-
-    audioRef.current?.pause()
-
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-    }
-  }
-}, [])
- 
-/* ---------------- POSE DETECTION ---------------- */
-const detectPose = async () => {
-
-  if (!videoRef.current) return
-  const now = Date.now()
-  if (now - lastRunRef.current < 100) return
-lastRunRef.current = now
-  if (!detectorRef.current || !videoRef.current) return
-
-  const poses = await detectorRef.current.estimatePoses(videoRef.current)
-  if (!poses.length) return
-
-  const kp = poses[0].keypoints
-  const hip = kp.find(k => k.name === "left_hip")
-  const knee = kp.find(k => k.name === "left_knee")
-  const ankle = kp.find(k => k.name === "left_ankle")
-
-  if (hip && knee && ankle) {
-    const angle = Math.abs(
-      Math.atan2(ankle.y - knee.y, ankle.x - knee.x) -
-      Math.atan2(hip.y - knee.y, hip.x - knee.x)
-    ) * 180 / Math.PI
-
-    const sc = Math.round(Math.max(0, 100 - Math.abs(angle - 90)))
-
-  setScore(sc)
-
-if (dailySteps.length) {
-  const duration = dailySteps[stepIndex]?.duration || 60
-  setProgress(duration ? ((duration - stepTime) / duration) * 100 : 0)
-}
-
-if (now - lastScoreUpdateRef.current > 200) {
-  lastScoreUpdateRef.current = now
-
-  scoresRef.current.push(sc)
-  scoresRef.current = scoresRef.current.slice(-300)
-
-  setPoints(prev => prev + Math.floor(sc / 20))
-}
-
-// ✅ combo (good)
-setCombo(prev => {
-  const newCombo = sc > 80 ? prev + 1 : 0
-
-if (newCombo > 0 && newCombo % 3 === 0 && prev !== newCombo) {
-    comboSoundRef.current.currentTime = 0
-    comboSoundRef.current.play().catch(()=>{})
-    confetti({ particleCount: 30, spread: 80 })
-    speak("Combo streak!")
-  }
-
-  return newCombo
-})
-    // 🎯 REWARD SYSTEM
-  if (sc > 90 && lastScore <= 90) {
-  setReward("💥 PERFECT FORM!")
-  confetti({ particleCount: 40, spread: 70 })
-}
-  else if (sc > 80) {
-      setReward("🔥 Great posture!")
-    } else {
-      setReward("⚠️ Adjust posture")
-    }
-
-    // 🔊 SOUND BOOST
-    if (sc > lastScore + 5) {
-      successSoundRef.current.currentTime = 0
-      successSoundRef.current.play().catch(()=>{})
-    }
-
-  setXp(prev => {
-  const newXp = prev + 3
-  return newXp >= xpToNext ? newXp - xpToNext : newXp
-})
-
-    setLastScore(sc)
-
-    analyzeMovement(sc)
-  }
-}
-const runDetection = () => {
-  if (!playing) return
-
-  detectPose()
-  detectRef.current = requestAnimationFrame(runDetection)
-}
-/* - - - - - - quickstart & start - - - - - - */
-// ⚡ Quick session (2 min)
-const quickStart =async () => {
- const stream = await navigator.mediaDevices.getUserMedia({ video: true })
 videoRef.current.srcObject = stream
-  scoresRef.current = []
-  setCombo(0)
-  setPoints(0)
-  setXp(0)
-  setLastScore(0)
-  setScore(0)
 
-  setStepIndex(0)
-  setStepTime(30)
+await tf.ready()
+await tf.setBackend("webgl")
 
-  setPlaying(true)
+detectorRef.current =
+await posedetection.createDetector(
+posedetection.SupportedModels.MoveNet,
+{modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING}
+)
 
-  speak("Quick recovery session started")
+/* meditation audio */
 
-  runDetection()
+audioRef.current = new Audio(meditationAudio)
+audioRef.current.loop = true
+audioRef.current.volume = 0.4
 
-  timeoutRef.current = setTimeout(() => {
-    finish()
-  }, 120000) // 2 min
+setLoading(false)
+
 }
 
-const start = async () => {
-   scoresRef.current = []
-  if (playing) return
+init()
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-    if (videoRef.current) videoRef.current.srcObject = stream
-  } catch (err) {
-    alert("Camera access is required")
-    return
-  }
-  setScore(0)
-  setPoints(0)
-  setCombo(0)
-  setXp(0)
-  setPlaying(true)
+return ()=>{
 
-  speak("Let's go. Beat yesterday version of you.")
-
-  runDetection()
-
-timerRef.current = setInterval(() => {
-  setStepTime(prev => {
-    if (prev <= 1) {
-      let nextDuration = 60
-
-      setStepIndex(prevIndex => {
-        const nextIndex = prevIndex + 1
-
-        if (nextIndex >= dailySteps.length) {
-          finish()
-          return prevIndex
-        }
-
-        speak(dailySteps[nextIndex].text)
-        nextDuration = dailySteps[nextIndex]?.duration || 60
-
-        return nextIndex
-      })
-
-      return nextDuration // ✅ IMPORTANT
-    }
-
-    return prev - 1
-  })
-}, 1000)
-}
-// 🛑 Stop manually
-const stop = () => {
-  // ✅ STOP LOOPS FIRST
-  cancelAnimationFrame(detectRef.current)
-  clearInterval(timerRef.current)
-  clearTimeout(timeoutRef.current)
-if (videoRef.current?.srcObject) {
-  videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-}
-  // ✅ STOP AUDIO
-  audioRef.current?.pause()
-  if (audioRef.current) audioRef.current.currentTime = 0
-
-  // ✅ RESET STATE
-  setPlaying(false)
-  setCombo(0)
-  setPoints(0)
-}
-  
-  /*-----------FINISH----------*/
-
-const finish = async () => {
-  cancelAnimationFrame(detectRef.current)
 clearInterval(timerRef.current)
-clearTimeout(timeoutRef.current)
-  try {
-    const today = new Date().toDateString()
-    const lastDate = localStorage.getItem("magic16_lastDate")
-const challengeId =
-  typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("challenge")
-    : null
-    /* ---------------- SCORE CALC ---------------- */
-  const avgScore =
-  scoresRef.current.length > 0
-    ? scoresRef.current.reduce((a, b) => a + b, 0) / scoresRef.current.length
-    : 0
-    const calculatedFinalScore = Math.round(avgScore)
+clearInterval(detectRef.current)
 
-    /* ---------------- HISTORY (LAST 7 DAYS) ---------------- */
-    const historyData = JSON.parse(
-      localStorage.getItem("magic16_history") || "[]"
-    )
-
-    historyData.push({
-      date: today,
-      score: calculatedFinalScore,
-      success: calculatedFinalScore >= dailyGoal
-    })
-
-    if (historyData.length > 7) historyData.shift()
-
-    localStorage.setItem("magic16_history", JSON.stringify(historyData))
-
-    /* ---------------- STREAK SYSTEM (FIXED LOGIC) ---------------- */
-    let s = Number(localStorage.getItem("magic16_streak") || 0)
-
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    if (lastDate === yesterday.toDateString()) {
-      s++ // continue streak
-    } else if (lastDate !== today) {
-      s = 1 // reset streak
-    }
-
-    localStorage.setItem("magic16_streak", s)
-    setStreak(s)
-
-    /* ---------------- LEVEL SYSTEM ---------------- */
-    if (s > 50) setLevel("Zen Master")
-    else if (s > 20) setLevel("Master")
-    else if (s > 5) setLevel("Explorer")
-    else setLevel("Beginner")
-
-    /* ---------------- FEEDBACK ---------------- */
-    confetti({ particleCount: 200, spread: 120 })
-
-    const winSound = new Audio(winSoundFile)
-    winSound.preload = "auto"
-    winSound.play().catch(() => {})
-
-    setFinalScore(calculatedFinalScore)
-    setGoalAchieved(calculatedFinalScore >= dailyGoal)
-
-    /* ---------------- SAVE LOCAL ---------------- */
-    localStorage.setItem("magic16_lastScore", calculatedFinalScore)
-    localStorage.setItem("magic16_lastDate", today)
-
-    setCompleted(true)
-
-    /* ---------------- LEADERBOARD SAVE ---------------- */
-    await supabase
-      .from("leaderboard")
-      .upsert(
-        { user_id: userId, score: calculatedFinalScore },
-        { onConflict: ["user_id"] }
-      )
-
-    /* ---------------- CHALLENGE SYSTEM ---------------- */
-    if (challengeId) {
-      const { data } = await supabase
-        .from("challenges")
-        .select("*")
-        .eq("id", challengeId)
-        .single()
-
-      if (data) {
-        if (data.host_id === userId) {
-          await supabase
-            .from("challenges")
-            .update({ host_score: calculatedFinalScore })
-            .eq("id", challengeId)
-        } else {
-          await supabase
-            .from("challenges")
-            .update({ friend_score: calculatedFinalScore })
-            .eq("id", challengeId)
-        }
-      }
-    }
-if (videoRef.current?.srcObject) {
-  videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-}
-    /* ---------------- RANK CALC (SAFE) ---------------- */
-    const { data: allScores } = await supabase
-      .from("leaderboard")
-      .select("score")
-      .order("score", { ascending: false })
-
-    const rank =
-      (allScores || []).filter(p => p.score > calculatedFinalScore).length + 1
-
-    setUserRank(rank)
-
-  } catch (err) {
-    console.error("Finish error:", err)
-  }
 }
 
-/* ---------------- ONE MINUTE RESET ---------------- */
+},[])
 
-const oneMinReset = () => {
-  stop()
-  setPlaying(true)
-  setScore(0)
-  setPoints(0)
+/* ---------------- POSE DETECTION ---------------- */
 
-  speak("1 minute reset")
+const detectPose = async()=>{
 
-  setTimeout(() => {
-    speak("Can you beat this?")
-  }, 1500)
+if(!detectorRef.current) return
 
-  let time = 60
-  timerRef.current = setInterval(() => {
-    time--
-    if (time <= 0) {
-      clearInterval(timerRef.current)
-      stop()
-      speak("Reset complete")
-    }
-  }, 1000)
+const poses =
+await detectorRef.current.estimatePoses(videoRef.current)
+
+if(!poses.length) return
+
+const kp = poses[0].keypoints
+
+const hip = kp.find(k=>k.name==="left_hip")
+const knee = kp.find(k=>k.name==="left_knee")
+const ankle = kp.find(k=>k.name==="left_ankle")
+
+if(hip && knee && ankle){
+
+const angle = Math.abs(
+Math.atan2(ankle.y-knee.y,ankle.x-knee.x) -
+Math.atan2(hip.y-knee.y,hip.x-knee.x)
+)*180/Math.PI
+
+const postureScore =
+Math.max(0,100-Math.abs(angle-90))
+
+const sc = Math.round(postureScore)
+
+setScore(sc)
+
+analyzeMovement(sc)
+
+}
+
+}
+
+/* ---------------- START SESSION ---------------- */
+
+const start = ()=>{
+
+if(playing) return
+
+setPlaying(true)
+
+speak("Welcome to Magic sixteen.")
+
+speak(steps[0].text)
+
+detectRef.current = setInterval(detectPose,500)
+
+timerRef.current = setInterval(()=>{
+
+setTotalTime(prevTotal => {
+
+const newTotal = prevTotal - 1
+
+setProgress(
+Math.round(((TOTAL - newTotal) / TOTAL) * 100)
+)
+
+return newTotal
+
+})
+
+setStepTime(prev => {
+
+if(prev <= 1){
+
+setStepIndex(prevIndex => {
+
+const next = prevIndex + 1
+
+if(next >= steps.length){
+finish()
+return prevIndex
+}
+
+/* play meditation audio */
+
+if(steps[next].type === "meditation"){
+audioRef.current?.play()
+}else{
+audioRef.current?.pause()
+}
+
+speak(steps[next].text)
+
+setStepTime(steps[next].duration)
+
+return next
+
+})
+
+return prev
+
+}
+
+return prev - 1
+
+})
+
+},1000)
+}
+
+/* ---------------- STOP ---------------- */
+
+const stop = ()=>{
+
+clearInterval(timerRef.current)
+clearInterval(detectRef.current)
+
+speechSynthesis.cancel()
+
+audioRef.current?.pause()
+
+setPlaying(false)
+
+}
+
+/* ---------------- FINISH ---------------- */
+
+const finish = ()=>{
+
+stop()
+
+let s =
+Number(localStorage.getItem("magic16_streak") || 0)
+
+s++
+
+localStorage.setItem("magic16_streak",s)
+
+setStreak(s)
+
+if(s>50) setLevel("Zen Master")
+else if(s>20) setLevel("Master")
+else if(s>5) setLevel("Explorer")
+
+confetti({particleCount:200,spread:120})
+
+setCompleted(true)
+
 }
 
 /* ---------------- SHARE ---------------- */
 
-const share = async () => {
-  const card = document.getElementById("share-card")
-  if (!card) return
+const share = ()=>{
 
-  const canvas = await html2canvas(card)
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"))
- if (!blob) return alert("Failed to capture image")
-  const file = new File([blob], "magic16.png", { type: "image/png" })
+navigator.share?.({
 
-  // 🎉 combo shake effect
-  if (combo >= 4) {
-    document.body.classList.add("shake")
-    setTimeout(() => document.body.classList.remove("shake"), 200)
-  }
+title:"Magic16",
+text:`I completed Magic16 🧘 Score ${score}%`,
+url:"https://manifix.ai"
 
-  try {
-    if (navigator.share) {
-      await navigator.share({
-        title: "🔥 Can you beat me?",
-        text: `I scored ${finalScore}% 😈`,
-        files: [file]
-      })
-    } else {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "magic16.png"
-      a.click()
-      alert("Image downloaded. Share it 🚀")
-    }
-  } catch (e) {
-    console.log("Share cancelled")
-  }
+})
+
 }
 
 /* ---------------- COMPLETED SCREEN ---------------- */
 
-if (completed) {
-  return (
-    <div className="magic16-complete">
-      <h1>🎉 Ritual Complete</h1>
-      <h2>{finalScore}% Posture Score</h2>
+if(completed){
 
-      <p className="magic16-challenge">
-        🔥 Beat this score tomorrow to keep your streak alive
-      </p>
+return(
 
-      <p className="magic16-compare">
-        Yesterday: {yesterdayScore}% <br />
-        Today: {finalScore}%{" "}
-        {finalScore > yesterdayScore
-          ? `+${finalScore - yesterdayScore}% 🔥`
-          : finalScore < yesterdayScore
-          ? `${finalScore - yesterdayScore}% ⚡`
-          : "No Change"}
-      </p>
+<div className="magic16-complete">
 
-      <p className="magic16-goal">
-        🎯 Today's Goal: {dailyGoal}%
-      </p>
-      <p className="magic16-goal-result">
-        {goalAchieved ? "✅ Goal Achieved!" : "❌ Goal Not Reached"}
-      </p>
+<h1>🎉 Ritual Complete</h1>
 
-      <p>🔥 {streak} Day Streak</p>
-      <p>Level: {level}</p>
-      <p>{coach}</p>
+<h2>{score}% Posture Score</h2>
 
-      <div className="magic16-leaderboard">
-        <h3>🏆 Today’s Top</h3>
-        {leaderboard.map((p, i) => (
-          <p key={i}>
-            #{i + 1} — {p.score}%
-            {p.user_id === userId && " 👈 YOU"}
-          </p>
-        ))}
+<p>🔥 {streak} Day Streak</p>
 
-        <hr />
+<p>Level: {level}</p>
 
-        <h3>📍 Your Rank Zone</h3>
-        {(() => {
-          const all = [...leaderboard, { score: finalScore, user_id: userId }].sort(
-            (a, b) => b.score - a.score
-          )
-          const index = all.findIndex(p => p.score === finalScore && p.user_id === userId)
-          const slice = all.slice(Math.max(0, index - 2), index + 3)
-          return slice.map((p, i) => (
-            <p
-              key={i}
-              style={{
-                color: p.score === finalScore && p.user_id === userId ? "yellow" : "white"
-              }}
-            >
-              {p.score === finalScore && p.user_id === userId ? "👉 YOU — " : ""}
-              {p.score}%
-            </p>
-          ))
-        })()}
-      </div>
+<p>{coach}</p>
 
-      <div className="magic16-actions">
-        <button onClick={share}>📤 Share</button>
-        <button onClick={() => window.location.reload()}>🔄 Start Again</button>
-        <button onClick={oneMinReset}>⚡ 1-Min Reset</button>
-      </div>
+<button onClick={share}>Share</button>
 
-      <div className="magic16-history">
-        {history.map((d, i) => (
-          <span key={i} className="history-icon">
-            {d.success ? "✅" : "❌"}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
+<button onClick={()=>window.location.reload()}>
+Start Again
+</button>
+
+</div>
+
+)
+
 }
+
 /* ---------------- MAIN UI ---------------- */
 
-const today = new Date().toLocaleDateString()
+return(
 
-const calendarDays = history.slice(-7).map(day => {
-  let level = "none"
+<div className="magic16-app">
 
-  if (day.score >= 80) level = "high"
-  else if (day.score >= 60) level = "medium"
-  else if (day.score > 0) level = "low"
+<header className="magic16-header">
 
-  return {
-    ...day,
-    level,
-    isToday: day.date === today
-  }
-})
+<img src={logo} alt="logo"/>
 
-return (
-  <div className="magic16-app">
-    {/* ---------- HEADER ---------- */}
-    <header className="magic16-header">
-      <img src={logo} alt="Magic16 Logo" />
-      <div className="magic16-streak">🔥 {streak} Day Streak</div>
-      <div className="magic16-xp">
-        <div className="xp-bar">
-          <div style={{ width: `${(xp / xpToNext) * 100}%` }} />
-        </div>
-        <p>XP: {xp}/{xpToNext}</p>
-      </div>
-    </header>
+<div className="magic16-streak">
+🔥 {streak} Day Streak
+</div>
 
-    {loading && (
-      <div className="magic16-loading">
-        Preparing AI Trainer...
-      </div>
-    )}
+</header>
 
-    <div className="magic16-layout">
-      {/* ---------- CAMERA ---------- */}
-      <div className="magic16-camera">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="magic16-video"
-        />
-      </div>
-
-      <div className="magic16-goal-box">
-        🎯 Today's Goal: Score above {dailyGoal}%
-      </div>
-
-      {/* ---------- PANEL ---------- */}
-      <div className="magic16-panel">
-        <h3 className="magic16-variation">🔥 Today’s Variation</h3>
-        <p>{variationText}</p>
-
-        {missedDay && !playing && (
-          <div className="magic16-warning">
-            ⚠ Missed yesterday?  
-            <p>You can recover your streak with a quick 2-minute session</p>
-            <button onClick={quickStart}>
-              Save Streak (2 min)
-            </button>
-          </div>
-        )}
-
-        <img
-          src={dailySteps[stepIndex]?.img}
-          className="magic16-step-img"
-          alt="Current Step"
-        />
-
-        <h3>🏆 Global Rank: #{userRank}</h3>
-
-        <div className="magic16-friends">
-          <h3>👥 Friends</h3>
-          <p>Friend: {friendScore}%</p>
-          <p>You: {score}%</p>
-          <p>
-            {score > friendScore 
-              ? "🔥 You are winning!" 
-              : "⚡ Beat your friend!"}
-          </p>
-          <p>Top 10% players score 90%+</p>
-          <p>Can you beat me? 😈</p>
-        </div>
-
-        <p>👻 Yesterday: {yesterdayScore}%</p>  
-        <p>🔴 You: {score}% {score > yesterdayScore ? "🔥 Winning" : "⚡ Catch up"}</p>
-      </div>
-
-      <h2>{dailySteps[stepIndex]?.text}</h2>
-
-      <p className="magic16-coach">{coach}</p>
-
-      {reward && (
-        <div className="magic16-reward">{reward}</div>
-      )}
-
-      <div className="magic16-progress">
-        <div style={{ width: `${progress}%` }} />
-      </div>
-
-      {/* ---------- CALENDAR ---------- */}
-      <div className="magic16-calendar">
-        <h3>📅 Last 7 Days</h3>
-        <div className="calendar-grid">
-          {calendarDays.map((day, i) => (
-            <div
-              key={i}
-              className={`
-                calendar-day 
-                ${day.level} 
-                ${day.isToday ? "today" : ""}
-              `}
-              title={`Score: ${day.score || 0}%`}
-            />
-          ))}
-        </div>
-
-        <div id="share-card" style={{
-          width: "300px",
-          padding: "20px",
-          background: "#0f172a",
-          color: "white",
-          borderRadius: "20px",
-          textAlign: "center",
-          position: "absolute",
-          left: "-9999px"
-        }}>
-          <h2>🔥 Magic16</h2>
-          <h1 style={{ fontSize: "40px" }}>{finalScore}%</h1>
-          <p>Posture Score</p>
-          <p>🏆 Rank #{userRank}</p>
-          <p>🔥 {streak} Day Streak</p>
-          <p style={{ marginTop: "10px" }}>Beat me if you can 😈</p>
-        </div>
-
-        <h3>📅 Your Consistency</h3>
-        <p className="subtext">Stay green to build your streak 🔥</p>
-      </div>
-
-      {/* ---------- STATS ---------- */}
-      <div className="magic16-stats">
-        <span>Step {stepTime}s</span>
-        <span>Score {score}%</span>
-        <span>⭐ {points} pts</span>
-      </div>
-
-      <button onClick={createChallenge}>🔥 Challenge a Friend</button>
-
-      {/* ---------- CONTROLS ---------- */}
-      <div className="magic16-controls">
-        <button onClick={oneMinReset} className="quick-btn">⚡ Quick Reset</button>
-        {!playing ? (
-          <button onClick={start}>Start Magic16</button>
-        ) : (
-          <button onClick={stop}>Pause</button>
-        )}
-      </div>
-    </div>
-  </div>
-)
+{loading &&
+<div className="magic16-loading">
+Preparing AI Trainer...
+</div>
 }
+
+<div className="magic16-layout">
+
+<div className="magic16-camera">
+
+<video
+ref={videoRef}
+autoPlay
+playsInline
+muted
+className="magic16-video"
+/>
+
+</div>
+
+<div className="magic16-panel">
+
+<img
+src={steps[stepIndex]?.img}
+className="magic16-step-img"
+/>
+
+<h2>{steps[stepIndex]?.text}</h2>
+
+<p className="magic16-coach">
+{coach}
+</p>
+
+<div className="magic16-progress">
+
+<div style={{width:`${progress}%`}}/>
+
+</div>
+
+<div className="magic16-stats">
+
+<span>Step {stepTime}s</span>
+<span>Score {score}%</span>
+
+</div>
+
+<div className="magic16-controls">
+
+{!playing ?
+
+<button onClick={start}>
+Start Magic16
+</button>
+
+:
+
+<button onClick={stop}>
+Pause
+</button>
+
+}
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+)
+
+}
+ magic16 upgrade featuresssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
