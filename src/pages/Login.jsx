@@ -10,7 +10,6 @@ import "../styles/Login.css";
 
 // Heroicons
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
-import { GoogleIcon } from "../assets/icons/GoogleIcon"; // Optional: Custom inline SVG
 
 export default function Login() {
   const navigate = useNavigate();
@@ -71,7 +70,7 @@ export default function Login() {
     }
   };
 
-  // ✅ Google login
+  // ✅ Google login (no icon, just text)
   const handleGoogleLogin = async () => {
     if (loading) return;
 
@@ -80,7 +79,7 @@ export default function Login() {
 
     try {
       await authService.loginWithGoogle();
-      // Redirect happens, no need to set loading false
+      // Redirect happens automatically
     } catch (err) {
       console.error(err);
       setError(getFriendlyError(err.message));
@@ -91,7 +90,10 @@ export default function Login() {
   // ✅ Session loading screen
   if (appLoading) {
     return (
-      <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
+      <div
+        className="auth-wrapper"
+        style={{ backgroundImage: `url(${bgImage})` }}
+      >
         <div className="overlay" />
         <div className="auth-card">
           <img src={logo} alt="ManifiX Logo" className="logo" />
@@ -103,7 +105,10 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-wrapper" style={{ backgroundImage: `url(${bgImage})` }}>
+    <div
+      className="auth-wrapper"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
       <Helmet>
         <title>Login — ManifiX AI</title>
       </Helmet>
@@ -134,8 +139,7 @@ export default function Login() {
           disabled={loading}
           aria-label="Continue with Google"
         >
-          <GoogleIcon className="google-icon" />
-          Continue with Google
+          🔴 Continue with Google
         </button>
 
         <div className="divider">or</div>
@@ -168,7 +172,11 @@ export default function Login() {
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? <EyeSlashIcon className="icon-eye" /> : <EyeIcon className="icon-eye" />}
+              {showPassword ? (
+                <EyeSlashIcon className="icon-eye" />
+              ) : (
+                <EyeIcon className="icon-eye" />
+              )}
             </button>
           </div>
         </div>
