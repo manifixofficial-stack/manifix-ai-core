@@ -5,6 +5,8 @@ import authService from "../services/auth.service";
 import logo from "../assets/logo.svg";
 import bgImage from "../assets/backgrounds/dark-gradient.jpg";
 
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+
 import "../styles/Login.css";
 
 export default function Signup() {
@@ -12,7 +14,6 @@ export default function Signup() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -45,13 +46,11 @@ export default function Signup() {
 
       if (!user) throw new Error("Signup failed");
 
-      // 🎉 Success UX
       setSuccess("Account created successfully 🎉");
 
       setTimeout(() => {
         navigate("/app/dashboard", { replace: true });
       }, 1200);
-
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Signup failed";
@@ -81,10 +80,11 @@ export default function Signup() {
     >
       <div className="overlay" />
 
-      {/* 🔥 Loading overlay */}
+      {/* 🔥 Loading overlay with spinner */}
       {loading && (
-        <div className="loading-overlay">
-          Creating your account...
+        <div className="loading-overlay" aria-live="polite">
+          <div className="spinner"></div>
+          <span>Creating your account...</span>
         </div>
       )}
 
@@ -100,11 +100,12 @@ export default function Signup() {
         <h2>Create Account</h2>
         <p className="subtitle">Start your aligned journey</p>
 
-        {/* 🔥 Google button */}
+        {/* 🔥 Google button with aria-label */}
         <button
           className="google-btn"
           onClick={handleGoogleSignup}
           disabled={loading}
+          aria-label="Continue with Google"
         >
           <img
             src="https://img.icons8.com/color/24/google-logo.png"
@@ -127,9 +128,13 @@ export default function Signup() {
             setEmail(e.target.value);
             setError("");
           }}
+          aria-label="Email address"
         />
+        {!isValidEmail(email) && email.length > 0 && (
+          <p className="hint">Enter a valid email address</p>
+        )}
 
-        {/* Password with toggle 👁 */}
+        {/* Password with toggle */}
         <div className="password-wrapper">
           <input
             type={showPassword ? "text" : "password"}
@@ -140,24 +145,38 @@ export default function Signup() {
               setPassword(e.target.value);
               setError("");
             }}
+            aria-label="Password"
           />
-
-          <span
+          <button
+            type="button"
             className="toggle-eye"
             onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
           >
-            {showPassword ? "🙈" : "👁"}
-          </span>
+            {showPassword ? (
+              <EyeSlashIcon className="icon" />
+            ) : (
+              <EyeIcon className="icon" />
+            )}
+          </button>
         </div>
 
-        {/* Live hint */}
-        {password && password.length < 6 && (
-          <p className="hint">Password is too short</p>
+        {/* Live hints */}
+        {password && !isValidPassword(password) && (
+          <p className="hint">Password must be at least 6 characters</p>
         )}
 
-        {/* Status */}
-        {error && <p className="error">{error}</p>}
-        {success && <p className="success">{success}</p>}
+        {/* Status messages */}
+        {error && (
+          <p className="error" aria-live="polite">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p className="success" aria-live="polite">
+            {success}
+          </p>
+        )}
 
         {/* Submit */}
         <button
@@ -169,13 +188,11 @@ export default function Signup() {
         </button>
 
         {/* Trust line */}
-        <p className="trust">
-          🔒 Secure • No spam • Private
-        </p>
+        <p className="trust">Secure • No spam • Private</p>
 
         {/* Login link */}
         <p className="microcopy">
-          Already have an account?
+          Already have an account?{" "}
           <span className="link" onClick={() => navigate("/login")}>
             Login
           </span>
