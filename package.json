@@ -20,6 +20,7 @@
     "@vladmandic/face-api": "^1.7.15",
     "@heroicons/react": "^2.0.18",
     "axios": "^1.6.0",
+    "react-tsparticles": "^2.8.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^5.1.1",
