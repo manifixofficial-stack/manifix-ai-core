@@ -52,7 +52,7 @@ const rewardTimeoutRef = useRef(null)
 const successSoundRef = useRef(new Audio(successSound))
 const failSoundRef = useRef(new Audio(failSound))
 const comboSoundRef = useRef(new Audio(comboSound))
-const meditationRef = useRef(new Audio(meditationAudio))
+
 
 /* ---------------- CORE STATE ---------------- */
 
@@ -254,7 +254,7 @@ const loadChallenge = async (id) => {
 // ✅ state
 const [totalTime, setTotalTime] = useState(0)
 const urlParams = new URLSearchParams(window.location.search)
-const challengeId = urlParams.get("challenge")
+const globalChallengeId = urlParams.get("challenge")
   const loadLeaderboard = async () => {
   const { data, error } = await supabase
     .from("leaderboard")
@@ -264,7 +264,8 @@ const challengeId = urlParams.get("challenge")
 
   if (!error) setLeaderboard(data)
 }
-  const createChallenge = async () => {
+ const createChallenge = async () => {
+  if (typeof window === "undefined") return
 
   const { data } = await supabase
     .from("challenges")
@@ -275,13 +276,20 @@ const challengeId = urlParams.get("challenge")
     const id = data[0].id
     const link = `${window.location.origin}?challenge=${id}`
 
-    await navigator.clipboard.writeText(link)
-    alert("🔥 Challenge link copied!")
+    try {
+      await navigator.clipboard.writeText(link)
+      alert("🔥 Challenge link copied!")
+    } catch {
+      alert(link) // fallback
+    }
   }
 }
- 
-/* ---------------- INIT MAGIC16 ---------------- */
 useEffect(() => {
+const challengeId =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("challenge")
+    : null
+  if (typeof window === "undefined") return; // ✅ CRITICAL FIX
 
   const shuffleArray = (array) => {
     const arr = [...array]
@@ -293,9 +301,12 @@ useEffect(() => {
   }
 
   const init = async () => {
-    const userId =
-      localStorage.getItem("magic16_user") || crypto.randomUUID()
-    localStorage.setItem("magic16_user", userId)
+    const id =
+  localStorage.getItem("magic16_user") ||
+  (crypto?.randomUUID?.() || Date.now().toString())
+
+localStorage.setItem("magic16_user", id)
+setUserId(id)
 
     // 📸 CAMERA
     try {
@@ -327,7 +338,7 @@ useEffect(() => {
     if (challengeId) {
       await supabase
         .from("challenges")
-        .update({ friend_id: userId })
+        .update({ friend_id: id})
         .eq("id", challengeId)
 
       await loadChallenge(challengeId)
@@ -372,21 +383,25 @@ useEffect(() => {
   }
 
   init()
- const video = document.createElement("video"); 
- return () => {
-  clearTimeout(timeoutRef.current);
-  clearTimeout(rewardTimeoutRef.current);
-  clearInterval(timerRef.current);
-  cancelAnimationFrame(detectRef.current);
-  audioRef.current?.pause();
-  if (videoRef.current?.srcObject) {
-    videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+
+  return () => {
+    clearTimeout(timeoutRef.current)
+    clearTimeout(rewardTimeoutRef.current)
+    clearInterval(timerRef.current)
+    cancelAnimationFrame(detectRef.current)
+
+    audioRef.current?.pause()
+
+   if (videoRef.current?.srcObject) {
+  videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+}
   }
-};
+
+}, [])
  
 /* ---------------- POSE DETECTION ---------------- */
 const detectPose = async () => {
-    if (!playing) return
+
   if (!videoRef.current) return
   const now = Date.now()
   if (now - lastRunRef.current < 100) return
@@ -412,34 +427,30 @@ const detectPose = async () => {
 
   setScore(sc)
 
-// ✅ FIXED PROGRESS
-const duration = dailySteps[stepIndex]?.duration || 60
-setProgress(duration ? (stepTime / duration) * 100 : 0)
+// ✅ progress (single calculation)
+if (dailySteps.length) {
+  const duration = dailySteps[stepIndex]?.duration || 60
+  setProgress(duration ? (stepTime / duration) * 100 : 0)
+}
 
-// ✅ scores tracking
-setScores(prev => {
-  const updated = [...prev, sc]
-  return updated.length > 300 ? updated.slice(-300) : updated
+// ✅ optimized scores
+if (now - lastRunRef.current > 200) {
+  setScores(prev => [...prev, sc].slice(-300))
+}
+
+// ✅ combo (good)
+setCombo(prev => {
+  const newCombo = sc > 80 ? prev + 1 : 0
+
+  if (newCombo === 3 && prev !== 3) {
+    comboSoundRef.current.currentTime = 0
+    comboSoundRef.current.play().catch(()=>{})
+    confetti({ particleCount: 30, spread: 80 })
+    speak("Combo streak!")
+  }
+
+  return newCombo
 })
-    // 🔥 COMBO SYSTEM (MORE ADDICTIVE)
-    setCombo(prev => {
-      const newCombo = sc > 80 ? prev + 1 : 0
-
-      if (newCombo === 3) {
-        comboSoundRef.current.currentTime = 0
-        comboSoundRef.current.play().catch(()=>{})
-        confetti({ particleCount: 30, spread: 80 })
-        speak("Combo streak!")
-      }
-
-      if (newCombo === 6) {
-        confetti({ particleCount: 80, spread: 120 })
-        speak("Insane combo!")
-      }
-
-      return newCombo
-    })
-
     // 🎯 REWARD SYSTEM
   if (sc > 90 && lastScore <= 90) {
   setReward("💥 PERFECT FORM!")
@@ -476,7 +487,8 @@ const runDetection = () => {
   }
 
   detectPose()
-  detectRef.current = requestAnimationFrame(runDetection)
+ if (!playing) return
+detectRef.current = requestAnimationFrame(runDetection)
 }
 /* - - - - - - quickstart & start - - - - - - */
 // ⚡ Quick session (2 min)
@@ -520,10 +532,9 @@ const start = () => {
   timerRef.current = setInterval(() => {
     setStepTime(prev => {
   if (prev <= 1) {
-    let nextIndex
-
+   
     setStepIndex(prevIndex => {
-      nextIndex = prevIndex + 1
+     const nextIndex = prevIndex + 1
 
       if (nextIndex >= dailySteps.length) {
         finish()
@@ -643,8 +654,8 @@ winSound.play().catch(() => {})
     .from("leaderboard")
     .select("score")
     .order("score", { ascending: false })
-  const rank =
-    allScores.findIndex(p => p.score === calculatedFinalScore) + 1
+ const rank =
+  allScores.filter(p => p.score > calculatedFinalScore).length + 1
   setUserRank(rank)
 }
 
