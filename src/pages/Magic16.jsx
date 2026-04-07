@@ -53,7 +53,6 @@ const rewardTimeoutRef = useRef(null)
 const successSoundRef = useRef(new Audio(successSound))
 const failSoundRef = useRef(new Audio(failSound))
 const comboSoundRef = useRef(new Audio(comboSound))
-const challengeId = new URLSearchParams(window.location.search).get("challenge")
 
 /* ---------------- CORE STATE ---------------- */
 
@@ -65,12 +64,12 @@ const [stepTime, setStepTime] = useState(60)
 const [playing, setPlaying] = useState(false)
 const [completed, setCompleted] = useState(false)
 const [dailySteps, setDailySteps] = useState([]);
-const [scores, setScores] = useState([]);
 const [points, setPoints] = useState(0);
 const [reward, setReward] = useState("");
 const [lastScore, setLastScore] = useState(0);
+  const scoresRef = useRef([])
 const [coach, setCoach] = useState("");
-const [userId, setUserId] = useState(localStorage.getItem("magic16_user") || crypto.randomUUID());
+const [userId, setUserId] = useState(null)
 const audioRef = useRef(null);
 const [initialTotal, setInitialTotal] = useState(0)
 // 📊 progress
@@ -254,8 +253,10 @@ const loadChallenge = async (id) => {
 }
 // ✅ state
 const [totalTime, setTotalTime] = useState(0)
-const urlParams = new URLSearchParams(window.location.search)
-const globalChallengeId = urlParams.get("challenge")
+const urlParams =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : null
   const loadLeaderboard = async () => {
   const { data, error } = await supabase
     .from("leaderboard")
@@ -309,24 +310,18 @@ const challengeId =
 localStorage.setItem("magic16_user", id)
 setUserId(id)
 
-    // 📸 CAMERA
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-      if (videoRef.current) videoRef.current.srcObject = stream
-    } catch (err) {
-      alert("Camera access is required")
-      return
-    }
-   speechSynthesis.cancel()
-    // 📅 STREAK
-    const today = new Date().toDateString()
-    const lastDate = localStorage.getItem("magic16_lastDate")
+  if (window.speechSynthesis) {
+  speechSynthesis.cancel()
+}
+ 
+ const today = new Date().toDateString()
+   const lastDate = localStorage.getItem("magic16_lastDate")
 
     if (lastDate) {
       const yesterday = new Date()
       yesterday.setDate(yesterday.getDate() - 1)
 
-      if (lastDate !== today && lastDate !== yesterday.toDateString()) {
+      
         setStreak(0)
         localStorage.setItem("magic16_streak", 0)
       }
@@ -405,9 +400,7 @@ const detectPose = async () => {
 
   if (!videoRef.current) return
   const now = Date.now()
-  if (now - lastRunRef.current < 100) return
-  lastRunRef.current = now
-
+  
   if (!detectorRef.current || !videoRef.current) return
 
   const poses = await detectorRef.current.estimatePoses(videoRef.current)
@@ -433,10 +426,13 @@ if (dailySteps.length) {
   setProgress(duration ? ((duration - stepTime) / duration) * 100 : 0)
 }
 
-// ✅ THROTTLED scores update (PLACE HERE)
 if (now - lastScoreUpdateRef.current > 200) {
   lastScoreUpdateRef.current = now
-  setScores(prev => [...prev, sc].slice(-300))
+
+  scoresRef.current.push(sc)
+  scoresRef.current = scoresRef.current.slice(-300)
+
+  setPoints(prev => prev + Math.floor(sc / 20))
 }
 
 // ✅ combo (good)
@@ -469,7 +465,6 @@ if (newCombo > 0 && newCombo % 3 === 0 && prev !== newCombo) {
       successSoundRef.current.play().catch(()=>{})
     }
 
-    setPoints(prev => prev + 5)
   setXp(prev => {
   const newXp = prev + 3
   return newXp >= xpToNext ? newXp - xpToNext : newXp
@@ -483,23 +478,20 @@ if (newCombo > 0 && newCombo % 3 === 0 && prev !== newCombo) {
 const runDetection = () => {
   if (!playing) return
 
-  if (detectRef.current) {
-    cancelAnimationFrame(detectRef.current)
-  }
-
   detectPose()
- if (!playing) return
-detectRef.current = requestAnimationFrame(runDetection)
+  detectRef.current = requestAnimationFrame(runDetection)
 }
 /* - - - - - - quickstart & start - - - - - - */
 // ⚡ Quick session (2 min)
 const quickStart = () => {
+ const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+videoRef.current.srcObject = stream
+  scoresRef.current = []
   setCombo(0)
   setPoints(0)
   setXp(0)
   setLastScore(0)
   setScore(0)
-  setScores([])
 
   setStepIndex(0)
   setStepTime(30)
@@ -515,15 +507,21 @@ const quickStart = () => {
   }, 120000) // 2 min
 }
 
-const start = () => {
+const start = async () => {
+   scoresRef.current = []
   if (playing) return
 
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+    if (videoRef.current) videoRef.current.srcObject = stream
+  } catch (err) {
+    alert("Camera access is required")
+    return
+  }
   setScore(0)
   setPoints(0)
   setCombo(0)
   setXp(0)
-  setScores([])
-
   setPlaying(true)
 
   speak("Let's go. Beat yesterday version of you.")
@@ -533,6 +531,7 @@ const start = () => {
 timerRef.current = setInterval(() => {
   setStepTime(prev => {
     if (prev <= 1) {
+      let nextDuration = 60
 
       setStepIndex(prevIndex => {
         const nextIndex = prevIndex + 1
@@ -543,27 +542,27 @@ timerRef.current = setInterval(() => {
         }
 
         speak(dailySteps[nextIndex].text)
-
-        // ✅ FIX: set new step time here
-        setStepTime(dailySteps[nextIndex]?.duration || 60)
+        nextDuration = dailySteps[nextIndex]?.duration || 60
 
         return nextIndex
       })
 
-      return 0 // ✅ important
+      return nextDuration // ✅ IMPORTANT
     }
 
     return prev - 1
   })
 }, 1000)
-
+}
 // 🛑 Stop manually
 const stop = () => {
   // ✅ STOP LOOPS FIRST
   cancelAnimationFrame(detectRef.current)
   clearInterval(timerRef.current)
   clearTimeout(timeoutRef.current)
-
+if (videoRef.current?.srcObject) {
+  videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+}
   // ✅ STOP AUDIO
   audioRef.current?.pause()
   if (audioRef.current) audioRef.current.currentTime = 0
@@ -573,94 +572,126 @@ const stop = () => {
   setCombo(0)
   setPoints(0)
 }
-/* ---------------- FINISH ---------------- */
+  
+  /*-----------FINISH----------*/
 
 const finish = async () => {
-  const lastDate = localStorage.getItem("magic16_lastDate")
-  const today = new Date().toDateString()
-  // ✅ calculate average score
+  cancelAnimationFrame(detectRef.current)
+clearInterval(timerRef.current)
+clearTimeout(timeoutRef.current)
+  try {
+    const today = new Date().toDateString()
+    const lastDate = localStorage.getItem("magic16_lastDate")
+const challengeId =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("challenge")
+    : null
+    /* ---------------- SCORE CALC ---------------- */
   const avgScore =
-    scores.length > 0
-      ? scores.reduce((a, b) => a + b, 0) / scores.length
-      : 0
+  scoresRef.current.length > 0
+    ? scoresRef.current.reduce((a, b) => a + b, 0) / scoresRef.current.length
+    : 0
+    const calculatedFinalScore = Math.round(avgScore)
 
-  const calculatedFinalScore = Math.round(avgScore)
-
-  // ✅ save daily history (last 7 days)
-  const historyData = JSON.parse(localStorage.getItem("magic16_history") || "[]")
-  historyData.push({
-    date: today,
-    score: calculatedFinalScore,
-    success: calculatedFinalScore >= dailyGoal
-  })
-  if (historyData.length > 7) historyData.shift()
-  localStorage.setItem("magic16_history", JSON.stringify(historyData))
-
-  // ✅ update streak
-  let s = Number(localStorage.getItem("magic16_streak") || 0)
-  if (lastDate !== today) {
-    s++
-    localStorage.setItem("magic16_streak", s)
-    setStreak(s)
-  }
-
-  // ✅ update level
-  if (s > 50) setLevel("Zen Master")
-  else if (s > 20) setLevel("Master")
-  else if (s > 5) setLevel("Explorer")
-  else setLevel("Beginner")
-
-  // ✅ visual/audio feedback
-  confetti({ particleCount: 200, spread: 120 })
-const winSound = new Audio(winSoundFile)
-winSound.play().catch(() => {})
- 
-  setFinalScore(calculatedFinalScore)
-  setGoalAchieved(calculatedFinalScore >= dailyGoal)
-  
-  // ✅ Save yesterday score outside hook
-  localStorage.setItem("magic16_lastScore", calculatedFinalScore)
-  localStorage.setItem("magic16_lastDate", today)
-  setCompleted(true)
-
-  // ✅ save/update leaderboard
-  await supabase
-    .from("leaderboard")
-    .upsert(
-      { user_id: userId, score: calculatedFinalScore },
-      { onConflict: ["user_id"] }
+    /* ---------------- HISTORY (LAST 7 DAYS) ---------------- */
+    const historyData = JSON.parse(
+      localStorage.getItem("magic16_history") || "[]"
     )
 
-  // ✅ handle challenge score
-  if (challengeId) {
-    const { data } = await supabase
-      .from("challenges")
-      .select("*")
-      .eq("id", challengeId)
-      .single()
-    if (data) {
-      if (data.host_id === userId) {
-        await supabase
-          .from("challenges")
-          .update({ host_score: calculatedFinalScore })
-          .eq("id", challengeId)
-      } else {
-        await supabase
-          .from("challenges")
-          .update({ friend_score: calculatedFinalScore })
-          .eq("id", challengeId)
+    historyData.push({
+      date: today,
+      score: calculatedFinalScore,
+      success: calculatedFinalScore >= dailyGoal
+    })
+
+    if (historyData.length > 7) historyData.shift()
+
+    localStorage.setItem("magic16_history", JSON.stringify(historyData))
+
+    /* ---------------- STREAK SYSTEM (FIXED LOGIC) ---------------- */
+    let s = Number(localStorage.getItem("magic16_streak") || 0)
+
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (lastDate === yesterday.toDateString()) {
+      s++ // continue streak
+    } else if (lastDate !== today) {
+      s = 1 // reset streak
+    }
+
+    localStorage.setItem("magic16_streak", s)
+    setStreak(s)
+
+    /* ---------------- LEVEL SYSTEM ---------------- */
+    if (s > 50) setLevel("Zen Master")
+    else if (s > 20) setLevel("Master")
+    else if (s > 5) setLevel("Explorer")
+    else setLevel("Beginner")
+
+    /* ---------------- FEEDBACK ---------------- */
+    confetti({ particleCount: 200, spread: 120 })
+
+    const winSound = new Audio(winSoundFile)
+    winSound.preload = "auto"
+    winSound.play().catch(() => {})
+
+    setFinalScore(calculatedFinalScore)
+    setGoalAchieved(calculatedFinalScore >= dailyGoal)
+
+    /* ---------------- SAVE LOCAL ---------------- */
+    localStorage.setItem("magic16_lastScore", calculatedFinalScore)
+    localStorage.setItem("magic16_lastDate", today)
+
+    setCompleted(true)
+
+    /* ---------------- LEADERBOARD SAVE ---------------- */
+    await supabase
+      .from("leaderboard")
+      .upsert(
+        { user_id: userId, score: calculatedFinalScore },
+        { onConflict: ["user_id"] }
+      )
+
+    /* ---------------- CHALLENGE SYSTEM ---------------- */
+    if (challengeId) {
+      const { data } = await supabase
+        .from("challenges")
+        .select("*")
+        .eq("id", challengeId)
+        .single()
+
+      if (data) {
+        if (data.host_id === userId) {
+          await supabase
+            .from("challenges")
+            .update({ host_score: calculatedFinalScore })
+            .eq("id", challengeId)
+        } else {
+          await supabase
+            .from("challenges")
+            .update({ friend_score: calculatedFinalScore })
+            .eq("id", challengeId)
+        }
       }
     }
-  }
+if (videoRef.current?.srcObject) {
+  videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+}
+    /* ---------------- RANK CALC (SAFE) ---------------- */
+    const { data: allScores } = await supabase
+      .from("leaderboard")
+      .select("score")
+      .order("score", { ascending: false })
 
-  // ✅ get rank
-  const { data: allScores } = await supabase
-    .from("leaderboard")
-    .select("score")
-    .order("score", { ascending: false })
- const rank =
-  allScores.filter(p => p.score > calculatedFinalScore).length + 1
-  setUserRank(rank)
+    const rank =
+      (allScores || []).filter(p => p.score > calculatedFinalScore).length + 1
+
+    setUserRank(rank)
+
+  } catch (err) {
+    console.error("Finish error:", err)
+  }
 }
 
 /* ---------------- ONE MINUTE RESET ---------------- */
