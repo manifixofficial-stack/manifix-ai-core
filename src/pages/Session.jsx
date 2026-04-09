@@ -1,24 +1,30 @@
 // src/pages/Session.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
+import { getSessionSteps } from "../constants/steps";
 import "../styles/session.css";
-
-const STEPS = [
-  { name: "Breathing Focus", target: "calm" },
-  { name: "Half Lift", target: "straight_back" },
-  { name: "Plank Hold", target: "plank" },
-  { name: "Deep Stretch", target: "stretch" },
-  { name: "Meditation", target: "stillness" }
-];
 
 export default function Session() {
   const navigate = useNavigate();
-  const videoRef = useRef();
-  const canvasRef = useRef();
-  const lastRunRef = useRef(0);
 
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const lastRunRef = useRef(0);
+  const lastSpokenRef = useRef("");
+
+  /* ---------------- AUTO WEEK ---------------- */
+  const getCurrentWeek = () => {
+    const start = new Date("2024-01-01");
+    const now = new Date();
+    const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    return Math.min(4, Math.floor(diff / 7) + 1);
+  };
+
+  const STEPS = useMemo(() => getSessionSteps(getCurrentWeek()), []);
+
+  /* ---------------- CONFIG ---------------- */
   const TOTAL_TIME = 60 * 16;
   const STEP_TIME = TOTAL_TIME / STEPS.length;
 
@@ -26,13 +32,11 @@ export default function Session() {
   const [step, setStep] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState("Get Ready");
   const [accuracy, setAccuracy] = useState(0);
 
   const [totalAccuracy, setTotalAccuracy] = useState(0);
   const [frames, setFrames] = useState(0);
-
-  let detector;
 
   /* ---------------- VOICE ---------------- */
   const speak = (msg) => {
@@ -55,6 +59,8 @@ export default function Session() {
 
   /* ---------------- POSE LOGIC ---------------- */
   const evaluatePose = (keypoints) => {
+    const current = STEPS[step];
+
     const ls = keypoints[5];
     const rs = keypoints[6];
     const lh = keypoints[11];
@@ -63,7 +69,7 @@ export default function Session() {
     let acc = 60;
     let msg = "Adjust position";
 
-    switch (STEPS[step].target) {
+    switch (current.target) {
       case "straight_back":
         const backAngle = getAngle(lh, ls, rs);
         acc = 100 - Math.abs(100 - backAngle);
@@ -87,6 +93,11 @@ export default function Session() {
         msg = "Stay still and breathe";
         break;
 
+      case "calm":
+        acc = 95;
+        msg = "Focus on breathing";
+        break;
+
       default:
         acc = 80;
         msg = "Keep going";
@@ -106,12 +117,17 @@ export default function Session() {
     }
 
     setFeedback(msg);
-    speak(msg);
+
+    if (msg !== lastSpokenRef.current) {
+      speak(msg);
+      lastSpokenRef.current = msg;
+    }
   };
 
   /* ---------------- CAMERA ---------------- */
   useEffect(() => {
     let stream;
+    let detector;
 
     async function init() {
       stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -181,7 +197,7 @@ export default function Session() {
   useEffect(() => {
     const index = Math.floor((TOTAL_TIME - timeLeft) / STEP_TIME);
 
-    if (index !== step) {
+    if (index !== step && index < STEPS.length) {
       setStep(index);
       setScore((s) => s + 50);
       setFeedback("🎉 Step Complete!");
@@ -189,6 +205,7 @@ export default function Session() {
     }
   }, [timeLeft]);
 
+  /* ---------------- FINISH ---------------- */
   const finish = () => {
     const avgAccuracy = frames ? totalAccuracy / frames : 0;
 
@@ -202,12 +219,16 @@ export default function Session() {
     });
   };
 
+  /* ---------------- UI HELPERS ---------------- */
   const formatTime = (t) => {
     const m = Math.floor(t / 60);
     const s = t % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  const currentStep = STEPS[step] || STEPS[STEPS.length - 1];
+
+  /* ---------------- UI ---------------- */
   return (
     <div className="session">
 
@@ -216,8 +237,14 @@ export default function Session() {
         <canvas ref={canvasRef} width={400} height={400} />
       </div>
 
+      <img
+        src={currentStep.image}
+        alt={currentStep.name}
+        className="step-image"
+      />
+
       <h1>{formatTime(timeLeft)}</h1>
-      <h2>{STEPS[step]?.name}</h2>
+      <h2>{currentStep.name}</h2>
 
       <div className="accuracy">🎯 {accuracy}%</div>
       <div className="score">⚡ {score} | 🔥 x{combo}</div>
@@ -225,7 +252,11 @@ export default function Session() {
       <div className="feedback">{feedback}</div>
 
       <div className="progress">
-        <div style={{ width: `${((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100}%` }} />
+        <div
+          style={{
+            width: `${((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100}%`
+          }}
+        />
       </div>
 
       <button onClick={finish}>End Session</button>
