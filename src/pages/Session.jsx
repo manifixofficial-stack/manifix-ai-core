@@ -1,7 +1,6 @@
 // src/pages/Session.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
 import "../styles/session.css";
@@ -9,8 +8,8 @@ import "../styles/session.css";
 const STEPS = [
   { name: "Breathing Focus", target: "calm" },
   { name: "Half Lift", target: "straight_back" },
-  { name: "Plank Hold", target: "core" },
-  { name: "Deep Stretch", target: "flexibility" },
+  { name: "Plank Hold", target: "plank" },
+  { name: "Deep Stretch", target: "stretch" },
   { name: "Meditation", target: "stillness" }
 ];
 
@@ -18,6 +17,7 @@ export default function Session() {
   const navigate = useNavigate();
   const videoRef = useRef();
   const canvasRef = useRef();
+  const lastRunRef = useRef(0);
 
   const TOTAL_TIME = 60 * 16;
   const STEP_TIME = TOTAL_TIME / STEPS.length;
@@ -27,23 +27,97 @@ export default function Session() {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [poseStatus, setPoseStatus] = useState("Detecting...");
+  const [accuracy, setAccuracy] = useState(0);
 
-  /* ---------------- CAMERA SETUP ---------------- */
+  const [totalAccuracy, setTotalAccuracy] = useState(0);
+  const [frames, setFrames] = useState(0);
+
+  let detector;
+
+  /* ---------------- VOICE ---------------- */
+  const speak = (msg) => {
+    if (!window.speechSynthesis.speaking) {
+      const utter = new SpeechSynthesisUtterance(msg);
+      utter.rate = 1;
+      window.speechSynthesis.speak(utter);
+    }
+  };
+
+  /* ---------------- ANGLE ---------------- */
+  const getAngle = (A, B, C) => {
+    const AB = [A.x - B.x, A.y - B.y];
+    const CB = [C.x - B.x, C.y - B.y];
+    const dot = AB[0] * CB[0] + AB[1] * CB[1];
+    const magAB = Math.hypot(...AB);
+    const magCB = Math.hypot(...CB);
+    return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
+  };
+
+  /* ---------------- POSE LOGIC ---------------- */
+  const evaluatePose = (keypoints) => {
+    const ls = keypoints[5];
+    const rs = keypoints[6];
+    const lh = keypoints[11];
+    const rh = keypoints[12];
+
+    let acc = 60;
+    let msg = "Adjust position";
+
+    switch (STEPS[step].target) {
+      case "straight_back":
+        const backAngle = getAngle(lh, ls, rs);
+        acc = 100 - Math.abs(100 - backAngle);
+        msg = acc > 75 ? "Perfect back!" : "Straighten your back";
+        break;
+
+      case "plank":
+        const plankAngle = getAngle(ls, lh, rh);
+        acc = 100 - Math.abs(180 - plankAngle);
+        msg = acc > 75 ? "Strong plank!" : "Raise your hips";
+        break;
+
+      case "stretch":
+        const stretchAngle = getAngle(ls, rs, rh);
+        acc = 100 - Math.abs(150 - stretchAngle);
+        msg = acc > 70 ? "Great stretch!" : "Extend more";
+        break;
+
+      case "stillness":
+        acc = 90;
+        msg = "Stay still and breathe";
+        break;
+
+      default:
+        acc = 80;
+        msg = "Keep going";
+    }
+
+    acc = Math.max(0, Math.min(100, acc));
+
+    setAccuracy(acc.toFixed(0));
+    setTotalAccuracy((t) => t + acc);
+    setFrames((f) => f + 1);
+
+    if (acc > 75) {
+      setScore((s) => s + 2);
+      setCombo((c) => c + 1);
+    } else {
+      setCombo(0);
+    }
+
+    setFeedback(msg);
+    speak(msg);
+  };
+
+  /* ---------------- CAMERA ---------------- */
   useEffect(() => {
-    async function setupCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    let stream;
+
+    async function init() {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
-    }
-    setupCamera();
-  }, []);
 
-  /* ---------------- AI POSE DETECTION ---------------- */
-  useEffect(() => {
-    let detector;
-
-    async function initAI() {
       detector = await posedetection.createDetector(
         posedetection.SupportedModels.MoveNet
       );
@@ -51,45 +125,52 @@ export default function Session() {
       detectPose();
     }
 
-    async function detectPose() {
-      if (!videoRef.current) return;
+    async function detectPose(now = 0) {
+      if (now - lastRunRef.current < 100) {
+        requestAnimationFrame(detectPose);
+        return;
+      }
+      lastRunRef.current = now;
 
       const poses = await detector.estimatePoses(videoRef.current);
 
-      if (poses.length > 0) {
-        // FAKE LOGIC → replace with real angle checks later
-        const good = Math.random() > 0.3;
+      const ctx = canvasRef.current.getContext("2d");
+      ctx.clearRect(0, 0, 400, 400);
 
-        if (good) {
-          setPoseStatus("✅ Perfect Form");
-          setScore((s) => s + 5);
-          setCombo((c) => c + 1);
-          setFeedback("🔥 Perfect posture!");
-        } else {
-          setPoseStatus("⚠️ Adjust posture");
-          setCombo(0);
-          setFeedback("👉 Straighten your back");
-        }
+      if (poses.length > 0) {
+        const keypoints = poses[0].keypoints;
+
+        keypoints.forEach((kp) => {
+          if (kp.score > 0.4) {
+            ctx.beginPath();
+            ctx.arc(kp.x, kp.y, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = "#22d3ee";
+            ctx.fill();
+          }
+        });
+
+        evaluatePose(keypoints);
       }
 
       requestAnimationFrame(detectPose);
     }
 
-    initAI();
+    init();
+
+    return () => {
+      stream?.getTracks().forEach((t) => t.stop());
+    };
   }, []);
 
   /* ---------------- TIMER ---------------- */
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
+      setTimeLeft((t) => {
+        if (t <= 1) {
           finish();
           return 0;
         }
-
-        setScore((s) => s + 1);
-        return prev - 1;
+        return t - 1;
       });
     }, 1000);
 
@@ -104,8 +185,22 @@ export default function Session() {
       setStep(index);
       setScore((s) => s + 50);
       setFeedback("🎉 Step Complete!");
+      speak("Step complete");
     }
   }, [timeLeft]);
+
+  const finish = () => {
+    const avgAccuracy = frames ? totalAccuracy / frames : 0;
+
+    navigate("/app/result", {
+      state: {
+        score,
+        accuracy: avgAccuracy.toFixed(0),
+        xpEarned: Math.floor(score / 2),
+        streak: 7
+      }
+    });
+  };
 
   const formatTime = (t) => {
     const m = Math.floor(t / 60);
@@ -113,68 +208,27 @@ export default function Session() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const finish = () => {
-    navigate("/app/result", {
-      state: {
-        score,
-        accuracy: 90,
-        time: "16:00",
-        xpEarned: score / 2,
-        streak: 7
-      }
-    });
-  };
-
   return (
     <div className="session">
 
-      {/* CAMERA */}
       <div className="camera-box">
-        <video ref={videoRef} className="video" />
-        <canvas ref={canvasRef} className="overlay" />
+        <video ref={videoRef} autoPlay className="video" />
+        <canvas ref={canvasRef} width={400} height={400} />
       </div>
 
-      {/* TIMER */}
-      <h1 className="timer">{formatTime(timeLeft)}</h1>
+      <h1>{formatTime(timeLeft)}</h1>
+      <h2>{STEPS[step]?.name}</h2>
 
-      {/* STEP */}
-      <h2 className="step">{STEPS[step]?.name}</h2>
+      <div className="accuracy">🎯 {accuracy}%</div>
+      <div className="score">⚡ {score} | 🔥 x{combo}</div>
 
-      {/* AI STATUS */}
-      <div className="pose-status">{poseStatus}</div>
+      <div className="feedback">{feedback}</div>
 
-      {/* FEEDBACK */}
-      <AnimatePresence>
-        {feedback && (
-          <motion.div
-            className="feedback"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {feedback}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* SCORE */}
-      <div className="score">
-        ⚡ {score} | 🔥 x{combo}
-      </div>
-
-      {/* PROGRESS */}
       <div className="progress">
-        <div
-          style={{
-            width: `${((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100}%`
-          }}
-        />
+        <div style={{ width: `${((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100}%` }} />
       </div>
 
-      {/* END */}
-      <button className="end-btn" onClick={finish}>
-        End Session
-      </button>
+      <button onClick={finish}>End Session</button>
 
     </div>
   );
