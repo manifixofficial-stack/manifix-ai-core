@@ -5,7 +5,8 @@ import logo from "../assets/logo.png";
 import { BoltIcon, ClockIcon, SparklesIcon, ChatBubbleOvalLeftEllipsisIcon } from "@heroicons/react/24/outline";
 
 export default function Features() {
-  const { feature = "gpt" } = useParams();
+  const params = useParams();
+  const feature = params.feature || "gpt";
 
   // Define pages
   const pages = {
@@ -15,7 +16,7 @@ export default function Features() {
       features: [
         { name: "Smart Answers", icon: <ChatBubbleOvalLeftEllipsisIcon className="icon" /> },
         { name: "Code Help", icon: <SparklesIcon className="icon" /> },
-        { name: "Research Summaries", icon: <LightningBoltIcon className="icon" /> },
+        { name: "Research Summaries", icon: <BoltIcon className="icon" /> },
         { name: "Brainstorming Ideas", icon: <ClockIcon className="icon" /> }
       ],
       button: "Try ManifiX GPT",
@@ -27,7 +28,7 @@ export default function Features() {
       description: "A 16-step productivity method that improves focus, posture and mental clarity.",
       features: [
         { name: "Daily Magic16", desc: "16-minute ritual to boost energy & focus", icon: <SparklesIcon className="icon" /> },
-        { name: "Quick Boost", desc: "Feeling distracted? Reset in 1 min", icon: <LightningBoltIcon className="icon" /> },
+        { name: "Quick Boost", desc: "Feeling distracted? Reset in 1 min", icon: <BoltIcon className="icon" /> },
         { name: "Focus Mode", desc: "5 min deep focus session", icon: <ClockIcon className="icon" /> }
       ],
       button: "Start Magic16",
