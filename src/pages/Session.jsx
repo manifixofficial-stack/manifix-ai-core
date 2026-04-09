@@ -1,4 +1,5 @@
 // src/pages/Session.jsx
+
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import * as posedetection from "@tensorflow-models/pose-detection";
@@ -13,6 +14,7 @@ export default function Session() {
   const canvasRef = useRef(null);
   const lastRunRef = useRef(0);
   const lastSpokenRef = useRef("");
+  const audioRef = useRef(null);
 
   /* ---------------- AUTO WEEK ---------------- */
   const getCurrentWeek = () => {
@@ -34,9 +36,21 @@ export default function Session() {
   const [combo, setCombo] = useState(0);
   const [feedback, setFeedback] = useState("Get Ready");
   const [accuracy, setAccuracy] = useState(0);
+  const [transition, setTransition] = useState(false);
 
   const [totalAccuracy, setTotalAccuracy] = useState(0);
   const [frames, setFrames] = useState(0);
+
+  /* ---------------- SOUND ---------------- */
+  const playBeep = () => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(
+        "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"
+      );
+    }
+    audioRef.current.currentTime = 0;
+    audioRef.current.play();
+  };
 
   /* ---------------- VOICE ---------------- */
   const speak = (msg) => {
@@ -109,9 +123,10 @@ export default function Session() {
     setTotalAccuracy((t) => t + acc);
     setFrames((f) => f + 1);
 
-    if (acc > 75) {
-      setScore((s) => s + 2);
+    if (acc > 80) {
+      setScore((s) => s + 3);
       setCombo((c) => c + 1);
+      playBeep(); // 🔊 SOUND FEEDBACK
     } else {
       setCombo(0);
     }
@@ -124,21 +139,53 @@ export default function Session() {
     }
   };
 
+  /* ---------------- DRAW SKELETON ---------------- */
+  const drawSkeleton = (ctx, keypoints) => {
+    const pairs = [
+      [5, 7],[7, 9],
+      [6, 8],[8, 10],
+      [5, 6],
+      [5, 11],[6, 12],
+      [11, 13],[13, 15],
+      [12, 14],[14, 16],
+      [11, 12]
+    ];
+
+    ctx.strokeStyle = "#22d3ee";
+    ctx.lineWidth = 2;
+
+    pairs.forEach(([i, j]) => {
+      const kp1 = keypoints[i];
+      const kp2 = keypoints[j];
+
+      if (kp1.score > 0.4 && kp2.score > 0.4) {
+        ctx.beginPath();
+        ctx.moveTo(kp1.x, kp1.y);
+        ctx.lineTo(kp2.x, kp2.y);
+        ctx.stroke();
+      }
+    });
+  };
+
   /* ---------------- CAMERA ---------------- */
   useEffect(() => {
     let stream;
     let detector;
 
     async function init() {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
 
-      detector = await posedetection.createDetector(
-        posedetection.SupportedModels.MoveNet
-      );
+        detector = await posedetection.createDetector(
+          posedetection.SupportedModels.MoveNet
+        );
 
-      detectPose();
+        detectPose();
+      } catch (e) {
+        alert("Camera permission required");
+      }
     }
 
     async function detectPose(now = 0) {
@@ -155,6 +202,8 @@ export default function Session() {
 
       if (poses.length > 0) {
         const keypoints = poses[0].keypoints;
+
+        drawSkeleton(ctx, keypoints);
 
         keypoints.forEach((kp) => {
           if (kp.score > 0.4) {
@@ -198,10 +247,13 @@ export default function Session() {
     const index = Math.floor((TOTAL_TIME - timeLeft) / STEP_TIME);
 
     if (index !== step && index < STEPS.length) {
+      setTransition(true);
+      setTimeout(() => setTransition(false), 800);
+
       setStep(index);
       setScore((s) => s + 50);
       setFeedback("🎉 Step Complete!");
-      speak("Step complete");
+      speak("Next step");
     }
   }, [timeLeft]);
 
@@ -219,16 +271,9 @@ export default function Session() {
     });
   };
 
-  /* ---------------- UI HELPERS ---------------- */
-  const formatTime = (t) => {
-    const m = Math.floor(t / 60);
-    const s = t % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const currentStep = STEPS[step] || STEPS[STEPS.length - 1];
-
   /* ---------------- UI ---------------- */
+  const currentStep = STEPS[step] || STEPS[0];
+
   return (
     <div className="session">
 
@@ -237,13 +282,13 @@ export default function Session() {
         <canvas ref={canvasRef} width={400} height={400} />
       </div>
 
-      <img
-        src={currentStep.image}
-        alt={currentStep.name}
-        className="step-image"
-      />
+      {/* STEP IMAGE WITH ANIMATION */}
+      <div className={`step-container ${transition ? "step-anim" : ""}`}>
+        <img src={currentStep.image} alt="" className="step-image" />
+        <p>Follow this pose</p>
+      </div>
 
-      <h1>{formatTime(timeLeft)}</h1>
+      <h1>{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2,"0")}</h1>
       <h2>{currentStep.name}</h2>
 
       <div className="accuracy">🎯 {accuracy}%</div>
@@ -252,11 +297,7 @@ export default function Session() {
       <div className="feedback">{feedback}</div>
 
       <div className="progress">
-        <div
-          style={{
-            width: `${((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100}%`
-          }}
-        />
+        <div style={{ width: `${((TOTAL_TIME - timeLeft) / TOTAL_TIME) * 100}%` }} />
       </div>
 
       <button onClick={finish}>End Session</button>
