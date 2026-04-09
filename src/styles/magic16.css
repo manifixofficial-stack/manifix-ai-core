@@ -1,277 +1,204 @@
-/* ---------- magic16.css ---------- */
-
-/* ---------- GENERAL RESET ---------- */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Poppins', sans-serif;
-}
-
-body {
-  background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-  color: #fff;
-  overflow-x: hidden;
-}
-
-button {
-  cursor: pointer;
-  border: none;
-  outline: none;
-  font-weight: 600;
-  border-radius: 12px;
-  transition: all 0.3s ease;
-}
-
-/* ---------- HEADER ---------- */
-.magic16-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px;
-  background: rgba(0,0,0,0.3);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255,255,255,0.2);
-}
-
-.magic16-header img {
-  height: 50px;
-  filter: drop-shadow(0 0 10px #00ffe0);
-}
-
-.magic16-streak {
-  font-size: 18px;
-  color: #ffdd00;
-  text-shadow: 0 0 8px #ffdd00;
-}
-
-.magic16-xp {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.xp-bar {
-  width: 150px;
-  height: 10px;
-  background: rgba(255,255,255,0.2);
-  border-radius: 5px;
-  overflow: hidden;
-  margin-bottom: 5px;
-}
-
-.xp-bar div {
-  height: 100%;
-  background: linear-gradient(90deg, #00ffe0, #ff00ff);
-  border-radius: 5px;
-  transition: width 0.3s ease;
-}
-
-/* ---------- LAYOUT ---------- */
-.magic16-app {
+/* ---------------- ROOT ---------------- */
+.magic16-container {
+  height: 100vh;
+  width: 100%;
+  background: radial-gradient(circle at top, #0f172a, #020617);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px;
-}
-
-.magic16-layout {
-  display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 30px;
-  margin-top: 20px;
-}
-
-/* ---------- CAMERA ---------- */
-.magic16-camera {
+  font-family: "Poppins", sans-serif;
+  color: #fff;
+  overflow: hidden;
   position: relative;
-  width: 400px;
-  height: 300px;
-  border: 3px solid #00ffe0;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 0 20px #ff00ff, 0 0 40px #00ffe0;
 }
 
-.magic16-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  animation: pulse 2s infinite alternate;
+/* ---------------- BACKGROUND GLOW ---------------- */
+.magic-bg-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0, 255, 200, 0.25), transparent);
+  filter: blur(120px);
+  top: -100px;
+  animation: glowMove 10s infinite alternate ease-in-out;
 }
 
-@keyframes pulse {
-  0% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.02); filter: brightness(1.1); }
-  100% { transform: scale(1); filter: brightness(1); }
+@keyframes glowMove {
+  from {
+    transform: translateX(-100px);
+  }
+  to {
+    transform: translateX(100px);
+  }
 }
 
-/* ---------- PANEL ---------- */
-.magic16-panel {
-  max-width: 400px;
-  background: rgba(0,0,0,0.4);
-  padding: 20px;
-  border-radius: 20px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 0 20px #ff00ff, 0 0 40px #00ffe0;
+/* ---------------- HEADER ---------------- */
+.magic-header {
   text-align: center;
+  margin-bottom: 20px;
 }
 
-.magic16-variation {
-  font-size: 20px;
-  color: #00ffe0;
-  text-shadow: 0 0 10px #00ffe0;
+.magic-logo {
+  width: 60px;
   margin-bottom: 10px;
 }
 
-.magic16-step-img {
-  width: 100%;
-  height: auto;
-  border-radius: 16px;
-  margin: 15px 0;
-  box-shadow: 0 0 15px #ff00ff, 0 0 25px #00ffe0;
-  animation: float 3s ease-in-out infinite;
+.magic-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-  100% { transform: translateY(0px); }
+.magic-header p {
+  font-size: 14px;
+  color: #94a3b8;
 }
 
-/* ---------- REWARDS ---------- */
-.magic16-goal-box {
-  background: #ff00ff;
-  background: linear-gradient(135deg, #ff00ff, #00ffe0);
-  padding: 10px 20px;
+/* ---------------- CARD ---------------- */
+.magic-card {
+  width: 340px;
+  padding: 25px;
   border-radius: 20px;
-  text-align: center;
-  color: #000;
-  font-weight: bold;
-  text-shadow: 0 0 6px #000;
-  margin: 10px 0;
-  animation: glow 2s infinite alternate;
-}
-
-@keyframes glow {
-  0% { box-shadow: 0 0 10px #ff00ff; }
-  50% { box-shadow: 0 0 20px #00ffe0; }
-  100% { box-shadow: 0 0 10px #ff00ff; }
-}
-
-/* ---------- BUTTONS ---------- */
-.magic16-actions button {
-  margin: 5px;
-  padding: 10px 20px;
-  font-size: 16px;
-  background: linear-gradient(135deg, #ff00ff, #00ffe0);
-  color: #fff;
-  text-shadow: 0 0 4px #000;
-  box-shadow: 0 0 15px #ff00ff, 0 0 25px #00ffe0;
-}
-
-.magic16-actions button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 25px #ff00ff, 0 0 40px #00ffe0;
-}
-
-/* ---------- HISTORY ---------- */
-.magic16-history {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 0 40px rgba(0, 255, 200, 0.1);
   display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ---------------- TIMER ---------------- */
+.magic-timer {
+  margin-bottom: 20px;
+}
+
+.ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: conic-gradient(#00ffc8 0deg, #0ea5e9 360deg);
+  display: flex;
+  align-items: center;
   justify-content: center;
-  margin-top: 10px;
+  position: relative;
+  box-shadow: 0 0 25px rgba(0, 255, 200, 0.4);
 }
 
-.history-icon {
-  margin: 0 4px;
-  font-size: 20px;
-  animation: bounce 1s infinite;
+.ring::before {
+  content: "";
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  background: #020617;
+  border-radius: 50%;
 }
 
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
-/* ---------- SHARE SHAKE ---------- */
-body.shake {
-  animation: shake 0.2s;
-}
-
-@keyframes shake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-5px); }
-  100% { transform: translateX(0); }
-}
-
-/* ---------- LOADING ---------- */
-.magic16-loading {
-  font-size: 20px;
-  color: #00ffe0;
-  text-shadow: 0 0 10px #00ffe0;
-  animation: pulse 2s infinite alternate;
-}
-
-/* ---------- COMPLETED SCREEN ---------- */
-.magic16-complete {
-  text-align: center;
-  padding: 30px;
-  background: rgba(0,0,0,0.5);
-  border-radius: 20px;
-  box-shadow: 0 0 20px #ff00ff, 0 0 40px #00ffe0;
-}
-
-.magic16-complete h1 {
-  font-size: 36px;
-  color: #ffdd00;
-  text-shadow: 0 0 10px #ffdd00;
-  margin-bottom: 10px;
-}
-
-.magic16-complete h2 {
+.ring span {
+  position: absolute;
   font-size: 28px;
-  margin-bottom: 15px;
+  font-weight: 700;
 }
 
-.magic16-leaderboard {
-  margin-top: 20px;
-  text-align: left;
+.ring small {
+  position: absolute;
+  margin-top: 40px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.magic16-leaderboard h3 {
-  color: #00ffe0;
-  text-shadow: 0 0 10px #00ffe0;
+/* ---------------- STATS ---------------- */
+.magic-stats {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
-.magic16-leaderboard p {
-  margin: 4px 0;
-}
-
-/* ---------- FRIENDS PANEL ---------- */
-.magic16-friends {
-  margin-top: 20px;
-  text-align: center;
-  padding: 15px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 16px;
-  box-shadow: 0 0 10px #ff00ff, 0 0 20px #00ffe0;
-}
-
-/* ---------- WARNING ---------- */
-.magic16-warning {
-  margin: 10px 0;
-  padding: 10px;
-  background: #ff0044;
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px;
   border-radius: 12px;
   text-align: center;
-  animation: flash 2s infinite;
+  width: 120px;
+  box-shadow: inset 0 0 10px rgba(0, 255, 200, 0.15);
 }
 
-@keyframes flash {
-  0% { background-color: #ff0044; }
-  50% { background-color: #ff7700; }
-  100% { background-color: #ff0044; }
+.stat-card h3 {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.stat-card p {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* ---------------- PROGRESS ---------------- */
+.magic-progress-section {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.magic-progress-section p {
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: #94a3b8;
+}
+
+.magic-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #1e293b;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.magic-progress-bar div {
+  height: 100%;
+  background: linear-gradient(90deg, #00ffc8, #0ea5e9);
+  transition: width 0.5s ease;
+}
+
+/* ---------------- FEATURES ---------------- */
+.magic-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: #cbd5f5;
+  text-align: center;
+}
+
+/* ---------------- BUTTON ---------------- */
+.magic-start-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #00ffc8, #0ea5e9);
+  color: #020617;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: 0.3s;
+  box-shadow: 0 0 20px rgba(0, 255, 200, 0.4);
+}
+
+.magic-start-btn:hover {
+  box-shadow: 0 0 30px rgba(0, 255, 200, 0.7);
+}
+
+/* ---------------- FOOTER ---------------- */
+.magic-footer {
+  margin-top: 20px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ---------------- RESPONSIVE ---------------- */
+@media (max-width: 400px) {
+  .magic-card {
+    width: 90%;
+  }
 }
