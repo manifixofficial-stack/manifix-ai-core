@@ -13,6 +13,8 @@ export default function Magic16() {
   const [streak, setStreak] = useState(0);
   const [level, setLevel] = useState("Beginner");
   const [progress, setProgress] = useState(0);
+  const [hasSession, setHasSession] = useState(false);
+  const [completed, setCompleted] = useState(false);
 
   /* ---------------- LOAD USER DATA ---------------- */
   useEffect(() => {
@@ -23,15 +25,45 @@ export default function Magic16() {
     else if (s > 20) setLevel("Master");
     else if (s > 5) setLevel("Explorer");
 
-    // fake daily progress (you can connect real later)
-    const todayProgress = Number(localStorage.getItem("magic16_today") || 0);
+    /* -------- DAILY PROGRESS -------- */
+    const todayKey = new Date().toDateString();
+    const saved = JSON.parse(localStorage.getItem("magic16_daily") || "{}");
+
+    const todayProgress = saved[todayKey]?.progress || 0;
+    const inProgress = saved[todayKey]?.inProgress || false;
+    const done = todayProgress >= 100;
+
     setProgress(todayProgress);
+    setHasSession(inProgress);
+    setCompleted(done);
   }, []);
 
-  /* ---------------- START SESSION ---------------- */
+  /* ---------------- START / RESUME ---------------- */
   const startSession = () => {
+    const todayKey = new Date().toDateString();
+    const saved = JSON.parse(localStorage.getItem("magic16_daily") || {});
+
+    saved[todayKey] = {
+      progress: progress,
+      inProgress: true,
+    };
+
+    localStorage.setItem("magic16_daily", JSON.stringify(saved));
+
     navigate("/app/session");
   };
+
+  /* ---------------- RESET DAY (OPTIONAL DEV) ---------------- */
+  // localStorage.clear()
+
+  /* ---------------- UI HELPERS ---------------- */
+  const getButtonText = () => {
+    if (completed) return "✅ Completed Today";
+    if (hasSession) return "▶ Resume Session";
+    return "Start Magic16";
+  };
+
+  const isDisabled = completed;
 
   return (
     <div className="magic16-container">
@@ -80,12 +112,27 @@ export default function Magic16() {
 
         </div>
 
-        {/* DAILY PROGRESS */}
+        {/* DAILY GOAL */}
         <div className="magic-progress-section">
-          <p>Today Progress</p>
-          <div className="magic-progress-bar">
-            <div style={{ width: `${progress}%` }} />
+          <div className="progress-header">
+            <p>Daily Goal</p>
+            <span>{Math.floor(progress)}% / 100%</span>
           </div>
+
+          <div className="magic-progress-bar">
+            <div
+              className="magic-progress-fill"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
+          <p className="progress-label">
+            {completed
+              ? "🎉 Goal completed for today!"
+              : hasSession
+              ? "🔥 Continue your session"
+              : "Start your 16-min focus ritual"}
+          </p>
         </div>
 
         {/* FEATURES */}
@@ -98,12 +145,13 @@ export default function Magic16() {
 
         {/* CTA BUTTON */}
         <motion.button
-          className="magic-start-btn"
+          className={`magic-start-btn ${completed ? "disabled" : ""}`}
           onClick={startSession}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={!completed ? { scale: 1.08 } : {}}
+          whileTap={!completed ? { scale: 0.95 } : {}}
+          disabled={isDisabled}
         >
-          Start Magic16
+          {getButtonText()}
         </motion.button>
 
       </motion.div>
