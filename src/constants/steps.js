@@ -1,28 +1,24 @@
 // src/constants/steps.js
 
 /* ---------------- CONFIG ---------------- */
-
 export const TOTAL_WEEKS = 4;
 export const STEPS_PER_SESSION = 8;
 
 /* ---------------- HELPER FUNCTIONS ---------------- */
 
-// Get image path
-export const getImagePath = (name) => `/assets/steps/${name}`;
+// Get image path from public folder
+export const getImagePath = (filename) => `/assets/steps/${filename}`;
 
-// Daily variation (1–3)
-export const getVariation = () => {
-  return (new Date().getDate() % 3) + 1;
-};
+// Daily variation (1–3) for slight changes
+export const getVariation = () => (new Date().getDate() % 3) + 1;
 
-// Build image name
-const buildImage = (type, week, day, step) => {
+// Build image name based on type, week, day, step, variation
+export const buildImage = (type, week, day, step) => {
   const v = getVariation();
   return `${type}-w${week}-d${day}-s${step}-v${v}.png`;
 };
 
 /* ---------------- WEEKLY STEP DATA ---------------- */
-
 export const WEEK_STEPS = {
   1: {
     1: [
@@ -35,7 +31,6 @@ export const WEEK_STEPS = {
       { name: "Forward Fold", type: "yoga", target: "stretch", step: 7 },
       { name: "Meditation Calm", type: "med", target: "stillness", step: 8 }
     ],
-
     2: [
       { name: "Focus Breath", type: "med", target: "calm", step: 1 },
       { name: "Shoulder Stretch", type: "yoga", target: "stretch", step: 2 },
@@ -46,7 +41,6 @@ export const WEEK_STEPS = {
       { name: "Hamstring Stretch", type: "yoga", target: "stretch", step: 7 },
       { name: "Silent Meditation", type: "med", target: "stillness", step: 8 }
     ],
-
     3: [
       { name: "Mind Reset", type: "med", target: "calm", step: 1 },
       { name: "Dynamic Stretch", type: "yoga", target: "stretch", step: 2 },
@@ -57,7 +51,6 @@ export const WEEK_STEPS = {
       { name: "Full Stretch", type: "yoga", target: "stretch", step: 7 },
       { name: "Zen Mode", type: "med", target: "stillness", step: 8 }
     ],
-
     4: [
       { name: "Breath Control", type: "med", target: "calm", step: 1 },
       { name: "Full Body Stretch", type: "yoga", target: "stretch", step: 2 },
@@ -68,7 +61,6 @@ export const WEEK_STEPS = {
       { name: "Deep Extension", type: "yoga", target: "stretch", step: 7 },
       { name: "Calm Meditation", type: "med", target: "stillness", step: 8 }
     ],
-
     5: [
       { name: "Relax Breath", type: "med", target: "calm", step: 1 },
       { name: "Stretch Flow", type: "yoga", target: "stretch", step: 2 },
@@ -79,7 +71,6 @@ export const WEEK_STEPS = {
       { name: "Forward Stretch", type: "yoga", target: "stretch", step: 7 },
       { name: "Mind Calm", type: "med", target: "stillness", step: 8 }
     ],
-
     6: [
       { name: "Focus Reset", type: "med", target: "calm", step: 1 },
       { name: "Deep Stretch", type: "yoga", target: "stretch", step: 2 },
@@ -90,7 +81,6 @@ export const WEEK_STEPS = {
       { name: "Full Extension", type: "yoga", target: "stretch", step: 7 },
       { name: "Deep Meditation", type: "med", target: "stillness", step: 8 }
     ],
-
     7: [
       { name: "Master Breath", type: "med", target: "calm", step: 1 },
       { name: "Full Flow Stretch", type: "yoga", target: "stretch", step: 2 },
@@ -101,13 +91,13 @@ export const WEEK_STEPS = {
       { name: "Deep Flow", type: "yoga", target: "stretch", step: 7 },
       { name: "Zen Master", type: "med", target: "stillness", step: 8 }
     ]
-  };
+  }
+};
 
 /* ---------------- MAIN FUNCTION ---------------- */
-
 export const getSessionSteps = (week = 1) => {
   const today = new Date().getDay(); 
-  const day = today === 0 ? 7 : today; // Sunday fix
+  const day = today === 0 ? 7 : today; // Sunday = 7
 
   const weekData = WEEK_STEPS[week] || WEEK_STEPS[1];
   const steps = weekData[day];
@@ -117,9 +107,7 @@ export const getSessionSteps = (week = 1) => {
 
     return {
       ...step,
-      image: getImagePath(
-        buildImage(step.type, week, stepNumber)
-      )
+      image: getImagePath(buildImage(step.type, week, day, stepNumber))
     };
   });
 };
