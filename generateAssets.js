@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const basePath = "./public/assets/steps";
+const basePath = "./src/assets/steps";
 
 const TYPES = ["yoga", "meditation"];
 const WEEKS = 4;
