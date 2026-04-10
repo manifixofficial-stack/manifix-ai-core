@@ -6,8 +6,8 @@ export const STEPS_PER_SESSION = 8;
 
 /* ---------------- HELPER FUNCTIONS ---------------- */
 
-// Get image path from public folder
-export const getImagePath = (filename) => `/assets/steps/${filename}`;
+export const getImagePath = (type, filename) =>
+  `/assets/steps/${type}/${filename}`;
 
 // Daily variation (1–3) for slight changes
 export const getVariation = () => (new Date().getDate() % 3) + 1;
@@ -184,9 +184,10 @@ export const getSessionSteps = (week = 1) => {
 
     return {
       ...step,
-      image: getImagePath(
-        buildImage(step.type, week, day, stepNumber)
-      )
+     image: getImagePath(
+  step.type,
+  buildImage(step.type, week, day, stepNumber)
+)
     };
   });
 };
