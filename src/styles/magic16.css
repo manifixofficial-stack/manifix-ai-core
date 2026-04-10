@@ -1,204 +1,259 @@
-/* ---------------- ROOT ---------------- */
-.magic16-container {
-  height: 100vh;
-  width: 100%;
+/* ================= GLOBAL ================= */
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", sans-serif;
   background: radial-gradient(circle at top, #0f172a, #020617);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: "Poppins", sans-serif;
   color: #fff;
-  overflow: hidden;
-  position: relative;
+  overflow-x: hidden;
 }
 
-/* ---------------- BACKGROUND GLOW ---------------- */
-.magic-bg-glow {
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(0, 255, 200, 0.25), transparent);
-  filter: blur(120px);
-  top: -100px;
-  animation: glowMove 10s infinite alternate ease-in-out;
-}
-
-@keyframes glowMove {
-  from {
-    transform: translateX(-100px);
-  }
-  to {
-    transform: translateX(100px);
-  }
-}
-
-/* ---------------- HEADER ---------------- */
-.magic-header {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.magic-logo {
-  width: 60px;
-  margin-bottom: 10px;
-}
-
-.magic-header h1 {
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.magic-header p {
-  font-size: 14px;
-  color: #94a3b8;
-}
-
-/* ---------------- CARD ---------------- */
-.magic-card {
-  width: 340px;
-  padding: 25px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 0 40px rgba(0, 255, 200, 0.1);
+/* ================= APP WRAPPER ================= */
+.magic16-app {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  animation: fadeIn 0.8s ease-in-out;
 }
 
-/* ---------------- TIMER ---------------- */
-.magic-timer {
-  margin-bottom: 20px;
-}
-
-.ring {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: conic-gradient(#00ffc8 0deg, #0ea5e9 360deg);
+/* ================= HEADER ================= */
+.magic16-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  position: relative;
-  box-shadow: 0 0 25px rgba(0, 255, 200, 0.4);
+  padding: 18px 28px;
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.ring::before {
+.magic16-header img {
+  height: 42px;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 200, 0.4));
+}
+
+.magic16-streak {
+  font-weight: 600;
+  color: #00ffc8;
+  text-shadow: 0 0 10px rgba(0, 255, 200, 0.5);
+}
+
+/* ================= LOADING ================= */
+.magic16-loading {
+  text-align: center;
+  margin-top: 40px;
+  font-size: 18px;
+  color: #94a3b8;
+  animation: pulse 1.2s infinite;
+}
+
+/* ================= LAYOUT ================= */
+.magic16-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+  padding: 20px;
+  height: calc(100vh - 80px);
+}
+
+/* ================= CAMERA ================= */
+.magic16-camera {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 40px rgba(0, 255, 200, 0.15);
+  animation: floatIn 0.8s ease;
+}
+
+.magic16-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* glowing border */
+.magic16-camera::before {
   content: "";
   position: absolute;
-  width: 90px;
-  height: 90px;
-  background: #020617;
-  border-radius: 50%;
+  inset: 0;
+  border-radius: 20px;
+  padding: 2px;
+  background: linear-gradient(45deg, #00ffc8, #7c3aed, #22d3ee);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: glowBorder 3s linear infinite;
 }
 
-.ring span {
-  position: absolute;
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.ring small {
-  position: absolute;
-  margin-top: 40px;
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-/* ---------------- STATS ---------------- */
-.magic-stats {
+/* ================= PANEL ================= */
+.magic16-panel {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 20px;
   display: flex;
-  gap: 15px;
-  margin-bottom: 20px;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.7s ease;
 }
 
-.stat-card {
-  background: rgba(255, 255, 255, 0.05);
-  padding: 12px;
-  border-radius: 12px;
-  text-align: center;
-  width: 120px;
-  box-shadow: inset 0 0 10px rgba(0, 255, 200, 0.15);
-}
-
-.stat-card h3 {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.stat-card p {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-/* ---------------- PROGRESS ---------------- */
-.magic-progress-section {
+/* step image */
+.magic16-step-img {
   width: 100%;
-  margin-bottom: 20px;
+  border-radius: 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 10px 30px rgba(0, 255, 200, 0.1);
+  transition: transform 0.3s ease;
 }
 
-.magic-progress-section p {
-  font-size: 12px;
-  margin-bottom: 6px;
+.magic16-step-img:hover {
+  transform: scale(1.03);
+}
+
+/* step text */
+.magic16-panel h2 {
+  font-size: 20px;
+  margin: 10px 0;
+  color: #e2e8f0;
+}
+
+.magic16-coach {
+  font-size: 14px;
   color: #94a3b8;
+  min-height: 40px;
 }
 
-.magic-progress-bar {
+/* ================= PROGRESS BAR ================= */
+.magic16-progress {
   width: 100%;
-  height: 8px;
-  background: #1e293b;
-  border-radius: 10px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
   overflow: hidden;
+  margin: 12px 0;
 }
 
-.magic-progress-bar div {
+.magic16-progress > div {
   height: 100%;
-  background: linear-gradient(90deg, #00ffc8, #0ea5e9);
-  transition: width 0.5s ease;
+  background: linear-gradient(90deg, #00ffc8, #7c3aed);
+  width: 0%;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 10px #00ffc8;
 }
 
-/* ---------------- FEATURES ---------------- */
-.magic-features {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
-  font-size: 12px;
-  color: #cbd5f5;
-  text-align: center;
+/* ================= STATS ================= */
+.magic16-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #cbd5e1;
 }
 
-/* ---------------- BUTTON ---------------- */
-.magic-start-btn {
+/* ================= BUTTONS ================= */
+.magic16-controls {
+  margin-top: 15px;
+}
+
+.magic16-controls button {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   border: none;
-  border-radius: 12px;
-  background: linear-gradient(90deg, #00ffc8, #0ea5e9);
-  color: #020617;
+  border-radius: 14px;
   font-weight: 600;
-  font-size: 15px;
   cursor: pointer;
+  color: #000;
+  background: linear-gradient(135deg, #00ffc8, #22d3ee);
+  box-shadow: 0 10px 30px rgba(0, 255, 200, 0.3);
+  transition: all 0.3s ease;
+}
+
+.magic16-controls button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 40px rgba(0, 255, 200, 0.5);
+}
+
+.magic16-controls button:active {
+  transform: scale(0.98);
+}
+
+/* ================= COMPLETED SCREEN ================= */
+.magic16-complete {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  animation: fadeIn 1s ease;
+}
+
+.magic16-complete h1 {
+  font-size: 36px;
+  color: #00ffc8;
+}
+
+.magic16-complete h2 {
+  font-size: 24px;
+  margin-top: 10px;
+}
+
+.magic16-complete p {
+  color: #94a3b8;
+}
+
+.magic16-complete button {
+  margin-top: 10px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #00ffc8, #7c3aed);
+  color: #000;
+  font-weight: 600;
   transition: 0.3s;
-  box-shadow: 0 0 20px rgba(0, 255, 200, 0.4);
 }
 
-.magic-start-btn:hover {
-  box-shadow: 0 0 30px rgba(0, 255, 200, 0.7);
+.magic16-complete button:hover {
+  transform: scale(1.05);
 }
 
-/* ---------------- FOOTER ---------------- */
-.magic-footer {
-  margin-top: 20px;
-  font-size: 12px;
-  color: #64748b;
+/* ================= ANIMATIONS ================= */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* ---------------- RESPONSIVE ---------------- */
-@media (max-width: 400px) {
-  .magic-card {
-    width: 90%;
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes floatIn {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes glowBorder {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 900px) {
+  .magic16-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .magic16-camera {
+    height: 300px;
   }
 }
