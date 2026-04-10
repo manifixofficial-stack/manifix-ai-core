@@ -27,8 +27,6 @@ import Magic16 from "./pages/Magic16";
 import Feedback from "./pages/Feedback";
 import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
-import Session from "./pages/Session";
-import Result from "./pages/Result";
 /* ---------------- Not Found ---------------- */
 import NotFound from "./pages/NotFound";
 
@@ -77,8 +75,7 @@ export default function AppRouter() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="gpt" element={<Gpt />} />
            {/* ✅ ADD HERE */}
-          <Route path="session" element={<Session />} />
-          <Route path="result" element={<Result />} />
+         
           <Route path="magic16" element={<Magic16 />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="billing" element={<Billing />} />
