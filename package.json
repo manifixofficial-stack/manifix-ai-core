@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate:assets": "node generateAssets.js",
     "build": "vite build",
     "preview": "vite preview"
   },
