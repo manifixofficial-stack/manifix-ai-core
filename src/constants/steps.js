@@ -40,7 +40,7 @@ export const WEEK_STEPS = {
   { name: "Stay Present", type: "meditation", img: "med6", text: "Focus on your body sensations and breathing.", duration: 60, step: 14 },
   { name: "Visualize Success", type: "meditation", img: "med7", text: "Imagine a calm, confident, and focused version of yourself.", duration: 60, step: 15 },
   { name: "Deep Calm", type: "meditation", img: "med1", text: "Return to deep steady breaths, let your body absorb calmness.", duration: 60, step: 16 }
-]
+],
  2: [
   // Yoga – 8 minutes total (~30–60 sec per pose)
   { name: "Cat-Cow Pose", type: "yoga", img: "yoga7", text: "Alternate arching and rounding your back to release tension.", duration: 45, step: 1 },
@@ -61,7 +61,7 @@ export const WEEK_STEPS = {
   { name: "Breath Counting", type: "meditation", img: "med3", text: "Count your breaths up to 10 and start over, staying mindful.", duration: 60, step: 14 },
   { name: "Release Thoughts", type: "meditation", img: "med4", text: "Let each thought pass like clouds, return to your breath.", duration: 60, step: 15 },
   { name: "Silent Presence", type: "meditation", img: "med1", text: "Sit quietly, absorb calm energy, feel rejuvenated.", duration: 60, step: 16 }
-]
+],
 3: [
   // Yoga – 8 minutes total (~30–60 sec per pose)
   { name: "Wide-Leg Forward Fold", type: "yoga", img: "yoga2", text: "Stretch your legs and spine, breathe deeply.", duration: 45, step: 1 },
@@ -82,7 +82,7 @@ export const WEEK_STEPS = {
   { name: "Inner Calm Scan", type: "meditation", img: "med6", text: "Scan body and mind, release stress.", duration: 60, step: 14 },
   { name: "Silent Awareness", type: "meditation", img: "med7", text: "Sit in silence, absorb calm energy.", duration: 60, step: 15 },
   { name: "Mind Reset", type: "meditation", img: "med1", text: "Reset thoughts, feel refreshed.", duration: 60, step: 16 }
-]
+],
 4: [
   // Yoga – 8 minutes total (~45–60 sec per pose)
   { name: "Seated Forward Bend", type: "yoga", img: "yoga2", text: "Stretch your hamstrings and spine.", duration: 50, step: 1 },
@@ -103,7 +103,7 @@ export const WEEK_STEPS = {
   { name: "Letting Go Breath", type: "meditation", img: "med7", text: "Exhale tension fully.", duration: 60, step: 14 },
   { name: "Mindful Awareness", type: "meditation", img: "med1", text: "Observe thoughts without judgment.", duration: 60, step: 15 },
   { name: "Inner Peace", type: "meditation", img: "med2", text: "Absorb calm energy fully.", duration: 60, step: 16 }
-]
+],
 5: [
   // Yoga – 8 minutes total (~50–60 sec per pose)
   { name: "Wide-Leg Forward Fold", type: "yoga", img: "yoga2", text: "Stretch inner thighs and spine.", duration: 50, step: 1 },
@@ -124,7 +124,7 @@ export const WEEK_STEPS = {
   { name: "Letting Go Practice", type: "meditation", img: "med2", text: "Exhale worries completely.", duration: 60, step: 14 },
   { name: "Mindful Presence", type: "meditation", img: "med3", text: "Be fully aware of the present moment.", duration: 60, step: 15 },
   { name: "Inner Calm Absorption", type: "meditation", img: "med4", text: "Feel serenity throughout your body.", duration: 60, step: 16 }
-]
+],
     6: [
   // Yoga – 8 minutes total (~50–60 sec per pose)
   { name: "Wide-Leg Forward Fold", type: "yoga", img: "yoga2", text: "Stretch hamstrings and spine deeply.", duration: 50, step: 1 },
@@ -145,7 +145,7 @@ export const WEEK_STEPS = {
   { name: "Heart Center Awareness", type: "meditation", img: "med6", text: "Feel calm energy at your chest.", duration: 60, step: 14 },
   { name: "Present Moment Focus", type: "meditation", img: "med7", text: "Anchor attention in now.", duration: 60, step: 15 },
   { name: "Serenity Absorption", type: "meditation", img: "med1", text: "Feel calm energy throughout your body.", duration: 60, step: 16 }
-]
+],
 7: [
   // Yoga – 8 minutes total (~50–60 sec each)
   { name: "Cat-Cow Flow", type: "yoga", img: "yoga3", text: "Gently warm your spine with flowing movements.", duration: 50, step: 1 },
@@ -166,24 +166,27 @@ export const WEEK_STEPS = {
   { name: "Breathing with Counting", type: "meditation", img: "med6", text: "Count breaths to calm mind.", duration: 60, step: 14 },
   { name: "Silent Awareness", type: "meditation", img: "med7", text: "Sit in stillness, noticing sensations.", duration: 60, step: 15 },
   { name: "Energy Reset", type: "meditation", img: "med1", text: "Feel renewed energy through your body.", duration: 60, step: 16 }
-]
+],
   }
 };
 
-/* ---------------- MAIN FUNCTION ---------------- */
 export const getSessionSteps = (week = 1) => {
-  const today = new Date().getDay(); 
-  const day = today === 0 ? 7 : today; // Sunday = 7
+  const today = new Date().getDay();
+  const day = today === 0 ? 7 : today;
 
   const weekData = WEEK_STEPS[week] || WEEK_STEPS[1];
-  const steps = weekData[day];
+  const steps = weekData?.[day];
+
+  if (!steps) return [];
 
   return steps.map((step, index) => {
     const stepNumber = index + 1;
 
     return {
       ...step,
-      image: getImagePath(buildImage(step.type, week, day, stepNumber))
+      image: getImagePath(
+        buildImage(step.type, week, day, stepNumber)
+      )
     };
   });
 };
