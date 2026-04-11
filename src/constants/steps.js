@@ -97,7 +97,7 @@ export const WEEK_STEPS = {
   // Meditation – 8 minutes total (~60 sec per step)
   { name: "Grounding Breath", type: "meditation", img: "med2", text: "Focus on steady, deep breathing.", duration: 60, step: 9 },
   { name: "Body Relax Scan", type: "meditation", img: "med3", text: "Notice areas of tension and release.", duration: 60, step: 10 },
-  { name: "Positive thinking", type: "meditation", img: "med4", text: "what you want,imagin  its already happen.", duration: 60, step: 11 },
+  { name: "Positive affirmation", type: "meditation", img: "med4", text: " Imagine feel,it already happen ", duration: 60, step: 11 },
   { name: "Calm Visualization", type: "meditation", img: "med5", text: "Visualize peaceful imagery.", duration: 60, step: 12 },
   { name: "Focus on Heartbeat", type: "meditation", img: "med6", text: "Feel calm through your heartbeat.", duration: 60, step: 13 },
   { name: "Letting Go Breath", type: "meditation", img: "med7", text: "Exhale tension fully.", duration: 60, step: 14 },
