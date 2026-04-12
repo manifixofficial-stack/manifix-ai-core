@@ -1,6 +1,11 @@
 // src/components/Layout/MainLayout.jsx
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+} from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import {
@@ -18,6 +23,9 @@ import {
   FileCheck,
   Menu,
   ChevronLeft,
+  Flame,
+  Target,
+  Zap,
 } from "lucide-react";
 
 import "../../styles/MainLayout.css";
@@ -27,61 +35,66 @@ export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [aiMessage, setAiMessage] = useState("");
+  const [streak, setStreak] = useState(0);
 
   /* ---------------- HANDLERS ---------------- */
   const toggleSidebar = useCallback(() => {
-    setCollapsed((prev) => !prev);
+    setCollapsed((p) => !p);
   }, []);
 
   const toggleMobile = useCallback(() => {
-    setMobileOpen((prev) => !prev);
+    setMobileOpen((p) => !p);
   }, []);
 
-  const closeMobile = useCallback(() => {
-    setMobileOpen(false);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  /* ---------------- STREAK LOAD ---------------- */
+  useEffect(() => {
+    const s = Number(localStorage.getItem("magic16_streak") || 1);
+    setStreak(s);
   }, []);
 
   /* ---------------- KEYBOARD ---------------- */
   useEffect(() => {
-    const handleKey = (e) => {
+    const handle = (e) => {
       if (e.key === "Escape") setMobileOpen(false);
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
   }, []);
 
-  /* ---------------- AI MICRO MOTIVATION ---------------- */
+  /* ---------------- AI MICRO LOOP ---------------- */
   useEffect(() => {
     const messages = [
-      "💡 Just 1 Magic16 session can reset your mind.",
-      "🔥 Don’t break your streak today.",
-      "🧠 Focus = your superpower right now.",
-      "⚡ Small action → big transformation.",
-      "🎯 One session > zero progress.",
+      "💡 1 session can change your entire day.",
+      "🔥 Don’t break your streak now.",
+      "🧠 Focus = your strongest skill.",
+      "⚡ Small action → identity shift.",
+      "🎯 Just 5 minutes is enough to start.",
     ];
 
-    const interval = setInterval(() => {
-      const random = messages[Math.floor(Math.random() * messages.length)];
-      setAiMessage(random);
-    }, 8000);
-
     setAiMessage(messages[0]);
+
+    const interval = setInterval(() => {
+      setAiMessage(messages[Math.floor(Math.random() * messages.length)]);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, []);
 
-  /* ---------------- DAILY MISSION ---------------- */
+  /* ---------------- DAILY MISSION ENGINE ---------------- */
   const dailyMission = useMemo(() => {
     const missions = [
       "Complete 1 Magic16 session",
-      "Hold perfect posture for 2 min",
+      "Hold perfect posture for 2 minutes",
       "Do 5 min breathing focus",
-      "Achieve 80% accuracy",
+      "Reach 80% accuracy",
+      "No skip day today",
     ];
     return missions[new Date().getDate() % missions.length];
   }, []);
 
-  /* ---------------- NAV DATA ---------------- */
+  /* ---------------- NAV ---------------- */
   const navItems = useMemo(
     () => [
       {
@@ -91,21 +104,21 @@ export default function MainLayout() {
         ],
       },
       {
-        section: "AI Platform",
+        section: "AI",
         items: [
           { name: "ManifiX AI", path: "/app/gpt", icon: Brain },
           { name: "Magic16", path: "/app/magic16", icon: Sparkles },
         ],
       },
       {
-        section: "Account",
+        section: "Growth",
         items: [
           { name: "Feedback", path: "/app/feedback", icon: MessageSquare },
           { name: "Billing", path: "/app/billing", icon: CreditCard },
         ],
       },
       {
-        section: "Resources",
+        section: "Explore",
         items: [
           { name: "Home", path: "/", icon: Home },
           { name: "About", path: "/about", icon: Info },
@@ -128,7 +141,7 @@ export default function MainLayout() {
     []
   );
 
-  /* ---------------- RENDER ---------------- */
+  /* ---------------- UI ---------------- */
   return (
     <div className={`layout ${collapsed ? "collapsed" : ""}`}>
 
@@ -140,15 +153,25 @@ export default function MainLayout() {
 
       {/* SIDEBAR */}
       <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+
         <div className="sidebar-header">
           <img src={logo} alt="logo" className="logo" />
           {!collapsed && <h1 className="brand">ManifiX</h1>}
         </div>
 
-        {/* DAILY MISSION (🔥 ADDICTION LOOP ELEMENT) */}
+        {/* 🔥 STREAK BLOCK */}
         {!collapsed && (
-          <div className="daily-mission">
-            🎯 Today: {dailyMission}
+          <div className="streak-box">
+            <Flame size={16} />
+            <span>{streak}-Day Streak</span>
+          </div>
+        )}
+
+        {/* 🎯 DAILY MISSION */}
+        {!collapsed && (
+          <div className="mission-box">
+            <Target size={14} />
+            <span>{dailyMission}</span>
           </div>
         )}
 
@@ -172,9 +195,7 @@ export default function MainLayout() {
                     }
                   >
                     <Icon size={20} />
-                    {!collapsed && (
-                      <span>{item.name}</span>
-                    )}
+                    {!collapsed && <span>{item.name}</span>}
                   </NavLink>
                 );
               })}
@@ -203,14 +224,14 @@ export default function MainLayout() {
 
           <div className="right">
 
-            {/* 🔥 STREAK PRESSURE */}
-            <div className="badge pulse">
-              🔥 Streak: 3 (Don’t break it!)
+            {/* 🔥 STREAK WARNING */}
+            <div className="badge">
+              🔥 Streak Active
             </div>
 
-            {/* 🧠 AI MOTIVATION */}
+            {/* 🧠 AI TIP */}
             <div className="ai-tip">
-              {aiMessage}
+              <Zap size={14} /> {aiMessage}
             </div>
 
             <div className="avatar">Y</div>
