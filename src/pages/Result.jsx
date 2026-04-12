@@ -5,7 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import html2canvas from "html2canvas";
-import "../styles/result.css";
+import "../styles/Result.css";
 
 export default function Result() {
   const location = useLocation();
