@@ -1,11 +1,6 @@
 // src/components/Layout/MainLayout.jsx
 
-import React, {
-  useState,
-  useMemo,
-  useCallback,
-  useEffect,
-} from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import {
@@ -50,11 +45,11 @@ export default function MainLayout() {
 
   /* ---------------- STREAK LOAD ---------------- */
   useEffect(() => {
-    const s = Number(localStorage.getItem("magic16_streak") || 1);
+    const s = parseInt(localStorage.getItem("magic16_streak") ?? "0", 10);
     setStreak(s);
   }, []);
 
-  /* ---------------- KEYBOARD ---------------- */
+  /* ---------------- ESC KEY ---------------- */
   useEffect(() => {
     const handle = (e) => {
       if (e.key === "Escape") setMobileOpen(false);
@@ -63,7 +58,7 @@ export default function MainLayout() {
     return () => window.removeEventListener("keydown", handle);
   }, []);
 
-  /* ---------------- AI MICRO LOOP ---------------- */
+  /* ---------------- AI TIP ROTATION ---------------- */
   useEffect(() => {
     const messages = [
       "💡 1 session can change your entire day.",
@@ -73,16 +68,18 @@ export default function MainLayout() {
       "🎯 Just 5 minutes is enough to start.",
     ];
 
-    setAiMessage(messages[0]);
+    let index = 0;
+    setAiMessage(messages[index]);
 
     const interval = setInterval(() => {
-      setAiMessage(messages[Math.floor(Math.random() * messages.length)]);
+      index = (index + 1) % messages.length;
+      setAiMessage(messages[index]);
     }, 8000);
 
     return () => clearInterval(interval);
   }, []);
 
-  /* ---------------- DAILY MISSION ENGINE ---------------- */
+  /* ---------------- DAILY MISSION ---------------- */
   const dailyMission = useMemo(() => {
     const missions = [
       "Complete 1 Magic16 session",
@@ -94,7 +91,7 @@ export default function MainLayout() {
     return missions[new Date().getDate() % missions.length];
   }, []);
 
-  /* ---------------- NAV ---------------- */
+  /* ---------------- NAV ITEMS ---------------- */
   const navItems = useMemo(
     () => [
       {
@@ -155,11 +152,11 @@ export default function MainLayout() {
       <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
 
         <div className="sidebar-header">
-          <img src={logo} alt="logo" className="logo" />
+          <img src={logo} alt="ManifiX logo" className="logo" />
           {!collapsed && <h1 className="brand">ManifiX</h1>}
         </div>
 
-        {/* 🔥 STREAK BLOCK */}
+        {/* STREAK */}
         {!collapsed && (
           <div className="streak-box">
             <Flame size={16} />
@@ -167,7 +164,7 @@ export default function MainLayout() {
           </div>
         )}
 
-        {/* 🎯 DAILY MISSION */}
+        {/* DAILY MISSION */}
         {!collapsed && (
           <div className="mission-box">
             <Target size={14} />
@@ -211,12 +208,20 @@ export default function MainLayout() {
         <header className="topbar">
 
           <div className="left">
-            <button className="icon-btn" onClick={toggleMobile}>
+            <button
+              className="icon-btn"
+              onClick={toggleMobile}
+              aria-label="Open menu"
+            >
               <Menu size={22} />
             </button>
 
-            <button className="icon-btn" onClick={toggleSidebar}>
-              <ChevronLeft size={22} />
+            <button
+              className="icon-btn"
+              onClick={toggleSidebar}
+              aria-label="Toggle sidebar"
+            >
+              {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
             </button>
 
             <h2 className="title">ManifiX Platform</h2>
@@ -224,17 +229,14 @@ export default function MainLayout() {
 
           <div className="right">
 
-            {/* 🔥 STREAK WARNING */}
-            <div className="badge">
-              🔥 Streak Active
-            </div>
+            <div className="badge">🔥 Streak Active</div>
 
-            {/* 🧠 AI TIP */}
             <div className="ai-tip">
               <Zap size={14} /> {aiMessage}
             </div>
 
             <div className="avatar">Y</div>
+
           </div>
 
         </header>
