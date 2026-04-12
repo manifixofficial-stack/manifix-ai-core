@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import html2canvas from "html2canvas";
 import "../styles/result.css";
@@ -16,20 +16,39 @@ export default function Result() {
     accuracy: 85,
     time: "16:00",
     xpEarned: 50,
-    streak: 4,
   };
 
   const { score, accuracy, time, xpEarned } = data;
 
-  /* ---------------- STREAK SYSTEM ---------------- */
+  /* ---------------- STREAK SYSTEM (REAL) ---------------- */
   const [streak, setStreak] = useState(0);
+  const [isNewStreak, setIsNewStreak] = useState(false);
 
   useEffect(() => {
-    const prev = Number(localStorage.getItem("magic16_streak") || 0);
-    const newStreak = prev + 1;
+    const today = new Date().toDateString();
+    const lastDate = localStorage.getItem("magic16_last_date");
+    let prevStreak = Number(localStorage.getItem("magic16_streak") || 0);
 
-    localStorage.setItem("magic16_streak", newStreak);
-    setStreak(newStreak);
+    if (lastDate === today) {
+      setStreak(prevStreak);
+      return;
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (lastDate === yesterday.toDateString()) {
+      prevStreak += 1;
+      setIsNewStreak(true);
+    } else {
+      prevStreak = 1;
+      setIsNewStreak(true);
+    }
+
+    localStorage.setItem("magic16_streak", prevStreak);
+    localStorage.setItem("magic16_last_date", today);
+
+    setStreak(prevStreak);
   }, []);
 
   /* ---------------- XP + LEVEL SYSTEM ---------------- */
@@ -43,11 +62,16 @@ export default function Result() {
 
     currentXP += xpEarned;
 
-    if (currentXP >= 100) {
-      currentXP = currentXP - 100;
-      currentLevel += 1;
-      setLevelUp(true);
+    let leveledUp = false;
 
+    while (currentXP >= 100) {
+      currentXP -= 100;
+      currentLevel += 1;
+      leveledUp = true;
+    }
+
+    if (leveledUp) {
+      setLevelUp(true);
       setTimeout(() => setLevelUp(false), 3000);
     }
 
@@ -56,25 +80,25 @@ export default function Result() {
 
     setXp(currentXP);
     setLevel(currentLevel);
-  }, []);
+  }, [xpEarned]);
 
   /* ---------------- CONFETTI ---------------- */
   useEffect(() => {
     confetti({
-      particleCount: 150,
-      spread: 100,
+      particleCount: 80,
+      spread: 90,
       origin: { y: 0.6 },
     });
   }, []);
 
-  /* ---------------- SHARE IMAGE ---------------- */
+  /* ---------------- SHARE ---------------- */
   const shareImage = async () => {
     const canvas = await html2canvas(cardRef.current);
     const blob = await new Promise((res) =>
       canvas.toBlob(res, "image/png")
     );
 
-    if (!blob) return alert("Share failed");
+    if (!blob) return alert("Failed to capture image");
 
     const file = new File([blob], "result.png", { type: "image/png" });
 
@@ -82,21 +106,38 @@ export default function Result() {
       await navigator.share({
         files: [file],
         title: "My ManifiX Result",
-        text: `I scored ${score} XP 🚀`,
+        text: `🔥 ${streak} Day Streak | ${score} XP | ${accuracy}% Accuracy`,
       });
     } else {
       alert("Sharing not supported on this device");
     }
   };
 
+  /* ---------------- FEEDBACK ---------------- */
+  const getFeedback = () => {
+    if (accuracy > 90) return "🔥 Elite performance!";
+    if (accuracy > 75) return "💪 Strong session!";
+    if (accuracy > 60) return "👍 Good effort!";
+    return "⚡ Keep improving!";
+  };
+
   /* ---------------- UI ---------------- */
   return (
     <div className="result">
 
-      {/* LEVEL UP EFFECT */}
-      {levelUp && (
-        <div className="level-up">🆙 LEVEL UP!</div>
-      )}
+      {/* LEVEL UP POPUP */}
+      <AnimatePresence>
+        {levelUp && (
+          <motion.div
+            className="level-up"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1.3, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+          >
+            🆙 LEVEL UP!
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MAIN CARD */}
       <motion.div
@@ -104,9 +145,19 @@ export default function Result() {
         className="result-card"
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.6 }}
       >
 
-        <h1 className="title">🎉 Session Complete!</h1>
+        <h1 className="title">🎉 Session Complete</h1>
+
+        {/* STREAK */}
+        <motion.h2
+          className={`streak ${isNewStreak ? "glow" : ""}`}
+          initial={{ scale: 0.8 }}
+          animate={{ scale: 1 }}
+        >
+          🔥 {streak} Day Streak
+        </motion.h2>
 
         {/* SCORE */}
         <div className="score">
@@ -116,11 +167,14 @@ export default function Result() {
 
         {/* XP BAR */}
         <div className="xp-bar">
-          <div
+          <motion.div
             className="xp-fill"
-            style={{ width: `${xp}%` }}
+            initial={{ width: 0 }}
+            animate={{ width: `${xp}%` }}
+            transition={{ duration: 1 }}
           />
         </div>
+
         <p className="level">Level {level}</p>
 
         {/* STATS */}
@@ -138,17 +192,19 @@ export default function Result() {
 
           <div>
             <h3>🔥 Streak</h3>
-            <p>{streak} days</p>
+            <p>{streak}</p>
           </div>
 
         </div>
 
         {/* FEEDBACK */}
-        <div className="feedback">
-          {accuracy > 90 && "🔥 Elite performance!"}
-          {accuracy > 70 && accuracy <= 90 && "💪 Great job!"}
-          {accuracy <= 70 && "⚡ Keep improving!"}
-        </div>
+        <motion.div
+          className="feedback"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          {getFeedback()}
+        </motion.div>
 
       </motion.div>
 
@@ -156,15 +212,15 @@ export default function Result() {
       <div className="actions">
 
         <button className="share-btn" onClick={shareImage}>
-          📸 Share Result
+          Share
         </button>
 
         <Link to="/app/session" className="retry">
-          🔁 Try Again
+          Try Again
         </Link>
 
         <Link to="/app/dashboard" className="dashboard-btn">
-          🏠 Dashboard
+           Dashboard
         </Link>
 
       </div>
