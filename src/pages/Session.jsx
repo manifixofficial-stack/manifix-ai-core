@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import * as posedetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
 import { getSessionSteps } from "../constants/steps";
-import "../styles/session.css";
+import "../styles/Session.css";
 
 export default function Session() {
   const navigate = useNavigate();
