@@ -224,7 +224,7 @@ export default function MainLayout() {
               {collapsed ? <Menu size={22} /> : <ChevronLeft size={22} />}
             </button>
 
-            <h2 className="title">ManifiX Platform</h2>
+            <h2 className="title">ManifiX</h2>
           </div>
 
           <div className="right">
