@@ -1,212 +1,205 @@
 // src/components/Layout/MainLayout.jsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+
+import {
+  LayoutDashboard,
+  Sparkles,
+  Brain,
+  MessageSquare,
+  CreditCard,
+  Home,
+  Info,
+  FileText,
+  Star,
+  Mail,
+  Shield,
+  FileCheck,
+  Menu,
+  ChevronLeft,
+} from "lucide-react";
+
 import "../../styles/MainLayout.css";
 import logo from "../../assets/logo.png";
 
 export default function MainLayout() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
-  const toggleMobile = () => setMobileOpen(!mobileOpen);
+  /* ---------------- HANDLERS ---------------- */
 
-  const navSections = useMemo(() => [
-    {
-      title: "Core",
-      items: [{ name: "Dashboard", path: "/app/dashboard", icon: "dashboard" }]
-    },
-    {
-      title: "AI Platform",
-      items: [
-        { name: "ManifiX AI", path: "/app/gpt", icon: "ai" },
-        { name: "Magic16", path: "/app/magic16", icon: "magic" }
-      ]
-    },
-    {
-      title: "Account",
-      items: [
-        { name: "Feedback", path: "/app/feedback", icon: "feedback" },
-        { name: "Billing", path: "/app/billing", icon: "billing" }
-      ]
-    },
-    {
-      title: "Resources",
-      items: [
-        { name: "Home", path: "/", icon: "home" },
-        { name: "About ManifiX", path: "/about", icon: "about" },
-        { name: "Blog", path: "/blog", icon: "blog" },
-        { name: "Features", path: "/features/gpt", icon: "features" }
-      ]
-    },
-    {
-      title: "Support",
-      items: [{ name: "Contact", path: "/contact", icon: "contact" }]
-    },
-    {
-      title: "Legal",
-      items: [
-        { name: "Privacy Policy", path: "/privacy", icon: "privacy" },
-        { name: "Terms of Use", path: "/terms", icon: "terms" }
-      ]
-    }
-  ], []);
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((prev) => !prev);
+  }, []);
+
+  const toggleMobile = useCallback(() => {
+    setMobileOpen((prev) => !prev);
+  }, []);
+
+  const closeMobile = useCallback(() => {
+    setMobileOpen(false);
+  }, []);
+
+  /* ---------------- KEYBOARD ACCESSIBILITY ---------------- */
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
+  /* ---------------- NAV DATA ---------------- */
+
+  const navItems = useMemo(
+    () => [
+      {
+        section: "Core",
+        items: [
+          { name: "Dashboard", path: "/app/dashboard", icon: LayoutDashboard },
+        ],
+      },
+      {
+        section: "AI Platform",
+        items: [
+          { name: "ManifiX AI", path: "/app/gpt", icon: Brain },
+          { name: "Magic16", path: "/app/magic16", icon: Sparkles },
+        ],
+      },
+      {
+        section: "Account",
+        items: [
+          { name: "Feedback", path: "/app/feedback", icon: MessageSquare },
+          { name: "Billing", path: "/app/billing", icon: CreditCard },
+        ],
+      },
+      {
+        section: "Resources",
+        items: [
+          { name: "Home", path: "/", icon: Home },
+          { name: "About", path: "/about", icon: Info },
+          { name: "Blog", path: "/blog", icon: FileText },
+          { name: "Features", path: "/features/gpt", icon: Star },
+        ],
+      },
+      {
+        section: "Support",
+        items: [{ name: "Contact", path: "/contact", icon: Mail }],
+      },
+      {
+        section: "Legal",
+        items: [
+          { name: "Privacy", path: "/privacy", icon: Shield },
+          { name: "Terms", path: "/terms", icon: FileCheck },
+        ],
+      },
+    ],
+    []
+  );
+
+  /* ---------------- RENDER ---------------- */
 
   return (
-    <div className={`layout ${sidebarCollapsed ? "collapsed" : ""}`}>
-      
-      {/* Mobile overlay */}
+    <div className={`layout ${collapsed ? "collapsed" : ""}`}>
+
+      {/* Overlay */}
       <div
         className={`overlay ${mobileOpen ? "show" : ""}`}
-        onClick={toggleMobile}
+        onClick={closeMobile}
+        aria-hidden={!mobileOpen}
       />
 
       {/* Sidebar */}
-      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+      <aside
+        className={`sidebar ${mobileOpen ? "open" : ""}`}
+        aria-label="Sidebar Navigation"
+      >
         <div className="sidebar-header">
           <img src={logo} alt="ManifiX Logo" className="logo" />
-          {!sidebarCollapsed && <h1>ManifiX</h1>}
+          {!collapsed && <h1 className="brand">ManifiX</h1>}
         </div>
 
-        <nav>
-          {navSections.map((section) => (
-            <div key={section.title}>
-              {!sidebarCollapsed && <div className="nav-section">{section.title}</div>}
+        <nav className="nav">
+          {navItems.map((group) => (
+            <div key={group.section} className="nav-group">
+              {!collapsed && (
+                <p className="nav-section">{group.section}</p>
+              )}
 
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.name}
-                  to={item.path}
-                  onClick={() => setMobileOpen(false)}
-                  className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-                >
-                  <span className="nav-icon">{renderIcon(item.icon)}</span>
-                  {!sidebarCollapsed && <span className="nav-text">{item.name}</span>}
-                </NavLink>
-              ))}
+              {group.items.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <NavLink
+                    key={item.name}
+                    to={item.path}
+                    onClick={closeMobile}
+                    className={({ isActive }) =>
+                      `nav-item ${isActive ? "active" : ""}`
+                    }
+                  >
+                    <Icon size={20} className="nav-icon" aria-hidden="true" />
+                    {!collapsed && (
+                      <span className="nav-text">{item.name}</span>
+                    )}
+                  </NavLink>
+                );
+              })}
             </div>
           ))}
         </nav>
       </aside>
 
-      {/* Main content */}
-      <div className="main-area">
+      {/* Main */}
+      <div className="main">
+
+        {/* Topbar */}
         <header className="topbar">
-          <button
-            className="mobile-menu"
-            onClick={toggleMobile}
-            aria-label="Toggle mobile menu"
-          >
-            ☰
-          </button>
-          <button
-            className="collapse-btn"
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            ⇔
-          </button>
-          <div className="title">ManifiX Platform</div>
+          <div className="left">
+            <button
+              className="icon-btn"
+              onClick={toggleMobile}
+              aria-label="Open menu"
+            >
+              <Menu size={22} />
+            </button>
+
+            <button
+              className="icon-btn"
+              onClick={toggleSidebar}
+              aria-label="Toggle sidebar"
+            >
+              <ChevronLeft
+                size={22}
+                className={collapsed ? "rotate" : ""}
+              />
+            </button>
+
+            <h2 className="title">ManifiX Platform</h2>
+          </div>
+
+          <div className="right">
+            <div className="badge" aria-label="Current streak">
+              🔥 Streak: 3
+            </div>
+            <div
+              className="avatar"
+              role="img"
+              aria-label="User profile"
+            >
+              Y
+            </div>
+          </div>
         </header>
 
-        <main className="content">
+        {/* Page Content */}
+        <main className="content" role="main">
           <Outlet />
         </main>
       </div>
     </div>
   );
 }
-
-/* ---------------- ICONS ---------------- */
-
-const renderIcon = (type) => {
-  const commonProps = { fill: "none", stroke: "currentColor", strokeWidth: 2, width: 24, height: 24 };
-
-  switch (type) {
-    case "dashboard":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <rect x="3" y="3" width="7" height="7" rx="2" />
-          <rect x="14" y="3" width="7" height="7" rx="2" />
-          <rect x="3" y="14" width="7" height="7" rx="2" />
-          <rect x="14" y="14" width="7" height="7" rx="2" />
-        </svg>
-      );
-    case "ai":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <circle cx="12" cy="12" r="9" />
-          <circle cx="12" cy="12" r="3" fill="currentColor" />
-        </svg>
-      );
-    case "home":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <path d="M3 10L12 3l9 7" />
-          <path d="M5 10v10h14V10" />
-        </svg>
-      );
-    case "magic":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9" />
-        </svg>
-      );
-    case "feedback":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-        </svg>
-      );
-    case "billing":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <rect x="2" y="5" width="20" height="14" rx="2" />
-          <line x1="2" y1="10" x2="22" y2="10" />
-        </svg>
-      );
-    case "about":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <circle cx="12" cy="8" r="4" fill="currentColor" />
-          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
-        </svg>
-      );
-    case "blog":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <rect x="4" y="3" width="16" height="18" rx="2" />
-          <line x1="8" y1="7" x2="16" y2="7" />
-          <line x1="8" y1="11" x2="16" y2="11" />
-          <line x1="8" y1="15" x2="13" y2="15" />
-        </svg>
-      );
-    case "features":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <polygon points="12,2 15,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9,9" />
-        </svg>
-      );
-    case "contact":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <path d="M2 6l10 7L22 6v12H2z" />
-        </svg>
-      );
-    case "privacy":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z" />
-        </svg>
-      );
-    case "terms":
-      return (
-        <svg viewBox="0 0 24 24" {...commonProps}>
-          <path d="M6 2h9l5 5v15H6z" />
-          <path d="M14 2v6h6" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-};
