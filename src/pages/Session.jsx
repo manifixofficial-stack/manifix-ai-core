@@ -27,8 +27,7 @@ export default function Session() {
   const STEPS = useMemo(() => getSessionSteps(getCurrentWeek()), []);
 
   /* ---------------- CONFIG ---------------- */
-  const TOTAL_TIME = 60 * 16;
-  const STEP_TIME = TOTAL_TIME / STEPS.length;
+  const TOTAL_TIME = STEPS.reduce((sum, s) => sum + s.duration, 0);
 
   const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
   const [step, setStep] = useState(0);
@@ -70,6 +69,21 @@ export default function Session() {
     const magCB = Math.hypot(...CB);
     return (Math.acos(dot / (magAB * magCB)) * 180) / Math.PI;
   };
+
+  /* ---------------- STEP INDEX FIX (IMPORTANT) ---------------- */
+  const getCurrentStepIndex = () => {
+    let elapsed = TOTAL_TIME - timeLeft;
+    let total = 0;
+
+    for (let i = 0; i < STEPS.length; i++) {
+      total += STEPS[i].duration;
+      if (elapsed < total) return i;
+    }
+
+    return STEPS.length - 1;
+  };
+
+  const index = getCurrentStepIndex();
 
   /* ---------------- POSE LOGIC ---------------- */
   const evaluatePose = (keypoints) => {
@@ -126,7 +140,7 @@ export default function Session() {
     if (acc > 80) {
       setScore((s) => s + 3);
       setCombo((c) => c + 1);
-      playBeep(); // 🔊 SOUND FEEDBACK
+      playBeep();
     } else {
       setCombo(0);
     }
@@ -139,7 +153,7 @@ export default function Session() {
     }
   };
 
-  /* ---------------- DRAW SKELETON ---------------- */
+  /* ---------------- DRAW ---------------- */
   const drawSkeleton = (ctx, keypoints) => {
     const pairs = [
       [5, 7],[7, 9],
@@ -183,7 +197,7 @@ export default function Session() {
         );
 
         detectPose();
-      } catch (e) {
+      } catch {
         alert("Camera permission required");
       }
     }
@@ -242,10 +256,8 @@ export default function Session() {
     return () => clearInterval(interval);
   }, []);
 
-  /* ---------------- STEP FLOW ---------------- */
+  /* ---------------- STEP FLOW (FIXED) ---------------- */
   useEffect(() => {
-    const index = Math.floor((TOTAL_TIME - timeLeft) / STEP_TIME);
-
     if (index !== step && index < STEPS.length) {
       setTransition(true);
       setTimeout(() => setTransition(false), 800);
@@ -254,8 +266,9 @@ export default function Session() {
       setScore((s) => s + 50);
       setFeedback("🎉 Step Complete!");
       speak("Next step");
+      playBeep();
     }
-  }, [timeLeft]);
+  }, [index]);
 
   /* ---------------- FINISH ---------------- */
   const finish = () => {
@@ -282,13 +295,16 @@ export default function Session() {
         <canvas ref={canvasRef} width={400} height={400} />
       </div>
 
-      {/* STEP IMAGE WITH ANIMATION */}
       <div className={`step-container ${transition ? "step-anim" : ""}`}>
         <img src={currentStep.image} alt="" className="step-image" />
         <p>Follow this pose</p>
       </div>
 
-      <h1>{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2,"0")}</h1>
+      <h1>
+        {Math.floor(timeLeft / 60)}:
+        {(timeLeft % 60).toString().padStart(2, "0")}
+      </h1>
+
       <h2>{currentStep.name}</h2>
 
       <div className="accuracy">🎯 {accuracy}%</div>
