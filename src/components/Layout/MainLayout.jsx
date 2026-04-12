@@ -1,4 +1,5 @@
 // src/components/Layout/MainLayout.jsx
+
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -25,9 +26,9 @@ import logo from "../../assets/logo.png";
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
 
   /* ---------------- HANDLERS ---------------- */
-
   const toggleSidebar = useCallback(() => {
     setCollapsed((prev) => !prev);
   }, []);
@@ -40,20 +41,47 @@ export default function MainLayout() {
     setMobileOpen(false);
   }, []);
 
-  /* ---------------- KEYBOARD ACCESSIBILITY ---------------- */
-
+  /* ---------------- KEYBOARD ---------------- */
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.key === "Escape") {
-        setMobileOpen(false);
-      }
+      if (e.key === "Escape") setMobileOpen(false);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  /* ---------------- NAV DATA ---------------- */
+  /* ---------------- AI MICRO MOTIVATION ---------------- */
+  useEffect(() => {
+    const messages = [
+      "💡 Just 1 Magic16 session can reset your mind.",
+      "🔥 Don’t break your streak today.",
+      "🧠 Focus = your superpower right now.",
+      "⚡ Small action → big transformation.",
+      "🎯 One session > zero progress.",
+    ];
 
+    const interval = setInterval(() => {
+      const random = messages[Math.floor(Math.random() * messages.length)];
+      setAiMessage(random);
+    }, 8000);
+
+    setAiMessage(messages[0]);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  /* ---------------- DAILY MISSION ---------------- */
+  const dailyMission = useMemo(() => {
+    const missions = [
+      "Complete 1 Magic16 session",
+      "Hold perfect posture for 2 min",
+      "Do 5 min breathing focus",
+      "Achieve 80% accuracy",
+    ];
+    return missions[new Date().getDate() % missions.length];
+  }, []);
+
+  /* ---------------- NAV DATA ---------------- */
   const navItems = useMemo(
     () => [
       {
@@ -101,26 +129,28 @@ export default function MainLayout() {
   );
 
   /* ---------------- RENDER ---------------- */
-
   return (
     <div className={`layout ${collapsed ? "collapsed" : ""}`}>
 
-      {/* Overlay */}
+      {/* OVERLAY */}
       <div
         className={`overlay ${mobileOpen ? "show" : ""}`}
         onClick={closeMobile}
-        aria-hidden={!mobileOpen}
       />
 
-      {/* Sidebar */}
-      <aside
-        className={`sidebar ${mobileOpen ? "open" : ""}`}
-        aria-label="Sidebar Navigation"
-      >
+      {/* SIDEBAR */}
+      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <img src={logo} alt="ManifiX Logo" className="logo" />
+          <img src={logo} alt="logo" className="logo" />
           {!collapsed && <h1 className="brand">ManifiX</h1>}
         </div>
+
+        {/* DAILY MISSION (🔥 ADDICTION LOOP ELEMENT) */}
+        {!collapsed && (
+          <div className="daily-mission">
+            🎯 Today: {dailyMission}
+          </div>
+        )}
 
         <nav className="nav">
           {navItems.map((group) => (
@@ -141,9 +171,9 @@ export default function MainLayout() {
                       `nav-item ${isActive ? "active" : ""}`
                     }
                   >
-                    <Icon size={20} className="nav-icon" aria-hidden="true" />
+                    <Icon size={20} />
                     {!collapsed && (
-                      <span className="nav-text">{item.name}</span>
+                      <span>{item.name}</span>
                     )}
                   </NavLink>
                 );
@@ -153,52 +183,46 @@ export default function MainLayout() {
         </nav>
       </aside>
 
-      {/* Main */}
+      {/* MAIN */}
       <div className="main">
 
-        {/* Topbar */}
+        {/* TOPBAR */}
         <header className="topbar">
+
           <div className="left">
-            <button
-              className="icon-btn"
-              onClick={toggleMobile}
-              aria-label="Open menu"
-            >
+            <button className="icon-btn" onClick={toggleMobile}>
               <Menu size={22} />
             </button>
 
-            <button
-              className="icon-btn"
-              onClick={toggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <ChevronLeft
-                size={22}
-                className={collapsed ? "rotate" : ""}
-              />
+            <button className="icon-btn" onClick={toggleSidebar}>
+              <ChevronLeft size={22} />
             </button>
 
             <h2 className="title">ManifiX Platform</h2>
           </div>
 
           <div className="right">
-            <div className="badge" aria-label="Current streak">
-              🔥 Streak: 3
+
+            {/* 🔥 STREAK PRESSURE */}
+            <div className="badge pulse">
+              🔥 Streak: 3 (Don’t break it!)
             </div>
-            <div
-              className="avatar"
-              role="img"
-              aria-label="User profile"
-            >
-              Y
+
+            {/* 🧠 AI MOTIVATION */}
+            <div className="ai-tip">
+              {aiMessage}
             </div>
+
+            <div className="avatar">Y</div>
           </div>
+
         </header>
 
-        {/* Page Content */}
-        <main className="content" role="main">
+        {/* CONTENT */}
+        <main className="content">
           <Outlet />
         </main>
+
       </div>
     </div>
   );
