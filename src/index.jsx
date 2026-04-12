@@ -8,7 +8,10 @@ const container = document.getElementById("root");
 if (!container) {
   throw new Error("Root container #root not found");
 }
-
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js")
+    .then(() => console.log("SW Registered"));
+}
 const root = createRoot(container);
 
 root.render(
