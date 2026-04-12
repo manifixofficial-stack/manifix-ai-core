@@ -29,40 +29,50 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import Session from "./pages/Session";
 import Result from "./pages/Result";
+
 /* ---------------- Not Found ---------------- */
 import NotFound from "./pages/NotFound";
 
 export default function AppRouter() {
-  const { user } = useApp();
+  const { user } = useApp() || {};
 
   return (
     <HelmetProvider>
       <Routes>
 
-        {/* ---------------- Landing / Home ---------------- */}
+        {/* ---------------- Public Home ---------------- */}
         <Route path="/" element={<Home />} />
         <Route path="/landing" element={<Landing />} />
 
         {/* ---------------- Auth ---------------- */}
         <Route
           path="/login"
-          element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
+          element={
+            user ? <Navigate to="/app/dashboard" replace /> : <Login />
+          }
         />
+
         <Route
           path="/signup"
-          element={user ? <Navigate to="/app/dashboard" replace /> : <Signup />}
+          element={
+            user ? <Navigate to="/app/dashboard" replace /> : <Signup />
+          }
         />
+
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ---------------- Public Info Pages ---------------- */}
         <Route path="/about" element={<About />} />
-        <Route path="/features" element={<Navigate to="/features/gpt" replace />} />
+        <Route
+          path="/features"
+          element={<Navigate to="/features/gpt" replace />}
+        />
         <Route path="/features/:feature" element={<Features />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
-        
+
         {/* ---------------- Protected App ---------------- */}
         <Route
           path="/app"
@@ -72,10 +82,12 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         >
-          {/* Default redirect inside app */}
-          <Route index element={<Navigate to="dashboard" replace />} />
+          {/* Default redirect */}
+          <Route index element={<Navigate to="/app/dashboard" replace />} />
+
+          {/* App Routes */}
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="gpt" element={<Gpt />} />   {/* ✅ ADD HERE */}
+          <Route path="gpt" element={<Gpt />} />
           <Route path="session" element={<Session />} />
           <Route path="result" element={<Result />} />
           <Route path="magic16" element={<Magic16 />} />
