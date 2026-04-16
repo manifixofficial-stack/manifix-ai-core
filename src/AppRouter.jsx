@@ -20,6 +20,9 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 
+/* ---------------- Onboarding ---------------- */
+import Onboarding from "./pages/Onboarding";
+
 /* ---------------- Protected App Pages ---------------- */
 import Dashboard from "./pages/Dashboard";
 import Gpt from "./pages/Gpt";
@@ -36,11 +39,14 @@ import NotFound from "./pages/NotFound";
 export default function AppRouter() {
   const { user } = useApp() || {};
 
+  // 🔥 CHECK ONBOARDING STATE
+  const hasStarted = localStorage.getItem("magic16_started");
+
   return (
     <HelmetProvider>
       <Routes>
 
-        {/* ---------------- Public Home ---------------- */}
+        {/* ---------------- Public ---------------- */}
         <Route path="/" element={<Home />} />
         <Route path="/landing" element={<Landing />} />
 
@@ -48,20 +54,32 @@ export default function AppRouter() {
         <Route
           path="/login"
           element={
-            user ? <Navigate to="/app/dashboard" replace /> : <Login />
+            user ? <Navigate to="/onboarding" replace /> : <Login />
           }
         />
 
         <Route
           path="/signup"
           element={
-            user ? <Navigate to="/app/dashboard" replace /> : <Signup />
+            user ? <Navigate to="/onboarding" replace /> : <Signup />
           }
         />
 
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* ---------------- Public Info Pages ---------------- */}
+        {/* ---------------- Onboarding ---------------- */}
+        <Route
+          path="/onboarding"
+          element={
+            !user
+              ? <Navigate to="/login" replace />
+              : hasStarted
+              ? <Navigate to="/app/dashboard" replace />
+              : <Onboarding />
+          }
+        />
+
+        {/* ---------------- Public Info ---------------- */}
         <Route path="/about" element={<About />} />
         <Route
           path="/features"
@@ -78,14 +96,16 @@ export default function AppRouter() {
           path="/app"
           element={
             <ProtectedRoute>
-              <MainLayout />
+              {
+                !hasStarted
+                  ? <Navigate to="/onboarding" replace />
+                  : <MainLayout />
+              }
             </ProtectedRoute>
           }
         >
-          {/* Default redirect */}
           <Route index element={<Navigate to="/app/dashboard" replace />} />
 
-          {/* App Routes */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="gpt" element={<Gpt />} />
           <Route path="session" element={<Session />} />
@@ -96,7 +116,7 @@ export default function AppRouter() {
           <Route path="settings" element={<Settings />} />
         </Route>
 
-        {/* ---------------- Catch-all 404 ---------------- */}
+        {/* ---------------- 404 ---------------- */}
         <Route path="*" element={<NotFound />} />
 
       </Routes>
