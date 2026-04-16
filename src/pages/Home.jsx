@@ -2,8 +2,6 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion } from "framer-motion";
-import Particles from "react-tsparticles";
-
 import "../styles/Home.css";
 import logo from "../assets/logo.png";
 
@@ -22,29 +20,12 @@ export default function Home() {
 
       {/* ================= SEO ================= */}
       <Helmet>
-        <title>ManifiX AI – Future of AI Productivity</title>
+        <title>ManifiX AI – 16 Day Discipline Reset</title>
         <meta
           name="description"
-          content="ManifiX AI helps creators and teams think faster, build smarter, and stay focused with GPT + Magic16."
+          content="Rewire your discipline in 16 days. Build focus, reduce stress, and become consistent with ManifiX AI."
         />
       </Helmet>
-
-      {/* ================= BACKGROUND PARTICLES ================= */}
-      <Particles
-        className="particles-bg"
-        options={{
-          fpsLimit: 60,
-          particles: {
-            number: { value: 60 },
-            size: { value: 3 },
-            move: { speed: 1, direction: "none" },
-            color: { value: ["#ff6ec4", "#7873f5", "#4ade80", "#facc15"] },
-            opacity: { value: 0.6 },
-            links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.1, width: 1 },
-          },
-          interactivity: { events: { onhover: { enable: true, mode: "repulse" } } },
-        }}
-      />
 
       {/* ================= HERO ================= */}
       <section className="hero">
@@ -67,8 +48,7 @@ export default function Home() {
             animate="show"
             custom={2}
           >
-          Fix Your Life in 16 Days <br />
-            <span>With ManifiX AI</span>
+            Rewire Your Discipline in 16 Days
           </motion.h1>
 
           <motion.p
@@ -78,20 +58,19 @@ export default function Home() {
             animate="show"
             custom={3}
           >
-           A 16-day system that forces you to build discipline.
-Miss a day, your streak resets.
-No excuses.
+            A structured 16-day system to build discipline, reduce stress, and take control of your life.
+            Miss a day, your streak resets. No excuses.
           </motion.p>
 
-          <motion.div
-            className="hero-proof"
+          <motion.p
+            className="hero-urgency"
             variants={fadeUp}
             initial="hidden"
             animate="show"
             custom={4}
           >
-            Magic16 • Daily Score • Guided Flow
-          </motion.div>
+            ⚠️ Most people quit in 3 days. Don’t be one of them.
+          </motion.p>
 
           <motion.div
             className="hero-buttons"
@@ -101,27 +80,39 @@ No excuses.
             custom={5}
           >
             <Link to="/signup" className="btn-primary">
-              Start Your 16-Min Routine →
+              Start Day 1 → No Excuses
             </Link>
           </motion.div>
 
         </div>
       </section>
 
-      {/* ================= FEATURES ================= */}
-      <section className="features">
+      {/* ================= HOW IT WORKS ================= */}
+      <section className="phases">
         <div className="features-header">
-          <h2>Why ManifiX Wins</h2>
-          <p>Everything you need to think clearly and execute faster.</p>
+          <h2>The 16-Day Transformation System</h2>
+          <p>This is not random. This is a structured reset.</p>
         </div>
 
         <div className="feature-grid">
           {[
-  { title: "Build Discipline", desc: "Show up daily or lose your streak" },
-  { title: "Fix Your Focus", desc: "Train your brain to stop distractions" },
-  { title: "Reduce Stress Fast", desc: "Feel calm in just 16 minutes" },
-  { title: "Gain Confidence", desc: "See progress every single day" },
-].map((f, i) => (
+            {
+              title: "Days 1–3: Break Resistance",
+              desc: "Push past laziness and prove you can show up",
+            },
+            {
+              title: "Days 4–10: Build Discipline",
+              desc: "Create a daily consistency loop",
+            },
+            {
+              title: "Days 11–16: Identity Shift",
+              desc: "Become someone who never skips",
+            },
+            {
+              title: "Final Result",
+              desc: "You become disciplined, focused, and consistent",
+            },
+          ].map((f, i) => (
             <motion.div
               key={i}
               className="feature-card"
@@ -138,7 +129,37 @@ No excuses.
         </div>
       </section>
 
-      {/* ================= CTA ================= */}
+      {/* ================= OUTCOMES ================= */}
+      <section className="outcomes">
+        <div className="features-header">
+          <h2>What You Get</h2>
+          <p>This is what changes if you complete 16 days.</p>
+        </div>
+
+        <div className="feature-grid">
+          {[
+            { title: "Build Discipline", desc: "Show up daily or lose your streak" },
+            { title: "Fix Your Focus", desc: "Train your brain to avoid distractions" },
+            { title: "Reduce Stress", desc: "Feel calmer in just 16 minutes" },
+            { title: "Gain Confidence", desc: "See real daily progress" },
+          ].map((f, i) => (
+            <motion.div
+              key={i}
+              className="feature-card"
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true }}
+              custom={i}
+            >
+              <h3>{f.title}</h3>
+              <p>{f.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ================= FINAL CTA ================= */}
       <section className="cta">
         <motion.div
           className="cta-container"
@@ -147,14 +168,16 @@ No excuses.
           transition={{ duration: 0.6 }}
         >
           <h2>
-            Start Your 16-Minute Routine Today <span>ManifiX</span>
+            Start Your 16-Day Reset <span>Today</span>
           </h2>
+
           <p className="cta-subtext">
-            Experience focus, clarity, and discipline daily.
+            If you skip today, you stay the same.
           </p>
+
           <div className="cta-buttons">
             <Link to="/signup" className="btn-primary big">
-              Start Your 16-Min Routine →
+              🚀 Start Day 1 Now
             </Link>
           </div>
         </motion.div>
