@@ -1,152 +1,133 @@
-import { useRef, useEffect, useState } from "react"
-import * as posedetection from "@tensorflow-models/pose-detection"
-import "@tensorflow/tfjs-backend-webgl"
-import * as tf from "@tensorflow/tfjs"
+// src/pages/Magic16.jsx
+
+import { useEffect, useRef, useState, useMemo } from "react"
+import { steps } from "../constants/steps"
 import confetti from "canvas-confetti"
-
 import "../styles/magic16.css"
-import logo from "../assets/logo.png"
-
-/* ------------------- YOGA IMAGES ------------------- */
-import yoga1 from "../assets/steps/yoga-01.png"
-import yoga2 from "../assets/steps/yoga-02.png"
-import yoga3 from "../assets/steps/yoga-03.png"
-import yoga4 from "../assets/steps/yoga-04.png"
-import yoga5 from "../assets/steps/yoga-05.png"
-import yoga6 from "../assets/steps/yoga-06.png"
-import yoga71 from "../assets/steps/yoga-07-1.png"
-import yoga72 from "../assets/steps/yoga-07-2.png"
-import yoga73 from "../assets/steps/yoga-07-3.png"
-import yoga8 from "../assets/steps/yoga-08.png"
-
-/* ---------------- MEDITATION IMAGES ---------------- */
-import med1 from "../assets/steps/med-01.png"
-import med2 from "../assets/steps/med-02.png"
-import med3 from "../assets/steps/med-03.png"
-import med4 from "../assets/steps/med-04.png"
-import med5 from "../assets/steps/med-05.png"
-import med6 from "../assets/steps/med-06.png"
-import med7 from "../assets/steps/med-07.png"
-
-/* ---------------- AUDIO ---------------- */
-import meditationAudio from "../assets/audio/meditation/meditation.mp3"
 
 export default function Magic16() {
 
-  /* ---------------- REFS ---------------- */
-  const videoRef = useRef(null)
-  const detectorRef = useRef(null)
-  const timerRef = useRef(null)
-  const detectRef = useRef(null)
-  const audioRef = useRef(null)
+  /* ================= STATE ================= */
 
-  /* ---------------- STATE ---------------- */
-  const [loading, setLoading] = useState(true)
+  const [stepIndex, setStepIndex] = useState(() =>
+    Number(localStorage.getItem("m16_step") || 0)
+  )
+
+  const [timeLeft, setTimeLeft] = useState(() =>
+    Number(localStorage.getItem("m16_time")) || steps[0].duration
+  )
+
+  const [progress, setProgress] = useState(() =>
+    Number(localStorage.getItem("m16_progress") || 0)
+  )
+
   const [playing, setPlaying] = useState(false)
   const [completed, setCompleted] = useState(false)
 
-  const [stepIndex, setStepIndex] = useState(0)
-  const [stepTime, setStepTime] = useState(60)
-
-  const [progress, setProgress] = useState(0)
-  const [score, setScore] = useState(0)
-
-  const [coach, setCoach] = useState("")
-  const [streak, setStreak] = useState(
-    Number(localStorage.getItem("magic16_streak") || 0)
+  const [xp, setXp] = useState(() =>
+    Number(localStorage.getItem("m16_xp") || 0)
   )
 
-  /* ---------------- SAFE SPEAK ---------------- */
-  const speak = (text) => {
-    if (!text) return
+  const [showHook, setShowHook] = useState(() => {
+    return !localStorage.getItem("m16_started")
+  })
+
+  const timerRef = useRef(null)
+  const stepRef = useRef(stepIndex)
+  const timeRef = useRef(timeLeft)
+
+  /* ================= DERIVED ================= */
+
+  const day = stepIndex + 1
+  const current = steps[stepIndex]
+
+  const TOTAL = useMemo(() => {
+    return steps.reduce((a, b) => a + b.duration, 0)
+  }, [])
+
+  /* ================= SYNC REFS ================= */
+
+  useEffect(() => {
+    stepRef.current = stepIndex
+    timeRef.current = timeLeft
+  }, [stepIndex, timeLeft])
+
+  /* ================= PERSIST ================= */
+
+  useEffect(() => {
+    localStorage.setItem("m16_step", stepIndex)
+    localStorage.setItem("m16_time", timeLeft)
+    localStorage.setItem("m16_progress", progress)
+    localStorage.setItem("m16_started", true)
+    localStorage.setItem("m16_xp", xp)
+  }, [stepIndex, timeLeft, progress, xp])
+
+  /* ================= VOICE ================= */
+
+  const speak = (text, type = "normal") => {
+    if (!("speechSynthesis" in window)) return
+
+    const voices = speechSynthesis.getVoices()
+    const voice =
+      voices.find(v => v.name.includes("Google")) ||
+      voices.find(v => v.lang === "en-US") ||
+      voices[0]
+
     const msg = new SpeechSynthesisUtterance(text)
-    msg.rate = 0.9
-    speechSynthesis.cancel()
+    msg.voice = voice
+
+    if (type === "motivation") {
+      msg.rate = 1
+      msg.pitch = 1.2
+    } else if (type === "calm") {
+      msg.rate = 0.85
+      msg.pitch = 0.9
+    } else {
+      msg.rate = 0.9
+      msg.pitch = 1
+    }
+
+    if (speechSynthesis.speaking) speechSynthesis.cancel()
     speechSynthesis.speak(msg)
   }
 
-  /* ---------------- FULL 16 STEPS (UNCHANGED) ---------------- */
-  const steps = [
-    /* YOGA */
-    { img: yoga1, text: "Mountain Pose. Stand tall.", type: "yoga", duration: 60 },
-    { img: yoga2, text: "Forward Fold. Relax your spine.", type: "yoga", duration: 60 },
-    { img: yoga3, text: "Half Lift. Lengthen your back.", type: "yoga", duration: 60 },
-    { img: yoga4, text: "Plank Pose. Engage your core.", type: "yoga", duration: 60 },
-    { img: yoga5, text: "Cobra Pose. Open your chest.", type: "yoga", duration: 60 },
-    { img: yoga6, text: "Downward Dog. Stretch your body.", type: "yoga", duration: 60 },
-    { img: yoga71, text: "Warrior One.", type: "yoga", duration: 60 },
-    { img: yoga72, text: "Warrior Two.", type: "yoga", duration: 60 },
-    { img: yoga73, text: "Warrior Three.", type: "yoga", duration: 60 },
-    { img: yoga8, text: "Tree Pose. Balance your body.", type: "yoga", duration: 60 },
+  /* ================= HOOK ================= */
 
-    /* MEDITATION */
-    { img: med1, text: "Close your eyes and breathe slowly.", type: "meditation", duration: 120 },
-    { img: med2, text: "Focus on breathing.", type: "meditation", duration: 120 },
-    { img: med3, text: "Release tension.", type: "meditation", duration: 120 },
-    { img: med4, text: "Feel calm.", type: "meditation", duration: 120 },
-    { img: med5, text: "Let thoughts pass.", type: "meditation", duration: 120 },
-    { img: med6, text: "Stay present.", type: "meditation", duration: 120 },
-    { img: med7, text: "Visualize success.", type: "meditation", duration: 120 },
-  ]
-
-  const TOTAL = steps.reduce((a, b) => a + b.duration, 0)
-
-  /* ---------------- INIT AI ---------------- */
   useEffect(() => {
-    const init = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-        videoRef.current.srcObject = stream
-
-        await tf.ready()
-
-        detectorRef.current = await posedetection.createDetector(
-          posedetection.SupportedModels.MoveNet,
-          { modelType: posedetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
-        )
-
-        audioRef.current = new Audio(meditationAudio)
-        audioRef.current.loop = true
-        audioRef.current.volume = 0.4
-
-        setLoading(false)
-      } catch (err) {
-        console.error("Init error:", err)
-      }
+    if (showHook) {
+      speak("You won’t finish this. Most people quit.")
     }
+  }, [showHook])
 
-    init()
+  /* ================= DAILY LOCK ================= */
 
-    return () => {
-      clearInterval(timerRef.current)
-      clearInterval(detectRef.current)
+  useEffect(() => {
+    const last = localStorage.getItem("last_done")
+    if (!last) return
+
+    const lastDate = new Date(last)
+    const today = new Date()
+
+    if (lastDate.toDateString() === today.toDateString()) {
+      setCompleted(true)
     }
   }, [])
 
-  /* ---------------- SAFE DETECTION ---------------- */
-  const detectPose = async () => {
-    if (!detectorRef.current || !videoRef.current) return
+  /* ================= TIMER ================= */
 
-    const poses = await detectorRef.current.estimatePoses(videoRef.current)
-    if (!poses?.length) return
-
-    setScore(Math.floor(Math.random() * 100))
-  }
-
-  /* ---------------- START ---------------- */
   const start = () => {
-    if (playing || !steps.length) return
+    if (timerRef.current) return
 
+    setShowHook(false)
     setPlaying(true)
 
-    speak(steps[0]?.text)
-
-    detectRef.current = setInterval(detectPose, 700)
+    speak(current.voice, "motivation")
 
     timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
 
-      setStepTime(prev => {
         if (prev <= 1) {
+
           setStepIndex(i => {
             const next = i + 1
 
@@ -155,101 +136,171 @@ export default function Magic16() {
               return i
             }
 
-            if (steps[next].type === "meditation") {
-              audioRef.current?.play()
-            } else {
-              audioRef.current?.pause()
-            }
+            speak(steps[next].voice)
 
-            speak(steps[next]?.text)
-            setStepTime(steps[next].duration)
-
+            setTimeLeft(steps[next].duration)
             return next
           })
-          return prev
+
+          return 0
         }
+
+        /* 🔥 Dopamine triggers */
+        if (prev === 10) speak("You're still here. That’s rare.")
+        if (prev === 5) speak("Most people quit here.")
+        if (prev === 2) speak("Finish it.")
+
         return prev - 1
       })
 
-      setProgress(p => Math.min(100, p + 1))
+      /* PROGRESS */
+      setProgress(() => {
+        const elapsed =
+          steps
+            .slice(0, stepRef.current)
+            .reduce((a, b) => a + b.duration, 0) +
+          (steps[stepRef.current].duration - timeRef.current)
+
+        return Math.floor((elapsed / TOTAL) * 100)
+      })
 
     }, 1000)
   }
 
-  /* ---------------- STOP ---------------- */
   const stop = () => {
-    clearInterval(timerRef.current)
-    clearInterval(detectRef.current)
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+
     speechSynthesis.cancel()
-    audioRef.current?.pause()
+    speak("Paused. Come back stronger.")
     setPlaying(false)
   }
 
-  /* ---------------- FINISH ---------------- */
+  /* ================= FINISH ================= */
+
   const finish = () => {
     stop()
 
-    const newStreak = Number(localStorage.getItem("magic16_streak") || 0) + 1
-    localStorage.setItem("magic16_streak", newStreak)
-    setStreak(newStreak)
+    confetti({ particleCount: 150, spread: 90 })
+    setTimeout(() => {
+      confetti({ particleCount: 200, spread: 120 })
+    }, 400)
 
-    confetti({ particleCount: 200, spread: 120 })
-    setCompleted(true)
+    const prevStreak = Number(localStorage.getItem("magic16_streak") || 0)
+    const streak = prevStreak + 1
+
+    localStorage.setItem("magic16_streak", streak)
+    localStorage.setItem("last_done", new Date().toISOString())
+
+    /* XP SYSTEM */
+    setXp(prev => prev + 50)
+
+    /* Identity reinforcement */
+    const identities = [
+      "You don’t quit.",
+      "You are disciplined.",
+      "You finish what you start.",
+      "You are rare."
+    ]
+
+    speak(`Day complete. ${streak} day streak.`)
+    setTimeout(() => {
+      speak(identities[Math.floor(Math.random() * identities.length)])
+    }, 1500)
+
+    setTimeout(() => setCompleted(true), 800)
   }
 
-  /* ---------------- COMPLETED ---------------- */
-  if (completed) {
+  /* ================= SHARE ================= */
+
+  const handleShare = async () => {
+    const url = window.location.origin
+
+    const text = `🔥 I just completed Day ${day}/16
+
+92% people quit before Day 5.
+
+I'm still going.
+
+Can you beat me? 👇
+${url}`
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Magic16", text, url })
+      } else {
+        await navigator.clipboard.writeText(text)
+        speak("Copied. Share it now.")
+      }
+    } catch (e) {
+      console.log(e)
+    }
+  }
+
+  /* ================= UI ================= */
+
+  if (showHook) {
     return (
-      <div className="magic16-complete">
-        <h1>🎉 Ritual Complete</h1>
-        <h2>{score}% Posture Score</h2>
-        <p>🔥 {streak} Day Streak</p>
-        <button onClick={() => window.location.reload()}>Start Again</button>
+      <div className="hook">
+        <h1>⚠️ You won’t finish this</h1>
+        <p>92% quit before Day 5.</p>
+        <button onClick={start}>Start Anyway 🔥</button>
       </div>
     )
   }
 
-  /* ---------------- UI ---------------- */
-  return (
-    <div className="magic16-app">
+  if (completed) {
+    const streak = Number(localStorage.getItem("magic16_streak") || 0)
 
-      <header className="magic16-header">
-        <img src={logo} alt="logo" />
-        <div>🔥 {streak}</div>
-      </header>
+    return (
+      <div className="complete">
+        <h1>🔥 You Didn’t Quit</h1>
+        <p>Day {day} complete</p>
+        <h2>{streak}-Day Streak</h2>
+        <p>XP: {xp}</p>
 
-      {loading && <div className="magic16-loading">Loading AI Trainer...</div>}
-
-      <div className="magic16-layout">
-
-        <div className="magic16-camera">
-          <video ref={videoRef} autoPlay muted playsInline className="magic16-video" />
-        </div>
-
-        <div className="magic16-panel">
-
-          <img src={steps[stepIndex]?.img} className="magic16-step-img" />
-
-          <h2>{steps[stepIndex]?.text}</h2>
-
-          <p className="magic16-coach">{coach}</p>
-
-          <div className="magic16-progress">
-            <div style={{ width: `${progress}%` }} />
-          </div>
-
-          <div className="magic16-stats">
-            <span>{stepTime}s</span>
-            <span>{score}%</span>
-          </div>
-
-          <button onClick={!playing ? start : stop}>
-            {!playing ? "Start Magic16" : "Pause"}
-          </button>
-
-        </div>
-
+        <button onClick={handleShare}>📲 Share</button>
+        <button onClick={() => window.location.reload()}>
+          Continue Tomorrow
+        </button>
       </div>
+    )
+  }
+
+  return (
+    <div className={`magic16 day-${day}`}>
+
+      <div className="top">
+        <h3>🔥 Day {day} / 16</h3>
+      </div>
+
+      <div className="image-wrapper">
+        <img src={current.img} alt="" />
+      </div>
+
+      <div className="content">
+        <h2>{current.title}</h2>
+        <p>{current.purpose}</p>
+      </div>
+
+      <div className={`timer ${timeLeft <= 5 ? "danger" : ""}`}>
+        <h1>{timeLeft}</h1>
+      </div>
+
+      <div className="progress">
+        <div className="bar" style={{ width: `${progress}%` }} />
+        <span>{progress}%</span>
+      </div>
+
+      <button
+        className={`cta ${playing ? "pause" : "start"}`}
+        onClick={!playing ? start : stop}
+      >
+        {!playing ? "🔥 Start" : "⏸ Pause"}
+      </button>
+
     </div>
   )
 }
