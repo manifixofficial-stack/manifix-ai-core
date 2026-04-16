@@ -1,3 +1,5 @@
+// src/pages/Onboarding.jsx
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,9 +9,11 @@ export default function Onboarding() {
 
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const [goal, setGoal] = useState("");
+  const [intensity, setIntensity] = useState("");
+
   const [loading, setLoading] = useState(false);
 
-  /* ---------------- CHECK IF ALREADY STARTED ---------------- */
   useEffect(() => {
     const started = localStorage.getItem("magic16_started");
     if (started === "true") {
@@ -17,40 +21,14 @@ export default function Onboarding() {
     }
   }, [navigate]);
 
-  const screens = [
-    {
-      title: "This is not a normal app",
-      text: "Most people quit in 3 days. This system is designed to push you past that.",
-    },
-    {
-      title: "You are starting a 16-day reset",
-      text: "For the next 16 days, you will follow a daily discipline system.",
-    },
-    {
-      title: "If you skip, you restart",
-      text: "Miss a single day → your streak resets to 0. No exceptions.",
-    },
-    {
-      title: "This will change you",
-      text: "Complete 16 days and you become someone who shows up daily.",
-    },
+  /* ================= FLOW ================= */
+
+  const steps = [
+    "goal",
+    "intensity",
+    "warning",
+    "commit"
   ];
-
-  /* ---------------- STEP SAVE (PERSIST) ---------------- */
-  useEffect(() => {
-    localStorage.setItem("onboarding_step", step);
-  }, [step]);
-
-  useEffect(() => {
-    const savedStep = Number(localStorage.getItem("onboarding_step"));
-    if (!isNaN(savedStep)) setStep(savedStep);
-  }, []);
-
-  const handleNext = () => {
-    if (step < screens.length - 1) {
-      setStep((prev) => prev + 1);
-    }
-  };
 
   const handleStart = () => {
     if (loading) return;
@@ -65,44 +43,130 @@ export default function Onboarding() {
     localStorage.setItem("magic16_last_date", "");
     localStorage.setItem("magic16_start_date", today);
 
+    localStorage.setItem("magic16_goal", goal);
+    localStorage.setItem("magic16_intensity", intensity);
+
     setTimeout(() => {
       navigate("/dashboard");
-    }, 500);
+    }, 600);
   };
 
   return (
     <div className="onboarding">
 
       <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          className="onboarding-card"
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ duration: 0.4 }}
-        >
-          <h1>{screens[step].title}</h1>
-          <p>{screens[step].text}</p>
 
-          {/* PROGRESS DOTS */}
-          <div className="dots">
-            {screens.map((_, i) => (
-              <span key={i} className={i === step ? "active" : ""}></span>
-            ))}
-          </div>
+        {/* ================= STEP 1 ================= */}
+        {step === 0 && (
+          <motion.div
+            className="onboarding-card"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+          >
+            <h1>Why are you here?</h1>
 
-          {/* BUTTONS */}
-          {step < screens.length - 1 ? (
-            <button className="next-btn" onClick={handleNext}>
+            <div className="options">
+              {["Stress 😓", "Discipline 🔥", "Focus 🧠", "Confidence 💪"].map((g) => (
+                <button
+                  key={g}
+                  className={goal === g ? "active" : ""}
+                  onClick={() => setGoal(g)}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+
+            <button
+              disabled={!goal}
+              onClick={() => setStep(1)}
+              className="next-btn"
+            >
               Continue →
             </button>
-          ) : (
-            <button className="start-btn" onClick={handleStart} disabled={loading}>
-              {loading ? "Starting..." : "🚀 Start Day 1 — No Excuses"}
+          </motion.div>
+        )}
+
+        {/* ================= STEP 2 ================= */}
+        {step === 1 && (
+          <motion.div
+            className="onboarding-card"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+          >
+            <h1>How serious are you?</h1>
+
+            <div className="options">
+              {["Low 😴", "Medium 😐", "HIGH 🔥", "NO EXCUSES ⚡"].map((i) => (
+                <button
+                  key={i}
+                  className={intensity === i ? "active" : ""}
+                  onClick={() => setIntensity(i)}
+                >
+                  {i}
+                </button>
+              ))}
+            </div>
+
+            <button
+              disabled={!intensity}
+              onClick={() => setStep(2)}
+              className="next-btn"
+            >
+              Continue →
             </button>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
+
+        {/* ================= STEP 3 ================= */}
+        {step === 2 && (
+          <motion.div
+            className="onboarding-card danger"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <h1>⚠️ WARNING</h1>
+
+            <p>
+              If you quit even 1 day → your streak resets to 0.
+              <br /><br />
+              92% people fail at Day 3.
+            </p>
+
+            <button onClick={() => setStep(3)} className="next-btn danger-btn">
+              I Understand →
+            </button>
+          </motion.div>
+        )}
+
+        {/* ================= STEP 4 ================= */}
+        {step === 3 && (
+          <motion.div
+            className="onboarding-card final"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <h1>🔥 You’re In</h1>
+
+            <p>
+              Goal: <b>{goal}</b><br />
+              Intensity: <b>{intensity}</b>
+            </p>
+
+            <h2>16 Days. No Excuses.</h2>
+
+            <button
+              className="start-btn pulse"
+              onClick={handleStart}
+              disabled={loading}
+            >
+              {loading ? "Starting..." : "🚀 Begin Day 1"}
+            </button>
+          </motion.div>
+        )}
+
       </AnimatePresence>
 
     </div>
