@@ -1,3 +1,5 @@
+// src/pages/Home.jsx
+
 import React from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -5,187 +7,185 @@ import { motion } from "framer-motion";
 import "../styles/Home.css";
 import logo from "../assets/logo.png";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  show: (i = 1) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.15, duration: 0.7, ease: "easeOut" },
-  }),
-};
-
 export default function Home() {
+
   return (
     <div className="home">
 
       {/* ================= SEO ================= */}
       <Helmet>
-        <title>ManifiX AI – 16 Day Discipline Reset</title>
+        <title>ManifiX AI – 16 Day Discipline Transformation</title>
         <meta
           name="description"
-          content="Rewire your discipline in 16 days. Build focus, reduce stress, and become consistent with ManifiX AI."
+          content="A 16-day system that forces discipline, focus, and identity change."
         />
       </Helmet>
 
       {/* ================= HERO ================= */}
       <section className="hero">
+
+        <motion.div
+          className="hero-glow"
+          animate={{
+            scale: [1, 1.05, 1],
+            opacity: [0.6, 1, 0.6],
+          }}
+          transition={{ repeat: Infinity, duration: 4 }}
+        />
+
         <div className="hero-content">
 
           <motion.img
             src={logo}
             alt="ManifiX"
             className="hero-logo"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={1}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
           />
 
+          {/* 🔥 MAIN HOOK */}
           <motion.h1
             className="hero-title"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={2}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
-            Rewire Your Discipline in 16 Days
+            Most people quit in 3 days.
+            <br />
+            This AI doesn’t let you.
           </motion.h1>
 
+          {/* 🧠 SUB HOOK */}
           <motion.p
-            className="hero-text"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={3}
+            className="hero-sub"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
           >
-            A structured 16-day system to build discipline, reduce stress, and take control of your life.
-            Miss a day, your streak resets. No excuses.
+            16-day discipline system that rewires your focus, habits, and identity.
           </motion.p>
 
+          {/* ⚠️ URGENCY */}
           <motion.p
-            className="hero-urgency"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={4}
+            className="hero-warning"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
           >
-            ⚠️ Most people quit in 3 days. Don’t be one of them.
+            ⚠️ If you quit → your streak resets to zero
           </motion.p>
 
+          {/* 🎯 CTA */}
           <motion.div
             className="hero-buttons"
-            variants={fadeUp}
-            initial="hidden"
-            animate="show"
-            custom={5}
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.8 }}
           >
-            <Link to="/signup" className="btn-primary">
-              Start Day 1 → No Excuses
+            <Link to="/signup" className="btn-primary pulse">
+              Start Day 1 → Change Your Life
             </Link>
           </motion.div>
 
         </div>
       </section>
 
-      {/* ================= HOW IT WORKS ================= */}
+      {/* ================= TRANSFORMATION ================= */}
       <section className="phases">
-        <div className="features-header">
-          <h2>The 16-Day Transformation System</h2>
-          <p>This is not random. This is a structured reset.</p>
-        </div>
+
+        <h2>16-Day Transformation System</h2>
 
         <div className="feature-grid">
+
           {[
             {
-              title: "Days 1–3: Break Resistance",
-              desc: "Push past laziness and prove you can show up",
+              title: "Days 1–4",
+              desc: "You fight resistance and laziness",
             },
             {
-              title: "Days 4–10: Build Discipline",
-              desc: "Create a daily consistency loop",
+              title: "Days 5–10",
+              desc: "Your brain starts building discipline",
             },
             {
-              title: "Days 11–16: Identity Shift",
-              desc: "Become someone who never skips",
+              title: "Days 11–16",
+              desc: "Your identity permanently changes",
             },
             {
               title: "Final Result",
-              desc: "You become disciplined, focused, and consistent",
+              desc: "You become someone who doesn’t quit",
             },
           ].map((f, i) => (
             <motion.div
               key={i}
               className="feature-card"
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="show"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              custom={i}
+              transition={{ delay: i * 0.1 }}
             >
               <h3>{f.title}</h3>
               <p>{f.desc}</p>
             </motion.div>
           ))}
+
         </div>
       </section>
 
-      {/* ================= OUTCOMES ================= */}
+      {/* ================= OUTCOME ================= */}
       <section className="outcomes">
-        <div className="features-header">
-          <h2>What You Get</h2>
-          <p>This is what changes if you complete 16 days.</p>
-        </div>
+
+        <h2>What Changes in 16 Days</h2>
 
         <div className="feature-grid">
+
           {[
-            { title: "Build Discipline", desc: "Show up daily or lose your streak" },
-            { title: "Fix Your Focus", desc: "Train your brain to avoid distractions" },
-            { title: "Reduce Stress", desc: "Feel calmer in just 16 minutes" },
-            { title: "Gain Confidence", desc: "See real daily progress" },
-          ].map((f, i) => (
+            "You stop delaying tasks",
+            "You build daily discipline",
+            "You reduce mental noise",
+            "You gain control over habits",
+          ].map((text, i) => (
             <motion.div
               key={i}
-              className="feature-card"
-              variants={fadeUp}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true }}
-              custom={i}
+              className="feature-card glow-card"
+              whileHover={{ scale: 1.05 }}
             >
-              <h3>{f.title}</h3>
-              <p>{f.desc}</p>
+              ⚡ {text}
             </motion.div>
           ))}
+
         </div>
+
       </section>
 
       {/* ================= FINAL CTA ================= */}
       <section className="cta">
+
         <motion.div
-          className="cta-container"
-          initial={{ opacity: 0, scale: 0.95 }}
+          className="cta-box"
+          initial={{ opacity: 0, scale: 0.9 }}
           whileInView={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6 }}
         >
+
           <h2>
-            Start Your 16-Day Reset <span>Today</span>
+            Start Your 16-Day Reset
           </h2>
 
-          <p className="cta-subtext">
-            If you skip today, you stay the same.
+          <p>
+            If you don’t start today — nothing changes.
           </p>
 
-          <div className="cta-buttons">
-            <Link to="/signup" className="btn-primary big">
-              🚀 Start Day 1 Now
-            </Link>
-          </div>
+          <Link to="/signup" className="btn-primary big pulse">
+            🚀 Start Day 1 Now
+          </Link>
+
         </motion.div>
+
       </section>
 
       {/* ================= FOOTER ================= */}
       <footer className="home-footer">
-        <p>© {new Date().getFullYear()} ManifiX AI</p>
+        © {new Date().getFullYear()} ManifiX AI
       </footer>
 
     </div>
