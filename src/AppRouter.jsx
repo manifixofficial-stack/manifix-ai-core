@@ -39,7 +39,7 @@ export default function AppRouter() {
   const { user } = useApp() || {};
 
   // 🔥 CHECK ONBOARDING STATE
-  const hasStarted = localStorage.getItem("magic16_started");
+  const hasStarted = localStorage.getItem("magic16_started") === "true";
 
   return (
     <HelmetProvider>
