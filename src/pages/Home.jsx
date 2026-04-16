@@ -73,7 +73,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
           >
-            ⚠️ If you quit → your streak resets to zero
+            If you quit → your streak resets to zero
           </motion.p>
 
           {/* 🎯 CTA */}
