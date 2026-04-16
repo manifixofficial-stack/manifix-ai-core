@@ -5,7 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { useApp } from "./context/AppProvider";
 import { HelmetProvider } from "react-helmet-async";
 
-/* ---------------- Public Pages ---------------- */
+/* ---------------- Pages ---------------- */
 import Home from "./pages/Home";
 import Landing from "./pages/Landing";
 import About from "./pages/About";
@@ -15,15 +15,15 @@ import Contact from "./pages/Contact";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 
-/* ---------------- Auth Pages ---------------- */
+/* Auth */
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 
-/* ---------------- Onboarding ---------------- */
+/* Onboarding */
 import Onboarding from "./pages/Onboarding";
 
-/* ---------------- Protected App Pages ---------------- */
+/* App Pages */
 import Dashboard from "./pages/Dashboard";
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
@@ -32,89 +32,102 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import Result from "./pages/Result";
 
-/* ---------------- Not Found ---------------- */
+/* 404 */
 import NotFound from "./pages/NotFound";
 
 export default function AppRouter() {
   const { user } = useApp() || {};
 
-  // 🔥 CHECK ONBOARDING STATE
-  const hasStarted = localStorage.getItem("magic16_started") === "true";
+  /* ================= SAFE ONBOARDING CHECK ================= */
+  const hasStarted =
+    typeof window !== "undefined" &&
+    localStorage.getItem("magic16_started") === "true";
 
   return (
     <HelmetProvider>
       <Routes>
 
-        {/* ---------------- Public ---------------- */}
+        {/* ================= PUBLIC ================= */}
         <Route path="/" element={<Home />} />
         <Route path="/landing" element={<Landing />} />
 
-        {/* ---------------- Auth ---------------- */}
+        {/* ================= AUTH ================= */}
         <Route
           path="/login"
           element={
-            user ? <Navigate to="/onboarding" replace /> : <Login />
+            user ? <Navigate to="/app/dashboard" replace /> : <Login />
           }
         />
 
         <Route
           path="/signup"
           element={
-            user ? <Navigate to="/onboarding" replace /> : <Signup />
+            user ? <Navigate to="/app/dashboard" replace /> : <Signup />
           }
         />
 
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* ---------------- Onboarding ---------------- */}
+        {/* ================= ONBOARDING ================= */}
         <Route
           path="/onboarding"
           element={
-            !user
-              ? <Navigate to="/login" replace />
-              : hasStarted
-              ? <Navigate to="/app/dashboard" replace />
-              : <Onboarding />
+            !user ? (
+              <Navigate to="/login" replace />
+            ) : hasStarted ? (
+              <Navigate to="/app/dashboard" replace />
+            ) : (
+              <Onboarding />
+            )
           }
         />
 
-        {/* ---------------- Public Info ---------------- */}
+        {/* ================= PUBLIC INFO ================= */}
         <Route path="/about" element={<About />} />
-        <Route
-          path="/features"
-          element={<Navigate to="/features/gpt" replace />}
-        />
-        <Route path="/features/:feature" element={<Features />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
 
-        {/* ---------------- Protected App ---------------- */}
+        <Route
+          path="/features"
+          element={<Navigate to="/features/gpt" replace />}
+        />
+        <Route path="/features/:feature" element={<Features />} />
+
+        {/* ================= PROTECTED APP ================= */}
         <Route
           path="/app"
           element={
             <ProtectedRoute>
-              {
-                !hasStarted
-                  ? <Navigate to="/onboarding" replace />
-                  : <MainLayout />
-              }
+              {user ? (
+                hasStarted ? (
+                  <MainLayout />
+                ) : (
+                  <Navigate to="/onboarding" replace />
+                )
+              ) : (
+                <Navigate to="/login" replace />
+              )}
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/app/dashboard" replace />} />
 
+          {/* DEFAULT ROUTE */}
+          <Route index element={<Navigate to="dashboard" replace />} />
+
+          {/* APP ROUTES */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="gpt" element={<Gpt />} />
-          <Route path="result" element={<Result />} />
           <Route path="magic16" element={<Magic16 />} />
+          <Route path="result" element={<Result />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="billing" element={<Billing />} />
           <Route path="settings" element={<Settings />} />
+
         </Route>
 
-        {/* ---------------- 404 ---------------- */}
+        {/* ================= 404 ================= */}
         <Route path="*" element={<NotFound />} />
 
       </Routes>
