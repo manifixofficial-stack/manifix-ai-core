@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { steps } from "../constants/steps"
+import { getSessionSteps } from "../constants/steps"
 import confetti from "canvas-confetti"
 import "../styles/magic16.css"
 
@@ -40,8 +40,8 @@ export default function Magic16() {
 
   /* ================= DERIVED ================= */
 
-  const day = stepIndex + 1
-  const current = steps[stepIndex]
+ const sessionSteps = getSessionSteps(stepIndex + 1)
+const current = sessionSteps[currentStepIndex]
 
   const TOTAL = useMemo(() => {
     return steps.reduce((a, b) => a + b.duration, 0)
