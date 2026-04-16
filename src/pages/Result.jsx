@@ -1,5 +1,3 @@
-// src/pages/Result.jsx
-
 import React, { useEffect, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
@@ -12,8 +10,6 @@ export default function Result() {
   const location = useLocation()
   const cardRef = useRef()
 
-  /* ================= DATA FROM MAGIC16 ================= */
-
   const data = location.state || {
     score: 120,
     accuracy: 85,
@@ -23,14 +19,15 @@ export default function Result() {
 
   const { score, accuracy, time, xpEarned } = data
 
-  /* ================= GLOBAL STATE (READ ONLY) ================= */
-
   const [streak, setStreak] = useState(0)
   const [xp, setXp] = useState(0)
   const [level, setLevel] = useState(1)
 
-  const [showLevelUp, setShowLevelUp] = useState(false)
+  const [stage, setStage] = useState(0)
+  const [showRank, setShowRank] = useState(false)
+  const [caption, setCaption] = useState("")
 
+  /* ================= LOAD ================= */
   useEffect(() => {
     const s = Number(localStorage.getItem("magic16_streak") || 0)
     const x = Number(localStorage.getItem("magic16_xp") || 0)
@@ -40,186 +37,139 @@ export default function Result() {
     setXp(x)
     setLevel(l)
 
-    /* 🎉 Confetti burst */
-    confetti({
-      particleCount: 120,
-      spread: 100,
-      origin: { y: 0.6 },
+    /* 🔥 story animation sequence */
+    const sequence = [
+      () => confetti({ particleCount: 80, spread: 70 }),
+      () => setStage(1),
+      () => setStage(2),
+      () => setStage(3),
+      () => setShowRank(true),
+    ]
+
+    sequence.forEach((fn, i) => {
+      setTimeout(fn, i * 900)
     })
 
-    /* 🔥 Fake level up animation trigger (visual only) */
-    if (xpEarned >= 50) {
-      setShowLevelUp(true)
-      setTimeout(() => setShowLevelUp(false), 2500)
-    }
+  }, [])
 
-  }, [xpEarned])
+  /* ================= VIRAL CAPTION ================= */
+  useEffect(() => {
+    const captions = [
+      `🔥 Day ${streak}/16 completed. I didn’t quit.`,
+      `💪 Most people stop at Day 3. I’m at Day ${streak}.`,
+      `⚡ Discipline level increasing… Day ${streak}/16`,
+      `🧠 Rewiring my life with AI. Day ${streak}/16`
+    ]
 
-  /* ================= FEEDBACK ================= */
-
-  const getFeedback = () => {
-    if (accuracy >= 90) return "🔥 Elite. Almost no one reaches this."
-    if (accuracy >= 75) return "💪 Strong. You're ahead of most."
-    if (accuracy >= 60) return "👍 Good. But you can push harder."
-    return "⚡ This is where most quit. Don't."
-  }
+    setCaption(captions[Math.floor(Math.random() * captions.length)])
+  }, [streak])
 
   /* ================= SHARE ================= */
-
   const handleShare = async () => {
+
     const canvas = await html2canvas(cardRef.current)
     const blob = await new Promise(res => canvas.toBlob(res, "image/png"))
 
     if (!blob) return
 
-    const file = new File([blob], "magic16-result.png", { type: "image/png" })
+    const file = new File([blob], "magic16.png", { type: "image/png" })
 
-    const text = `🔥 ${streak}-Day Streak
+    const text = `${caption}
 
-I just completed Magic16.
+92% people quit before Day 5.
+I’m not one of them.
 
-Most people quit before Day 5.
-
-I didn’t.
-
-Can you? 👇`
+Can you do it? 🔥`
 
     try {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: "Magic16 Result",
-          text,
+          text
         })
       } else {
         await navigator.clipboard.writeText(text)
-        alert("Copied! Share it 🔥")
       }
-    } catch (err) {
-      console.log(err)
-    }
+    } catch (e) {}
   }
 
-  /* ================= UI ================= */
+  /* ================= UI STAGES ================= */
 
   return (
     <div className="result">
 
-      {/* 🔥 LEVEL UP POPUP */}
-      <AnimatePresence>
-        {showLevelUp && (
-          <motion.div
-            className="level-up"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1.4, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-          >
-            🆙 LEVEL UP
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 🎉 RESULT CARD */}
-      <motion.div
-        ref={cardRef}
-        className="result-card"
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6 }}
-      >
-
-        {/* TITLE */}
-        <motion.h1
-          className="title"
-          initial={{ y: -30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-        >
-          🎉 You Didn’t Quit
-        </motion.h1>
-
-        {/* STREAK */}
-        <motion.h2
-          className="streak glow"
-          initial={{ scale: 0.8 }}
-          animate={{ scale: 1 }}
-        >
-          🔥 {streak} Day Streak
-        </motion.h2>
-
-        {/* SCORE */}
-        <motion.div
-          className="score"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <h2>{score} XP</h2>
-          <p>+{xpEarned} XP gained</p>
+      {/* 🔥 STAGE 0 */}
+      {stage === 0 && (
+        <motion.div className="loading-stage">
+          <h1>Analyzing Performance...</h1>
         </motion.div>
+      )}
 
-        {/* XP BAR */}
-        <div className="xp-bar">
-          <motion.div
-            className="xp-fill"
-            initial={{ width: 0 }}
-            animate={{ width: `${xp}%` }}
-            transition={{ duration: 1 }}
-          />
-        </div>
+      {/* ⚡ STAGE 1 */}
+      {stage >= 1 && (
+        <motion.div className="result-card" ref={cardRef}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
 
-        <p className="level">Level {level}</p>
+          <h1>🎬 Session Complete</h1>
 
-        {/* STATS */}
-        <div className="stats">
-
-          <motion.div whileHover={{ scale: 1.05 }}>
-            <h3>🎯 Accuracy</h3>
-            <p>{accuracy}%</p>
+          {/* STREAK */}
+          <motion.div className="big-number">
+            🔥 {streak} Day Streak
           </motion.div>
 
-          <motion.div whileHover={{ scale: 1.05 }}>
-            <h3>⏱ Time</h3>
-            <p>{time}</p>
-          </motion.div>
+          {/* SCORE */}
+          <div className="stats">
+            <p>⚡ Score: {score}</p>
+            <p>🎯 Accuracy: {accuracy}%</p>
+            <p>⏱ Time: {time}</p>
+            <p>💎 XP +{xpEarned}</p>
+          </div>
 
-          <motion.div whileHover={{ scale: 1.05 }}>
-            <h3>🔥 Streak</h3>
-            <p>{streak}</p>
-          </motion.div>
+        </motion.div>
+      )}
+
+      {/* 🧠 STAGE 2 */}
+      {stage >= 2 && (
+        <motion.div className="identity">
+          <h2>You are becoming different.</h2>
+          <p>Most users quit. You are not most users.</p>
+        </motion.div>
+      )}
+
+      {/* 📊 STAGE 3 */}
+      {stage >= 3 && (
+        <motion.div className="rank-card">
+
+          <h3>📊 Performance Rank</h3>
+
+          <div className="rank">
+            Top {Math.max(5, 100 - streak * 4)}% Performer
+          </div>
+
+          <p className="note">
+            (Based on internal challenge data)
+          </p>
+
+        </motion.div>
+      )}
+
+      {/* 💥 ACTIONS */}
+      {stage >= 3 && (
+        <div className="actions">
+
+          <button onClick={handleShare}>
+            📲 Share Result
+          </button>
+
+          <Link to="/app/magic16">
+            🚀 Start Next Day
+          </Link>
 
         </div>
-
-        {/* FEEDBACK */}
-        <motion.div
-          className="feedback"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          {getFeedback()}
-        </motion.div>
-
-      </motion.div>
-
-      {/* ACTIONS */}
-      <div className="actions">
-
-        <motion.button
-          className="share-btn"
-          whileTap={{ scale: 0.9 }}
-          whileHover={{ scale: 1.05 }}
-          onClick={handleShare}
-        >
-          📲 Share Result
-        </motion.button>
-
-        <Link to="/app/session" className="retry">
-          🔁 Try Again
-        </Link>
-
-        <Link to="/app/dashboard" className="dashboard-btn">
-          📊 Dashboard
-        </Link>
-
-      </div>
+      )}
 
     </div>
   )
