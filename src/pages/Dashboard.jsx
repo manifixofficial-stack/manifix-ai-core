@@ -14,8 +14,9 @@ export default function Dashboard() {
   });
 
   const [missionDone, setMissionDone] = useState(false);
-  const [warning, setWarning] = useState("");
   const [timeLeft, setTimeLeft] = useState("");
+  const [danger, setDanger] = useState(false);
+  const [levelUp, setLevelUp] = useState(false);
 
   /* ---------------- LOAD ---------------- */
   useEffect(() => {
@@ -30,11 +31,18 @@ export default function Dashboard() {
 
     if (lastDate === today) {
       setMissionDone(true);
-      setWarning("");
     } else {
       setMissionDone(false);
-      setWarning("⚠️ MISS TODAY = STREAK RESETS TO 0");
     }
+
+    // LEVEL UP EFFECT
+    const prevLevel = Number(localStorage.getItem("prev_level") || level);
+    if (level > prevLevel) {
+      setLevelUp(true);
+      setTimeout(() => setLevelUp(false), 3000);
+    }
+    localStorage.setItem("prev_level", level);
+
   }, []);
 
   /* ---------------- TIMER ---------------- */
@@ -48,111 +56,140 @@ export default function Dashboard() {
 
       if (diff <= 0) {
         setTimeLeft("Time’s up!");
+        setDanger(true);
         return;
       }
 
       const h = Math.floor(diff / (1000 * 60 * 60));
       const m = Math.floor((diff / (1000 * 60)) % 60);
 
-      setTimeLeft(`${h}h ${m}m left`);
+      setTimeLeft(`${h}h ${m}m`);
+
+      // 🚨 DANGER MODE (last 3 hours)
+      if (h <= 3) {
+        setDanger(true);
+      }
+
     }, 60000);
 
     return () => clearInterval(interval);
   }, []);
 
-  /* ---------------- CORE LOGIC ---------------- */
+  /* ---------------- CORE ---------------- */
 
   const day = Math.min(user.streak, 16);
   const progress = Math.floor((day / 16) * 100);
 
-  const getPhase = () => {
-    if (day <= 4) return "🔥 Phase 1: Break Resistance";
-    if (day <= 8) return "⚡ Phase 2: Build Control";
-    if (day <= 12) return "🧠 Phase 3: Mental Discipline";
-    if (day <= 16) return "👑 Phase 4: Identity Shift";
-    return "🚀 Mastery";
+  const getIdentity = () => {
+    if (day <= 4) return "Breaking Weakness";
+    if (day <= 8) return "Building Discipline";
+    if (day <= 12) return "Mental Control";
+    if (day <= 16) return "Unstoppable Identity";
+    return "Elite Mode";
   };
 
-  const getTransformationMessage = () => {
-    if (day <= 4) return "You’re defeating laziness.";
-    if (day <= 8) return "Your focus is getting sharper.";
-    if (day <= 12) return "Your mind is becoming controlled.";
-    if (day <= 16) return "You are becoming unstoppable.";
-    return "You are elite.";
+  const getEmotion = () => {
+    if (missionDone) return "You proved discipline today.";
+    if (danger) return "You are about to lose everything.";
+    return "This is where most people quit.";
   };
 
   /* ---------------- UI ---------------- */
 
   return (
-    <div className="dashboard">
+    <div className={`dashboard ${danger ? "danger" : ""}`}>
+
+      {/* 🔥 LEVEL UP OVERLAY */}
+      <AnimatePresence>
+        {levelUp && (
+          <motion.div
+            className="levelup"
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            🎉 LEVEL UP! → {user.level}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* TOP */}
       <header className="topbar">
         <span className="brand">ManifiX</span>
+        <div className="stats">
+          <span>🔥 {user.streak}</span>
+          <span>⚡ {user.xp} XP</span>
+          <span>🏆 Lv.{user.level}</span>
+        </div>
       </header>
 
-      {/* 🔥 JOURNEY CARD */}
-      <motion.div className="streak-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-
+      {/* 🧠 IDENTITY CARD */}
+      <motion.div
+        className="identity-card"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
         <h1>Day {day} / 16</h1>
-        <p className="phase">{getPhase()}</p>
+        <p className="identity-title">{getIdentity()}</p>
 
-        <div className="transform-bar">
-          <div
-            className="fill"
-            style={{ width: `${progress}%` }}
+        <div className="progress-bar">
+          <motion.div
+            className="progress-fill"
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 1 }}
           />
         </div>
 
-        <p className="percent">{progress}% Transformation</p>
+        <p className="percent">{progress}% TRANSFORMED</p>
 
-        <p className="identity">
-          💬 {getTransformationMessage()}
-        </p>
-
-        <AnimatePresence>
-          {warning && (
-            <motion.p className="warning"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              {warning}
-            </motion.p>
-          )}
-        </AnimatePresence>
-
-        {!missionDone && (
-          <p className="timer">⏳ {timeLeft} TO SAVE YOUR STREAK</p>
-        )}
-
+        <p className="emotion">{getEmotion()}</p>
       </motion.div>
 
+      {/* ⏳ TIMER */}
+      {!missionDone && (
+        <motion.div
+          className={`timer-card ${danger ? "danger-glow" : ""}`}
+          animate={{ scale: danger ? [1, 1.05, 1] : 1 }}
+          transition={{ repeat: Infinity, duration: 1 }}
+        >
+          ⏳ {timeLeft} LEFT TO SAVE YOUR STREAK
+        </motion.div>
+      )}
+
       {/* 🎯 MISSION */}
-      <motion.div className={`mission card ${missionDone ? "done" : ""}`}>
+      <motion.div
+        className={`mission ${missionDone ? "done" : ""}`}
+        whileHover={{ scale: 1.02 }}
+      >
         <h3>🎯 Today’s Mission</h3>
 
         <p>
           {missionDone
-            ? "✅ You showed discipline today."
+            ? "✅ You don’t skip. You execute."
             : "Finish today’s session. No excuses."}
         </p>
       </motion.div>
 
-      {/* 🧠 IDENTITY PUSH */}
-      <motion.div className="quote">
-        {missionDone
-          ? "You don’t skip. You execute."
-          : "If you quit today, you restart from zero."}
-      </motion.div>
+      {/* 🧨 PRESSURE CARD */}
+      {!missionDone && (
+        <motion.div
+          className="pressure"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          ⚠️ If you fail today → streak resets to 0
+        </motion.div>
+      )}
 
       {/* 🚀 CTA */}
-      <motion.div className="start-wrapper"
-        whileHover={{ scale: 1.05 }}
+      <motion.div
+        className="cta-wrapper"
+        whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
       >
-        <Link to="/app/magic16" className="start-btn">
-          {missionDone ? "⚡ Go Again" : "🚀 Save My Streak"}
+        <Link to="/app/magic16" className="cta-btn">
+          {missionDone ? "⚡ Push Further" : "🔥 Save My Streak"}
         </Link>
       </motion.div>
 
