@@ -117,11 +117,11 @@ No excuses.
 
         <div className="feature-grid">
           {[
-            { title: "Magic16 Routine", desc: "16-minute daily system to build focus" },
-            { title: "Daily Score", desc: "Track your discipline every day" },
-            { title: "Guided Flow", desc: "Yoga + meditation with AI support" },
-            { title: "AI Coach", desc: "Ask anything and get instant clarity" },
-          ].map((f, i) => (
+  { title: "Build Discipline", desc: "Show up daily or lose your streak" },
+  { title: "Fix Your Focus", desc: "Train your brain to stop distractions" },
+  { title: "Reduce Stress Fast", desc: "Feel calm in just 16 minutes" },
+  { title: "Gain Confidence", desc: "See progress every single day" },
+].map((f, i) => (
             <motion.div
               key={i}
               className="feature-card"
