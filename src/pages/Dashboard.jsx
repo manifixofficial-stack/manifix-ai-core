@@ -134,7 +134,8 @@ export default function Dashboard() {
       >
         💬 {warning ? "Don't lose your streak!" : "You're on fire 🔥"}
       </motion.div>
-
+⏳ 6 hours left to complete today’s session
+      Start today — or stay the same.
       {/* 🚀 MAIN CTA (MOST IMPORTANT) */}
       <motion.div
         className="start-wrapper"
@@ -142,7 +143,7 @@ export default function Dashboard() {
         whileTap={{ scale: 0.95 }}
       >
         <Link to="/app/magic16" className="start-btn">
-          {missionDone ? "⚡ Do Another Session" : "🚀 Continue Streak"}
+          {missionDone ? "⚡ Do Another Session" : "🚀 Save My Streak"}
         </Link>
       </motion.div>
 
