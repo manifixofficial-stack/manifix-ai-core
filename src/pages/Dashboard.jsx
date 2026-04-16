@@ -1,5 +1,3 @@
-// src/pages/Dashboard.jsx
-
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,7 +5,7 @@ import "../styles/dashboard.css";
 
 export default function Dashboard() {
 
-  /* ---------------- USER STATE ---------------- */
+  /* ---------------- STATE ---------------- */
   const [user, setUser] = useState({
     streak: 0,
     xp: 0,
@@ -17,6 +15,7 @@ export default function Dashboard() {
   const [warning, setWarning] = useState("");
   const [missionDone, setMissionDone] = useState(false);
   const [xpToNext, setXpToNext] = useState(100);
+  const [timeLeft, setTimeLeft] = useState("");
 
   /* ---------------- LOAD DATA ---------------- */
   useEffect(() => {
@@ -29,21 +28,54 @@ export default function Dashboard() {
 
     setUser({ streak, xp, level });
 
-    /* ---------------- STREAK WARNING ---------------- */
+    /* ---------------- MISSION STATUS ---------------- */
     if (lastDate !== today) {
-      setWarning("⚠️ If you skip today, your streak dies.");
+      setWarning("⚠️ Skip today = your streak resets to 0.");
       setMissionDone(false);
     } else {
       setWarning("");
       setMissionDone(true);
     }
 
-    /* ---------------- XP CALC ---------------- */
+    /* ---------------- XP ---------------- */
     setXpToNext(100 - (xp % 100));
 
   }, []);
 
-  const progress = (user.xp % 100);
+  /* ---------------- COUNTDOWN TIMER ---------------- */
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+
+      const diff = end - now;
+
+      if (diff <= 0) {
+        setTimeLeft("Time’s up!");
+        return;
+      }
+
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff / (1000 * 60)) % 60);
+
+      setTimeLeft(`${h}h ${m}m left`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const progress = user.xp % 100;
+
+  /* ---------------- PHASE LOGIC ---------------- */
+  const getPhase = () => {
+    if (user.streak <= 3) return "Phase: Break Resistance";
+    if (user.streak <= 10) return "Phase: Build Discipline";
+    if (user.streak <= 16) return "Phase: Identity Shift";
+    return "Phase: Mastery";
+  };
 
   /* ---------------- UI ---------------- */
   return (
@@ -54,13 +86,14 @@ export default function Dashboard() {
         <span className="brand">ManifiX</span>
       </header>
 
-      {/* 🔥 STREAK SECTION (MAIN HOOK) */}
+      {/* 🔥 STREAK + PHASE */}
       <motion.div
         className="streak-card"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
       >
-        <h1>🔥 {user.streak} Day Streak</h1>
+        <h1>🔥 Day {user.streak} / 16</h1>
+        <p className="phase">{getPhase()}</p>
 
         <AnimatePresence>
           {warning && (
@@ -74,6 +107,11 @@ export default function Dashboard() {
             </motion.p>
           )}
         </AnimatePresence>
+
+        {/* ⏳ COUNTDOWN */}
+        {!missionDone && (
+          <p className="timer">⏳ {timeLeft} to save your streak</p>
+        )}
       </motion.div>
 
       {/* 🎯 DAILY MISSION */}
@@ -85,8 +123,8 @@ export default function Dashboard() {
         <h3>🎯 Today’s Mission</h3>
         <p>
           {missionDone
-            ? "✅ Completed — Great job!"
-            : "Complete today’s mission or lose your progress."}
+            ? "✅ Completed — You protected your streak."
+            : "Complete today’s session or lose your progress."}
         </p>
       </motion.div>
 
@@ -126,17 +164,18 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* 🧠 MOTIVATION */}
+      {/* 🧠 IDENTITY MESSAGE */}
       <motion.div
         className="quote"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        💬 {warning ? "Don't lose your streak!" : "You're on fire 🔥"}
+        💬 {missionDone
+          ? "You are becoming disciplined. Keep going."
+          : "You are building discipline. Don’t stop now."}
       </motion.div>
-⏳ 6 hours left to complete today’s session
-      Start today — or stay the same.
-      {/* 🚀 MAIN CTA (MOST IMPORTANT) */}
+
+      {/* 🚀 MAIN CTA */}
       <motion.div
         className="start-wrapper"
         whileHover={{ scale: 1.05 }}
