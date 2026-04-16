@@ -1,117 +1,222 @@
-/* ================= BASE ================= */
+/* =========================
+   GLOBAL ONBOARDING
+========================= */
+
 .onboarding {
-  min-height: 100vh;
+  height: 100vh;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at top, #0f172a, #020617);
-  font-family: "Inter", sans-serif;
+  background: radial-gradient(circle at top, #0f172a, #05070d);
   color: #fff;
+  font-family: "Inter", sans-serif;
+  overflow: hidden;
   padding: 20px;
 }
 
-/* ================= CARD ================= */
+/* =========================
+   CARD CONTAINER
+========================= */
+
 .onboarding-card {
   width: 100%;
   max-width: 420px;
-  padding: 40px 28px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-  text-align: center;
+  background: rgba(18, 22, 34, 0.85);
+  backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.4s ease;
 }
 
-/* ================= TEXT ================= */
+/* subtle entry */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================
+   HEADINGS
+========================= */
+
 .onboarding-card h1 {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
   margin-bottom: 16px;
-  line-height: 1.3;
+  letter-spacing: 0.2px;
+  color: #ffffff;
 }
+
+.onboarding-card h2 {
+  font-size: 18px;
+  margin-top: 10px;
+  color: #a78bfa;
+}
+
+/* =========================
+   TEXT
+========================= */
 
 .onboarding-card p {
-  font-size: 15px;
-  color: #cbd5f5;
-  line-height: 1.6;
-  margin-bottom: 28px;
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.5;
 }
 
-/* ================= DOTS ================= */
-.dots {
+/* =========================
+   OPTIONS BUTTONS
+========================= */
+
+.options {
   display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 28px;
+  flex-direction: column;
+  gap: 10px;
+  margin: 18px 0;
 }
 
-.dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #334155;
-  transition: all 0.3s ease;
-}
-
-.dots span.active {
-  background: #6366f1;
-  width: 18px;
-  border-radius: 10px;
-}
-
-/* ================= BUTTONS ================= */
-.next-btn,
-.start-btn {
-  width: 100%;
-  padding: 14px;
-  border: none;
+.options button {
+  padding: 12px 14px;
   border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5e7eb;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.25s ease;
+  text-align: left;
 }
 
-/* NEXT BUTTON */
+.options button:hover {
+  transform: translateY(-2px);
+  background: rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+.options button.active {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  border: none;
+  color: white;
+  box-shadow: 0 10px 30px rgba(124, 58, 237, 0.3);
+}
+
+/* =========================
+   NEXT BUTTON
+========================= */
+
 .next-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+  margin-top: 10px;
 }
 
 .next-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.03);
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
 }
 
-/* START BUTTON (PRIMARY) */
+.next-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =========================
+   DANGER SCREEN
+========================= */
+
+.danger {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.danger h1 {
+  color: #ef4444;
+}
+
+.danger-btn {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+}
+
+/* =========================
+   FINAL SCREEN
+========================= */
+
+.final {
+  text-align: center;
+}
+
+.final h1 {
+  font-size: 24px;
+}
+
+.final p {
+  margin: 10px 0;
+  color: #cbd5e1;
+}
+
+/* =========================
+   PULSE BUTTON (HIGH IMPACT CTA)
+========================= */
+
 .start-btn {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s ease;
+  box-shadow: 0 10px 30px rgba(34, 197, 94, 0.25);
 }
 
 .start-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.6);
+  transform: scale(1.04);
 }
 
-/* DISABLED STATE */
-.start-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.pulse {
+  animation: pulse 1.6s infinite;
 }
 
-/* ================= RESPONSIVE ================= */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 18px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
 @media (max-width: 480px) {
   .onboarding-card {
-    padding: 30px 20px;
+    padding: 18px;
+    border-radius: 16px;
   }
 
   .onboarding-card h1 {
-    font-size: 22px;
-  }
-
-  .onboarding-card p {
-    font-size: 14px;
+    font-size: 20px;
   }
 }
