@@ -1,3 +1,5 @@
+// src/pages/Dashboard.jsx
+
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -5,19 +7,17 @@ import "../styles/dashboard.css";
 
 export default function Dashboard() {
 
-  /* ---------------- STATE ---------------- */
   const [user, setUser] = useState({
     streak: 0,
     xp: 0,
     level: 1,
   });
 
-  const [warning, setWarning] = useState("");
   const [missionDone, setMissionDone] = useState(false);
-  const [xpToNext, setXpToNext] = useState(100);
+  const [warning, setWarning] = useState("");
   const [timeLeft, setTimeLeft] = useState("");
 
-  /* ---------------- LOAD DATA ---------------- */
+  /* ---------------- LOAD ---------------- */
   useEffect(() => {
     const streak = Number(localStorage.getItem("magic16_streak") || 0);
     const xp = Number(localStorage.getItem("magic16_xp") || 0);
@@ -28,23 +28,18 @@ export default function Dashboard() {
 
     setUser({ streak, xp, level });
 
-    /* ---------------- MISSION STATUS ---------------- */
-    if (lastDate !== today) {
-      setWarning("⚠️ Skip today = your streak resets to 0.");
-      setMissionDone(false);
-    } else {
-      setWarning("");
+    if (lastDate === today) {
       setMissionDone(true);
+      setWarning("");
+    } else {
+      setMissionDone(false);
+      setWarning("⚠️ MISS TODAY = STREAK RESETS TO 0");
     }
-
-    /* ---------------- XP ---------------- */
-    setXpToNext(100 - (xp % 100));
-
   }, []);
 
-  /* ---------------- COUNTDOWN TIMER ---------------- */
+  /* ---------------- TIMER ---------------- */
   useEffect(() => {
-    const updateTimer = () => {
+    const interval = setInterval(() => {
       const now = new Date();
       const end = new Date();
       end.setHours(23, 59, 59, 999);
@@ -60,47 +55,66 @@ export default function Dashboard() {
       const m = Math.floor((diff / (1000 * 60)) % 60);
 
       setTimeLeft(`${h}h ${m}m left`);
-    };
+    }, 60000);
 
-    updateTimer();
-    const interval = setInterval(updateTimer, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  const progress = user.xp % 100;
+  /* ---------------- CORE LOGIC ---------------- */
 
-  /* ---------------- PHASE LOGIC ---------------- */
+  const day = Math.min(user.streak, 16);
+  const progress = Math.floor((day / 16) * 100);
+
   const getPhase = () => {
-    if (user.streak <= 3) return "Phase: Break Resistance";
-    if (user.streak <= 10) return "Phase: Build Discipline";
-    if (user.streak <= 16) return "Phase: Identity Shift";
-    return "Phase: Mastery";
+    if (day <= 4) return "🔥 Phase 1: Break Resistance";
+    if (day <= 8) return "⚡ Phase 2: Build Control";
+    if (day <= 12) return "🧠 Phase 3: Mental Discipline";
+    if (day <= 16) return "👑 Phase 4: Identity Shift";
+    return "🚀 Mastery";
+  };
+
+  const getTransformationMessage = () => {
+    if (day <= 4) return "You’re defeating laziness.";
+    if (day <= 8) return "Your focus is getting sharper.";
+    if (day <= 12) return "Your mind is becoming controlled.";
+    if (day <= 16) return "You are becoming unstoppable.";
+    return "You are elite.";
   };
 
   /* ---------------- UI ---------------- */
+
   return (
     <div className="dashboard">
 
-      {/* NAVBAR */}
+      {/* TOP */}
       <header className="topbar">
         <span className="brand">ManifiX</span>
       </header>
 
-      {/* 🔥 STREAK + PHASE */}
-      <motion.div
-        className="streak-card"
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-      >
-        <h1>🔥 Day {user.streak} / 16</h1>
+      {/* 🔥 JOURNEY CARD */}
+      <motion.div className="streak-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+
+        <h1>Day {day} / 16</h1>
         <p className="phase">{getPhase()}</p>
+
+        <div className="transform-bar">
+          <div
+            className="fill"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <p className="percent">{progress}% Transformation</p>
+
+        <p className="identity">
+          💬 {getTransformationMessage()}
+        </p>
 
         <AnimatePresence>
           {warning && (
-            <motion.p
-              className="warning"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
+            <motion.p className="warning"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
               {warning}
@@ -108,81 +122,37 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* ⏳ COUNTDOWN */}
         {!missionDone && (
-          <p className="timer">⏳ {timeLeft} to save your streak</p>
+          <p className="timer">⏳ {timeLeft} TO SAVE YOUR STREAK</p>
         )}
+
       </motion.div>
 
-      {/* 🎯 DAILY MISSION */}
-      <motion.div
-        className={`mission card ${missionDone ? "done" : ""}`}
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
+      {/* 🎯 MISSION */}
+      <motion.div className={`mission card ${missionDone ? "done" : ""}`}>
         <h3>🎯 Today’s Mission</h3>
+
         <p>
           {missionDone
-            ? "✅ Completed — You protected your streak."
-            : "Complete today’s session or lose your progress."}
+            ? "✅ You showed discipline today."
+            : "Finish today’s session. No excuses."}
         </p>
       </motion.div>
 
-      {/* 📊 XP + LEVEL */}
-      <motion.div
-        className="xp card"
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        <h3>Level {user.level}</h3>
-
-        <div className="progress">
-          <motion.div
-            className="progress-fill"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 1 }}
-          />
-        </div>
-
-        <p>{xpToNext} XP to next level</p>
+      {/* 🧠 IDENTITY PUSH */}
+      <motion.div className="quote">
+        {missionDone
+          ? "You don’t skip. You execute."
+          : "If you quit today, you restart from zero."}
       </motion.div>
 
-      {/* 📅 WEEK TRACKER */}
-      <motion.div
-        className="week card"
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        <h3>Weekly Progress</h3>
-        <div className="days">
-          {[...Array(7)].map((_, i) => (
-            <span key={i} className={i < user.streak % 7 ? "done" : ""}>
-              {["S","M","T","W","T","F","S"][i]}
-            </span>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* 🧠 IDENTITY MESSAGE */}
-      <motion.div
-        className="quote"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        💬 {missionDone
-          ? "You are becoming disciplined. Keep going."
-          : "You are building discipline. Don’t stop now."}
-      </motion.div>
-
-      {/* 🚀 MAIN CTA */}
-      <motion.div
-        className="start-wrapper"
+      {/* 🚀 CTA */}
+      <motion.div className="start-wrapper"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >
         <Link to="/app/magic16" className="start-btn">
-          {missionDone ? "⚡ Do Another Session" : "🚀 Save My Streak"}
+          {missionDone ? "⚡ Go Again" : "🚀 Save My Streak"}
         </Link>
       </motion.div>
 
