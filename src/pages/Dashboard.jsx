@@ -31,7 +31,7 @@ export default function Dashboard() {
 
     /* ---------------- STREAK WARNING ---------------- */
     if (lastDate !== today) {
-      setWarning("⚠️ Don't break your streak today!");
+      setWarning("⚠️ If you skip today, your streak dies.");
       setMissionDone(false);
     } else {
       setWarning("");
@@ -86,7 +86,7 @@ export default function Dashboard() {
         <p>
           {missionDone
             ? "✅ Completed — Great job!"
-            : "Complete 1 Magic16 session"}
+            : "Complete today’s mission or lose your progress."}
         </p>
       </motion.div>
 
