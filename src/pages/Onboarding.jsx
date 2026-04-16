@@ -1,6 +1,6 @@
 // src/pages/Onboarding.jsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import "../styles/onboarding.css";
@@ -8,20 +8,60 @@ import "../styles/onboarding.css";
 export default function Onboarding() {
   const navigate = useNavigate();
 
+  const [phase, setPhase] = useState("intro"); 
   const [step, setStep] = useState(0);
+
   const [goal, setGoal] = useState("");
   const [intensity, setIntensity] = useState("");
   const [identity, setIdentity] = useState("");
 
   const [loading, setLoading] = useState(false);
 
-  /* ================= AUTO REDIRECT ================= */
+  const voiceRef = useRef(null);
+
+  /* ================= VOICE ENGINE ================= */
+  const speak = (text, rate = 1, pitch = 1.1) => {
+    if (!("speechSynthesis" in window)) return;
+
+    const msg = new SpeechSynthesisUtterance(text);
+    const voices = speechSynthesis.getVoices();
+
+    msg.voice =
+      voices.find(v => v.name.includes("Google")) ||
+      voices[0];
+
+    msg.rate = rate;
+    msg.pitch = pitch;
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(msg);
+
+    voiceRef.current = msg;
+  };
+
+  /* ================= INTRO CINEMATIC ================= */
   useEffect(() => {
-    const started = localStorage.getItem("magic16_started");
-    if (started === "true") {
-      navigate("/app/dashboard");
-    }
-  }, [navigate]);
+    speak(
+      "Warning. This is not a normal app. Most people quit in 3 days.",
+      0.95,
+      1.2
+    );
+
+    const t1 = setTimeout(() => {
+      setPhase("hook");
+      speak("If you continue... you will be changed in 16 days.", 1);
+    }, 4000);
+
+    const t2 = setTimeout(() => {
+      setPhase("start");
+      speak("Choose who you want to become.", 1.05);
+    }, 8000);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
 
   /* ================= START APP ================= */
   const handleStart = () => {
@@ -41,52 +81,61 @@ export default function Onboarding() {
     localStorage.setItem("magic16_intensity", intensity);
     localStorage.setItem("magic16_identity", identity);
 
+    speak("Transformation started. Day one begins now.", 1.1, 1.3);
+
     setTimeout(() => {
       navigate("/app/dashboard");
-    }, 700);
+    }, 1200);
   };
 
   /* ================= OPTIONS ================= */
-  const goals = [
-    "🔥 Build Discipline",
-    "🧠 Improve Focus",
-    "💪 Get Strong Mind",
-    "😌 Reduce Stress",
-  ];
-
-  const intensities = [
-    "Low 😴",
-    "Medium 😐",
-    "HIGH 🔥",
-    "NO EXCUSES ⚡",
-  ];
-
+  const goals = ["Discipline", "Focus", "Confidence", "Stress Control"];
+  const intensities = ["Low", "Medium", "HIGH", "NO EXCUSES"];
   const identities = [
-    "I want to become consistent",
-    "I want to stop quitting",
-    "I want control over my life",
-    "I want a new identity",
+    "I want to change my life",
+    "I want discipline",
+    "I want control",
+    "I want consistency"
   ];
 
   /* ================= UI ================= */
+
   return (
-    <div className="onboarding">
+    <div className="onboarding cinematic">
 
       <AnimatePresence mode="wait">
 
-        {/* ================= STEP 1 ================= */}
-        {step === 0 && (
+        {/* ================= INTRO ================= */}
+        {phase === "intro" && (
           <motion.div
-            key="s1"
-            className="onboarding-card"
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
+            className="cinematic-screen black"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
           >
-            <h1>Why are you starting?</h1>
+            <h1 className="glitch">⚠ WARNING</h1>
+            <p>Do not continue if you are not serious.</p>
+          </motion.div>
+        )}
+
+        {/* ================= HOOK ================= */}
+        {phase === "hook" && (
+          <motion.div
+            className="cinematic-screen red-glow"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
+            <h1>92% Quit Before Day 3</h1>
+            <p>This system does not forgive inconsistency.</p>
+          </motion.div>
+        )}
+
+        {/* ================= START ================= */}
+        {phase === "start" && step === 0 && (
+          <motion.div className="card">
+            <h1>Why are you here?</h1>
 
             <div className="options">
-              {goals.map((g) => (
+              {goals.map(g => (
                 <button
                   key={g}
                   className={goal === g ? "active" : ""}
@@ -97,11 +146,7 @@ export default function Onboarding() {
               ))}
             </div>
 
-            <button
-              disabled={!goal}
-              className="next-btn"
-              onClick={() => setStep(1)}
-            >
+            <button disabled={!goal} onClick={() => setStep(1)}>
               Continue →
             </button>
           </motion.div>
@@ -109,17 +154,11 @@ export default function Onboarding() {
 
         {/* ================= STEP 2 ================= */}
         {step === 1 && (
-          <motion.div
-            key="s2"
-            className="onboarding-card"
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-          >
-            <h1>How serious are you?</h1>
+          <motion.div className="card">
+            <h1>Intensity Level</h1>
 
             <div className="options">
-              {intensities.map((i) => (
+              {intensities.map(i => (
                 <button
                   key={i}
                   className={intensity === i ? "active" : ""}
@@ -130,11 +169,7 @@ export default function Onboarding() {
               ))}
             </div>
 
-            <button
-              disabled={!intensity}
-              className="next-btn"
-              onClick={() => setStep(2)}
-            >
+            <button disabled={!intensity} onClick={() => setStep(2)}>
               Continue →
             </button>
           </motion.div>
@@ -142,38 +177,23 @@ export default function Onboarding() {
 
         {/* ================= STEP 3 ================= */}
         {step === 2 && (
-          <motion.div
-            key="s3"
-            className="onboarding-card danger"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
-            <h1>⚠️ Reality Check</h1>
+          <motion.div className="card warning-card">
+            <h1>Reality Check</h1>
+            <p>Miss 1 day → streak resets.</p>
 
-            <p>
-              92% people quit before Day 3.
-              <br /><br />
-              If you miss 1 day → streak resets.
-            </p>
-
-            <button className="next-btn danger-btn" onClick={() => setStep(3)}>
-              I Accept →
+            <button onClick={() => setStep(3)}>
+              I Understand →
             </button>
           </motion.div>
         )}
 
         {/* ================= STEP 4 ================= */}
         {step === 3 && (
-          <motion.div
-            key="s4"
-            className="onboarding-card"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
+          <motion.div className="card">
             <h1>Who are you becoming?</h1>
 
             <div className="options">
-              {identities.map((id) => (
+              {identities.map(id => (
                 <button
                   key={id}
                   className={identity === id ? "active" : ""}
@@ -184,40 +204,26 @@ export default function Onboarding() {
               ))}
             </div>
 
-            <button
-              disabled={!identity}
-              className="next-btn"
-              onClick={() => setStep(4)}
-            >
+            <button disabled={!identity} onClick={() => setStep(4)}>
               Final Step →
             </button>
           </motion.div>
         )}
 
-        {/* ================= FINAL COMMITMENT SCREEN ================= */}
+        {/* ================= FINAL LOCK ================= */}
         {step === 4 && (
-          <motion.div
-            key="s5"
-            className="onboarding-card final"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-          >
+          <motion.div className="card final-lock">
             <h1>🔥 Commitment Locked</h1>
 
-            <p>
-              Goal: <b>{goal}</b><br />
-              Intensity: <b>{intensity}</b><br />
-              Identity: <b>{identity}</b>
-            </p>
+            <p>{goal} • {intensity}</p>
 
-            <h2>16 Days. No Excuses. No Reset.</h2>
+            <h2>16 Days. No Excuses.</h2>
 
             <button
               className="start-btn pulse"
               onClick={handleStart}
-              disabled={loading}
             >
-              {loading ? "Starting..." : "🚀 Begin Transformation"}
+              🚀 Begin Transformation
             </button>
           </motion.div>
         )}
@@ -226,4 +232,4 @@ export default function Onboarding() {
 
     </div>
   );
-}0
+}
