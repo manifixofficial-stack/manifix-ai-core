@@ -67,7 +67,7 @@ export default function Home() {
             animate="show"
             custom={2}
           >
-            Transform Your Life in 16 Minutes <br />
+          Fix Your Life in 16 Days <br />
             <span>With ManifiX AI</span>
           </motion.h1>
 
@@ -78,7 +78,9 @@ export default function Home() {
             animate="show"
             custom={3}
           >
-            A simple daily system to improve your focus, clarity, and discipline.
+           A 16-day system that forces you to build discipline.
+Miss a day, your streak resets.
+No excuses.
           </motion.p>
 
           <motion.div
