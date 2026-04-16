@@ -15,9 +15,9 @@ const IMAGE_MAP = {
   yoga6: "yoga-06.jpg",
   yoga7: "yoga-07.jpg",
   yoga8: "yoga-08.jpg",
-  yoga71: "yoga-07.1.jpg",
-  yoga72: "yoga-07.2.jpg",
-  yoga73: "yoga-07.3.jpg",
+  yoga71: "yoga-07-1.jpg",
+  yoga72: "yoga-07-2.jpg",
+  yoga73: "yoga-07-3.jpg",
 
   med1: "med-01.jpg",
   med2: "med-02.jpg",
