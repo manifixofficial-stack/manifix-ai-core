@@ -1,11 +1,14 @@
 // src/pages/Magic16.jsx
 
 import { useEffect, useRef, useState, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { steps } from "../constants/steps"
 import confetti from "canvas-confetti"
 import "../styles/magic16.css"
 
 export default function Magic16() {
+
+  const navigate = useNavigate()
 
   /* ================= STATE ================= */
 
@@ -22,7 +25,6 @@ export default function Magic16() {
   )
 
   const [playing, setPlaying] = useState(false)
-  const [completed, setCompleted] = useState(false)
 
   const [xp, setXp] = useState(() =>
     Number(localStorage.getItem("m16_xp") || 0)
@@ -45,12 +47,20 @@ export default function Magic16() {
     return steps.reduce((a, b) => a + b.duration, 0)
   }, [])
 
-  /* ================= SYNC REFS ================= */
+  /* ================= SYNC ================= */
 
   useEffect(() => {
     stepRef.current = stepIndex
     timeRef.current = timeLeft
   }, [stepIndex, timeLeft])
+
+  /* ================= CLEANUP ================= */
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
 
   /* ================= PERSIST ================= */
 
@@ -76,16 +86,8 @@ export default function Magic16() {
     const msg = new SpeechSynthesisUtterance(text)
     msg.voice = voice
 
-    if (type === "motivation") {
-      msg.rate = 1
-      msg.pitch = 1.2
-    } else if (type === "calm") {
-      msg.rate = 0.85
-      msg.pitch = 0.9
-    } else {
-      msg.rate = 0.9
-      msg.pitch = 1
-    }
+    msg.rate = type === "motivation" ? 1 : 0.9
+    msg.pitch = type === "motivation" ? 1.2 : 1
 
     if (speechSynthesis.speaking) speechSynthesis.cancel()
     speechSynthesis.speak(msg)
@@ -98,20 +100,6 @@ export default function Magic16() {
       speak("You won’t finish this. Most people quit.")
     }
   }, [showHook])
-
-  /* ================= DAILY LOCK ================= */
-
-  useEffect(() => {
-    const last = localStorage.getItem("last_done")
-    if (!last) return
-
-    const lastDate = new Date(last)
-    const today = new Date()
-
-    if (lastDate.toDateString() === today.toDateString()) {
-      setCompleted(true)
-    }
-  }, [])
 
   /* ================= TIMER ================= */
 
@@ -137,23 +125,21 @@ export default function Magic16() {
             }
 
             speak(steps[next].voice)
-
             setTimeLeft(steps[next].duration)
+
             return next
           })
 
           return 0
         }
 
-        /* 🔥 Dopamine triggers */
-        if (prev === 10) speak("You're still here. That’s rare.")
+        if (prev === 10) speak("You're still here.")
         if (prev === 5) speak("Most people quit here.")
         if (prev === 2) speak("Finish it.")
 
         return prev - 1
       })
 
-      /* PROGRESS */
       setProgress(() => {
         const elapsed =
           steps
@@ -174,7 +160,7 @@ export default function Magic16() {
     }
 
     speechSynthesis.cancel()
-    speak("Paused. Come back stronger.")
+    speak("Paused.")
     setPlaying(false)
   }
 
@@ -191,52 +177,24 @@ export default function Magic16() {
     const prevStreak = Number(localStorage.getItem("magic16_streak") || 0)
     const streak = prevStreak + 1
 
+    const newXp = xp + 50
+
     localStorage.setItem("magic16_streak", streak)
     localStorage.setItem("last_done", new Date().toISOString())
 
-    /* XP SYSTEM */
-    setXp(prev => prev + 50)
-
-    /* Identity reinforcement */
-    const identities = [
-      "You don’t quit.",
-      "You are disciplined.",
-      "You finish what you start.",
-      "You are rare."
-    ]
+    /* 🔥 SAVE RESULT (IMPORTANT) */
+    localStorage.setItem("m16_last_result", JSON.stringify({
+      day,
+      xp: newXp,
+      streak,
+      date: new Date().toISOString()
+    }))
 
     speak(`Day complete. ${streak} day streak.`)
+
     setTimeout(() => {
-      speak(identities[Math.floor(Math.random() * identities.length)])
-    }, 1500)
-
-    setTimeout(() => setCompleted(true), 800)
-  }
-
-  /* ================= SHARE ================= */
-
-  const handleShare = async () => {
-    const url = window.location.origin
-
-    const text = `🔥 I just completed Day ${day}/16
-
-92% people quit before Day 5.
-
-I'm still going.
-
-Can you beat me? 👇
-${url}`
-
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Magic16", text, url })
-      } else {
-        await navigator.clipboard.writeText(text)
-        speak("Copied. Share it now.")
-      }
-    } catch (e) {
-      console.log(e)
-    }
+      navigate("/result")
+    }, 1200)
   }
 
   /* ================= UI ================= */
@@ -247,24 +205,6 @@ ${url}`
         <h1>⚠️ You won’t finish this</h1>
         <p>92% quit before Day 5.</p>
         <button onClick={start}>Start Anyway 🔥</button>
-      </div>
-    )
-  }
-
-  if (completed) {
-    const streak = Number(localStorage.getItem("magic16_streak") || 0)
-
-    return (
-      <div className="complete">
-        <h1>🔥 You Didn’t Quit</h1>
-        <p>Day {day} complete</p>
-        <h2>{streak}-Day Streak</h2>
-        <p>XP: {xp}</p>
-
-        <button onClick={handleShare}>📲 Share</button>
-        <button onClick={() => window.location.reload()}>
-          Continue Tomorrow
-        </button>
       </div>
     )
   }
