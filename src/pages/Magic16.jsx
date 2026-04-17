@@ -42,7 +42,22 @@ export default function Magic16() {
   const timerRef = useRef(null);
   const stepRef = useRef(stepIndex);
   const timeRef = useRef(timeLeft);
+const bgAudio = useRef(null);
+const countdownAudio = useRef(null);
 
+useEffect(() => {
+  bgAudio.current = new Audio("/assets/audio/combo.mp3");
+  bgAudio.current.loop = true;
+  bgAudio.current.volume = 0.3;
+
+  countdownAudio.current = new Audio("/assets/audio/countdown.mp3");
+  countdownAudio.current.volume = 0.6;
+
+  return () => {
+    bgAudio.current?.pause();
+    countdownAudio.current?.pause();
+  };
+}, []);
   const current = sessionSteps[stepIndex];
 
   const TOTAL = useMemo(() => {
