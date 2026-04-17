@@ -32,7 +32,10 @@ export default function Result() {
     const s = Number(localStorage.getItem("magic16_streak") || 0)
     const x = Number(localStorage.getItem("magic16_xp") || 0)
     const l = Number(localStorage.getItem("magic16_level") || 1)
-
+const success = new Audio("/assets/audio/success.mp3");
+  success.volume = 0.7;
+  success.play().catch(() => {});
+},
     setStreak(s)
     setXp(x)
     setLevel(l)
