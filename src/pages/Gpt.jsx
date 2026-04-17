@@ -28,6 +28,9 @@ export default function Gpt() {
   const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
 
+  /* ✅ STEP 3 FIX */
+  const [lastUserMessage, setLastUserMessage] = useState("");
+
   const chatRef = useRef(null);
   const recognitionRef = useRef(null);
   const eventSourceRef = useRef(null);
@@ -81,13 +84,23 @@ export default function Gpt() {
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
+
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   };
 
-  /* ================= SEND MESSAGE (STREAM) ================= */
+  /* ================= STOP ================= */
+  const stopGenerating = () => {
+    eventSourceRef.current?.close();
+    setGenerating(false);
+  };
+
+  /* ================= SEND MESSAGE ================= */
   const sendMessage = (text) => {
     if (!text.trim() || generating) return;
+
+    /* ✅ STORE LAST MESSAGE */
+    setLastUserMessage(text);
 
     const userMsg = {
       id: Date.now(),
@@ -101,13 +114,11 @@ export default function Gpt() {
 
     const msgId = Date.now() + "-bot";
 
-    /* Create empty assistant message */
     setMessages((prev) => [
       ...prev,
-      { id: msgId, role: "assistant", content: "" }
+      { id: msgId, role: "assistant", content: "", streaming: true },
     ]);
 
-    /* Close previous stream */
     eventSourceRef.current?.close();
 
     const url = `${API_BASE}/api/stream?message=${encodeURIComponent(text)}`;
@@ -125,6 +136,13 @@ export default function Gpt() {
         setGenerating(false);
 
         if (fullText.length < 200) speak(fullText);
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId ? { ...m, streaming: false } : m
+          )
+        );
+
         return;
       }
 
@@ -132,7 +150,9 @@ export default function Gpt() {
 
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msgId ? { ...m, content: fullText } : m
+          m.id === msgId
+            ? { ...m, content: fullText }
+            : m
         )
       );
     };
@@ -144,7 +164,7 @@ export default function Gpt() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === msgId
-            ? { ...m, content: "⚠️ Connection lost. Try again." }
+            ? { ...m, content: "⚠️ Connection lost.", streaming: false }
             : m
         )
       );
@@ -160,34 +180,51 @@ export default function Gpt() {
   return (
     <div className="gpt-container">
 
-      {/* CHAT */}
       <main className="chat-area" ref={chatRef}>
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             className={`msg-row ${msg.role}`}
           >
-            <div className="msg-bubble">
+            <div className={`msg-bubble ${msg.streaming ? "streaming" : ""}`}>
 
-              {msg.role === "assistant" && msg.content && (
-                <button
-                  className="copy-btn"
-                  onClick={() => copyText(msg.content)}
-                >
-                  Copy
-                </button>
+              {/* Thinking */}
+              {msg.streaming && !msg.content && (
+                <div className="thinking-brain">🧠 Thinking...</div>
               )}
 
+              {/* Message */}
               <ReactMarkdown>{msg.content}</ReactMarkdown>
+
+              {/* Cursor */}
+              {msg.streaming && <span className="cursor">|</span>}
+
+              {/* ✅ ACTIONS */}
+              {msg.role === "assistant" && msg.content && !msg.streaming && (
+                <div className="actions">
+
+                  <button onClick={() => speak(msg.content)}>
+                    🔊
+                  </button>
+
+                  <button onClick={() => copyText(msg.content)}>
+                    📋
+                  </button>
+
+                  <button onClick={() => sendMessage(lastUserMessage)}>
+                    🔄
+                  </button>
+
+                </div>
+              )}
 
             </div>
           </motion.div>
         ))}
       </main>
 
-      {/* INPUT */}
       <div className="input-area">
 
         <button onClick={handleMic} className="mic-btn">
@@ -208,9 +245,11 @@ export default function Gpt() {
 
         <button
           className="send-btn"
-          onClick={() => sendMessage(input)}
+          onClick={
+            generating ? stopGenerating : () => sendMessage(input)
+          }
         >
-          {generating ? "..." : "➤"}
+          {generating ? "Stop" : "➤"}
         </button>
 
       </div>
