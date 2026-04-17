@@ -69,46 +69,110 @@ const createMedStep = (step, name, img, text, duration) => ({
 
 /* ---------------- DAY SESSIONS ---------------- */
 
-export const DAY_SESSIONS = {
-  1: [
-    createYogaStep(1, "Mountain Pose", "yoga1", "Align posture, feel grounded", 30),
-    createYogaStep(2, "Forward Fold", "yoga2", "Release tension", 30),
-    createYogaStep(3, "Half Lift", "yoga3", "Activate spine", 30),
-    createYogaStep(4, "Plank", "yoga4", "Engage core", 30),
-    createYogaStep(5, "Cobra", "yoga5", "Open chest", 30),
-    createYogaStep(6, "Downward Dog", "yoga6", "Stretch body", 30),
-    createYogaStep(7, "Tree Pose", "yoga8", "Balance focus", 30),
-    createYogaStep(8, "Warrior I", "yoga71", "Build stability", 30),
+// src/constants/steps.js
 
-    createMedStep(9, "Calm Breathing", "med1", "Slow deep breathing", 45),
-    createMedStep(10, "Focus Breath", "med2", "Stay present", 45),
-    createMedStep(11, "Body Scan", "med3", "Release tension", 45),
-    createMedStep(12, "Relax Mind", "med4", "Let thoughts pass", 45),
-    createMedStep(13, "Awareness", "med5", "Observe thoughts", 45),
-    createMedStep(14, "Stillness", "med6", "Feel calm", 45),
-    createMedStep(15, "Visualization", "med7", "See better self", 45),
-    createMedStep(16, "Deep Calm", "med8", "Absorb calm", 45)
+export const TOTAL_DAYS = 7;
+export const STEPS_PER_DAY = 7;
+
+/* ---------------- IMAGE PATH ---------------- */
+const getImage = (num) => `/assets/steps/yoga/yoga-${String(num).padStart(2, "0")}.jpg`;
+
+/* ---------------- STEP BUILDER ---------------- */
+const createStep = (step, name, imageNum, guidance, duration = 30) => ({
+  step,
+  name,
+  image: getImage(imageNum),
+  guidance,
+  duration,
+  type: "yoga"
+});
+
+/* ---------------- DAY SESSIONS ---------------- */
+
+export const DAY_SESSIONS = {
+
+  /* -------- DAY 1 -------- */
+  1: [
+    createStep(1, "Mountain Pose", 1, "Stand tall, feet together, relax shoulders, breathe deeply"),
+    createStep(2, "Forward Fold", 2, "Bend forward, relax neck, let arms hang"),
+    createStep(3, "Half Lift", 3, "Lift halfway, keep spine straight"),
+    createStep(4, "Plank", 4, "Hold body straight, engage core"),
+    createStep(5, "Cobra", 5, "Lift chest, open shoulders"),
+    createStep(6, "Downward Dog", 6, "Push hips up, stretch back"),
+    createStep(7, "Child Pose", 7, "Sit back, relax body, slow breathing")
   ],
 
+  /* -------- DAY 2 -------- */
   2: [
-    createYogaStep(1, "Cat-Cow", "yoga7", "Mobilize spine", 35),
-    createYogaStep(2, "Seated Fold", "yoga2", "Stretch back", 35),
-    createYogaStep(3, "Low Lunge", "yoga71", "Open hips", 35),
-    createYogaStep(4, "Side Stretch", "yoga72", "Lengthen body", 35),
-    createYogaStep(5, "Bridge", "yoga73", "Strengthen back", 35),
-    createYogaStep(6, "Twist", "yoga8", "Release spine", 35),
-    createYogaStep(7, "Balance Pose", "yoga3", "Focus control", 35),
-    createYogaStep(8, "Child Pose", "yoga4", "Relax deeply", 30),
+    createStep(1, "Cat-Cow", 8, "Inhale arch, exhale round spine"),
+    createStep(2, "Low Lunge", 9, "Step forward, open hips"),
+    createStep(3, "Warrior I", 10, "Raise arms, bend front knee"),
+    createStep(4, "Warrior II", 11, "Open arms wide, gaze forward"),
+    createStep(5, "Triangle Pose", 12, "Stretch sideways, reach down"),
+    createStep(6, "Tree Pose", 13, "Balance on one leg, focus"),
+    createStep(7, "Seated Forward Fold", 14, "Reach forward, relax spine")
+  ],
 
-    createMedStep(9, "Breathing", "med1", "Slow breath", 50),
-    createMedStep(10, "Body Scan", "med2", "Relax body", 50),
-    createMedStep(11, "Gratitude", "med5", "Positive focus", 50),
-    createMedStep(12, "Visualization", "med6", "Calm place", 50),
-    createMedStep(13, "Awareness", "med7", "Stay present", 50),
-    createMedStep(14, "Counting Breath", "med3", "Focus mind", 50),
-    createMedStep(15, "Release Thoughts", "med4", "Let go", 50),
-    createMedStep(16, "Stillness", "med8", "Deep calm", 50)
+  /* -------- DAY 3 -------- */
+  3: [
+    createStep(1, "Sun Salutation Flow", 15, "Flow smoothly with breath"),
+    createStep(2, "Plank Hold", 16, "Hold strong, steady breathing"),
+    createStep(3, "Side Plank", 17, "Balance sideways, engage core"),
+    createStep(4, "Cobra Lift", 18, "Lift chest gently"),
+    createStep(5, "Bridge Pose", 19, "Lift hips, squeeze glutes"),
+    createStep(6, "Supine Twist", 20, "Twist gently, relax spine"),
+    createStep(7, "Relax Pose", 21, "Lie down, release tension")
+  ],
+
+  /* -------- DAY 4 -------- */
+  4: [
+    createStep(1, "Standing Stretch", 22, "Stretch arms upward"),
+    createStep(2, "Chair Pose", 23, "Sit back, arms up"),
+    createStep(3, "Eagle Arms", 24, "Wrap arms, stretch shoulders"),
+    createStep(4, "Warrior III", 25, "Balance forward, extend leg"),
+    createStep(5, "Half Moon", 26, "Open body sideways"),
+    createStep(6, "Pyramid Pose", 27, "Fold forward, stretch legs"),
+    createStep(7, "Child Pose", 28, "Relax deeply")
+  ],
+
+  /* -------- DAY 5 -------- */
+  5: [
+    createStep(1, "Warm Up Flow", 29, "Start gentle movements"),
+    createStep(2, "Forward Fold", 30, "Release tension"),
+    createStep(3, "Plank", 31, "Engage core"),
+    createStep(4, "Upward Dog", 32, "Open chest"),
+    createStep(5, "Downward Dog", 33, "Stretch body"),
+    createStep(6, "Tree Pose", 34, "Balance and focus"),
+    createStep(7, "Seated Twist", 35, "Twist spine gently")
+  ],
+
+  /* -------- DAY 6 -------- */
+  6: [
+    createStep(1, "Sun Flow", 36, "Move with breath"),
+    createStep(2, "Low Lunge", 37, "Open hips"),
+    createStep(3, "Warrior Flow", 38, "Flow through poses"),
+    createStep(4, "Triangle", 39, "Stretch sideways"),
+    createStep(5, "Bridge", 40, "Lift hips"),
+    createStep(6, "Supine Stretch", 41, "Relax muscles"),
+    createStep(7, "Relax Pose", 42, "Deep relaxation")
+  ],
+
+  /* -------- DAY 7 -------- */
+  7: [
+    createStep(1, "Full Body Flow", 43, "Flow smoothly"),
+    createStep(2, "Balance Pose", 44, "Focus and balance"),
+    createStep(3, "Plank Hold", 45, "Strong core"),
+    createStep(4, "Cobra", 46, "Open chest"),
+    createStep(5, "Camel Pose", 47, "Backbend, open heart"), // updated
+    createStep(6, "Warrior Pose", 48, "Power and stability"),
+    createStep(7, "Deep Relaxation", 49, "Full body rest, calm mind")
   ]
+};
+
+/* ---------------- GET SESSION ---------------- */
+
+export const getSessionSteps = (day = 1) => {
+  return DAY_SESSIONS[day] || [];
 };
 
 /* ---------------- MAIN FUNCTION ---------------- */
