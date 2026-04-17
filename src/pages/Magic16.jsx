@@ -12,7 +12,6 @@ export default function Magic16() {
   /* ================= STATE ================= */
 
   const day = Number(localStorage.getItem("magic16_streak") || 1);
-
   const sessionSteps = useMemo(() => getSessionSteps(day), [day]);
 
   const [stepIndex, setStepIndex] = useState(() =>
@@ -42,27 +41,31 @@ export default function Magic16() {
   const timerRef = useRef(null);
   const stepRef = useRef(stepIndex);
   const timeRef = useRef(timeLeft);
-const bgAudio = useRef(null);
-const countdownAudio = useRef(null);
 
-useEffect(() => {
-  bgAudio.current = new Audio("/assets/audio/combo.mp3");
-  bgAudio.current.loop = true;
-  bgAudio.current.volume = 0.3;
+  const bgAudio = useRef(null);
+  const countdownAudio = useRef(null);
 
-  countdownAudio.current = new Audio("/assets/audio/countdown.mp3");
-  countdownAudio.current.volume = 0.6;
-
-  return () => {
-    bgAudio.current?.pause();
-    countdownAudio.current?.pause();
-  };
-}, []);
   const current = sessionSteps[stepIndex];
 
   const TOTAL = useMemo(() => {
     return sessionSteps.reduce((sum, s) => sum + s.duration, 0);
   }, [sessionSteps]);
+
+  /* ================= INIT AUDIO ================= */
+
+  useEffect(() => {
+    bgAudio.current = new Audio("/assets/audio/combo.mp3");
+    bgAudio.current.loop = true;
+    bgAudio.current.volume = 0.3;
+
+    countdownAudio.current = new Audio("/assets/audio/countdown.mp3");
+    countdownAudio.current.volume = 0.6;
+
+    return () => {
+      bgAudio.current?.pause();
+      countdownAudio.current?.pause();
+    };
+  }, []);
 
   /* ================= SYNC ================= */
 
@@ -100,7 +103,7 @@ useEffect(() => {
     speechSynthesis.speak(msg);
   };
 
-  /* ================= STEP COMPLETE EFFECT ================= */
+  /* ================= STEP FEEDBACK ================= */
 
   const stepFeedback = () => {
     navigator.vibrate?.(100);
@@ -122,10 +125,20 @@ useEffect(() => {
     setShowHook(false);
     setPlaying(true);
 
+    // ▶️ START BACKGROUND MUSIC
+    bgAudio.current?.play().catch(() => {});
+
     speak(current?.guidance || current?.name);
 
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
+
+        // 🔥 COUNTDOWN SOUND
+        if (prev === 5) {
+          countdownAudio.current.currentTime = 0;
+          countdownAudio.current.play().catch(() => {});
+        }
+
         if (prev <= 1) {
           stepFeedback();
 
@@ -149,7 +162,7 @@ useEffect(() => {
         return prev - 1;
       });
 
-      /* Progress Calculation */
+      /* Progress */
       setProgress(() => {
         const doneSteps = sessionSteps
           .slice(0, stepRef.current)
@@ -162,6 +175,7 @@ useEffect(() => {
 
         return Math.floor((totalDone / TOTAL) * 100);
       });
+
     }, 1000);
   };
 
@@ -170,8 +184,14 @@ useEffect(() => {
   const stop = () => {
     clearInterval(timerRef.current);
     timerRef.current = null;
+
     setPlaying(false);
+
     speechSynthesis.cancel();
+
+    // ⏸️ STOP AUDIO
+    bgAudio.current?.pause();
+    countdownAudio.current?.pause();
   };
 
   /* ================= FINISH ================= */
@@ -192,7 +212,7 @@ useEffect(() => {
     }, 1200);
   };
 
-  /* ================= HOOK SCREEN ================= */
+  /* ================= HOOK ================= */
 
   if (showHook) {
     return (
@@ -211,40 +231,29 @@ useEffect(() => {
   return (
     <div className="magic16">
 
-      {/* TOP BAR */}
       <div className="top">
         <h3>🔥 Day {day} / 7</h3>
         <h4>XP: {xp}</h4>
       </div>
 
-      {/* IMAGE */}
       <div className="image-wrapper">
-        <img
-          key={stepIndex}
-          src={current.image}
-          alt=""
-          className="fade"
-        />
+        <img key={stepIndex} src={current.image} alt="" />
       </div>
 
-      {/* CONTENT */}
       <div className="content">
         <h2>{current.name}</h2>
         <p>{current.guidance}</p>
       </div>
 
-      {/* TIMER */}
       <div className={`timer ${timeLeft <= 5 ? "danger" : ""}`}>
         <h1>{timeLeft}</h1>
       </div>
 
-      {/* PROGRESS */}
       <div className="progress">
         <div className="bar" style={{ width: `${progress}%` }} />
         <span>{progress}%</span>
       </div>
 
-      {/* BUTTON */}
       <button onClick={playing ? stop : start}>
         {playing ? "Pause" : "Start"}
       </button>
