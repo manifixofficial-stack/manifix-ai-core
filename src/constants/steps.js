@@ -15,6 +15,7 @@ const IMAGE_MAP = {
   yoga6: "yoga-06.jpg",
   yoga7: "yoga-07.jpg",
   yoga8: "yoga-08.jpg",
+
   yoga71: "yoga-07-1.jpg",
   yoga72: "yoga-07-2.jpg",
   yoga73: "yoga-07-3.jpg",
@@ -25,12 +26,16 @@ const IMAGE_MAP = {
   med4: "med-04.jpg",
   med5: "med-05.jpg",
   med6: "med-06.jpg",
-  med7: "med-07.jpg"
+  med7: "med-07.jpg",
+  med8: "med-08.jpg"
 };
 
-export const getImagePath = (type, key) => {
+/* ---------------- IMAGE PATH ---------------- */
+// ✅ FIXED: No extra folder (no /yoga or /meditation)
+
+export const getImagePath = (key) => {
   const file = IMAGE_MAP[key];
-  return file ? `/assets/steps/${type}/${file}` : "";
+  return file ? `/assets/steps/${file}` : "";
 };
 
 /* ---------------- PHASE SYSTEM ---------------- */
@@ -42,7 +47,7 @@ export const getPhase = (day) => {
   return "Transformation";
 };
 
-/* ---------------- BASE STEP BUILDER ---------------- */
+/* ---------------- STEP BUILDERS ---------------- */
 
 const createYogaStep = (step, name, img, text, duration) => ({
   step,
@@ -62,12 +67,9 @@ const createMedStep = (step, name, img, text, duration) => ({
   duration
 });
 
-/* ---------------- DAY SESSIONS (1–16 UNIQUE) ---------------- */
+/* ---------------- DAY SESSIONS ---------------- */
 
 export const DAY_SESSIONS = {
-
-  /* -------- FOUNDATION (1–4) -------- */
-
   1: [
     createYogaStep(1, "Mountain Pose", "yoga1", "Align posture, feel grounded", 30),
     createYogaStep(2, "Forward Fold", "yoga2", "Release tension", 30),
@@ -85,7 +87,7 @@ export const DAY_SESSIONS = {
     createMedStep(13, "Awareness", "med5", "Observe thoughts", 45),
     createMedStep(14, "Stillness", "med6", "Feel calm", 45),
     createMedStep(15, "Visualization", "med7", "See better self", 45),
-    createMedStep(16, "Deep Calm", "med1", "Absorb calm", 45)
+    createMedStep(16, "Deep Calm", "med8", "Absorb calm", 45)
   ],
 
   2: [
@@ -105,25 +107,21 @@ export const DAY_SESSIONS = {
     createMedStep(13, "Awareness", "med7", "Stay present", 50),
     createMedStep(14, "Counting Breath", "med3", "Focus mind", 50),
     createMedStep(15, "Release Thoughts", "med4", "Let go", 50),
-    createMedStep(16, "Stillness", "med1", "Deep calm", 50)
-  ],
-
-  // 👉 YOU CONTINUE SAME PATTERN
-
+    createMedStep(16, "Stillness", "med8", "Deep calm", 50)
+  ]
 };
 
-/* ---------------- CORE FUNCTION ---------------- */
+/* ---------------- MAIN FUNCTION ---------------- */
 
 export const getSessionSteps = (day = 1) => {
   const validDay = Math.min(Math.max(day, 1), TOTAL_DAYS);
 
   const steps = DAY_SESSIONS[validDay];
-
   if (!steps) return [];
 
   return steps.map((step) => ({
     ...step,
     id: `day-${validDay}-step-${step.step}`,
-    image: getImagePath(step.type, step.img)
+    image: getImagePath(step.img) // ✅ FIXED
   }));
 };
