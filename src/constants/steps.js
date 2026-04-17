@@ -1,76 +1,5 @@
 // src/constants/steps.js
 
-/* ---------------- CONFIG ---------------- */
-export const TOTAL_DAYS = 16;
-export const STEPS_PER_SESSION = 16;
-
-/* ---------------- IMAGE MAP ---------------- */
-
-const IMAGE_MAP = {
-  yoga1: "yoga-01.jpg",
-  yoga2: "yoga-02.jpg",
-  yoga3: "yoga-03.jpg",
-  yoga4: "yoga-04.jpg",
-  yoga5: "yoga-05.jpg",
-  yoga6: "yoga-06.jpg",
-  yoga7: "yoga-07.jpg",
-  yoga8: "yoga-08.jpg",
-
-  yoga71: "yoga-07-1.jpg",
-  yoga72: "yoga-07-2.jpg",
-  yoga73: "yoga-07-3.jpg",
-
-  med1: "med-01.jpg",
-  med2: "med-02.jpg",
-  med3: "med-03.jpg",
-  med4: "med-04.jpg",
-  med5: "med-05.jpg",
-  med6: "med-06.jpg",
-  med7: "med-07.jpg",
-  med8: "med-08.jpg"
-};
-
-/* ---------------- IMAGE PATH ---------------- */
-// ✅ FIXED: No extra folder (no /yoga or /meditation)
-
-export const getImagePath = (key) => {
-  const file = IMAGE_MAP[key];
-  return file ? `/assets/steps/${file}` : "";
-};
-
-/* ---------------- PHASE SYSTEM ---------------- */
-
-export const getPhase = (day) => {
-  if (day <= 4) return "Foundation";
-  if (day <= 8) return "Control";
-  if (day <= 12) return "Power";
-  return "Transformation";
-};
-
-/* ---------------- STEP BUILDERS ---------------- */
-
-const createYogaStep = (step, name, img, text, duration) => ({
-  step,
-  name,
-  type: "yoga",
-  img,
-  text,
-  duration
-});
-
-const createMedStep = (step, name, img, text, duration) => ({
-  step,
-  name,
-  type: "meditation",
-  img,
-  text,
-  duration
-});
-
-/* ---------------- DAY SESSIONS ---------------- */
-
-// src/constants/steps.js
-
 export const TOTAL_DAYS = 7;
 export const STEPS_PER_DAY = 7;
 
@@ -173,19 +102,4 @@ export const DAY_SESSIONS = {
 
 export const getSessionSteps = (day = 1) => {
   return DAY_SESSIONS[day] || [];
-};
-
-/* ---------------- MAIN FUNCTION ---------------- */
-
-export const getSessionSteps = (day = 1) => {
-  const validDay = Math.min(Math.max(day, 1), TOTAL_DAYS);
-
-  const steps = DAY_SESSIONS[validDay];
-  if (!steps) return [];
-
-  return steps.map((step) => ({
-    ...step,
-    id: `day-${validDay}-step-${step.step}`,
-    image: getImagePath(step.img) // ✅ FIXED
-  }));
 };
