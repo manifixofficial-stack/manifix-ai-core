@@ -4,10 +4,8 @@ import { motion } from "framer-motion";
 
 import "../styles/Gpt.css";
 
-/* ================= CONFIG ================= */
 const API_BASE = "https://manifix.up.railway.app";
 
-/* ================= DEFAULT ================= */
 const defaultWelcome = {
   id: "welcome",
   role: "assistant",
@@ -15,6 +13,7 @@ const defaultWelcome = {
 };
 
 export default function Gpt() {
+
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem("chatMessages");
@@ -27,8 +26,7 @@ export default function Gpt() {
   const [input, setInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [listening, setListening] = useState(false);
-
-  /* ✅ STEP 3 FIX */
+  const [voiceOn, setVoiceOn] = useState(true);
   const [lastUserMessage, setLastUserMessage] = useState("");
 
   const chatRef = useRef(null);
@@ -47,9 +45,7 @@ export default function Gpt() {
 
   /* ================= CLEANUP ================= */
   useEffect(() => {
-    return () => {
-      eventSourceRef.current?.close();
-    };
+    return () => eventSourceRef.current?.close();
   }, []);
 
   /* ================= STT ================= */
@@ -80,7 +76,7 @@ export default function Gpt() {
 
   /* ================= TTS ================= */
   const speak = (text) => {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis || !voiceOn) return;
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
@@ -95,11 +91,10 @@ export default function Gpt() {
     setGenerating(false);
   };
 
-  /* ================= SEND MESSAGE ================= */
+  /* ================= SEND ================= */
   const sendMessage = (text) => {
     if (!text.trim() || generating) return;
 
-    /* ✅ STORE LAST MESSAGE */
     setLastUserMessage(text);
 
     const userMsg = {
@@ -123,7 +118,6 @@ export default function Gpt() {
 
     const url = `${API_BASE}/api/stream?message=${encodeURIComponent(text)}`;
     const eventSource = new EventSource(url);
-
     eventSourceRef.current = eventSource;
 
     let fullText = "";
@@ -150,9 +144,7 @@ export default function Gpt() {
 
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msgId
-            ? { ...m, content: fullText }
-            : m
+          m.id === msgId ? { ...m, content: fullText } : m
         )
       );
     };
@@ -164,7 +156,12 @@ export default function Gpt() {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === msgId
-            ? { ...m, content: "⚠️ Connection lost.", streaming: false }
+            ? {
+                ...m,
+                content:
+                  "⚠️ I'm having trouble connecting right now… give me a second and try again.",
+                streaming: false,
+              }
             : m
         )
       );
@@ -176,10 +173,21 @@ export default function Gpt() {
     navigator.clipboard.writeText(text);
   };
 
+  /* ================= LOADING TEXT ================= */
+  const loadingTexts = [
+    "Analyzing…",
+    "Thinking deeply…",
+    "Generating answer…",
+  ];
+
+  const randomLoading =
+    loadingTexts[Math.floor(Math.random() * loadingTexts.length)];
+
   /* ================= UI ================= */
   return (
     <div className="gpt-container">
 
+      {/* CHAT */}
       <main className="chat-area" ref={chatRef}>
         {messages.map((msg) => (
           <motion.div
@@ -190,33 +198,26 @@ export default function Gpt() {
           >
             <div className={`msg-bubble ${msg.streaming ? "streaming" : ""}`}>
 
-              {/* Thinking */}
+              {/* THINKING */}
               {msg.streaming && !msg.content && (
-                <div className="thinking-brain">🧠 Thinking...</div>
+                <div className="thinking">
+                  <span>{randomLoading}</span>
+                  <span className="dots">...</span>
+                </div>
               )}
 
-              {/* Message */}
+              {/* MESSAGE */}
               <ReactMarkdown>{msg.content}</ReactMarkdown>
 
-              {/* Cursor */}
+              {/* CURSOR */}
               {msg.streaming && <span className="cursor">|</span>}
 
-              {/* ✅ ACTIONS */}
+              {/* ACTIONS */}
               {msg.role === "assistant" && msg.content && !msg.streaming && (
                 <div className="actions">
-
-                  <button onClick={() => speak(msg.content)}>
-                    🔊
-                  </button>
-
-                  <button onClick={() => copyText(msg.content)}>
-                    📋
-                  </button>
-
-                  <button onClick={() => sendMessage(lastUserMessage)}>
-                    🔄
-                  </button>
-
+                  <button onClick={() => speak(msg.content)}>🔊</button>
+                  <button onClick={() => copyText(msg.content)}>📋</button>
+                  <button onClick={() => sendMessage(lastUserMessage)}>🔄</button>
                 </div>
               )}
 
@@ -225,16 +226,25 @@ export default function Gpt() {
         ))}
       </main>
 
+      {/* INPUT */}
       <div className="input-area">
 
         <button onClick={handleMic} className="mic-btn">
           {listening ? "🎙️" : "🎤"}
         </button>
 
+        <button onClick={() => setVoiceOn(v => !v)}>
+          {voiceOn ? "🔊 ON" : "🔇 OFF"}
+        </button>
+
         <textarea
           value={input}
           placeholder="Talk to ManifiX..."
           onChange={(e) => setInput(e.target.value)}
+          onInput={(e) => {
+            e.target.style.height = "auto";
+            e.target.style.height = e.target.scrollHeight + "px";
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -245,9 +255,7 @@ export default function Gpt() {
 
         <button
           className="send-btn"
-          onClick={
-            generating ? stopGenerating : () => sendMessage(input)
-          }
+          onClick={generating ? stopGenerating : () => sendMessage(input)}
         >
           {generating ? "Stop" : "➤"}
         </button>
