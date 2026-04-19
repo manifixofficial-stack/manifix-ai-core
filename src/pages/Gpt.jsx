@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
-
 import "../styles/Gpt.css";
 
 const API_BASE = "https://manifix.up.railway.app";
@@ -9,11 +8,10 @@ const API_BASE = "https://manifix.up.railway.app";
 const defaultWelcome = {
   id: "welcome",
   role: "assistant",
-  content: "Hey 👋 I’m ManifiX, I’m here with you ❤️",
+  content: "Hi 👋 How can I help you today?",
 };
 
 export default function Gpt() {
-
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem("chatMessages");
@@ -35,9 +33,11 @@ export default function Gpt() {
 
   /* ================= AUTO SCROLL ================= */
   useEffect(() => {
-    chatRef.current?.scrollTo({
-      top: chatRef.current.scrollHeight,
-      behavior: "smooth",
+    const el = chatRef.current;
+    if (!el) return;
+
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
     });
 
     localStorage.setItem("chatMessages", JSON.stringify(messages));
@@ -45,10 +45,13 @@ export default function Gpt() {
 
   /* ================= CLEANUP ================= */
   useEffect(() => {
-    return () => eventSourceRef.current?.close();
+    return () => {
+      eventSourceRef.current?.close();
+      window.speechSynthesis?.cancel();
+    };
   }, []);
 
-  /* ================= STT ================= */
+  /* ================= SPEECH RECOGNITION ================= */
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -57,12 +60,14 @@ export default function Gpt() {
 
     const rec = new SpeechRecognition();
     rec.lang = "en-IN";
+    rec.continuous = false;
 
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
 
     rec.onresult = (e) => {
-      setInput(e.results[0][0].transcript);
+      const text = e.results[0][0].transcript;
+      setInput(text);
     };
 
     recognitionRef.current = rec;
@@ -71,15 +76,17 @@ export default function Gpt() {
   const handleMic = () => {
     const rec = recognitionRef.current;
     if (!rec) return alert("Mic not supported");
+
     listening ? rec.stop() : rec.start();
   };
 
-  /* ================= TTS ================= */
+  /* ================= TEXT TO SPEECH ================= */
   const speak = (text) => {
     if (!window.speechSynthesis || !voiceOn) return;
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";
+    utter.rate = 1;
 
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
@@ -103,16 +110,16 @@ export default function Gpt() {
       content: text,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setGenerating(true);
-
     const msgId = Date.now() + "-bot";
 
     setMessages((prev) => [
       ...prev,
+      userMsg,
       { id: msgId, role: "assistant", content: "", streaming: true },
     ]);
+
+    setInput("");
+    setGenerating(true);
 
     eventSourceRef.current?.close();
 
@@ -129,7 +136,7 @@ export default function Gpt() {
         eventSource.close();
         setGenerating(false);
 
-        if (fullText.length < 200) speak(fullText);
+        if (fullText.length < 300) speak(fullText);
 
         setMessages((prev) =>
           prev.map((m) =>
@@ -159,7 +166,7 @@ export default function Gpt() {
             ? {
                 ...m,
                 content:
-                  "⚠️ I'm having trouble connecting right now… give me a second and try again.",
+                  "⚠️ Connection issue. Please try again.",
                 streaming: false,
               }
             : m
@@ -173,13 +180,8 @@ export default function Gpt() {
     navigator.clipboard.writeText(text);
   };
 
-  /* ================= LOADING TEXT ================= */
-  const loadingTexts = [
-    "Analyzing…",
-    "Thinking deeply…",
-    "Generating answer…",
-  ];
-
+  /* ================= LOADING ================= */
+  const loadingTexts = ["Thinking…", "Working on it…", "Generating…"];
   const randomLoading =
     loadingTexts[Math.floor(Math.random() * loadingTexts.length)];
 
@@ -187,32 +189,26 @@ export default function Gpt() {
   return (
     <div className="gpt-container">
 
-      {/* CHAT */}
       <main className="chat-area" ref={chatRef}>
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
-            initial={{ opacity: 0, y: 15 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`msg-row ${msg.role}`}
           >
             <div className={`msg-bubble ${msg.streaming ? "streaming" : ""}`}>
 
-              {/* THINKING */}
               {msg.streaming && !msg.content && (
                 <div className="thinking">
-                  <span>{randomLoading}</span>
-                  <span className="dots">...</span>
+                  {randomLoading}
                 </div>
               )}
 
-              {/* MESSAGE */}
               <ReactMarkdown>{msg.content}</ReactMarkdown>
 
-              {/* CURSOR */}
               {msg.streaming && <span className="cursor">|</span>}
 
-              {/* ACTIONS */}
               {msg.role === "assistant" && msg.content && !msg.streaming && (
                 <div className="actions">
                   <button onClick={() => speak(msg.content)}>🔊</button>
@@ -220,31 +216,24 @@ export default function Gpt() {
                   <button onClick={() => sendMessage(lastUserMessage)}>🔄</button>
                 </div>
               )}
-
             </div>
           </motion.div>
         ))}
       </main>
 
-      {/* INPUT */}
       <div className="input-area">
-
-        <button onClick={handleMic} className="mic-btn">
+        <button onClick={handleMic}>
           {listening ? "🎙️" : "🎤"}
         </button>
 
-        <button onClick={() => setVoiceOn(v => !v)}>
-          {voiceOn ? "🔊 ON" : "🔇 OFF"}
+        <button onClick={() => setVoiceOn((v) => !v)}>
+          {voiceOn ? "🔊" : "🔇"}
         </button>
 
         <textarea
           value={input}
-          placeholder="Talk to ManifiX..."
+          placeholder="Message..."
           onChange={(e) => setInput(e.target.value)}
-          onInput={(e) => {
-            e.target.style.height = "auto";
-            e.target.style.height = e.target.scrollHeight + "px";
-          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -253,13 +242,9 @@ export default function Gpt() {
           }}
         />
 
-        <button
-          className="send-btn"
-          onClick={generating ? stopGenerating : () => sendMessage(input)}
-        >
+        <button onClick={generating ? stopGenerating : () => sendMessage(input)}>
           {generating ? "Stop" : "➤"}
         </button>
-
       </div>
     </div>
   );
