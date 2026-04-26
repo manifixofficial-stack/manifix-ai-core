@@ -1,176 +1,161 @@
 /* ================= GLOBAL ================= */
+body {
+  margin: 0;
+  font-family: "Poppins", sans-serif;
+  background: #0a0a0a;
+  color: #ffffff;
+}
 
 .home {
-  background: #0d0d0d;
-  color: white;
-  font-family: "Poppins", sans-serif;
   overflow-x: hidden;
 }
 
 /* ================= HERO ================= */
-
 .hero {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
   text-align: center;
-  background: radial-gradient(circle at top, #1a1a1a, #0d0d0d);
+}
+
+.hero-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #6c5ce7, transparent);
+  filter: blur(120px);
+  z-index: 0;
 }
 
 .hero-content {
-  max-width: 500px;
+  position: relative;
+  z-index: 2;
+  max-width: 800px;
 }
 
 .hero-logo {
-  width: 80px;
+  width: 90px;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 0 20px rgba(108, 92, 231, 0.7));
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1.3;
   margin-bottom: 20px;
 }
 
-/* TITLE */
-
-.hero-title {
-  font-size: 36px;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 16px;
-}
-
-/* SUBTEXT */
-
 .hero-sub {
-  font-size: 16px;
-  opacity: 0.8;
-  margin-bottom: 12px;
+  font-size: 1.2rem;
+  color: #bbbbbb;
+  margin-bottom: 15px;
 }
 
-.hero-proof {
-  font-size: 14px;
+.hero-warning {
   color: #ff4d4d;
-  margin-bottom: 24px;
+  font-weight: 600;
+  margin-bottom: 25px;
 }
 
-/* BUTTON */
-
-.hero-buttons {
-  margin-top: 10px;
-}
-
+/* ================= BUTTON ================= */
 .btn-primary {
   display: inline-block;
-  padding: 14px 26px;
-  border-radius: 12px;
-  background: linear-gradient(90deg, #00ffcc, #00bfff);
-  color: black;
-  font-weight: 700;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #6c5ce7, #00d4ff);
+  border-radius: 50px;
+  color: #fff;
+  font-weight: 600;
   text-decoration: none;
-  transition: all 0.25s ease;
+  transition: all 0.3s ease;
 }
 
 .btn-primary:hover {
-  transform: scale(1.05);
-  opacity: 0.9;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 30px rgba(108, 92, 231, 0.4);
 }
 
 .btn-primary.big {
-  font-size: 18px;
-  padding: 16px 30px;
+  font-size: 1.1rem;
+  padding: 16px 34px;
 }
 
-/* PULSE ANIMATION */
-
+/* 🔥 Pulse animation */
 .pulse {
-  animation: pulseAnim 1.5s infinite;
+  animation: pulseAnim 2s infinite;
 }
 
 @keyframes pulseAnim {
-  0% { box-shadow: 0 0 0 0 rgba(0,255,204,0.6); }
-  70% { box-shadow: 0 0 0 15px rgba(0,255,204,0); }
-  100% { box-shadow: 0 0 0 0 rgba(0,255,204,0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(108, 92, 231, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 92, 231, 0);
+  }
 }
 
-/* ================= SYSTEM PREVIEW ================= */
-
-.system-preview {
-  padding: 60px 20px;
+/* ================= SECTIONS ================= */
+.phases,
+.outcomes {
+  padding: 80px 20px;
   text-align: center;
 }
 
-.system-preview h2 {
-  margin-bottom: 30px;
+.phases h2,
+.outcomes h2 {
+  font-size: 2rem;
+  margin-bottom: 40px;
 }
 
-.system-box {
-  background: #151515;
-  padding: 20px;
-  border-radius: 16px;
-  max-width: 400px;
-  margin: auto;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-}
-
-.system-warning {
-  color: #ff4d4d;
-  margin-bottom: 20px;
-}
-
-.task {
-  background: #1f1f1f;
-  padding: 12px;
-  border-radius: 10px;
-  margin-bottom: 10px;
-}
-
-.task span {
-  font-size: 12px;
-  opacity: 0.6;
-}
-
-.progress {
-  margin-top: 10px;
-  font-size: 14px;
-  opacity: 0.8;
-}
-
-/* ================= GAME ================= */
-
-.game {
-  padding: 60px 20px;
-  text-align: center;
-}
-
+/* ================= GRID ================= */
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
-  margin-top: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  max-width: 1000px;
+  margin: auto;
 }
 
+/* ================= CARDS ================= */
 .feature-card {
-  background: #1a1a1a;
-  padding: 16px;
-  border-radius: 12px;
-  transition: transform 0.2s ease;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border-radius: 20px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .feature-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 10px 30px rgba(0, 212, 255, 0.2);
 }
 
-.feature-card.danger {
-  background: linear-gradient(135deg, #ff4d4d, #990000);
+.feature-card h3 {
+  margin-bottom: 10px;
 }
 
-/* ================= FAILURE ================= */
+.feature-card p {
+  color: #cccccc;
+}
 
-.failure {
-  padding: 60px 20px;
-  text-align: center;
+/* Glow variant */
+.glow-card {
+  font-weight: 500;
+  background: linear-gradient(
+    135deg,
+    rgba(108, 92, 231, 0.2),
+    rgba(0, 212, 255, 0.1)
+  );
 }
 
 /* ================= CTA ================= */
-
 .cta {
   padding: 80px 20px;
   display: flex;
@@ -178,12 +163,13 @@
 }
 
 .cta-box {
-  background: #151515;
-  padding: 30px;
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 40px;
+  border-radius: 25px;
   text-align: center;
-  max-width: 400px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 500px;
 }
 
 .cta-box h2 {
@@ -192,31 +178,28 @@
 
 .cta-box p {
   margin-bottom: 20px;
-  opacity: 0.8;
+  color: #bbbbbb;
 }
 
 /* ================= FOOTER ================= */
-
 .home-footer {
   text-align: center;
-  padding: 20px;
-  font-size: 13px;
-  opacity: 0.5;
+  padding: 30px 10px;
+  font-size: 0.9rem;
+  color: #777;
 }
 
-/* ================= MOBILE ================= */
-
-@media (max-width: 480px) {
-
+/* ================= RESPONSIVE ================= */
+@media (max-width: 768px) {
   .hero-title {
-    font-size: 28px;
+    font-size: 2.2rem;
   }
 
-  .btn-primary {
-    width: 100%;
+  .hero-sub {
+    font-size: 1rem;
   }
 
-  .feature-grid {
-    grid-template-columns: 1fr;
+  .cta-box {
+    padding: 25px;
   }
 }
