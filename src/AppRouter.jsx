@@ -1,9 +1,12 @@
+// src/AppRouter.jsx
+
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
+
 import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useApp } from "./context/AppProvider";
-import { HelmetProvider } from "react-helmet-async";
 
 /* ---------------- Pages ---------------- */
 import Home from "./pages/Home";
@@ -23,7 +26,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 /* Onboarding */
 import Onboarding from "./pages/Onboarding";
 
-/* App Pages */
+/* Core App */
 import Dashboard from "./pages/Dashboard";
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
@@ -32,16 +35,27 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import Result from "./pages/Result";
 
+/* New Screens (you must create these) */
+import Fail from "./pages/Fail";
+
 /* 404 */
 import NotFound from "./pages/NotFound";
 
 export default function AppRouter() {
   const { user } = useApp() || {};
 
-  /* ================= SAFE ONBOARDING CHECK ================= */
   const hasStarted =
     typeof window !== "undefined" &&
     localStorage.getItem("magic16_started") === "true";
+
+  const currentDay =
+    typeof window !== "undefined"
+      ? Number(localStorage.getItem("magic16_day") || 1)
+      : 1;
+
+  const hasFailed =
+    typeof window !== "undefined" &&
+    localStorage.getItem("magic16_failed") === "true";
 
   return (
     <HelmetProvider>
@@ -55,14 +69,14 @@ export default function AppRouter() {
         <Route
           path="/login"
           element={
-            user ? <Navigate to="/app/dashboard" replace /> : <Login />
+            user ? <Navigate to="/onboarding" replace /> : <Login />
           }
         />
 
         <Route
           path="/signup"
           element={
-            user ? <Navigate to="/app/dashboard" replace /> : <Signup />
+            user ? <Navigate to="/onboarding" replace /> : <Signup />
           }
         />
 
@@ -75,7 +89,7 @@ export default function AppRouter() {
             !user ? (
               <Navigate to="/login" replace />
             ) : hasStarted ? (
-              <Navigate to="/app/dashboard" replace />
+              <Navigate to={`/app/magic16/day/${currentDay}`} replace />
             ) : (
               <Onboarding />
             )
@@ -102,7 +116,11 @@ export default function AppRouter() {
             <ProtectedRoute>
               {user ? (
                 hasStarted ? (
-                  <MainLayout />
+                  hasFailed ? (
+                    <Navigate to="/app/fail" replace />
+                  ) : (
+                    <MainLayout />
+                  )
                 ) : (
                   <Navigate to="/onboarding" replace />
                 )
@@ -113,14 +131,29 @@ export default function AppRouter() {
           }
         >
 
-          {/* DEFAULT ROUTE */}
-          <Route index element={<Navigate to="dashboard" replace />} />
+          {/* 🔥 DEFAULT → FORCE MAGIC16 */}
+          <Route
+            index
+            element={
+              <Navigate to={`magic16/day/${currentDay}`} replace />
+            }
+          />
 
-          {/* APP ROUTES */}
+          {/* ================= CORE SYSTEM ================= */}
+          <Route path="magic16">
+            <Route index element={<Magic16 />} />
+            <Route path="day/:day" element={<Magic16 />} />
+          </Route>
+
+          {/* ================= FAILURE ================= */}
+          <Route path="fail" element={<Fail />} />
+
+          {/* ================= COMPLETION ================= */}
+          <Route path="result" element={<Result />} />
+
+          {/* ================= SECONDARY (LOW PRIORITY) ================= */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="gpt" element={<Gpt />} />
-          <Route path="magic16" element={<Magic16 />} />
-          <Route path="result" element={<Result />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="billing" element={<Billing />} />
           <Route path="settings" element={<Settings />} />
