@@ -1,5 +1,7 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+// src/AppRouter.jsx
+
+import React, { useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 
 import MainLayout from "./components/Layout/MainLayout";
@@ -24,7 +26,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 /* Onboarding */
 import Onboarding from "./pages/Onboarding";
 
-/* Core App */
+/* App Pages */
 import Dashboard from "./pages/Dashboard";
 import Gpt from "./pages/Gpt";
 import Magic16 from "./pages/Magic16";
@@ -36,22 +38,37 @@ import Result from "./pages/Result";
 /* 404 */
 import NotFound from "./pages/NotFound";
 
+/* ================= SCROLL TO TOP ================= */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 export default function AppRouter() {
   const { user } = useApp() || {};
 
+  /* ================= SAFE ONBOARDING CHECK ================= */
   const hasStarted =
     typeof window !== "undefined" &&
-    localStorage.getItem("magic16_started") === "true";
+    window.localStorage?.getItem("magic16_started") === "true";
 
-  const currentDay =
-    typeof window !== "undefined"
-      ? Number(localStorage.getItem("magic16_day") || 1)
-      : 1;
+  /* ================= APP ROUTE ELEMENT ================= */
+  const appElement = (
+    <ProtectedRoute>
+      {hasStarted ? <MainLayout /> : <Navigate to="/onboarding" replace />}
+    </ProtectedRoute>
+  );
 
   return (
     <HelmetProvider>
-      <Routes>
+      <ScrollToTop />
 
+      <Routes>
         {/* ================= PUBLIC ================= */}
         <Route path="/" element={<Home />} />
         <Route path="/landing" element={<Landing />} />
@@ -60,17 +77,15 @@ export default function AppRouter() {
         <Route
           path="/login"
           element={
-            user ? <Navigate to="/onboarding" replace /> : <Login />
+            user ? <Navigate to="/app/dashboard" replace /> : <Login />
           }
         />
-
         <Route
           path="/signup"
           element={
-            user ? <Navigate to="/onboarding" replace /> : <Signup />
+            user ? <Navigate to="/app/dashboard" replace /> : <Signup />
           }
         />
-
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ================= ONBOARDING ================= */}
@@ -80,7 +95,7 @@ export default function AppRouter() {
             !user ? (
               <Navigate to="/login" replace />
             ) : hasStarted ? (
-              <Navigate to={`/app/magic16/day/${currentDay}`} replace />
+              <Navigate to="/app/dashboard" replace />
             ) : (
               <Onboarding />
             )
@@ -94,6 +109,7 @@ export default function AppRouter() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
 
+        {/* Features dynamic */}
         <Route
           path="/features"
           element={<Navigate to="/features/gpt" replace />}
@@ -101,52 +117,22 @@ export default function AppRouter() {
         <Route path="/features/:feature" element={<Features />} />
 
         {/* ================= PROTECTED APP ================= */}
-        <Route
-          path="/app"
-          element={
-            <ProtectedRoute>
-              {user ? (
-                hasStarted ? (
-                  <MainLayout />
-                ) : (
-                  <Navigate to="/onboarding" replace />
-                )
-              ) : (
-                <Navigate to="/login" replace />
-              )}
-            </ProtectedRoute>
-          }
-        >
+        <Route path="/app" element={appElement}>
+          {/* Default */}
+          <Route index element={<Navigate to="dashboard" replace />} />
 
-          {/* 🔥 DEFAULT → FORCE MAGIC16 */}
-          <Route
-            index
-            element={
-              <Navigate to={`magic16/day/${currentDay}`} replace />
-            }
-          />
-
-          {/* ================= CORE SYSTEM ================= */}
-          <Route path="magic16">
-            <Route index element={<Magic16 />} />
-            <Route path="day/:day" element={<Magic16 />} />
-          </Route>
-
-          {/* ================= COMPLETION ================= */}
-          <Route path="result" element={<Result />} />
-
-          {/* ================= SECONDARY ================= */}
+          {/* App Pages */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="gpt" element={<Gpt />} />
+          <Route path="magic16" element={<Magic16 />} />
+          <Route path="result" element={<Result />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="billing" element={<Billing />} />
           <Route path="settings" element={<Settings />} />
-
         </Route>
 
         {/* ================= 404 ================= */}
         <Route path="*" element={<NotFound />} />
-
       </Routes>
     </HelmetProvider>
   );
