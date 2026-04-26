@@ -10,58 +10,66 @@ import logo from "../assets/logo.png";
 export default function Home() {
   return (
     <div className="home">
-
+      
       {/* ================= SEO ================= */}
       <Helmet>
-        <title>ManifiX AI – The Anti-Quit System</title>
+        <title>ManifiX AI – 16 Day Discipline Transformation</title>
         <meta
           name="description"
-          content="A system that forces discipline. Miss one day → restart from zero."
+          content="A 16-day system that forces discipline, focus, and identity change."
         />
       </Helmet>
 
       {/* ================= HERO ================= */}
       <section className="hero">
+        <motion.div
+          className="hero-glow"
+          animate={{
+            scale: [1, 1.05, 1],
+            opacity: [0.6, 1, 0.6],
+          }}
+          transition={{ repeat: Infinity, duration: 4 }}
+        />
 
         <div className="hero-content">
-
           <motion.img
             src={logo}
             alt="ManifiX"
             className="hero-logo"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
           />
 
-          {/* 🔥 HARD HOOK */}
+          {/* 🔥 MAIN HOOK */}
           <motion.h1
             className="hero-title"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
-            Quit once.
-            <br />
-            You go back to Day 0.
+            Most people quit in 3 days. <br />
+            This AI doesn’t let you.
           </motion.h1>
 
-          {/* ⚠️ POSITIONING */}
+          {/* 🧠 SUB HOOK */}
           <motion.p
             className="hero-sub"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
           >
-            This is not a habit tracker.
-            <br />
-            This is a <b>no-escape discipline system.</b>
+            16-day discipline system that rewires your focus, habits, and identity.
           </motion.p>
 
-          {/* 📊 SOCIAL PROOF */}
+          {/* ⚠️ URGENCY */}
           <motion.p
-            className="hero-proof"
+            className="hero-warning"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
           >
-            12,481 people started this week — 73% already failed.
+            If you quit → your streak resets to zero
           </motion.p>
 
           {/* 🎯 CTA */}
@@ -69,131 +77,80 @@ export default function Home() {
             className="hero-buttons"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.8 }}
           >
             <Link to="/signup" className="btn-primary pulse">
-              Start Day 1 →
+              Start Day 1 → Change Your Life
             </Link>
           </motion.div>
-
         </div>
       </section>
 
-      {/* ================= LIVE SYSTEM PREVIEW ================= */}
-      <section className="system-preview">
-
-        <h2>This is what happens on Day 1</h2>
-
-        <div className="system-box">
-
-          <p className="system-warning">
-            ⚠️ Miss today → you restart from zero
-          </p>
-
-          <div className="task">
-            <span>Task 1</span>
-            <p>10 min focus (no phone)</p>
-          </div>
-
-          <div className="task">
-            <span>Task 2</span>
-            <p>20 pushups OR 5 min movement</p>
-          </div>
-
-          <div className="task">
-            <span>Task 3</span>
-            <p>Write 3 things you avoided</p>
-          </div>
-
-          <div className="progress">
-            Progress: 0 / 3
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* ================= GAME MECHANIC ================= */}
-      <section className="game">
-
-        <h2>16-Day System</h2>
-
+      {/* ================= TRANSFORMATION ================= */}
+      <section className="phases">
+        <h2>16-Day Transformation System</h2>
         <div className="feature-grid">
-
-          <div className="feature-card">
-            <h3>Phase 1</h3>
-            <p>Days 1–4 → Resistance</p>
-          </div>
-
-          <div className="feature-card">
-            <h3>Phase 2</h3>
-            <p>Days 5–10 → Discipline</p>
-          </div>
-
-          <div className="feature-card danger">
-            <h3>Day 7</h3>
-            <p>⚠️ Boss Level (Most Fail Here)</p>
-          </div>
-
-          <div className="feature-card">
-            <h3>Phase 3</h3>
-            <p>Days 11–16 → Identity Shift</p>
-          </div>
-
+          {[
+            { title: "Days 1–4", desc: "You fight resistance and laziness" },
+            { title: "Days 5–10", desc: "Your brain starts building discipline" },
+            { title: "Days 11–16", desc: "Your identity permanently changes" },
+            { title: "Final Result", desc: "You become someone who doesn’t quit" },
+          ].map((f, i) => (
+            <motion.div
+              key={i}
+              className="feature-card"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <h3>{f.title}</h3>
+              <p>{f.desc}</p>
+            </motion.div>
+          ))}
         </div>
-
       </section>
 
-      {/* ================= FAILURE SECTION ================= */}
-      <section className="failure">
-
-        <h2>If You Quit</h2>
-
+      {/* ================= OUTCOME ================= */}
+      <section className="outcomes">
+        <h2>What Changes in 16 Days</h2>
         <div className="feature-grid">
-
-          <div className="feature-card">
-            💀 Your streak resets to 0
-          </div>
-
-          <div className="feature-card">
-            🔒 You lose all progress
-          </div>
-
-          <div className="feature-card">
-            ⚠️ You start again from Day 1
-          </div>
-
+          {[
+            "You stop delaying tasks",
+            "You build daily discipline",
+            "You reduce mental noise",
+            "You gain control over habits",
+          ].map((text, i) => (
+            <motion.div
+              key={i}
+              className="feature-card glow-card"
+              whileHover={{ scale: 1.05 }}
+            >
+              ⚡ {text}
+            </motion.div>
+          ))}
         </div>
-
       </section>
 
       {/* ================= FINAL CTA ================= */}
       <section className="cta">
-
         <motion.div
           className="cta-box"
           initial={{ opacity: 0, scale: 0.9 }}
           whileInView={{ opacity: 1, scale: 1 }}
         >
-
-          <h2>Still think you won’t quit?</h2>
-
-          <p>
-            Prove it. Start Day 1.
-          </p>
-
+          <h2>Start Your 16-Day Reset</h2>
+          <p>If you don’t start today — nothing changes.</p>
           <Link to="/signup" className="btn-primary big pulse">
-            🚀 Enter the System
+            🚀 Start Day 1 Now
           </Link>
-
         </motion.div>
-
       </section>
 
       {/* ================= FOOTER ================= */}
       <footer className="home-footer">
         © {new Date().getFullYear()} ManifiX AI
       </footer>
-
     </div>
   );
 }
