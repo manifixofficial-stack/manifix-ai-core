@@ -1,250 +1,163 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
-import "../styles/Gpt.css";
 
 const API_BASE = "https://manifix.up.railway.app";
 
-const defaultWelcome = {
-  id: "welcome",
-  role: "assistant",
-  content: "Hi 👋 How can I help you today?",
-};
-
 export default function Gpt() {
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem("chatMessages");
-      return saved ? JSON.parse(saved) : [defaultWelcome];
-    } catch {
-      return [defaultWelcome];
-    }
-  });
-
+  const [messages, setMessages] = useState([
+    { id: "welcome", role: "assistant", content: "Hey 👋 I’m ManifiX AI. Ask anything.", streaming: false }
+  ]);
   const [input, setInput] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [voiceOn, setVoiceOn] = useState(true);
-  const [lastUserMessage, setLastUserMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [typing, setTyping] = useState(false);
 
-  const chatRef = useRef(null);
-  const recognitionRef = useRef(null);
   const eventSourceRef = useRef(null);
+  const bottomRef = useRef(null);
 
-  /* ================= AUTO SCROLL ================= */
   useEffect(() => {
-    const el = chatRef.current;
-    if (!el) return;
-
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-
-    localStorage.setItem("chatMessages", JSON.stringify(messages));
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  /* ================= CLEANUP ================= */
-  useEffect(() => {
-    return () => {
-      eventSourceRef.current?.close();
-      window.speechSynthesis?.cancel();
-    };
-  }, []);
+  const sendMessage = async (customText) => {
+    const text = customText || input;
+    if (!text.trim() || loading) return;
 
-  /* ================= SPEECH RECOGNITION ================= */
-  useEffect(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) return;
-
-    const rec = new SpeechRecognition();
-    rec.lang = "en-IN";
-    rec.continuous = false;
-
-    rec.onstart = () => setListening(true);
-    rec.onend = () => setListening(false);
-
-    rec.onresult = (e) => {
-      const text = e.results[0][0].transcript;
-      setInput(text);
-    };
-
-    recognitionRef.current = rec;
-  }, []);
-
-  const handleMic = () => {
-    const rec = recognitionRef.current;
-    if (!rec) return alert("Mic not supported");
-
-    listening ? rec.stop() : rec.start();
-  };
-
-  /* ================= TEXT TO SPEECH ================= */
-  const speak = (text) => {
-    if (!window.speechSynthesis || !voiceOn) return;
-
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "en-IN";
-    utter.rate = 1;
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
-  };
-
-  /* ================= STOP ================= */
-  const stopGenerating = () => {
-    eventSourceRef.current?.close();
-    setGenerating(false);
-  };
-
-  /* ================= SEND ================= */
-  const sendMessage = (text) => {
-    if (!text.trim() || generating) return;
-
-    setLastUserMessage(text);
+    navigator.vibrate?.(30);
 
     const userMsg = {
-      id: Date.now(),
+      id: Date.now().toString(),
       role: "user",
-      content: text,
+      content: text
     };
 
-    const msgId = Date.now() + "-bot";
+    const assistantId = `ai-${Date.now()}`;
 
-    setMessages((prev) => [
+    setMessages(prev => [
       ...prev,
       userMsg,
-      { id: msgId, role: "assistant", content: "", streaming: true },
+      { id: assistantId, role: "assistant", content: "", streaming: true }
     ]);
 
     setInput("");
-    setGenerating(true);
+    setLoading(true);
+    setTyping(true);
 
-    eventSourceRef.current?.close();
+    const systemPrompt = {
+      role: "system",
+      content: "You are a helpful, concise AI assistant."
+    };
 
-    const url = `${API_BASE}/api/stream?message=${encodeURIComponent(text)}`;
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
+    const payload = {
+      messages: [systemPrompt, ...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
+    };
 
-    let fullText = "";
+    try {
+      await new Promise(res => setTimeout(res, 500 + Math.random() * 800));
 
-    eventSource.onmessage = (event) => {
-      const chunk = event.data;
+      const response = await fetch(`${API_BASE}/api/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-      if (chunk === "[DONE]") {
-        eventSource.close();
-        setGenerating(false);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
 
-        if (fullText.length < 300) speak(fullText);
+      let fullText = "";
+      let queue = [];
 
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msgId ? { ...m, streaming: false } : m
+      const processQueue = () => {
+        if (!queue.length) return;
+        const chunk = queue.shift();
+        fullText += chunk;
+
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId ? { ...m, content: fullText } : m
           )
         );
 
-        return;
+        setTimeout(processQueue, 20 + Math.random() * 40);
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+
+        if (chunk.includes("[DONE]")) break;
+
+        queue.push(chunk);
+        if (queue.length === 1) processQueue();
       }
 
-      fullText += chunk;
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, content: fullText } : m
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantId ? { ...m, streaming: false } : m
         )
       );
-    };
 
-    eventSource.onerror = () => {
-      eventSource.close();
-      setGenerating(false);
+      new Audio("/assets/audio/pop.mp3").play();
+    } catch (err) {
+      console.error(err);
+    }
 
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId
-            ? {
-                ...m,
-                content:
-                  "⚠️ Connection issue. Please try again.",
-                streaming: false,
-              }
-            : m
-        )
-      );
-    };
+    setLoading(false);
+    setTyping(false);
   };
 
-  /* ================= COPY ================= */
-  const copyText = (text) => {
-    navigator.clipboard.writeText(text);
+  const stopGeneration = () => {
+    eventSourceRef.current?.close?.();
+
+    setMessages(prev =>
+      prev.map(m =>
+        m.streaming ? { ...m, streaming: false, interrupted: true } : m
+      )
+    );
+
+    setLoading(false);
   };
 
-  /* ================= LOADING ================= */
-  const loadingTexts = ["Thinking…", "Working on it…", "Generating…"];
-  const randomLoading =
-    loadingTexts[Math.floor(Math.random() * loadingTexts.length)];
-
-  /* ================= UI ================= */
   return (
     <div className="gpt-container">
-
-      <main className="chat-area" ref={chatRef}>
-        {messages.map((msg) => (
+      <div className="messages">
+        {messages.map(msg => (
           <motion.div
             key={msg.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`msg-row ${msg.role}`}
+            className={`msg ${msg.role}`}
           >
-            <div className={`msg-bubble ${msg.streaming ? "streaming" : ""}`}>
-
-              {msg.streaming && !msg.content && (
-                <div className="thinking">
-                  {randomLoading}
-                </div>
-              )}
-
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
-
-              {msg.streaming && <span className="cursor">|</span>}
-
-              {msg.role === "assistant" && msg.content && !msg.streaming && (
-                <div className="actions">
-                  <button onClick={() => speak(msg.content)}>🔊</button>
-                  <button onClick={() => copyText(msg.content)}>📋</button>
-                  <button onClick={() => sendMessage(lastUserMessage)}>🔄</button>
-                </div>
-              )}
-            </div>
+            <ReactMarkdown>{msg.content}</ReactMarkdown>
+            {msg.streaming && <span className="cursor">▍</span>}
+            {msg.interrupted && <span className="stopped">⚠️ Stopped</span>}
           </motion.div>
         ))}
-      </main>
+        <div ref={bottomRef} />
+      </div>
 
-      <div className="input-area">
-        <button onClick={handleMic}>
-          {listening ? "🎙️" : "🎤"}
-        </button>
+      {typing && <div className="typing">AI is thinking...</div>}
 
-        <button onClick={() => setVoiceOn((v) => !v)}>
-          {voiceOn ? "🔊" : "🔇"}
-        </button>
+      <div className="suggestions">
+        <button onClick={() => sendMessage("Explain this simply")}>Explain simply</button>
+        <button onClick={() => sendMessage("Give examples")}>Give examples</button>
+        <button onClick={() => sendMessage("Summarize this")}>Summarize</button>
+      </div>
 
-        <textarea
+      <div className="input-box">
+        <input
           value={input}
-          placeholder="Message..."
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage(input);
-            }
-          }}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Ask anything..."
         />
 
-        <button onClick={generating ? stopGenerating : () => sendMessage(input)}>
-          {generating ? "Stop" : "➤"}
-        </button>
+        {!loading ? (
+          <button onClick={() => sendMessage()}>Send</button>
+        ) : (
+          <button onClick={stopGeneration}>Stop</button>
+        )}
       </div>
     </div>
   );
