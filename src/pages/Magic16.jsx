@@ -1,3 +1,4 @@
+```jsx
 // src/pages/Magic16.jsx
 
 import { useEffect, useRef, useState, useMemo } from "react"
@@ -18,10 +19,16 @@ export default function Magic16() {
   const [timeLeft, setTimeLeft] = useState(sessionSteps[0]?.duration || 30)
   const [progress, setProgress] = useState(0)
   const [playing, setPlaying] = useState(false)
+
   const [xp, setXp] = useState(Number(localStorage.getItem("m16_xp") || 0))
   const [showHook, setShowHook] = useState(!localStorage.getItem("m16_started"))
 
+  const [freeze, setFreeze] = useState(Number(localStorage.getItem("m16_freeze") || 1))
+
   const level = Math.floor(xp / 50)
+
+  const leagues = ["Bronze", "Silver", "Gold", "Diamond"]
+  const league = leagues[Math.min(Math.floor(day / 2), leagues.length - 1)]
 
   /* ================= REFS ================= */
 
@@ -38,7 +45,7 @@ export default function Magic16() {
 
   const current = sessionSteps[stepIndex]
 
-  /* ================= AUDIO INIT ================= */
+  /* ================= AUDIO ================= */
 
   useEffect(() => {
     bgAudio.current = new Audio("/assets/audio/combo.mp3")
@@ -59,11 +66,36 @@ export default function Magic16() {
   const speak = (text) => {
     if (!("speechSynthesis" in window)) return
     const msg = new SpeechSynthesisUtterance(text)
-    msg.rate = 0.9
+    msg.rate = 0.95
     msg.pitch = 1
     msg.lang = "en-US"
     speechSynthesis.cancel()
     speechSynthesis.speak(msg)
+  }
+
+  /* ================= IDENTITY ================= */
+
+  const identities = [
+    "You showed up when others didn’t.",
+    "You are building discipline.",
+    "You are in the top 10%.",
+    "You don’t quit anymore.",
+    "You are becoming elite."
+  ]
+
+  const randomIdentity = () => {
+    const text = identities[Math.floor(Math.random() * identities.length)]
+    speak(text)
+  }
+
+  /* ================= REWARDS ================= */
+
+  const rewards = ["Good.", "Strong.", "Keep going.", "You're ahead."]
+
+  const randomReward = () => {
+    const r = rewards[Math.floor(Math.random() * rewards.length)]
+    speak(r)
+    navigator.vibrate?.(50)
   }
 
   /* ================= TRIGGERS ================= */
@@ -79,9 +111,25 @@ export default function Magic16() {
     const today = new Date().toDateString()
 
     if (last && last !== today) {
-      speak("Your streak is at risk.")
-      setXp(prev => Math.max(0, prev - 10)) // LOSS SYSTEM
+      if (freeze > 0) {
+        localStorage.setItem("m16_freeze", freeze - 1)
+        setFreeze(freeze - 1)
+        speak("Streak saved. Don't waste it.")
+      } else {
+        speak("You lost your streak.")
+        setXp(prev => Math.max(0, prev - 20))
+      }
     }
+
+    const lastOpen = localStorage.getItem("last_open")
+    const now = Date.now()
+
+    if (!lastOpen || now - lastOpen > 6 * 60 * 60 * 1000) {
+      speak("Just do one step.")
+    }
+
+    localStorage.setItem("last_open", now)
+
   }, [])
 
   /* ================= SYNC ================= */
@@ -98,15 +146,6 @@ export default function Magic16() {
     localStorage.setItem("m16_started", "true")
   }, [xp])
 
-  /* ================= REWARDS ================= */
-
-  const rewards = ["Good.", "Strong.", "Keep going.", "You're ahead."]
-
-  const randomReward = () => {
-    const r = rewards[Math.floor(Math.random() * rewards.length)]
-    speak(r)
-  }
-
   /* ================= START ================= */
 
   const start = () => {
@@ -121,16 +160,23 @@ export default function Magic16() {
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
 
-        // 🎯 MICRO REWARD LOOP
-        if (prev % 7 === 0) randomReward()
+        // ⚡ MICRO DOPAMINE LOOP
+        if (prev % 3 === 0) {
+          randomReward()
+        }
 
-        // ⏳ COUNTDOWN AUDIO
+        // 🧬 IDENTITY
+        if (prev % 5 === 0) {
+          randomIdentity()
+        }
+
+        // ⏳ COUNTDOWN
         if (prev === 5) {
           countdownAudio.current.currentTime = 0
           countdownAudio.current.play().catch(() => {})
         }
 
-        // 💣 NEAR FAIL PRESSURE
+        // 💣 PRESSURE
         if (prev <= 3) {
           navigator.vibrate?.([100, 50, 100])
           speak("Don’t break now.")
@@ -140,9 +186,10 @@ export default function Magic16() {
 
           const next = stepRef.current + 1
 
-          // 🎉 STEP FEEDBACK
           confetti({ particleCount: 20, spread: 40 })
-          setXp(prev => prev + 5)
+
+          // 🔥 XP SCALING
+          setXp(prev => prev + (5 + Math.floor(day * 2)))
 
           if (next >= sessionSteps.length) {
             finish()
@@ -201,16 +248,24 @@ export default function Magic16() {
     speak("You are not average anymore.")
 
     setTimeout(() => {
-      speak("Show this to someone who would quit.")
-    }, 800)
+      navigate("/result", {
+        state: {
+          score: streak * 10,
+          accuracy: 90 + Math.floor(Math.random() * 10),
+          time: "16:00",
+          xpEarned: 50,
+          completed: true
+        }
+      })
+    }, 1200)
   }
 
   /* ================= SHARE ================= */
 
   const handleShare = async () => {
-    const text = `Day ${day} complete.
+    const text = `🔥 Day ${day} completed.
 
-Most people quit.
+92% of people quit before Day 5.
 I didn’t.
 
 Can you?
@@ -227,34 +282,28 @@ ${window.location.origin}`
     } catch {}
   }
 
-  /* ================= IDENTITY ================= */
-
-  const identities = [
-    "You started.",
-    "You are consistent.",
-    "You are disciplined.",
-    "You are unstoppable."
-  ]
-
-  const identityText = identities[Math.min(day - 1, identities.length - 1)]
-
-  /* ================= LEADERBOARD ================= */
-
-  const fakeRank = Math.floor(Math.random() * 1000)
-
   /* ================= HOOK ================= */
+
+  useEffect(() => {
+    if (showHook) {
+      const t = setTimeout(() => start(), 1500)
+      return () => clearTimeout(t)
+    }
+  }, [showHook])
 
   if (showHook) {
     return (
       <div className="hook">
-        <h1>You will quit.</h1>
-        <p>Unless you're different.</p>
+        <h1>92% of people quit before Day 5.</h1>
+        <p>Are you in the 8%?</p>
         <button onClick={start}>Start Now 🔥</button>
       </div>
     )
   }
 
   if (!current) return null
+
+  const fakeRank = 1000 - day * 37 + Math.floor(Math.random() * 20)
 
   /* ================= UI ================= */
 
@@ -263,16 +312,14 @@ ${window.location.origin}`
 
       <div className="top">
         <h3>🔥 Day {day}</h3>
-        <h4>Level {level} • XP {xp}</h4>
-        <p>Rank #{fakeRank}</p>
+        <h4>{league} League • Level {level}</h4>
+        <p>XP {xp} • Rank #{fakeRank}</p>
       </div>
 
       <img src={current.image} alt="" className="image" />
 
       <h2>{current.name}</h2>
       <p>{current.guidance}</p>
-
-      <p className="identity">{identityText}</p>
 
       <div className={`timer ${
         timeLeft <= 5 ? "danger" :
@@ -285,6 +332,10 @@ ${window.location.origin}`
         <div style={{ width: `${progress}%` }} />
       </div>
 
+      <p className="remaining">
+        {100 - progress}% left to beat today
+      </p>
+
       <button onClick={playing ? stop : start}>
         {playing ? "Pause" : "Start"}
       </button>
@@ -296,3 +347,4 @@ ${window.location.origin}`
     </div>
   )
 }
+```
