@@ -1,4 +1,3 @@
-```jsx
 // src/pages/Magic16.jsx
 
 import { useEffect, useRef, useState, useMemo } from "react"
