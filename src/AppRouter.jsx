@@ -1,5 +1,3 @@
-// src/AppRouter.jsx
-
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
@@ -35,9 +33,6 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import Result from "./pages/Result";
 
-/* New Screens (you must create these) */
-import Fail from "./pages/Fail";
-
 /* 404 */
 import NotFound from "./pages/NotFound";
 
@@ -52,10 +47,6 @@ export default function AppRouter() {
     typeof window !== "undefined"
       ? Number(localStorage.getItem("magic16_day") || 1)
       : 1;
-
-  const hasFailed =
-    typeof window !== "undefined" &&
-    localStorage.getItem("magic16_failed") === "true";
 
   return (
     <HelmetProvider>
@@ -116,11 +107,7 @@ export default function AppRouter() {
             <ProtectedRoute>
               {user ? (
                 hasStarted ? (
-                  hasFailed ? (
-                    <Navigate to="/app/fail" replace />
-                  ) : (
-                    <MainLayout />
-                  )
+                  <MainLayout />
                 ) : (
                   <Navigate to="/onboarding" replace />
                 )
@@ -145,13 +132,10 @@ export default function AppRouter() {
             <Route path="day/:day" element={<Magic16 />} />
           </Route>
 
-          {/* ================= FAILURE ================= */}
-          <Route path="fail" element={<Fail />} />
-
           {/* ================= COMPLETION ================= */}
           <Route path="result" element={<Result />} />
 
-          {/* ================= SECONDARY (LOW PRIORITY) ================= */}
+          {/* ================= SECONDARY ================= */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="gpt" element={<Gpt />} />
           <Route path="feedback" element={<Feedback />} />
