@@ -8,28 +8,27 @@ import "../styles/onboarding.css";
 export default function Onboarding() {
   const navigate = useNavigate();
 
-  const [phase, setPhase] = useState("intro"); 
+  const [phase, setPhase] = useState("intro");
   const [step, setStep] = useState(0);
 
   const [goal, setGoal] = useState("");
   const [intensity, setIntensity] = useState("");
   const [identity, setIdentity] = useState("");
 
+  const [confirmText, setConfirmText] = useState("");
+  const [timeLeft, setTimeLeft] = useState(10);
   const [loading, setLoading] = useState(false);
 
   const voiceRef = useRef(null);
 
-  /* ================= VOICE ENGINE ================= */
+  /* ================= VOICE ================= */
   const speak = (text, rate = 1, pitch = 1.1) => {
     if (!("speechSynthesis" in window)) return;
 
     const msg = new SpeechSynthesisUtterance(text);
     const voices = speechSynthesis.getVoices();
 
-    msg.voice =
-      voices.find(v => v.name.includes("Google")) ||
-      voices[0];
-
+    msg.voice = voices.find(v => v.name.includes("Google")) || voices[0];
     msg.rate = rate;
     msg.pitch = pitch;
 
@@ -39,31 +38,32 @@ export default function Onboarding() {
     voiceRef.current = msg;
   };
 
-  /* ================= INTRO CINEMATIC ================= */
+  /* ================= FAST INTRO ================= */
   useEffect(() => {
-    speak(
-      "Warning. This is not a normal app. Most people quit in 3 days.",
-      0.95,
-      1.2
-    );
+    speak("Warning. Most people fail this system.", 0.95, 1.2);
 
-    const t1 = setTimeout(() => {
-      setPhase("hook");
-      speak("If you continue... you will be changed in 16 days.", 1);
-    }, 4000);
-
-    const t2 = setTimeout(() => {
+    const t = setTimeout(() => {
       setPhase("start");
-      speak("Choose who you want to become.", 1.05);
-    }, 8000);
+      speak("Decide fast. Time is running.", 1.05);
+    }, 2000);
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    return () => clearTimeout(t);
   }, []);
 
-  /* ================= START APP ================= */
+  /* ================= TIMER ================= */
+  useEffect(() => {
+    if (phase !== "start" || step !== 0) return;
+
+    if (timeLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(t => t - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [phase, step, timeLeft]);
+
+  /* ================= START SYSTEM ================= */
   const handleStart = () => {
     if (loading) return;
     setLoading(true);
@@ -71,68 +71,57 @@ export default function Onboarding() {
     const today = new Date().toDateString();
 
     localStorage.setItem("magic16_started", "true");
-    localStorage.setItem("magic16_streak", 0);
-    localStorage.setItem("magic16_xp", 0);
-    localStorage.setItem("magic16_level", 1);
-    localStorage.setItem("magic16_last_date", "");
-    localStorage.setItem("magic16_start_date", today);
+    localStorage.setItem("magic16_day", 1);
+    localStorage.setItem("magic16_streak", 1);
+    localStorage.setItem("magic16_last_date", today);
 
     localStorage.setItem("magic16_goal", goal);
     localStorage.setItem("magic16_intensity", intensity);
     localStorage.setItem("magic16_identity", identity);
 
-    speak("Transformation started. Day one begins now.", 1.1, 1.3);
+    speak(`You chose ${goal}. No excuses now.`, 1.1, 1.3);
 
     setTimeout(() => {
-      navigate("/app/dashboard");
-    }, 1200);
+      navigate("/app/magic16/day/1");
+    }, 1000);
   };
 
   /* ================= OPTIONS ================= */
-  const goals = ["Discipline", "Focus", "Confidence", "Stress Control"];
-  const intensities = ["Low", "Medium", "HIGH", "NO EXCUSES"];
+  const goals = ["Discipline", "Focus", "Confidence", "Control"];
+  const intensities = ["Medium", "High", "NO EXCUSES"];
   const identities = [
-    "I want to change my life",
-    "I want discipline",
-    "I want control",
-    "I want consistency"
+    "I don't quit",
+    "I finish what I start",
+    "I control my actions",
+    "I stay consistent"
   ];
-
-  /* ================= UI ================= */
 
   return (
     <div className="onboarding cinematic">
+
+      {/* 🔥 SKIP */}
+      {phase === "intro" && (
+        <button className="skip-btn" onClick={() => setPhase("start")}>
+          Skip →
+        </button>
+      )}
 
       <AnimatePresence mode="wait">
 
         {/* ================= INTRO ================= */}
         {phase === "intro" && (
-          <motion.div
-            className="cinematic-screen black"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+          <motion.div className="cinematic-screen black">
             <h1 className="glitch">⚠ WARNING</h1>
-            <p>Do not continue if you are not serious.</p>
+            <p>This system is not for everyone.</p>
           </motion.div>
         )}
 
-        {/* ================= HOOK ================= */}
-        {phase === "hook" && (
-          <motion.div
-            className="cinematic-screen red-glow"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-          >
-            <h1>92% Quit Before Day 3</h1>
-            <p>This system does not forgive inconsistency.</p>
-          </motion.div>
-        )}
-
-        {/* ================= START ================= */}
+        {/* ================= STEP 1 ================= */}
         {phase === "start" && step === 0 && (
           <motion.div className="card">
             <h1>Why are you here?</h1>
+
+            <p className="timer">Decide in {timeLeft}s</p>
 
             <div className="options">
               {goals.map(g => (
@@ -178,8 +167,13 @@ export default function Onboarding() {
         {/* ================= STEP 3 ================= */}
         {step === 2 && (
           <motion.div className="card warning-card">
-            <h1>Reality Check</h1>
-            <p>Miss 1 day → streak resets.</p>
+            <h1>Final Warning</h1>
+
+            <p>
+              Miss 1 day → restart from Day 0  
+              <br />
+              No exceptions.
+            </p>
 
             <button onClick={() => setStep(3)}>
               I Understand →
@@ -190,7 +184,7 @@ export default function Onboarding() {
         {/* ================= STEP 4 ================= */}
         {step === 3 && (
           <motion.div className="card">
-            <h1>Who are you becoming?</h1>
+            <h1>Choose your identity</h1>
 
             <div className="options">
               {identities.map(id => (
@@ -205,25 +199,30 @@ export default function Onboarding() {
             </div>
 
             <button disabled={!identity} onClick={() => setStep(4)}>
-              Final Step →
+              Continue →
             </button>
           </motion.div>
         )}
 
-        {/* ================= FINAL LOCK ================= */}
+        {/* ================= COMMITMENT LOCK ================= */}
         {step === 4 && (
           <motion.div className="card final-lock">
-            <h1>🔥 Commitment Locked</h1>
+            <h1>Type to commit</h1>
 
-            <p>{goal} • {intensity}</p>
+            <p>I WILL NOT QUIT</p>
 
-            <h2>16 Days. No Excuses.</h2>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type exactly..."
+            />
 
             <button
-              className="start-btn pulse"
+              disabled={confirmText !== "I WILL NOT QUIT"}
               onClick={handleStart}
+              className="start-btn pulse"
             >
-              🚀 Begin Transformation
+              🚀 Enter System
             </button>
           </motion.div>
         )}
