@@ -208,14 +208,41 @@ h2 {
 
 .password-wrapper {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.toggle-eye {
+.password-wrapper input {
+  width: 100%;
+  padding-right: 42px; /* space for icon */
+}
+
+.toggle-password {
   position: absolute;
-  right: 12px;
-  top: 12px;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  
+  background: transparent;
+  border: none;
   cursor: pointer;
-  font-size: 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 👁️ PERFECT SIZE CONTROL */
+.icon-eye {
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+}
+
+.toggle-password:hover .icon-eye {
+  color: #ffffff;
+  transform: scale(1.1);
 }
 
 /* ===================== FEEDBACK ===================== */
