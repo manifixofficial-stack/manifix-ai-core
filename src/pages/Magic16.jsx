@@ -183,24 +183,29 @@ export default function Magic16() {
     speak("Paused. Don’t stay weak.");
   };
 
-  /* ================= FINISH ================= */
-  const finish = () => {
-    stop();
+ const finish = () => {
+  stop()
 
-    confetti({ particleCount: 250, spread: 120 });
+  confetti({ particleCount: 250, spread: 120 })
 
-    const streak = Number(getLS("magic16_streak", 0)) + 1;
+  const streak = Number(localStorage.getItem("magic16_streak") || 0) + 1
+  localStorage.setItem("magic16_streak", streak)
+  localStorage.setItem("last_done", new Date().toDateString())
 
-    localStorage.setItem("magic16_streak", streak);
-    localStorage.setItem("last_done", new Date().toDateString());
+  speak("You are not average anymore.")
 
-    speak("You are not average anymore.");
-
-    setTimeout(() => {
-      speak("Show this to someone who would quit.");
-    }, 800);
-  };
-
+  setTimeout(() => {
+    navigate("/result", {
+      state: {
+        score: streak * 10,
+        accuracy: 90 + Math.floor(Math.random() * 10),
+        time: "16:00",
+        xpEarned: 50,
+        completed: true
+      }
+    })
+  }, 1200)
+}
   /* ================= SHARE ================= */
   const handleShare = async () => {
     const text = `Day ${day} complete. Most people quit. I didn’t. Can you? ${window.location.origin}`;
