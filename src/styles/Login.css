@@ -1,4 +1,4 @@
-/* ===================== GLOBAL OPTIMIZATION ===================== */
+/* ===================== GLOBAL ===================== */
 
 * {
   box-sizing: border-box;
@@ -10,7 +10,7 @@
   outline-offset: 2px;
 }
 
-/* ===================== AUTH WRAPPER ===================== */
+/* ===================== WRAPPER ===================== */
 
 .auth-wrapper {
   position: relative;
@@ -25,12 +25,13 @@
   color: white;
 }
 
-/* Overlay optimized */
+/* ===================== OVERLAY ===================== */
+
 .overlay {
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.85);
-  backdrop-filter: blur(6px); /* reduced for performance */
+  backdrop-filter: blur(8px);
 }
 
 /* ===================== CARD ===================== */
@@ -40,33 +41,45 @@
   z-index: 2;
   width: 100%;
   max-width: 420px;
-  padding: 36px; /* calmer spacing */
-
+  padding: 36px;
   text-align: center;
 
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
 
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
 
-  /* optimized shadow */
   box-shadow:
-    0 15px 40px rgba(0, 0, 0, 0.6),
-    0 0 20px rgba(255, 0, 255, 0.06);
+    0 20px 50px rgba(0, 0, 0, 0.7),
+    0 0 25px rgba(255, 0, 255, 0.08);
 
   animation: fadeUp 0.6s ease;
-  transition: transform 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .auth-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
 }
+
+/* Glow border effect */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(120deg, #00ffff, #8e2de2, #ff00ff);
+  opacity: 0.15;
+  filter: blur(25px);
+  z-index: -1;
+}
+
+/* ===================== ANIMATION ===================== */
 
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(25px);
   }
   to {
     opacity: 1;
@@ -77,15 +90,14 @@
 /* ===================== BRAND ===================== */
 
 .brand img {
-  width: 68px;
+  width: 70px;
   margin-bottom: 10px;
-  filter: drop-shadow(0 0 10px #00ffff);
+  filter: drop-shadow(0 0 12px #00ffff);
 }
 
 .brand h1 {
   font-size: 28px;
   margin-bottom: 6px;
-
   background: linear-gradient(90deg, #00ffff, #8e2de2, #ff00ff);
   -webkit-background-clip: text;
   color: transparent;
@@ -93,7 +105,7 @@
 
 .tagline {
   font-size: 13px;
-  color: #cbd5f5; /* improved contrast */
+  color: #cbd5f5;
   margin-bottom: 20px;
 }
 
@@ -102,13 +114,7 @@
 h2 {
   font-size: 22px;
   font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.subtitle {
-  font-size: 14px;
-  color: #cbd5f5;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
 /* ===================== INPUT ===================== */
@@ -119,9 +125,9 @@ h2 {
   margin-bottom: 14px;
 
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: white;
 
   font-size: 14px;
@@ -133,8 +139,50 @@ h2 {
 }
 
 .auth-card input:focus {
+  outline: none;
   border-color: #00f5d4;
-  box-shadow: 0 0 8px rgba(0, 245, 212, 0.4);
+  box-shadow:
+    0 0 0 2px rgba(0, 245, 212, 0.2),
+    0 0 12px rgba(0, 245, 212, 0.35);
+}
+
+/* ===================== PASSWORD ===================== */
+
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-wrapper input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-eye {
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+}
+
+.toggle-password:hover .icon-eye {
+  color: #ffffff;
+  transform: scale(1.1);
 }
 
 /* ===================== BUTTON ===================== */
@@ -153,12 +201,12 @@ h2 {
 
   transition: all 0.3s ease;
 
-  box-shadow: 0 8px 20px rgba(255, 0, 255, 0.3);
+  box-shadow: 0 10px 25px rgba(255, 0, 255, 0.3);
 }
 
 .primary-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(255, 0, 255, 0.4);
+  box-shadow: 0 14px 35px rgba(255, 0, 255, 0.45);
 }
 
 .primary-btn:active {
@@ -178,9 +226,9 @@ h2 {
   margin-bottom: 14px;
 
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 
-  background: rgba(255,255,255,.06);
+  background: rgba(255, 255, 255, 0.08);
   color: white;
 
   display: flex;
@@ -193,7 +241,7 @@ h2 {
 }
 
 .google-btn:hover {
-  background: rgba(255,255,255,.12);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* ===================== DIVIDER ===================== */
@@ -204,98 +252,32 @@ h2 {
   color: #94a3b8;
 }
 
-/* ===================== PASSWORD ===================== */
+/* ===================== ERROR ===================== */
 
-.password-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.password-wrapper input {
-  width: 100%;
-  padding-right: 42px; /* space for icon */
-}
-
-.toggle-password {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  
-  background: transparent;
-  border: none;
-  cursor: pointer;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 👁️ PERFECT SIZE CONTROL */
-.icon-eye {
-  width: 18px;
-  height: 18px;
-  color: #94a3b8;
-  transition: all 0.2s ease;
-}
-
-.toggle-password:hover .icon-eye {
-  color: #ffffff;
-  transform: scale(1.1);
-}
-
-/* ===================== FEEDBACK ===================== */
-
-.hint {
-  font-size: 12px;
-  color: #facc15;
-  margin-bottom: 8px;
-}
-
-.success,
 .error {
   font-size: 14px;
   margin-bottom: 10px;
-  animation: fadeIn 0.3s ease;
-}
-
-.success {
-  color: #22c55e;
-}
-
-.error {
   color: #ef4444;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ===================== TRUST ===================== */
-
-.trust {
-  margin-top: 12px;
-  font-size: 12px;
-  color: #94a3b8;
+  animation: fadeIn 0.3s ease;
 }
 
 /* ===================== LINKS ===================== */
 
 .microcopy {
-  margin-top: 18px;
+  margin-top: 16px;
   font-size: 13px;
   color: #94a3b8;
 }
 
-.link {
+.microcopy span {
   color: #00ffff;
   cursor: pointer;
   margin-left: 6px;
+  transition: 0.2s;
 }
 
-.link:hover {
+.microcopy span:hover {
+  color: #ffffff;
   text-decoration: underline;
 }
 
@@ -309,16 +291,30 @@ h2 {
   height: 100%;
 
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  color: white;
-  font-size: 18px;
-
   z-index: 999;
+}
+
+/* ===================== SPINNER ===================== */
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255,255,255,0.2);
+  border-top: 3px solid #00ffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===================== MOBILE ===================== */
