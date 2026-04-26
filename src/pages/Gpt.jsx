@@ -1,163 +1,250 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { motion } from "framer-motion";
+import "../styles/Gpt.css";
 
 const API_BASE = "https://manifix.up.railway.app";
 
+const defaultWelcome = {
+  id: "welcome",
+  role: "assistant",
+  content: "Hi 👋 How can I help you today?",
+};
+
 export default function Gpt() {
-  const [messages, setMessages] = useState([
-    { id: "welcome", role: "assistant", content: "Hey 👋 I’m ManifiX AI. Ask anything.", streaming: false }
-  ]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem("chatMessages");
+      return saved ? JSON.parse(saved) : [defaultWelcome];
+    } catch {
+      return [defaultWelcome];
+    }
+  });
+
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [typing, setTyping] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [lastUserMessage, setLastUserMessage] = useState("");
 
+  const chatRef = useRef(null);
+  const recognitionRef = useRef(null);
   const eventSourceRef = useRef(null);
-  const bottomRef = useRef(null);
 
+  /* ================= AUTO SCROLL ================= */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = chatRef.current;
+    if (!el) return;
+
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    localStorage.setItem("chatMessages", JSON.stringify(messages));
   }, [messages]);
 
-  const sendMessage = async (customText) => {
-    const text = customText || input;
-    if (!text.trim() || loading) return;
+  /* ================= CLEANUP ================= */
+  useEffect(() => {
+    return () => {
+      eventSourceRef.current?.close();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
 
-    navigator.vibrate?.(30);
+  /* ================= SPEECH RECOGNITION ================= */
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    const userMsg = {
-      id: Date.now().toString(),
-      role: "user",
-      content: text
+    if (!SpeechRecognition) return;
+
+    const rec = new SpeechRecognition();
+    rec.lang = "en-IN";
+    rec.continuous = false;
+
+    rec.onstart = () => setListening(true);
+    rec.onend = () => setListening(false);
+
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      setInput(text);
     };
 
-    const assistantId = `ai-${Date.now()}`;
+    recognitionRef.current = rec;
+  }, []);
 
-    setMessages(prev => [
+  const handleMic = () => {
+    const rec = recognitionRef.current;
+    if (!rec) return alert("Mic not supported");
+
+    listening ? rec.stop() : rec.start();
+  };
+
+  /* ================= TEXT TO SPEECH ================= */
+  const speak = (text) => {
+    if (!window.speechSynthesis || !voiceOn) return;
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-IN";
+    utter.rate = 1;
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  };
+
+  /* ================= STOP ================= */
+  const stopGenerating = () => {
+    eventSourceRef.current?.close();
+    setGenerating(false);
+  };
+
+  /* ================= SEND ================= */
+  const sendMessage = (text) => {
+    if (!text.trim() || generating) return;
+
+    setLastUserMessage(text);
+
+    const userMsg = {
+      id: Date.now(),
+      role: "user",
+      content: text,
+    };
+
+    const msgId = Date.now() + "-bot";
+
+    setMessages((prev) => [
       ...prev,
       userMsg,
-      { id: assistantId, role: "assistant", content: "", streaming: true }
+      { id: msgId, role: "assistant", content: "", streaming: true },
     ]);
 
     setInput("");
-    setLoading(true);
-    setTyping(true);
+    setGenerating(true);
 
-    const systemPrompt = {
-      role: "system",
-      content: "You are a helpful, concise AI assistant."
-    };
+    eventSourceRef.current?.close();
 
-    const payload = {
-      messages: [systemPrompt, ...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
-    };
+    const url = `${API_BASE}/api/stream?message=${encodeURIComponent(text)}`;
+    const eventSource = new EventSource(url);
+    eventSourceRef.current = eventSource;
 
-    try {
-      await new Promise(res => setTimeout(res, 500 + Math.random() * 800));
+    let fullText = "";
 
-      const response = await fetch(`${API_BASE}/api/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+    eventSource.onmessage = (event) => {
+      const chunk = event.data;
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      if (chunk === "[DONE]") {
+        eventSource.close();
+        setGenerating(false);
 
-      let fullText = "";
-      let queue = [];
+        if (fullText.length < 300) speak(fullText);
 
-      const processQueue = () => {
-        if (!queue.length) return;
-        const chunk = queue.shift();
-        fullText += chunk;
-
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantId ? { ...m, content: fullText } : m
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId ? { ...m, streaming: false } : m
           )
         );
 
-        setTimeout(processQueue, 20 + Math.random() * 40);
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-
-        if (chunk.includes("[DONE]")) break;
-
-        queue.push(chunk);
-        if (queue.length === 1) processQueue();
+        return;
       }
 
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === assistantId ? { ...m, streaming: false } : m
+      fullText += chunk;
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, content: fullText } : m
         )
       );
+    };
 
-      new Audio("/assets/audio/pop.mp3").play();
-    } catch (err) {
-      console.error(err);
-    }
+    eventSource.onerror = () => {
+      eventSource.close();
+      setGenerating(false);
 
-    setLoading(false);
-    setTyping(false);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                content:
+                  "⚠️ Connection issue. Please try again.",
+                streaming: false,
+              }
+            : m
+        )
+      );
+    };
   };
 
-  const stopGeneration = () => {
-    eventSourceRef.current?.close?.();
-
-    setMessages(prev =>
-      prev.map(m =>
-        m.streaming ? { ...m, streaming: false, interrupted: true } : m
-      )
-    );
-
-    setLoading(false);
+  /* ================= COPY ================= */
+  const copyText = (text) => {
+    navigator.clipboard.writeText(text);
   };
 
+  /* ================= LOADING ================= */
+  const loadingTexts = ["Thinking…", "Working on it…", "Generating…"];
+  const randomLoading =
+    loadingTexts[Math.floor(Math.random() * loadingTexts.length)];
+
+  /* ================= UI ================= */
   return (
     <div className="gpt-container">
-      <div className="messages">
-        {messages.map(msg => (
+
+      <main className="chat-area" ref={chatRef}>
+        {messages.map((msg) => (
           <motion.div
             key={msg.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`msg ${msg.role}`}
+            className={`msg-row ${msg.role}`}
           >
-            <ReactMarkdown>{msg.content}</ReactMarkdown>
-            {msg.streaming && <span className="cursor">▍</span>}
-            {msg.interrupted && <span className="stopped">⚠️ Stopped</span>}
+            <div className={`msg-bubble ${msg.streaming ? "streaming" : ""}`}>
+
+              {msg.streaming && !msg.content && (
+                <div className="thinking">
+                  {randomLoading}
+                </div>
+              )}
+
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
+
+              {msg.streaming && <span className="cursor">|</span>}
+
+              {msg.role === "assistant" && msg.content && !msg.streaming && (
+                <div className="actions">
+                  <button onClick={() => speak(msg.content)}>🔊</button>
+                  <button onClick={() => copyText(msg.content)}>📋</button>
+                  <button onClick={() => sendMessage(lastUserMessage)}>🔄</button>
+                </div>
+              )}
+            </div>
           </motion.div>
         ))}
-        <div ref={bottomRef} />
-      </div>
+      </main>
 
-      {typing && <div className="typing">AI is thinking...</div>}
+      <div className="input-area">
+        <button onClick={handleMic}>
+          {listening ? "🎙️" : "🎤"}
+        </button>
 
-      <div className="suggestions">
-        <button onClick={() => sendMessage("Explain this simply")}>Explain simply</button>
-        <button onClick={() => sendMessage("Give examples")}>Give examples</button>
-        <button onClick={() => sendMessage("Summarize this")}>Summarize</button>
-      </div>
+        <button onClick={() => setVoiceOn((v) => !v)}>
+          {voiceOn ? "🔊" : "🔇"}
+        </button>
 
-      <div className="input-box">
-        <input
+        <textarea
           value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Ask anything..."
+          placeholder="Message..."
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage(input);
+            }
+          }}
         />
 
-        {!loading ? (
-          <button onClick={() => sendMessage()}>Send</button>
-        ) : (
-          <button onClick={stopGeneration}>Stop</button>
-        )}
+        <button onClick={generating ? stopGenerating : () => sendMessage(input)}>
+          {generating ? "Stop" : "➤"}
+        </button>
       </div>
     </div>
   );
