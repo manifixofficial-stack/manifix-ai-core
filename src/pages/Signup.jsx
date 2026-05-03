@@ -1,3 +1,5 @@
+// src/pages/Signup.jsx
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
@@ -5,7 +7,7 @@ import authService from "../services/auth.service";
 import logo from "../assets/logo.svg";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
-import "../styles/Login.css";
+import "../styles/Signup.css";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -31,12 +33,8 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      const user = await authService.signUp(
-        email.trim().toLowerCase(),
-        password
-      );
-
-      if (!user) throw new Error("Signup failed");
+      const user = await authService.signUp(email, password);
+      if (!user) throw new Error();
 
       setSuccess("Account created 🎉");
 
@@ -44,32 +42,36 @@ export default function Signup() {
         navigate("/app/dashboard", { replace: true });
       }, 1000);
     } catch (err) {
-      setError(err.message || "Signup failed");
+      setError("Signup failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="auth-wrapper">
+    <div className="signup">
 
-      {loading && (
-        <div className="loading-overlay">
-          <div className="spinner"></div>
-        </div>
-      )}
+      <div className="card">
 
-      <div className="auth-card">
-
-        {/* Brand */}
+        {/* LOGO */}
         <div className="brand">
           <img src={logo} alt="logo" />
           <h1>ManifiX</h1>
         </div>
 
+        {/* TITLE */}
         <h2>Create Account</h2>
+        <p className="sub">Start your 16-day reset</p>
 
-        {/* Email */}
+        {/* GOOGLE */}
+        <button className="google-btn" disabled={loading}>
+          <img src="https://img.icons8.com/color/20/google-logo.png" alt="" />
+          Continue with Google
+        </button>
+
+        <div className="divider"><span>or</span></div>
+
+        {/* EMAIL */}
         <input
           type="email"
           placeholder="Email"
@@ -78,8 +80,8 @@ export default function Signup() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        {/* Password */}
-        <div className="password-wrapper">
+        {/* PASSWORD */}
+        <div className="password">
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Password"
@@ -90,32 +92,32 @@ export default function Signup() {
 
           <button
             type="button"
-            className="toggle-eye"
             onClick={() => setShowPassword(!showPassword)}
           >
             {showPassword ? (
-              <EyeSlashIcon className="icon" />
+              <EyeSlashIcon className="eye" />
             ) : (
-              <EyeIcon className="icon" />
+              <EyeIcon className="eye" />
             )}
           </button>
         </div>
 
-        {/* Messages */}
+        {/* ERROR */}
         {error && <p className="error">{error}</p>}
         {success && <p className="success">{success}</p>}
 
-        {/* Submit */}
+        {/* BUTTON */}
         <button
-          className="primary-btn"
+          className="primary"
           onClick={handleEmailSignup}
           disabled={loading}
         >
           {loading ? "Creating..." : "Sign Up"}
         </button>
 
-        <p className="microcopy">
-          Already have an account?{" "}
+        {/* FOOT */}
+        <p className="foot">
+          Already have account?{" "}
           <span onClick={() => navigate("/login")}>Login</span>
         </p>
 
