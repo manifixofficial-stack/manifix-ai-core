@@ -117,7 +117,7 @@ export default function AppRouter() {
         {/* ================= PROTECTED APP ================= */}
         <Route path="/app" element={appElement}>
           {/* Default */}
-          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route index element={<Navigate to="magic16" replace />} />
 
           {/* App Pages */}
           <Route path="dashboard" element={<Dashboard />} />
