@@ -32,13 +32,13 @@ export default function Onboarding() {
     msg.rate = rate;
     msg.pitch = pitch;
 
-    speechSynthesis.cancel();
+    speechSynthesis.cancel(); // stop previous
     speechSynthesis.speak(msg);
 
     voiceRef.current = msg;
   };
 
-  /* ================= FAST INTRO ================= */
+  /* ================= INTRO ================= */
   useEffect(() => {
     speak("Warning. Most people fail this system.", 0.95, 1.2);
 
@@ -53,7 +53,6 @@ export default function Onboarding() {
   /* ================= TIMER ================= */
   useEffect(() => {
     if (phase !== "start" || step !== 0) return;
-
     if (timeLeft <= 0) return;
 
     const timer = setInterval(() => {
@@ -66,24 +65,34 @@ export default function Onboarding() {
   /* ================= START SYSTEM ================= */
   const handleStart = () => {
     if (loading) return;
+    if (confirmText !== "I WILL NOT QUIT") return;
+
     setLoading(true);
 
-    const today = new Date().toDateString();
+    try {
+      const today = new Date().toDateString();
 
-    localStorage.setItem("magic16_started", "true");
-    localStorage.setItem("magic16_day", 1);
-    localStorage.setItem("magic16_streak", 1);
-    localStorage.setItem("magic16_last_date", today);
+      // ✅ Save onboarding state
+      localStorage.setItem("magic16_started", "true");
+      localStorage.setItem("magic16_day", "1");
+      localStorage.setItem("magic16_streak", "1");
+      localStorage.setItem("magic16_last_date", today);
 
-    localStorage.setItem("magic16_goal", goal);
-    localStorage.setItem("magic16_intensity", intensity);
-    localStorage.setItem("magic16_identity", identity);
+      localStorage.setItem("magic16_goal", goal);
+      localStorage.setItem("magic16_intensity", intensity);
+      localStorage.setItem("magic16_identity", identity);
 
-    speak(`You chose ${goal}. No excuses now.`, 1.1, 1.3);
+      speak(`You chose ${goal}. No excuses now.`, 1.1, 1.3);
 
-    setTimeout(() => {
-      navigate("/app/magic16/day/1");
-    }, 1000);
+      // ✅ FIXED ROUTE (important)
+      setTimeout(() => {
+        navigate("/app/magic16", { replace: true });
+      }, 800);
+
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
   };
 
   /* ================= OPTIONS ================= */
@@ -99,7 +108,7 @@ export default function Onboarding() {
   return (
     <div className="onboarding cinematic">
 
-      {/* 🔥 SKIP */}
+      {/* SKIP */}
       {phase === "intro" && (
         <button className="skip-btn" onClick={() => setPhase("start")}>
           Skip →
@@ -108,7 +117,7 @@ export default function Onboarding() {
 
       <AnimatePresence mode="wait">
 
-        {/* ================= INTRO ================= */}
+        {/* INTRO */}
         {phase === "intro" && (
           <motion.div className="cinematic-screen black">
             <h1 className="glitch">⚠ WARNING</h1>
@@ -116,7 +125,7 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* ================= STEP 1 ================= */}
+        {/* STEP 1 */}
         {phase === "start" && step === 0 && (
           <motion.div className="card">
             <h1>Why are you here?</h1>
@@ -141,7 +150,7 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* ================= STEP 2 ================= */}
+        {/* STEP 2 */}
         {step === 1 && (
           <motion.div className="card">
             <h1>Intensity Level</h1>
@@ -164,14 +173,12 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* ================= STEP 3 ================= */}
+        {/* STEP 3 */}
         {step === 2 && (
           <motion.div className="card warning-card">
             <h1>Final Warning</h1>
-
             <p>
-              Miss 1 day → restart from Day 0  
-              <br />
+              Miss 1 day → restart from Day 0 <br />
               No exceptions.
             </p>
 
@@ -181,7 +188,7 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* ================= STEP 4 ================= */}
+        {/* STEP 4 */}
         {step === 3 && (
           <motion.div className="card">
             <h1>Choose your identity</h1>
@@ -204,7 +211,7 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* ================= COMMITMENT LOCK ================= */}
+        {/* FINAL LOCK */}
         {step === 4 && (
           <motion.div className="card final-lock">
             <h1>Type to commit</h1>
@@ -218,11 +225,11 @@ export default function Onboarding() {
             />
 
             <button
-              disabled={confirmText !== "I WILL NOT QUIT"}
+              disabled={confirmText !== "I WILL NOT QUIT" || loading}
               onClick={handleStart}
               className="start-btn pulse"
             >
-              🚀 Enter System
+              {loading ? "Starting..." : "🚀 Enter System"}
             </button>
           </motion.div>
         )}
