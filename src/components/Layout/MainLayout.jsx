@@ -27,8 +27,22 @@ import logo from "../../assets/logo.png";
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [aiMessage, setAiMessage] = useState("");
   const [streak, setStreak] = useState(0);
+
+  /* ---------------- SCREEN DETECT ---------------- */
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+
+      if (!mobile) setMobileOpen(false); // reset mobile drawer
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   /* ---------------- HANDLERS ---------------- */
   const toggleSidebar = useCallback(() => {
@@ -85,9 +99,7 @@ export default function MainLayout() {
     () => [
       {
         section: "Core",
-        items: [
-          { name: "Dashboard", path: "/app/dashboard", icon: LayoutDashboard },
-        ],
+        items: [{ name: "Dashboard", path: "/app/dashboard", icon: LayoutDashboard }],
       },
       {
         section: "AI",
@@ -127,44 +139,48 @@ export default function MainLayout() {
   );
 
   return (
-    <div className={`layout ${collapsed ? "collapsed" : ""}`}>
+    <div className="layout">
 
-      {/* OVERLAY */}
-      <div
-        className={`overlay ${mobileOpen ? "show" : ""}`}
-        onClick={closeMobile}
-      />
+      {/* OVERLAY (mobile only) */}
+      {isMobile && mobileOpen && (
+        <div className="overlay" onClick={closeMobile} />
+      )}
 
       {/* SIDEBAR */}
-      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+      <aside
+        className={`sidebar 
+          ${collapsed && !isMobile ? "collapsed" : ""} 
+          ${mobileOpen ? "open" : ""}
+        `}
+      >
         <div className="sidebar-header">
-          <img src={logo} alt="logo" className="logo" />
-          {!collapsed && <h1>ManifiX</h1>}
+          <img src={logo} alt="logo" />
+          {!collapsed && !isMobile && <h1>ManifiX</h1>}
         </div>
 
-        {!collapsed && (
-          <div className="streak-box">
-            <Flame size={16} />
-            <span>{streak}-Day Streak</span>
-          </div>
-        )}
+        {!collapsed && !isMobile && (
+          <>
+            <div className="streak-box">
+              <Flame size={16} />
+              <span>{streak}-Day Streak</span>
+            </div>
 
-        {!collapsed && (
-          <div className="mission-box">
-            <Target size={14} />
-            <span>{dailyMission}</span>
-          </div>
+            <div className="mission-box">
+              <Target size={14} />
+              <span>{dailyMission}</span>
+            </div>
+          </>
         )}
 
         <nav>
           {navItems.map((group) => (
             <div key={group.section}>
-              {!collapsed && <p>{group.section}</p>}
+              {!collapsed && !isMobile && <p>{group.section}</p>}
 
               {group.items.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <NavLink key={item.name} to={item.path}>
+                  <NavLink key={item.name} to={item.path} onClick={closeMobile}>
                     <Icon size={20} />
                     {!collapsed && <span>{item.name}</span>}
                   </NavLink>
@@ -182,24 +198,27 @@ export default function MainLayout() {
         <header className="topbar">
 
           <div className="left">
-            {/* ONE MENU ONLY */}
-            <button className="icon-btn" onClick={toggleMobile}>
-              <Menu size={22} />
+            <button
+              className="icon-btn"
+              onClick={isMobile ? toggleMobile : toggleSidebar}
+            >
+              {isMobile ? <Menu size={22} /> : <ChevronLeft size={22} />}
             </button>
 
             <h2>ManifiX</h2>
           </div>
 
           <div className="right">
-            <div className="badge">your improvemnt</div>
+            {!isMobile && <div className="badge">your improvement</div>}
 
-            <div className="ai-tip">
-              <Zap size={14} /> {aiMessage}
-            </div>
+            {!isMobile && (
+              <div className="ai-tip">
+                <Zap size={14} /> {aiMessage}
+              </div>
+            )}
 
             <div className="avatar">Y</div>
           </div>
-
         </header>
 
         <main className="content">
