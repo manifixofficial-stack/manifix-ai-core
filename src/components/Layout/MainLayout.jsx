@@ -209,7 +209,7 @@ export default function MainLayout() {
           </div>
 
           <div className="right">
-            {!isMobile && <div className="badge">your improvement</div>}
+            {!isMobile && <div className="badge">upgrade</div>}
 
             {!isMobile && (
               <div className="ai-tip">
