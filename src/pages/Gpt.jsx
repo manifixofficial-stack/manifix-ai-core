@@ -209,13 +209,13 @@ export default function Gpt() {
 
               {msg.streaming && <span className="cursor">|</span>}
 
-              {msg.role === "assistant" && msg.content && !msg.streaming && (
-                <div className="actions">
-                  <button onClick={() => speak(msg.content)}>🔊</button>
-                  <button onClick={() => copyText(msg.content)}>📋</button>
-                  <button onClick={() => sendMessage(lastUserMessage)}>🔄</button>
-                </div>
-              )}
+             {msg.role === "assistant" && msg.content && !msg.streaming && (
+  <div className="actions">
+    <button title="Speak" onClick={() => speak(msg.content)}>🔊</button>
+    <button title="Copy" onClick={() => copyText(msg.content)}>📋</button>
+    <button title="Regenerate" onClick={() => sendMessage(lastUserMessage)}>🔄</button>
+  </div>
+)}
             </div>
           </motion.div>
         ))}
