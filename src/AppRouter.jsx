@@ -10,6 +10,7 @@ import { useApp } from "./context/AppProvider";
 import Landing from "./pages/Landing"; // Now includes About & Features logic
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import Recruit from "./pages/Recruit"; 
 
 /* Auth - The Entryway */
 import Login from "./pages/Login";
@@ -104,6 +105,7 @@ export default function AppRouter() {
           <Route path="result" element={<Result />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="leaderboard" element={<Leaderboard />} /> {/* THE COMPETITION */}
+          <Route path="recruit" element={<Recruit />} /> {/* ADD THIS LINE */}
           <Route path="gpt" element={<Gpt />} /> {/* THE COACH */}
           <Route path="membership" element={<Billing />} /> {/* THE REVENUE */}
           <Route path="settings" element={<Settings />} />
