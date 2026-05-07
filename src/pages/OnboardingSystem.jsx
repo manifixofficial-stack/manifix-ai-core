@@ -93,6 +93,7 @@ export default function Onboarding() {
 )}
 
 
+
         {step === 4 && (
           <motion.div key="step4" className="card-elite final-lock">
             <h1>Type I WILL NOT QUIT</h1>
