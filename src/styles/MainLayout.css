@@ -1,258 +1,166 @@
-/* ================= ROOT THEME ================= */
+/* =========================================
+   MANIFIX ELITE: GLASSMORPHISM 2.0 (GOLD)
+   ========================================= */
+
 :root {
-  --bg: #0b0b0f;
-  --panel: #121218;
-  --panel-2: #181820;
-
-  --text: #e6e6eb;
-  --muted: #8b8b9a;
-
-  --neon-blue: #00f0ff;
-  --neon-purple: #7a5cff;
-  --neon-pink: #ff4d9d;
-
-  --border: rgba(255, 255, 255, 0.06);
+  --gold: #D4AF37;
+  --gold-glow: rgba(212, 175, 55, 0.4);
+  --bg-deep: #050505;
+  --glass-bg: rgba(13, 13, 13, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --nav-active: rgba(212, 175, 55, 0.1);
 }
 
-/* ================= BASE ================= */
-.layout {
+.elite-layout {
   display: flex;
   height: 100vh;
-  background: radial-gradient(circle at top, #0f0f15, var(--bg));
-  color: var(--text);
-  font-family: "Inter", sans-serif;
-}
-
-/* ================= SIDEBAR ================= */
-.sidebar {
-  width: 240px;
-  background: linear-gradient(180deg, #111118, #0c0c12);
-  border-right: 1px solid var(--border);
-  transition: all 0.35s ease;
+  background-color: var(--bg-deep);
+  color: #fff;
   overflow: hidden;
-  position: relative;
-  z-index: 100;
 }
 
-.sidebar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 20% 10%, rgba(122,92,255,0.12), transparent 40%);
-  pointer-events: none;
+/* --- SIDEBAR: FROSTED OBSIDIAN --- */
+.sidebar {
+  width: 280px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
 }
 
-.sidebar.collapsed {
-  width: 72px;
-}
+.sidebar.collapsed { width: 80px; }
 
-.sidebar.open {
-  transform: translateX(0);
-}
-
-/* MOBILE */
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    height: 100%;
-    left: 0;
-    top: 0;
-    transform: translateX(-100%);
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
-  }
-}
-
-/* ================= HEADER ================= */
 .sidebar-header {
+  padding: 30px 24px;
   display: flex;
   align-items: center;
-  padding: 18px;
-  gap: 12px;
+  gap: 15px;
 }
 
-.sidebar-header img {
-  width: 34px;
-  filter: drop-shadow(0 0 6px var(--neon-blue));
+.gold-shadow {
+  filter: drop-shadow(0 0 10px var(--gold-glow));
 }
 
-.sidebar-header h1 {
-  font-size: 18px;
-  font-weight: 600;
-  background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple));
+.gold-text {
+  background: linear-gradient(135deg, #D4AF37 0%, #FFF5A5 50%, #B8860B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  font-weight: 900;
+  letter-spacing: 2px;
 }
 
-/* ================= STATS ================= */
-.streak-box,
-.mission-box {
-  margin: 10px 14px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--panel);
-  border: 1px solid var(--border);
+/* --- STATUS CHIPS --- */
+.streak-chip {
+  margin: 0 20px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--gold-glow);
+  padding: 10px;
+  border-radius: 12px;
   display: flex;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted);
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+/* --- NAVIGATION LINKS --- */
+.nav-group { margin-bottom: 25px; }
+.section-label {
+  padding: 0 24px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #555;
+  margin-bottom: 12px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  color: #999;
+  text-decoration: none;
   transition: 0.3s;
 }
 
-.streak-box:hover {
-  border-color: var(--neon-pink);
-  box-shadow: 0 0 10px rgba(255, 77, 157, 0.3);
+.nav-link:hover, .nav-link.active {
+  color: #fff;
+  background: var(--nav-active);
+  border-left: 3px solid var(--gold);
 }
 
-.mission-box:hover {
-  border-color: var(--neon-blue);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
-}
+.nav-link.active svg { color: var(--gold); filter: drop-shadow(0 0 5px var(--gold)); }
 
-/* ================= NAV ================= */
-nav {
-  padding: 10px;
-}
-
-nav p {
-  font-size: 11px;
-  color: var(--muted);
-  margin: 14px 8px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-nav a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 12px;
-  border-radius: 10px;
-  text-decoration: none;
-  color: var(--muted);
-  transition: all 0.25s ease;
-  position: relative;
-}
-
-nav a:hover {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
-  transform: translateX(3px);
-}
-
-nav a.active {
-  color: white;
-  background: linear-gradient(
-    90deg,
-    rgba(0, 240, 255, 0.15),
-    rgba(122, 92, 255, 0.15)
-  );
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
-}
-
-nav a.active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  width: 3px;
-  height: 60%;
-  background: linear-gradient(var(--neon-blue), var(--neon-purple));
-  border-radius: 0 3px 3px 0;
-}
-
-/* ================= MAIN ================= */
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ================= TOPBAR ================= */
-.topbar {
-  height: 64px;
-  background: rgba(18, 18, 24, 0.7);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
-
+/* --- TOPBAR: FLOATING GLASS --- */
+.elite-topbar {
+  height: 70px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 40px;
+  background: rgba(5, 5, 5, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--glass-border);
 }
 
-/* LEFT */
-.left {
+.ai-status-pill {
+  background: rgba(212, 175, 55, 0.05);
+  border: 1px solid var(--gold-glow);
+  padding: 6px 16px;
+  border-radius: 50px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--gold);
 }
 
-.icon-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  padding: 6px;
-  border-radius: 8px;
-  color: var(--text);
-  cursor: pointer;
-  transition: 0.25s;
-}
-
-.icon-btn:hover {
-  border-color: var(--neon-blue);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
-}
-
-/* RIGHT */
-.right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* BADGE */
-.badge {
-  background: rgba(122, 92, 255, 0.12);
-  border: 1px solid rgba(122, 92, 255, 0.3);
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--neon-purple);
-}
-
-/* AI TIP */
-.ai-tip {
-  font-size: 12px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* AVATAR */
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+.user-avatar-gold {
+  width: 35px;
+  height: 35px;
+  background: var(--gold);
+  color: #000;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  color: black;
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+  border-radius: 50%;
+  font-weight: 900;
+  margin-left: 20px;
+  box-shadow: 0 0 15px var(--gold-glow);
 }
 
-/* ================= CONTENT ================= */
-.content {
+/* --- UPGRADE BOX --- */
+.sidebar-upgrade-box {
+  margin: auto 20px 20px;
+  background: linear-gradient(135deg, #111, #000);
+  border: 1px solid var(--gold-glow);
+  padding: 20px;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.upgrade-btn-mini {
+  display: block;
+  margin-top: 10px;
+  background: var(--gold);
+  color: #000;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+/* --- SCROLL AREA --- */
+.scroll-content {
   flex: 1;
   overflow-y: auto;
-  padding: 18px;
-}
-
-/* ================= OVERLAY ================= */
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  z-index: 90;
+  padding: 40px;
+  background: radial-gradient(circle at top right, rgba(212, 175, 55, 0.05), transparent);
 }
