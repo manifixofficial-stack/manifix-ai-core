@@ -1,5 +1,3 @@
-// src/pages/Home.jsx
-
 import React from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -9,123 +7,79 @@ import logo from "../assets/logo.png";
 
 export default function Home() {
   return (
-    <div className="home">
-
-      {/* ================= SEO ================= */}
+    <div className="home-elite">
       <Helmet>
-        <title>ManifiX AI – 16 Day Discipline System</title>
-        <meta
-          name="description"
-          content="Most people quit. This system doesn't let you."
-        />
+        <title>ManifiX AI | The 16-Day Neural Discipline System</title>
+        <meta name="description" content="Most people quit. Our AI ensures you don't." />
       </Helmet>
 
-      {/* ================= HERO ================= */}
-      <section className="hero">
-
-        <motion.div
-          className="hero-glow"
-          animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 5 }}
+      {/* --- HERO: THE PSYCHOLOGICAL HOOK --- */}
+      <section className="hero-pro">
+        <motion.div 
+          className="gold-glow-effect"
+          animate={{ opacity: [0.3, 0.6, 0.3] }}
+          transition={{ repeat: Infinity, duration: 4 }}
         />
 
         <div className="hero-content">
+          <img src={logo} alt="ManifiX" className="elite-logo" />
 
-          <img src={logo} alt="ManifiX" className="hero-logo" />
-
-          {/* 🔥 STRONG HOOK */}
           <h1 className="hero-title">
-            You don’t lack motivation. <br />
-            <span>You lack a system that forces you.</span>
+            Stop negotiating with your <span className="gold-text">Weakness</span>. <br />
+            <span className="sub-gold">Let AI Engineer your Discipline.</span>
           </h1>
 
-          {/* 🧠 SUB */}
           <p className="hero-sub">
-            ManifiX locks you into a 16-day discipline loop.  
-            Miss a day → your progress resets.
+            The world's first **AI-Verified** 16-day loop. <br />
+            Miss a day → The system resets your identity to Day 1.
           </p>
 
-          {/* ⚠️ LOSS TRIGGER */}
-          <p className="hero-warning">
-            ⚠️ Break the streak → start again from Day 1
-          </p>
-
-          {/* 🎯 CTA */}
           <div className="hero-buttons">
-            <Link to="/signup" className="btn-primary pulse">
-              Start Day 1 →
+            <Link to="/signup" className="btn-gold-action pulse">
+              ENTER THE 16-DAY LOOP →
             </Link>
-            <p className="micro-text">Takes less than 60 seconds</p>
+            <p className="urgency-text">⚠️ High-performance slots are limited by AI compute.</p>
           </div>
-
         </div>
       </section>
 
-      {/* ================= SOCIAL PROOF ================= */}
-      <section className="proof">
-        <p>🔥 People are already building discipline with ManifiX</p>
+      {/* --- TECH PROOF: THE AI EYES --- */}
+      <section className="ai-verification-section">
+        <div className="ai-proof-card">
+          <h3>👁️ AI-VISION VERIFICATION</h3>
+          <p>We don't take your word for it. Our AI tracks your movement to verify your daily 16-minute commitment. **True discipline requires proof.**</p>
+        </div>
       </section>
 
-      {/* ================= TRANSFORMATION ================= */}
-      <section className="phases">
-        <h2>What Happens In 16 Days</h2>
-
-        <div className="feature-grid">
+      {/* --- TRANSFORMATION TIMELINE --- */}
+      <section className="timeline-phases">
+        <h2 className="gold-text">The 16-Day Evolution</h2>
+        <div className="phase-grid">
           {[
-            { title: "Days 1–4", desc: "You struggle. Your brain resists." },
-            { title: "Days 5–10", desc: "Discipline starts forming." },
-            { title: "Days 11–16", desc: "You stop negotiating with yourself." },
-            { title: "After", desc: "You become consistent by default." },
+            { t: "PHASE I: RESISTANCE", d: "Days 1–4: Your brain fights the new neural path." },
+            { t: "PHASE II: ADAPTATION", d: "Days 5–10: Discipline becomes a default setting." },
+            { t: "PHASE III: MASTERY", d: "Days 11–16: You enter the Top 1% Global Rank." }
           ].map((f, i) => (
-            <motion.div
-              key={i}
-              className="feature-card"
-              whileHover={{ scale: 1.05 }}
-            >
-              <h3>{f.title}</h3>
-              <p>{f.desc}</p>
+            <motion.div key={i} className="phase-card" whileHover={{ y: -10 }}>
+              <h4 className="gold-text">{f.t}</h4>
+              <p>{f.d}</p>
             </motion.div>
           ))}
         </div>
       </section>
 
-      {/* ================= ADDICTION LOOP ================= */}
-      <section className="loop">
-        <h2>This is not motivation. This is control.</h2>
-
-        <div className="feature-grid">
-          {[
-            "Daily streak tracking",
-            "Zero excuses system",
-            "Identity-based habit building",
-            "AI pushes you forward",
-          ].map((t, i) => (
-            <div key={i} className="feature-card glow-card">
-              ⚡ {t}
-            </div>
-          ))}
+      {/* --- STATUS BLOCK --- */}
+      <section className="status-cta">
+        <div className="cta-glass-box">
+          <h2>₹1,999/mo for an Unstoppable Mind.</h2>
+          <p>Join Arjun, Priya, and 4,000+ high-performers already in the loop.</p>
+          <Link to="/signup" className="btn-gold-big">GET STARTED NOW</Link>
         </div>
       </section>
 
-      {/* ================= FINAL CTA ================= */}
-      <section className="cta">
-
-        <div className="cta-box">
-          <h2>You either start today… or stay the same.</h2>
-          <p>No reminders. No chasing. Just results.</p>
-
-          <Link to="/signup" className="btn-primary big pulse">
-            🚀 Start Now
-          </Link>
-        </div>
-
-      </section>
-
-      {/* ================= FOOTER ================= */}
-      <footer className="home-footer">
-        © {new Date().getFullYear()} ManifiX AI
+      <footer className="elite-footer">
+        © {new Date().getFullYear()} MANIFIX AI • POWERED BY NEURAL DISCIPLINE
       </footer>
-
     </div>
   );
 }
