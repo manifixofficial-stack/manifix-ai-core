@@ -77,18 +77,21 @@ export default function Onboarding() {
             <button className="next-btn" onClick={() => setStep(3)}>I ACCEPT</button>
           </motion.div>
         )}
+{step === 3 && (
+  <motion.div key="step3" className="card-elite">
+    <h1>Identity</h1>
+    <div className="option-stack">
+      {["I don't quit", "I finish", "I am elite"].map((id) => (
+         setIdentity(id)}
+        >
+          {id}
+        </button>
+      ))}
+    </div>
+    <button className="next-btn" onClick={() => setStep(4)}>SYNC</button>
+  </motion.div>
+)}
 
-        {step === 3 && (
-          <motion.div key="step3" className="card-elite">
-            <h1>Identity</h1>
-            <div className="option-stack">
-              {["I don't quit", "I finish", "I am elite"].map((id) => (
-                 setIdentity(id)}>{id}</button>
-              ))}
-            </div>
-            <button className="next-btn" onClick={() => setStep(4)}>SYNC</button>
-          </motion.div>
-        )}
 
         {step === 4 && (
           <motion.div key="step4" className="card-elite final-lock">
