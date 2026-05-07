@@ -124,7 +124,7 @@ export default function Onboarding() {
         {/* --- PHASE 4: IDENTITY SHIFT --- */}
         {step === 3 && (
           <motion.div key="step3" className="card-elite">
-             <span className="step-count">STEP 04/04</span>
+            <span className="step-count">STEP 04/04</span>
             <h1>New Identity Statement</h1>
             <div className="option-stack">
               {["I don't quit", "I finish what I start", "I am a high-performer"].map(id => (
