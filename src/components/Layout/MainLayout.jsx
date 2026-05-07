@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { Users } from "lucide-react";
 import {
   LayoutDashboard,
   Sparkles,
@@ -28,6 +29,7 @@ export default function MainLayout() {
       items: [
         { name: "Dashboard", path: "/app/dashboard", icon: LayoutDashboard },
         { name: "Global Rank", path: "/app/leaderboard", icon: Trophy }, // BILLION $ ADDITION
+         { name: "Recruit", path: "/app/recruit", icon: Users }, // ADD THIS LINE
       ],
     },
     {
