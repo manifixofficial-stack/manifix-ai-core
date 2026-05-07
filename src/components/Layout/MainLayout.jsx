@@ -1,23 +1,15 @@
-// src/components/Layout/MainLayout.jsx
-
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard,
   Sparkles,
   Brain,
-  MessageSquare,
-  CreditCard,
-  Home,
-  Info,
-  Star,
-  Mail,
-  Shield,
-  FileCheck,
+  Trophy, // Leaderboard
+  UserCircle, // Membership/Identity
+  Settings,
   Menu,
   ChevronLeft,
   Flame,
-  Target,
   Zap,
 } from "lucide-react";
 
@@ -27,204 +19,100 @@ import logo from "../../assets/logo.png";
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [aiMessage, setAiMessage] = useState("");
   const [streak, setStreak] = useState(0);
 
-  /* ---------------- SCREEN DETECT ---------------- */
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
+  /* ---------------- 2026 ELITE NAV ---------------- */
+  const navItems = useMemo(() => [
+    {
+      section: "COMMAND",
+      items: [
+        { name: "Dashboard", path: "/app/dashboard", icon: LayoutDashboard },
+        { name: "Global Rank", path: "/app/leaderboard", icon: Trophy }, // BILLION $ ADDITION
+      ],
+    },
+    {
+      section: "SYSTEMS",
+      items: [
+        { name: "Magic16", path: "/app/magic16", icon: Sparkles },
+        { name: "ManifiX AI", path: "/app/gpt", icon: Brain },
+      ],
+    },
+    {
+      section: "ACCOUNT",
+      items: [
+        { name: "Elite Membership", path: "/app/membership", icon: UserCircle }, // UPGRADED BILLING
+        { name: "Settings", path: "/app/settings", icon: Settings },
+      ],
+    },
+  ], []);
 
-      if (!mobile) setMobileOpen(false); // reset mobile drawer
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  /* ---------------- HANDLERS ---------------- */
-  const toggleSidebar = useCallback(() => {
-    setCollapsed((p) => !p);
-  }, []);
-
-  const toggleMobile = useCallback(() => {
-    setMobileOpen((p) => !p);
-  }, []);
-
-  const closeMobile = useCallback(() => setMobileOpen(false), []);
-
-  /* ---------------- STREAK ---------------- */
   useEffect(() => {
     const s = parseInt(localStorage.getItem("magic16_streak") ?? "0", 10);
     setStreak(s);
   }, []);
 
-  /* ---------------- AI TIP ---------------- */
-  useEffect(() => {
-    const messages = [
-      "💡 One session can change your day.",
-      "🔥 Don’t break your streak.",
-      "🧠 Focus is your power.",
-      "⚡ Action builds identity.",
-      "🎯 Start small, win big.",
-    ];
-
-    let i = 0;
-    setAiMessage(messages[0]);
-
-    const interval = setInterval(() => {
-      i = (i + 1) % messages.length;
-      setAiMessage(messages[i]);
-    }, 8000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  /* ---------------- DAILY MISSION ---------------- */
-  const dailyMission = useMemo(() => {
-    const missions = [
-      "Complete 1 Magic16 session",
-      "5 min deep focus",
-      "No distractions today",
-      "Stay consistent",
-      "Win today",
-    ];
-    return missions[new Date().getDate() % missions.length];
-  }, []);
-
-  /* ---------------- NAV ---------------- */
-  const navItems = useMemo(
-    () => [
-      {
-        section: "Core",
-        items: [{ name: "Dashboard", path: "/app/dashboard", icon: LayoutDashboard }],
-      },
-      {
-        section: "AI",
-        items: [
-          { name: "ManifiX AI", path: "/app/gpt", icon: Brain },
-          { name: "Magic16", path: "/app/magic16", icon: Sparkles },
-        ],
-      },
-      {
-        section: "Growth",
-        items: [
-          { name: "Feedback", path: "/app/feedback", icon: MessageSquare },
-          { name: "Billing", path: "/app/billing", icon: CreditCard },
-        ],
-      },
-      {
-        section: "Explore",
-        items: [
-          { name: "Home", path: "/", icon: Home },
-          { name: "About", path: "/about", icon: Info },
-          { name: "Features", path: "/features/gpt", icon: Star },
-        ],
-      },
-      {
-        section: "Support",
-        items: [{ name: "Contact", path: "/contact", icon: Mail }],
-      },
-      {
-        section: "Legal",
-        items: [
-          { name: "Privacy", path: "/privacy", icon: Shield },
-          { name: "Terms", path: "/terms", icon: FileCheck },
-        ],
-      },
-    ],
-    []
-  );
-
   return (
-    <div className="layout">
-
-      {/* OVERLAY (mobile only) */}
-      {isMobile && mobileOpen && (
-        <div className="overlay" onClick={closeMobile} />
-      )}
-
-      {/* SIDEBAR */}
-      <aside
-        className={`sidebar 
-          ${collapsed && !isMobile ? "collapsed" : ""} 
-          ${mobileOpen ? "open" : ""}
-        `}
-      >
+    <div className="elite-layout">
+      {/* SIDEBAR: NOW USES GOLD ACCENTS */}
+      <aside className={`sidebar ${collapsed ? "collapsed" : ""} ${mobileOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <img src={logo} alt="logo" />
-          {!collapsed && !isMobile && <h1>ManifiX</h1>}
+          <img src={logo} alt="logo" className="gold-shadow" />
+          {!collapsed && <h1 className="gold-text">MANIFIX</h1>}
         </div>
 
-        {!collapsed && !isMobile && (
-          <>
-            <div className="streak-box">
-              <Flame size={16} />
-              <span>{streak}-Day Streak</span>
+        {!collapsed && (
+          <div className="status-container">
+            <div className="streak-chip">
+              <Flame size={14} color="#D4AF37" />
+              <span>{streak} DAY STREAK</span>
             </div>
-
-            <div className="mission-box">
-              <Target size={14} />
-              <span>{dailyMission}</span>
-            </div>
-          </>
+          </div>
         )}
 
         <nav>
           {navItems.map((group) => (
-            <div key={group.section}>
-              {!collapsed && !isMobile && <p>{group.section}</p>}
-
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink key={item.name} to={item.path} onClick={closeMobile}>
-                    <Icon size={20} />
-                    {!collapsed && <span>{item.name}</span>}
-                  </NavLink>
-                );
-              })}
+            <div key={group.section} className="nav-group">
+              {!collapsed && <p className="section-label">{group.section}</p>}
+              {group.items.map((item) => (
+                <NavLink key={item.name} to={item.path} className="nav-link">
+                  <item.icon size={20} />
+                  {!collapsed && <span>{item.name}</span>}
+                </NavLink>
+              ))}
             </div>
           ))}
         </nav>
+
+        {/* UPGRADE PROMPT IN SIDEBAR */}
+        {!collapsed && (
+          <div className="sidebar-upgrade-box">
+             <p>Level up your AI</p>
+             <NavLink to="/app/membership" className="upgrade-btn-mini">GO ELITE</NavLink>
+          </div>
+        )}
       </aside>
 
-      {/* MAIN */}
-      <div className="main">
-
-        {/* TOPBAR */}
-        <header className="topbar">
-
+      <div className="main-viewport">
+        <header className="elite-topbar">
           <div className="left">
-            <button
-              className="icon-btn"
-              onClick={isMobile ? toggleMobile : toggleSidebar}
-            >
-              {isMobile ? <Menu size={22} /> : <ChevronLeft size={22} />}
+            <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
+              <Menu size={20} />
             </button>
-
-            <h2>ManifiX</h2>
+            <span className="breadcrumb">MANIFIX / <span className="gold-text">ELITE</span></span>
           </div>
 
           <div className="right">
-            {!isMobile && <div className="badge">upgrade</div>}
-
-            {!isMobile && (
-              <div className="ai-tip">
-                <Zap size={14} /> {aiMessage}
-              </div>
-            )}
-
-            <div className="avatar">Y</div>
+            <div className="ai-status-pill">
+              <Zap size={12} fill="#D4AF37" color="#D4AF37" />
+              <span>AI OBSERVER: ACTIVE</span>
+            </div>
+            <div className="user-avatar-gold">Y</div>
           </div>
         </header>
 
-        <main className="content">
+        <main className="scroll-content">
           <Outlet />
         </main>
-
       </div>
     </div>
   );
