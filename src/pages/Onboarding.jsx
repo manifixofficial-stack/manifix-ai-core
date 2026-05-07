@@ -14,7 +14,6 @@ export default function Onboarding() {
   const [timeLeft, setTimeLeft] = useState(10);
   const [loading, setLoading] = useState(false);
 
-  /* ================= ELITE VOICE ENGINE ================= */
   const speak = (text, urgent = false) => {
     if (!("speechSynthesis" in window)) return;
     const msg = new SpeechSynthesisUtterance(text);
@@ -24,7 +23,6 @@ export default function Onboarding() {
     speechSynthesis.speak(msg);
   };
 
-  /* ================= SYSTEM INITIALIZATION ================= */
   useEffect(() => {
     speak("Initializing neural discipline protocol. Warning. 90% of subjects fail this system.");
     const t = setTimeout(() => {
@@ -34,7 +32,6 @@ export default function Onboarding() {
     return () => clearTimeout(t);
   }, []);
 
-  /* ================= PRESSURE TIMER ================= */
   useEffect(() => {
     if (phase !== "start" || step !== 0 || timeLeft <= 0) return;
     const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
@@ -62,7 +59,6 @@ export default function Onboarding() {
     <div className="onboarding-pro">
       <AnimatePresence mode="wait">
         
-        {/* --- PHASE 0: THE NEURAL SCAN --- */}
         {phase === "intro" && (
           <motion.div key="intro" className="intro-scan" exit={{ opacity: 0 }}>
             <div className="scan-line" />
@@ -71,7 +67,6 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* --- PHASE 1: OBJECTIVE SELECTION --- */}
         {phase === "start" && step === 0 && (
           <motion.div key="step0" className="card-elite" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <span className="step-count">STEP 01/04</span>
@@ -92,7 +87,6 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* --- PHASE 2: INTENSITY --- */}
         {step === 1 && (
           <motion.div key="step1" className="card-elite" initial={{ x: 50, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
             <span className="step-count">STEP 02/04</span>
@@ -112,7 +106,6 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* --- PHASE 3: THE CONTRACT --- */}
         {step === 2 && (
           <motion.div key="step2" className="card-elite-warning" initial={{ scale: 0.9 }}>
             <h1 className="red-text">WARNING</h1>
@@ -121,7 +114,6 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* --- PHASE 4: IDENTITY SHIFT --- */}
         {step === 3 && (
           <motion.div key="step3" className="card-elite">
              <span className="step-count">STEP 04/04</span>
@@ -138,7 +130,6 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {/* --- FINAL PHASE --- */}
         {step === 4 && (
           <motion.div key="step4" className="card-elite final-lock">
             <h1>Type to Commit</h1>
