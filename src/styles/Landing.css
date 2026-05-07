@@ -1,255 +1,228 @@
-/* =====================================
-   MANIFIX LANDING PAGE — FINAL PREMIUM UI
-===================================== */
+/* =========================================
+   MANIFIX AI: THE BILLION DOLLAR LANDING
+   ========================================= */
 
-/* RESET */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+:root {
+  --gold: #D4AF37;
+  --gold-gradient: linear-gradient(135deg, #D4AF37 0%, #F5DF4D 50%, #B8860B 100%);
+  --bg-black: #050505;
+  --text-dim: #999;
+  --glass: rgba(255, 255, 255, 0.03);
 }
 
-body {
-  font-family: "Inter", sans-serif;
-  color: #ffffff;
-  background: #020617;
+.landing-container {
+  background-color: var(--bg-black);
+  color: white;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
   overflow-x: hidden;
 }
 
-/* =====================================
-   CONTAINER
-===================================== */
-
-.landing-container {
-  min-height: 100vh;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* =====================================
-   BALATRO BACKGROUND (FIXED)
-===================================== */
-
+/* --- BACKGROUND ANIMATION --- */
 .background-wrapper {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   z-index: 0;
+  opacity: 0.4;
 }
 
-/* EXTRA GLOW LAYER */
-.landing-container::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(0,255,208,0.12), transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(255,0,255,0.12), transparent 40%);
-  z-index: 0;
-}
-
-/* OVERLAY */
 .overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(2,6,23,.82);
-  backdrop-filter: blur(10px);
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, transparent 0%, var(--bg-black) 90%);
   z-index: 1;
+  pointer-events: none;
 }
 
-/* CONTENT ABOVE EVERYTHING */
-.landing-container > *:not(.background-wrapper):not(.overlay) {
+/* --- ELITE NAVIGATION --- */
+.elite-nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  padding: 20px 5%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.1);
+}
+
+.nav-logo { width: 40px; }
+.nav-login {
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  border: 1px solid var(--gold);
+  padding: 8px 16px;
+  border-radius: 4px;
+  transition: 0.3s;
+}
+
+.nav-login:hover {
+  background: var(--gold);
+  color: black;
+}
+
+/* --- HERO SECTION --- */
+.landing-header {
+  padding: 180px 5% 100px;
+  text-align: center;
   position: relative;
   z-index: 2;
 }
 
-/* =====================================
-   HEADER
-===================================== */
-
-.landing-header {
-  margin-top: 90px;
-  text-align: center;
-  animation: fadeDown .7s ease;
+.founder-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 5px 15px;
+  border-radius: 50px;
+  background: rgba(212, 175, 55, 0.1);
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  margin-bottom: 20px;
+  letter-spacing: 2px;
 }
 
-@keyframes fadeDown {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.landing-logo {
-  width: 72px;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 0 14px rgba(0,255,208,.6));
-}
-
-.brand-name {
-  font-size: 42px;
-  font-weight: 800;
-  background: linear-gradient(90deg,#00ffd0,#ff00ff);
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-.brand-tagline {
-  font-size: 15px;
-  color: #94a3b8;
-  margin-top: 6px;
-}
-
-/* =====================================
-   HERO
-===================================== */
-
-.landing-hero {
-  max-width: 960px;
-  padding: 90px 20px;
-  text-align: center;
-  animation: fadeUp .8s ease;
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(25px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.hero-title {
-  font-size: 52px;
-  font-weight: 800;
-  line-height: 1.2;
+.hero-main-title {
+  font-size: clamp(40px, 8vw, 90px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -2px;
   margin-bottom: 20px;
 }
 
-.hero-description {
+.gold-text {
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.hero-sub {
+  color: var(--text-dim);
   font-size: 18px;
-  color: #94a3b8;
-  margin-bottom: 50px;
+  max-width: 600px;
+  margin: 0 auto 40px;
+  line-height: 1.6;
 }
 
-/* =====================================
-   FEATURES
-===================================== */
-
-.hero-features {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 28px;
-  margin-bottom: 60px;
-}
-
-.feature {
-  background: rgba(255,255,255,.035);
-  border: 1px solid rgba(255,255,255,.08);
-  padding: 26px;
-  border-radius: 18px;
-  backdrop-filter: blur(12px);
-  transition: .3s;
-}
-
-.feature:hover {
-  transform: translateY(-6px) scale(1.02);
-  border-color: rgba(0,255,208,.4);
-  box-shadow:
-    0 25px 50px rgba(0,255,208,.15),
-    0 25px 50px rgba(255,0,255,.12);
-}
-
-/* =====================================
-   BUTTONS
-===================================== */
-
-.cta-container {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.landing-button {
-  padding: 14px 30px;
-  border-radius: 12px;
-  font-weight: 600;
+/* --- BUTTONS & URGENCY --- */
+.btn-gold {
+  background: var(--gold-gradient);
+  color: black;
   text-decoration: none;
-  transition: .25s;
+  padding: 20px 40px;
+  border-radius: 12px;
+  font-weight: 900;
+  font-size: 16px;
+  display: inline-block;
+  transition: 0.3s;
+  box-shadow: 0 10px 40px rgba(212, 175, 55, 0.3);
 }
 
-.landing-button.primary {
-  background: linear-gradient(90deg,#00ffd0,#ff00ff);
-  color: #000;
-  box-shadow:
-    0 10px 30px rgba(0,255,208,.4),
-    0 10px 30px rgba(255,0,255,.3);
+.btn-gold:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 60px rgba(212, 175, 55, 0.5);
 }
 
-.landing-button.primary:hover {
-  transform: translateY(-3px) scale(1.03);
+.spots-left {
+  color: #ff4b2b;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 20px;
+  animation: pulse 2s infinite;
 }
 
-.landing-button.secondary {
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.12);
-  color: #fff;
+/* --- TECH CARDS --- */
+.tech-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  padding: 100px 5%;
+  position: relative;
+  z-index: 2;
 }
 
-.landing-button.secondary:hover {
-  background: rgba(255,255,255,.08);
+.tech-card {
+  background: var(--glass);
+  padding: 40px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: 0.4s;
 }
 
-.landing-button.big {
-  padding: 16px 36px;
+.tech-card:hover {
+  border-color: var(--gold);
+  background: rgba(212, 175, 55, 0.02);
 }
 
-/* =====================================
-   TESTIMONIALS
-===================================== */
+.tech-card .icon { font-size: 40px; margin-bottom: 20px; }
+.tech-card h3 { font-size: 24px; margin-bottom: 15px; }
+.tech-card p { color: var(--text-dim); line-height: 1.6; font-size: 15px; }
 
+/* --- TESTIMONIALS --- */
 .landing-testimonials {
-  max-width: 1100px;
-  padding: 90px 20px;
+  padding: 100px 5%;
+  background: linear-gradient(180deg, transparent, #0a0a0a);
+  position: relative;
+  z-index: 2;
 }
 
-.testimonial-title {
-  text-align: center;
-  font-size: 34px;
-  margin-bottom: 45px;
-}
-
-.testimonial-cards {
-  display: flex;
-  gap: 24px;
-  overflow-x: auto;
-}
+.section-title { text-align: center; margin-bottom: 50px; font-size: 32px; font-weight: 800; }
 
 .testimonial-card {
-  min-width: 320px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 20px;
+  background: #0d0d0d;
   padding: 30px;
-  backdrop-filter: blur(12px);
+  border-radius: 15px;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--gold);
 }
 
-/* =====================================
-   FOOTER
-===================================== */
+.testimonial-card .text { font-style: italic; color: #eee; margin-bottom: 15px; }
 
-.landing-footer {
-  margin-top: 60px;
-  padding: 30px;
-  border-top: 1px solid rgba(255,255,255,.08);
-  width: 100%;
+/* --- PRICING BOX --- */
+.pricing-preview {
   text-align: center;
-  font-size: 13px;
-  color: #64748b;
+  padding: 100px 5%;
+  position: relative;
+  z-index: 2;
 }
 
-/* =====================================
-   RESPONSIVE
-===================================== */
+.price-box { margin: 30px 0; }
+.price-box .amt { font-size: 80px; font-weight: 900; color: white; }
+.price-box .per { font-size: 20px; color: var(--text-dim); }
 
-@media(max-width:768px) {
-  .hero-title { font-size: 36px; }
-  .hero-features { grid-template-columns: 1fr; }
+/* --- FOOTER --- */
+.landing-footer {
+  padding: 50px 5%;
+  border-top: 1px solid #111;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #444;
+  position: relative;
+  z-index: 2;
+}
+
+.footer-links a { color: #444; margin-right: 20px; text-decoration: none; }
+
+/* --- ANIMATIONS --- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (max-width: 768px) {
+  .hero-main-title { font-size: 50px; }
+  .elite-nav { padding: 15px 5%; }
 }
