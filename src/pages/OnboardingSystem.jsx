@@ -82,7 +82,7 @@ export default function Onboarding() {
     <h1>Identity</h1>
     <div className="option-stack">
       {["I don't quit", "I finish", "I am elite"].map((id) => (
-         setIdentity(id)}
+         setIdentity(id)
         >
           {id}
         </button>
