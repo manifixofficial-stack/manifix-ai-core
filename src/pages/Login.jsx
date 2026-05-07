@@ -1,295 +1,136 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
-import { motion } from "framer-motion";
-
 import authService from "../services/auth.service";
-import { useApp } from "../context/AppProvider";
 
-import logo from "../assets/logo.png";
+import logo from "../assets/logo.svg";
+import bgImage from "../assets/backgrounds/dark-gradient.jpg";
 
 import "../styles/Login.css";
 
-import {
-  EyeIcon,
-  EyeSlashIcon,
-} from "@heroicons/react/24/outline";
-
-export default function Login() {
+export default function ForgotPassword() {
   const navigate = useNavigate();
 
-  const {
-    user,
-    setUser,
-    loading: appLoading,
-  } = useApp();
-
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [showPassword, setShowPassword] =
-    useState(false);
-
   const [loading, setLoading] = useState(false);
 
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // AUTO REDIRECT IF ALREADY LOGGED IN
+  const [timer, setTimer] = useState(0);
+
+  // ✅ Live email validation
+  const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+
+  // ⏱ Resend countdown
   useEffect(() => {
-    if (!appLoading && user) {
-      navigate("/app/magic16", {
-        replace: true,
-      });
-    }
-  }, [user, appLoading, navigate]);
+    if (timer === 0) return;
 
-  // ENTER KEY LOGIN
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleEmailLogin();
-    }
-  };
+    const interval = setInterval(() => {
+      setTimer((t) => t - 1);
+    }, 1000);
 
-  // EMAIL LOGIN
-  const handleEmailLogin = async () => {
-    if (loading) return;
+    return () => clearInterval(interval);
+  }, [timer]);
 
-    if (!email || !password) {
-      setError("Credentials required.");
-      return;
+  const handleReset = async () => {
+    setError("");
+    setMessage("");
+
+    if (!isValidEmail(email)) {
+      return setError("Enter a valid email address");
     }
+
+    setLoading(true);
 
     try {
-      setLoading(true);
-      setError("");
+      await authService.resetPassword(email.trim().toLowerCase());
 
-      const loggedUser = await authService.login(
-        email.trim().toLowerCase(),
-        password
-      );
-
-      if (!loggedUser) {
-        throw new Error("Verification failed.");
-      }
-
-      setUser(loggedUser);
-
-      navigate("/app/magic16", {
-        replace: true,
-      });
+      // 🎉 Premium success UX
+      setMessage("📩 Check your inbox. We sent a secure reset link.");
+      setTimer(30); // start resend timer
 
     } catch (err) {
-      console.error(err);
-
-      setError("Invalid access credentials.");
-
+      setError(err?.message || "Reset failed. Try again.");
     } finally {
       setLoading(false);
     }
   };
-
-  // GOOGLE LOGIN
-  const handleGoogleLogin = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      // MUST EXIST INSIDE auth.service.js
-      const loggedUser =
-        await authService.googleLogin();
-
-      if (!loggedUser) {
-        throw new Error("Google login failed");
-      }
-
-      setUser(loggedUser);
-
-      navigate("/app/magic16", {
-        replace: true,
-      });
-
-    } catch (err) {
-      console.error(err);
-
-      setError("Google authentication failed.");
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // LOADING SCREEN
-  if (appLoading) {
-    return (
-      <div className="auth-elite-loading">
-        <motion.img
-          src={logo}
-          alt="ManifiX Logo"
-          className="loading-logo"
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            repeat: Infinity,
-            duration: 2,
-          }}
-        />
-      </div>
-    );
-  }
 
   return (
-    <div className="auth-elite-wrapper">
-      <Helmet>
-        <title>
-          Elite Access | ManifiX AI
-        </title>
-      </Helmet>
+    <div
+      className="auth-wrapper"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
+      <div className="overlay" />
 
-      <div className="vault-background" />
+      {/* 🔥 Loading overlay */}
+      {loading && (
+        <div className="loading-overlay">
+          Sending secure link...
+        </div>
+      )}
 
-      <motion.div
-        className="auth-card-pro"
-        initial={{
-          opacity: 0,
-          y: 20,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-        }}
-        transition={{
-          duration: 0.4,
-        }}
-      >
-        {/* HEADER */}
-        <div className="brand-header">
-          <img
-            src={logo}
-            alt="ManifiX"
-            className="logo-gold"
-          />
-
-          <h1 className="gold-text">
-            MANIFIX
-          </h1>
-
-          <p className="subtitle">
-            AUTHENTICATION REQUIRED
-          </p>
+      <div className="auth-card">
+        {/* Brand */}
+        <div className="brand">
+          <img src={logo} alt="ManifiX Logo" />
+          <h1>ManifiX</h1>
+          <p className="tagline">Intelligence meets Intention</p>
         </div>
 
-        {/* INPUTS */}
-        <div className="input-stack">
+        {/* Title */}
+        <h2>Reset Password</h2>
+        <p className="subtitle">
+          Enter your email to receive a secure reset link
+        </p>
 
-          {/* EMAIL */}
-          <div className="field">
-            <input
-              type="email"
-              placeholder="System Email"
-              value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
-              onKeyDown={handleKeyPress}
-              autoComplete="email"
-            />
-          </div>
+        {/* Email input */}
+        <input
+          type="email"
+          placeholder="Email address"
+          value={email}
+          disabled={loading}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError("");
+          }}
+        />
 
-          {/* PASSWORD */}
-          <div className="field password-field">
-            <input
-              type={
-                showPassword
-                  ? "text"
-                  : "password"
-              }
-              placeholder="Security Key"
-              value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
-              onKeyDown={handleKeyPress}
-              autoComplete="current-password"
-            />
-
-            <button
-              type="button"
-              className="eye-btn"
-              onClick={() =>
-                setShowPassword(
-                  !showPassword
-                )
-              }
-            >
-              {showPassword ? (
-                <EyeSlashIcon />
-              ) : (
-                <EyeIcon />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* ERROR */}
-        {error && (
-          <motion.p
-            className="auth-error"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            {error}
-          </motion.p>
+        {/* Live validation hint */}
+        {email && !isValidEmail(email) && (
+          <p className="hint">Enter a valid email</p>
         )}
 
-        {/* LOGIN BUTTON */}
+        {/* Status */}
+        {message && <p className="success">{message}</p>}
+        {error && <p className="error">{error}</p>}
+
+        {/* Button */}
         <button
-          type="button"
-          className="btn-gold-login"
-          onClick={handleEmailLogin}
-          disabled={loading}
+          className="primary-btn"
+          onClick={handleReset}
+          disabled={loading || timer > 0}
         >
-          {loading
-            ? "VERIFYING..."
-            : "ENTER THE LOOP →"}
+          {timer > 0
+            ? `Resend in ${timer}s`
+            : loading
+            ? "Sending..."
+            : "Send Reset Link"}
         </button>
 
-        {/* FOOTER */}
-        <div className="auth-footer">
+        {/* Trust */}
+        <p className="trust">
+          🔒 Secure reset • No spam • Privacy protected
+        </p>
 
-          {/* GOOGLE */}
-          <button
-            type="button"
-            className="google-link"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            CONTINUE WITH GOOGLE
-          </button>
-
-          {/* LINKS */}
-          <div className="sub-links">
-            <span
-              onClick={() =>
-                navigate("/signup")
-              }
-            >
-              CREATE ACCOUNT
-            </span>
-
-            <span
-              onClick={() =>
-                navigate(
-                  "/forgot-password"
-                )
-              }
-            >
-              FORGOT KEY
-            </span>
-          </div>
-        </div>
-      </motion.div>
+        {/* Back to login */}
+        <p className="microcopy">
+          Remembered your password?
+          <span className="link" onClick={() => navigate("/login")}>
+            Login
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
