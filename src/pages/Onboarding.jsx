@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import "../styles/onboarding.css";
@@ -46,7 +46,6 @@ export default function Onboarding() {
     if (loading || confirmText !== "I WILL NOT QUIT") return;
     setLoading(true);
     
-    // SAVE BIOMETRIC INTENT
     const today = new Date().toDateString();
     localStorage.setItem("magic16_started", "true");
     localStorage.setItem("magic16_streak", "1");
@@ -80,7 +79,13 @@ export default function Onboarding() {
             <p className="timer-warn">Selection Window: <span className="gold-text">{timeLeft}s</span></p>
             <div className="option-grid">
               {["Discipline", "Elite Focus", "Mental Power", "Total Control"].map(g => (
-                <button key={g} className={goal === g ? "active" : ""} onClick={() => setGoal(g)}>{g}</button>
+                <button 
+                  key={g} 
+                  className={goal === g ? "active" : ""} 
+                  onClick={() => setGoal(g)}
+                >
+                  {g}
+                </button>
               ))}
             </div>
             <button className="next-btn" disabled={!goal} onClick={() => setStep(1)}>CONFIRM OBJECTIVE →</button>
@@ -94,7 +99,13 @@ export default function Onboarding() {
             <h1>Operating Intensity</h1>
             <div className="option-grid">
               {["Standard", "High-Performance", "NO EXCUSES"].map(i => (
-                <button key={i} className={intensity === i ? "active-red" : ""} onClick={() => setIntensity(i)}>{i}</button>
+                <button 
+                  key={i} 
+                  className={intensity === i ? "active-red" : ""} 
+                  onClick={() => setIntensity(i)}
+                >
+                  {i}
+                </button>
               ))}
             </div>
             <button className="next-btn" disabled={!intensity} onClick={() => setStep(2)}>LOCK INTENSITY →</button>
@@ -117,14 +128,17 @@ export default function Onboarding() {
             <h1>New Identity Statement</h1>
             <div className="option-stack">
               {["I don't quit", "I finish what I start", "I am a high-performer"].map(id => (
-                 setIdentity(id)}>{id}</button>
+                 setIdentity(id)}
+                >
+                  {id}
+                </button>
               ))}
             </div>
              setStep(4)}>FINALIZE SYNC →</button>
           </motion.div>
         )}
 
-        {/* --- FINAL PHASE: THE COMMITMENT --- */}
+        {/* --- FINAL PHASE --- */}
         {step === 4 && (
           <motion.div key="step4" className="card-elite final-lock">
             <h1>Type to Commit</h1>
