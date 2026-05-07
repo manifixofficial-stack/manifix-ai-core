@@ -18,7 +18,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 
 /* Onboarding - The Conversion */
-import Onboarding from "./pages/Onboarding";
+import Onboarding from "./pages/OnboardingSystem";
 
 /* App Pages - The Billion Dollar Engine */
 import Dashboard from "./pages/Dashboard";
@@ -53,7 +53,7 @@ export default function AppRouter() {
   const appElement = (
     <ProtectedRoute>
       {/* If they haven't finished onboarding, force them to commit */}
-      {hasStarted ? <MainLayout /> : <Navigate to="/onboarding" replace />}
+      {hasStarted ? <MainLayout /> : <Navigate to="/onboardingSystem" replace />}
     </ProtectedRoute>
   );
 
