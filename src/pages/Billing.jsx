@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import "../styles/Billing666.css";
+import "../styles/Billing555.css";
 import authService from "../services/auth.service";
 import logo from "../assets/logo.png";
 
