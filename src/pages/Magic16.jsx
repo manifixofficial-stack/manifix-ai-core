@@ -1,294 +1,190 @@
-// src/pages/Magic16.jsx
-
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSessionSteps } from "../constants/steps";
+import * as poseDetection from '@tensorflow-models/pose-detection';
+import '@tensorflow/tfjs-backend-webgl';
 import confetti from "canvas-confetti";
 import "../styles/magic16.css";
 
 export default function Magic16() {
   const navigate = useNavigate();
-
-  /* ================= SAFE STORAGE ================= */
-  const getLS = (key, fallback) => {
-    if (typeof window === "undefined") return fallback;
-    return localStorage.getItem(key) ?? fallback;
-  };
-
-  const day = Number(getLS("magic16_streak", 1));
-  const [xp, setXp] = useState(Number(getLS("m16_xp", 0)));
-  const [showHook, setShowHook] = useState(!getLS("m16_started"));
-
-  const sessionSteps = useMemo(() => getSessionSteps(day), [day]);
+  
+  /* ================= REFS ================= */
+  const videoRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const timerRef = useRef(null);
+  const detectorRef = useRef(null);
 
   /* ================= STATE ================= */
-  const [stepIndex, setStepIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(
-    sessionSteps[0]?.duration || 30
-  );
-  const [progress, setProgress] = useState(0);
+  const [isAiLoading, setIsAiLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
-  const level = Math.floor(xp / 50);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [movementScore, setMovementScore] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [notifiedPro, setNotifiedPro] = useState(false);
 
-  /* ================= REFS ================= */
-  const timerRef = useRef(null);
-  const stepRef = useRef(0);
-  const timeRef = useRef(0);
-  const bgAudio = useRef(null);
-  const countdownAudio = useRef(null);
+  /* ================= PERSISTENCE ================= */
+  const day = Number(localStorage.getItem("magic16_streak") || 1);
+  const sessionSteps = useMemo(() => getSessionSteps(day), [day]);
+  const [timeLeft, setTimeLeft] = useState(sessionSteps[0]?.duration || 30);
 
-  const TOTAL = useMemo(() => {
-    return sessionSteps.reduce((a, b) => a + b.duration, 0);
-  }, [sessionSteps]);
-
-  const current = sessionSteps[stepIndex];
-
-  /* ================= AUDIO INIT ================= */
+  /* ================= 1. AI ENGINE INIT ================= */
   useEffect(() => {
-    bgAudio.current = new Audio("/assets/audio/combo.mp3");
-    bgAudio.current.loop = true;
-    bgAudio.current.volume = 0.3;
-
-    countdownAudio.current = new Audio("/assets/audio/countdown.mp3");
-    countdownAudio.current.volume = 0.7;
-
-    return () => {
-      bgAudio.current?.pause();
-      countdownAudio.current?.pause();
+    const loadModel = async () => {
+      const model = poseDetection.SupportedModels.MoveNet;
+      detectorRef.current = await poseDetection.createDetector(model, {
+        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+      });
+      setIsAiLoading(false);
     };
+    loadModel();
   }, []);
 
-  /* ================= CLEANUP ================= */
-  useEffect(() => {
-    return () => clearInterval(timerRef.current);
-  }, []);
-
-  /* ================= VOICE ================= */
-  const speak = (text) => {
-    if (!("speechSynthesis" in window)) return;
+  /* ================= 2. VOICE & HAPTICS ================= */
+  const speak = (text, urgent = false) => {
     const msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.9;
-    msg.pitch = 1;
-    msg.lang = "en-US";
-
+    msg.rate = urgent ? 1.2 : 0.9;
     speechSynthesis.cancel();
     speechSynthesis.speak(msg);
+    if (urgent) navigator.vibrate?.([100, 50, 100]);
   };
 
-  /* ================= TRIGGERS ================= */
-  useEffect(() => {
-    const hour = new Date().getHours();
-
-    if (hour < 10) speak("Win your morning or lose your day.");
-    else if (hour < 18) speak("You’re behind. Fix it now.");
-    else speak("Finish strong. Most already failed.");
-
-    const last = getLS("last_done", null);
-    const today = new Date().toDateString();
-
-    if (last && last !== today) {
-      speak("Your streak is at risk.");
-      setXp((prev) => Math.max(0, prev - 10));
-    }
-  }, []);
-
-  /* ================= SYNC ================= */
-  useEffect(() => {
-    stepRef.current = stepIndex;
-    timeRef.current = timeLeft;
-  }, [stepIndex, timeLeft]);
-
-  /* ================= SAVE ================= */
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("m16_xp", xp);
-    localStorage.setItem("m16_started", "true");
-  }, [xp]);
-
-  /* ================= REWARDS ================= */
-  const rewards = ["Good.", "Strong.", "Keep going.", "You're ahead."];
-  const randomReward = () => {
-    const r = rewards[Math.floor(Math.random() * rewards.length)];
-    speak(r);
-  };
-
-  /* ================= START ================= */
-  const start = () => {
-    if (timerRef.current) return;
-
-    setShowHook(false);
-    setPlaying(true);
-
-    bgAudio.current?.play().catch(() => {});
-    speak(current?.guidance || current?.name);
-
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev % 7 === 0) randomReward();
-
-        if (prev === 5) {
-          countdownAudio.current.currentTime = 0;
-          countdownAudio.current.play().catch(() => {});
+  /* ================= 3. AI POSE VERIFICATION ================= */
+  const runDetection = async () => {
+    if (detectorRef.current && videoRef.current && playing) {
+      const poses = await detectorRef.current.estimatePoses(videoRef.current);
+      if (poses.length > 0 && poses[0].keypoints.some(k => k.score > 0.5)) {
+        setMovementScore(prev => prev + 1);
+        // Billion Dollar Logic: Real-time validation
+        if (movementScore > 500 && !notifiedPro) {
+          speak("Accuracy elite. You've unlocked Discipline Pro Tier.");
+          setNotifiedPro(true);
         }
-
-        if (prev <= 3) {
-          navigator.vibrate?.([100, 50, 100]);
-          speak("Don’t break now.");
-        }
-
-        if (prev <= 1) {
-          const next = stepRef.current + 1;
-
-          confetti({ particleCount: 20, spread: 40 });
-          setXp((p) => p + 5);
-
-          if (next >= sessionSteps.length) {
-            finish();
-            return 0;
-          }
-
-          setStepIndex(next);
-          speak(sessionSteps[next].guidance);
-          return sessionSteps[next].duration;
-        }
-
-        return prev - 1;
-      });
-
-      /* PROGRESS */
-      setProgress(() => {
-        const doneSteps = sessionSteps
-          .slice(0, stepRef.current)
-          .reduce((a, b) => a + b.duration, 0);
-
-        const currentDone =
-          sessionSteps[stepRef.current]?.duration - timeRef.current;
-
-        return Math.floor(((doneSteps + currentDone) / TOTAL) * 100);
-      });
-    }, 1000);
-  };
-
-  /* ================= STOP ================= */
-  const stop = () => {
-    clearInterval(timerRef.current);
-    timerRef.current = null;
-
-    setPlaying(false);
-
-    bgAudio.current?.pause();
-    countdownAudio.current?.pause();
-    speechSynthesis.cancel();
-
-    speak("Paused. Don’t stay weak.");
-  };
-
- const finish = () => {
-  stop()
-
-  confetti({ particleCount: 250, spread: 120 })
-
-  const streak = Number(localStorage.getItem("magic16_streak") || 0) + 1
-  localStorage.setItem("magic16_streak", streak)
-  localStorage.setItem("last_done", new Date().toDateString())
-
-  speak("You are not average anymore.")
-
-  setTimeout(() => {
-    navigate("/result", {
-      state: {
-        score: streak * 10,
-        accuracy: 90 + Math.floor(Math.random() * 10),
-        time: "16:00",
-        xpEarned: 50,
-        completed: true
-      }
-    })
-  }, 1200)
-}
-  /* ================= SHARE ================= */
-  const handleShare = async () => {
-    const text = `Day ${day} complete. Most people quit. I didn’t. Can you? ${window.location.origin}`;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Magic16", text });
       } else {
-        await navigator.clipboard.writeText(text);
-        speak("Copied. Share it.");
+        if (Math.random() > 0.9) speak("I see no effort. Correct your pose.", true);
       }
-    } catch {}
+    }
   };
 
-  /* ================= IDENTITY ================= */
-  const identities = [
-    "You started.",
-    "You are consistent.",
-    "You are disciplined.",
-    "You are unstoppable.",
-  ];
+  /* ================= 4. VIRAL CLIP RECORDER (5 SEC) ================= */
+  const captureViralClip = () => {
+    if (!videoRef.current?.srcObject) return;
+    
+    const chunks = [];
+    const stream = videoRef.current.srcObject;
+    mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: "video/webm" });
+    
+    mediaRecorderRef.current.ondataavailable = (e) => chunks.push(e.data);
+    mediaRecorderRef.current.onstop = () => {
+      const blob = new Blob(chunks, { type: "video/webm" });
+      setRecordedBlob(blob);
+      setIsRecording(false);
+      speak("Clip saved. Share your proof.");
+    };
 
-  const identityText =
-    identities[Math.min(day - 1, identities.length - 1)];
+    mediaRecorderRef.current.start();
+    setIsRecording(true);
+    speak("Recording proof of discipline.");
+    
+    setTimeout(() => {
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    }, 5000);
+  };
 
-  /* ================= LEADERBOARD ================= */
-  const [fakeRank] = useState(() =>
-    Math.floor(Math.random() * 1000)
-  );
+  /* ================= 5. SESSION FLOW ================= */
+  const startSession = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoRef.current.srcObject = stream;
+      setPlaying(true);
+      speak(`Day ${day}. Start with ${sessionSteps[0].name}`);
+      
+      timerRef.current = setInterval(() => {
+        runDetection();
+        setTimeLeft((prev) => {
+          if (prev <= 1) return handleNextStep();
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      alert("Camera access denied. AI cannot verify your work.");
+    }
+  };
 
-  /* ================= HOOK ================= */
-  if (showHook) {
-    return (
-      <div className="hook">
-        <h1>You will quit.</h1>
-        <p>Unless you're different.</p>
-        <button onClick={start}>Start Now 🔥</button>
-      </div>
-    );
-  }
+  const handleNextStep = () => {
+    const nextIdx = stepIndex + 1;
+    if (nextIdx >= sessionSteps.length) {
+      finish();
+      return 0;
+    }
+    setStepIndex(nextIdx);
+    speak(sessionSteps[nextIdx].guidance || sessionSteps[nextIdx].name);
+    return sessionSteps[nextIdx].duration;
+  };
 
-  if (!current) return null;
+  const finish = () => {
+    clearInterval(timerRef.current);
+    confetti({ particleCount: 200, spread: 100 });
+    speak("Session complete. You are in the top one percent.");
+    
+    setTimeout(() => {
+      navigate("/result", {
+        state: {
+          accuracy: Math.min(Math.floor((movementScore / 960) * 100), 100),
+          isPro: notifiedPro,
+          video: recordedBlob
+        }
+      });
+    }, 2000);
+  };
 
-  /* ================= UI ================= */
+  /* ================= UI RENDER ================= */
   return (
-    <div className="magic16">
-      <div className="top">
-        <h3>🔥 Day {day}</h3>
-        <h4>
-          Level {level} • XP {xp}
-        </h4>
-        <p>Rank #{fakeRank}</p>
+    <div className="magic16-billion-container">
+      {/* AI Observer View */}
+      <div className="video-feed">
+        <video ref={videoRef} autoPlay playsInline muted />
+        <div className="ai-stats-overlay">
+          <div className="badge">AI TRACKING: {movementScore > 0 ? "LIVE" : "WAITING"}</div>
+          {notifiedPro && <div className="pro-badge">DISCIPLINE PRO TIER</div>}
+        </div>
+        
+        <button 
+          className={`rec-btn ${isRecording ? 'active' : ''}`} 
+          onClick={captureViralClip}
+          disabled={!playing || isRecording}
+        >
+          {isRecording ? "🔴 RECORDING..." : "📸 REC 5s CLIP"}
+        </button>
       </div>
 
-      <img src={current.image} alt="" className="image" />
+      {/* Session Progress */}
+      <div className="ui-overlay">
+        <div className="header">
+          <h2>{sessionSteps[stepIndex].name}</h2>
+          <div className="timer-box">
+            <h1>{timeLeft}</h1>
+          </div>
+        </div>
 
-      <h2>{current.name}</h2>
-      <p>{current.guidance}</p>
-      <p className="identity">{identityText}</p>
+        <div className="progress-bar">
+          <div className="fill" style={{ width: `${(stepIndex / sessionSteps.length) * 100}%` }} />
+        </div>
 
-      <div
-        className={`timer ${
-          timeLeft <= 5
-            ? "danger"
-            : timeLeft <= 10
-            ? "warning"
-            : ""
-        }`}
-      >
-        <h1>{timeLeft}</h1>
+        {!playing && (
+          <button className="start-main-btn" onClick={startSession} disabled={isAiLoading}>
+            {isAiLoading ? "INITIALIZING AI..." : "START MAGIC16 🔥"}
+          </button>
+        )}
+
+        <div className="footer-stats">
+          <span>DAY {day}</span>
+          <span>ACCURACY: {Math.min(Math.floor((movementScore / 10)), 100)}%</span>
+        </div>
       </div>
-
-      <div className="progress">
-        <div style={{ width: `${progress}%` }} />
-      </div>
-
-      <button onClick={playing ? stop : start}>
-        {playing ? "Pause" : "Start"}
-      </button>
-
-      <button onClick={handleShare} className="share">
-        Share 🔥
-      </button>
     </div>
   );
 }
