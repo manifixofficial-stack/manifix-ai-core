@@ -1,192 +1,139 @@
-// src/pages/Result.jsx
-
 import React, { useEffect, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 import html2canvas from "html2canvas"
 import "../styles/Result.css"
 
 export default function Result() {
-
   const location = useLocation()
   const cardRef = useRef()
-
+  
+  // Data passed from the Magic16.jsx session
   const data = location.state || {
-    score: 120,
-    accuracy: 85,
-    time: "16:00",
-    xpEarned: 50,
-    completed: true
+    score: 0,
+    accuracy: 0,
+    isPro: false,
+    video: null,
+    streak: 1
   }
 
-  const { score, accuracy, time, xpEarned, completed } = data
-
-  const [streak, setStreak] = useState(0)
-  const [xp, setXp] = useState(0)
-  const [level, setLevel] = useState(1)
-
+  const { score, accuracy, isPro, video, streak } = data
   const [stage, setStage] = useState(0)
-  const [showRank, setShowRank] = useState(false)
-  const [caption, setCaption] = useState("")
+  const [globalRank, setGlobalRank] = useState(Math.floor(Math.random() * 500) + 1)
 
-  const successAudio = useRef(null)
-  const failAudio = useRef(null)
-
-  /* ================= LOAD ================= */
   useEffect(() => {
-    const s = Number(localStorage.getItem("magic16_streak") || 0)
-    const x = Number(localStorage.getItem("magic16_xp") || 0)
-    const l = Number(localStorage.getItem("magic16_level") || 1)
-
-    setStreak(s)
-    setXp(x)
-    setLevel(l)
-
-    /* 🎵 AUDIO INIT */
-    successAudio.current = new Audio("/assets/audio/success.mp3")
-    successAudio.current.volume = 0.7
-
-    failAudio.current = new Audio("/assets/audio/fail.mp3")
-    failAudio.current.volume = 0.6
-
-    /* ▶️ PLAY BASED ON RESULT */
-    if (completed) {
-      successAudio.current.play().catch(() => {})
-      confetti({ particleCount: 120, spread: 90 })
-    } else {
-      failAudio.current.play().catch(() => {})
-    }
-
-    /* 🔥 STORY ANIMATION */
-    const sequence = [
-      () => setStage(1),
-      () => setStage(2),
-      () => setStage(3),
-      () => setShowRank(true),
-    ]
-
-    sequence.forEach((fn, i) => {
-      setTimeout(fn, i * 900)
+    // 1. Success Celebration
+    confetti({ 
+      particleCount: 150, 
+      spread: 70, 
+      origin: { y: 0.6 },
+      colors: ['#00d2ff', '#ff00ea', '#ffffff'] // Matching your logo colors
     })
 
-    return () => {
-      successAudio.current?.pause()
-      failAudio.current?.pause()
-    }
-
-  }, [completed])
-
-  /* ================= VIRAL CAPTION ================= */
-  useEffect(() => {
-    const captions = [
-      `🔥 Day ${streak}/16 completed. I didn’t quit.`,
-      `💪 Most people stop at Day 3. I’m at Day ${streak}.`,
-      `⚡ Discipline level increasing… Day ${streak}/16`,
-      `🧠 Rewiring my life with AI. Day ${streak}/16`
+    // 2. Animated Reveal Sequence
+    const timers = [
+      setTimeout(() => setStage(1), 800),  // Reveal Accuracy
+      setTimeout(() => setStage(2), 1600), // Reveal Global Rank
+      setTimeout(() => setStage(3), 2400)  // Reveal Actions & Video
     ]
 
-    setCaption(captions[Math.floor(Math.random() * captions.length)])
-  }, [streak])
+    return () => timers.forEach(clearTimeout)
+  }, [])
 
-  /* ================= SHARE ================= */
-  const handleShare = async () => {
-    const canvas = await html2canvas(cardRef.current)
-    const blob = await new Promise(res => canvas.toBlob(res, "image/png"))
-
-    if (!blob) return
-
-    const file = new File([blob], "magic16.png", { type: "image/png" })
-
-    const text = `${caption}
-
-92% people quit before Day 5.
-I’m not one of them.
-
-Can you do it? 🔥`
-
-    try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  const handleViralShare = async () => {
+    const canvas = await html2canvas(cardRef.current, { backgroundColor: '#0a0a0c' })
+    const image = canvas.toDataURL("image/png")
+    
+    // In 2026, we use the Web Share API for high-res cards
+    if (navigator.share) {
+      const blob = await (await fetch(image)).blob()
+      const file = new File([blob], 'discipline.png', { type: 'image/png' })
+      try {
         await navigator.share({
-          files: [file],
-          title: "Magic16 Result",
-          text
+          title: "ManifiX AI - Level Unlocked",
+          text: `I just hit ${accuracy}% accuracy on Day ${streak}. Most people can't handle this. Can you? #ManifiXAI`,
+          files: [file]
         })
-      } else {
-        await navigator.clipboard.writeText(text)
-      }
-    } catch (e) {}
+      } catch (err) { console.log(err) }
+    }
   }
 
-  /* ================= UI ================= */
-
   return (
-    <div className="result">
+    <div className="result-container-pro">
+      
+      {/* BACKGROUND LOGO BLUR (The X Logo floating) */}
+      <div className="bg-logo-effect" />
 
-      {/* STAGE 0 */}
-      {stage === 0 && (
-        <motion.div className="loading-stage">
-          <h1>Analyzing Performance...</h1>
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {stage >= 1 && (
+          <motion.div 
+            ref={cardRef}
+            className="main-result-card"
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+          >
+            {/* LOGO WATERMARK */}
+            <div className="watermark">MANIFIX AI</div>
 
-      {/* STAGE 1 */}
-      {stage >= 1 && (
-        <motion.div
-          className="result-card"
-          ref={cardRef}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <h1>🎬 Session Complete</h1>
+            <div className="accuracy-ring">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" className="bg" />
+                <motion.circle 
+                  cx="50" cy="50" r="45" className="fg" 
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: accuracy / 100 }}
+                  transition={{ duration: 2 }}
+                />
+              </svg>
+              <div className="accuracy-text">
+                <h2>{accuracy}%</h2>
+                <span>ACCURACY</span>
+              </div>
+            </div>
 
-          <motion.div className="big-number">
-            🔥 {streak} Day Streak
+            {isPro && (
+              <motion.div 
+                className="pro-status"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+              >
+                🏆 DISCIPLINE PRO TIER
+              </motion.div>
+            )}
+
+            <div className="streak-stats">
+              <div className="stat-item">
+                <span className="label">STREAK</span>
+                <span className="val">{streak} DAYS</span>
+              </div>
+              <div className="stat-item">
+                <span className="label">RANK</span>
+                <span className="val">#{globalRank}</span>
+              </div>
+            </div>
           </motion.div>
+        )}
+      </AnimatePresence>
 
-          <div className="stats">
-            <p>⚡ Score: {score}</p>
-            <p>🎯 Accuracy: {accuracy}%</p>
-            <p>⏱ Time: {time}</p>
-            <p>💎 XP +{xpEarned}</p>
-          </div>
+      {/* VIDEO PROOF PREVIEW */}
+      {stage >= 3 && video && (
+        <motion.div className="video-preview-box" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <p>🎥 AI VERIFIED CLIP READY</p>
+          <video src={URL.createObjectURL(video)} autoPlay loop muted />
         </motion.div>
       )}
 
-      {/* STAGE 2 */}
-      {stage >= 2 && (
-        <motion.div className="identity">
-          <h2>You are becoming different.</h2>
-          <p>Most users quit. You are not most users.</p>
-        </motion.div>
-      )}
-
-      {/* STAGE 3 */}
+      {/* FINAL ACTIONS */}
       {stage >= 3 && (
-        <motion.div className="rank-card">
-          <h3>📊 Performance Rank</h3>
-
-          <div className="rank">
-            Top {Math.max(5, 100 - streak * 4)}% Performer
-          </div>
-
-          <p className="note">
-            (Based on internal challenge data)
-          </p>
-        </motion.div>
-      )}
-
-      {/* ACTIONS */}
-      {stage >= 3 && (
-        <div className="actions">
-          <button onClick={handleShare}>
-            📲 Share Result
+        <motion.div className="action-footer" initial={{ y: 100 }} animate={{ y: 0 }}>
+          <button className="share-btn-main" onClick={handleViralShare}>
+             SHARE PROOF TO X 🔥
           </button>
-
-          <Link to="/app/magic16">
-            🚀 Start Next Day
+          <Link to="/magic16" className="next-day-link">
+            READY FOR DAY {streak + 1}?
           </Link>
-        </div>
+        </motion.div>
       )}
 
     </div>
