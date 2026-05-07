@@ -1,5 +1,3 @@
-// src/AppRouter.jsx
-
 import React, { useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
@@ -8,57 +6,52 @@ import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useApp } from "./context/AppProvider";
 
-/* ---------------- Pages ---------------- */
-import Home from "./pages/Home";
-import Landing from "./pages/Landing";
-import About from "./pages/About";
-import Features from "./pages/Features";
-import Contact from "./pages/Contact";
+/* ---------------- 2026 High-Value Pages ---------------- */
+import Landing from "./pages/Landing"; // Now includes About & Features logic
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 
-/* Auth */
+/* Auth - The Entryway */
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 
-/* Onboarding */
+/* Onboarding - The Conversion */
 import Onboarding from "./pages/Onboarding";
 
-/* App Pages */
+/* App Pages - The Billion Dollar Engine */
 import Dashboard from "./pages/Dashboard";
-import Gpt from "./pages/Gpt";
-import Magic16 from "./pages/Magic16";
-import Feedback from "./pages/Feedback";
-import Billing from "./pages/Billing";
+import Gpt from "./pages/Gpt"; // Personal AI Strategist
+import Magic16 from "./pages/Magic16"; // Core Product
+import Result from "./pages/Result"; // Viral Share Page
+import Leaderboard from "./pages/Leaderboard"; // THE STATUS MOAT
+import Billing from "./pages/Billing"; // Renamed to "Membership" in UI
 import Settings from "./pages/Settings";
-import Result from "./pages/Result";
 
 /* 404 */
 import NotFound from "./pages/NotFound";
 
-/* ================= SCROLL TO TOP ================= */
+/* ================= AUTO-SCROLL LOGIC ================= */
 function ScrollToTop() {
   const { pathname } = useLocation();
-
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
-
   return null;
 }
 
 export default function AppRouter() {
   const { user } = useApp() || {};
 
-  /* ================= SAFE ONBOARDING CHECK ================= */
+  /* ================= GROWTH LOGIC ================= */
   const hasStarted =
     typeof window !== "undefined" &&
     window.localStorage?.getItem("magic16_started") === "true";
 
-  /* ================= APP ROUTE ELEMENT ================= */
+  /* ================= THE PROTECTED "ELITE" APP AREA ================= */
   const appElement = (
     <ProtectedRoute>
+      {/* If they haven't finished onboarding, force them to commit */}
       {hasStarted ? <MainLayout /> : <Navigate to="/onboarding" replace />}
     </ProtectedRoute>
   );
@@ -68,26 +61,22 @@ export default function AppRouter() {
       <ScrollToTop />
 
       <Routes>
-        {/* ================= PUBLIC ================= */}
-        <Route path="/" element={<Home />} />
-        <Route path="/landing" element={<Landing />} />
+        {/* ================= 1. PUBLIC (THE HOOK) ================= */}
+        {/* About and Features are now sections on this Landing page */}
+        <Route path="/" element={<Landing />} />
 
-        {/* ================= AUTH ================= */}
+        {/* ================= 2. AUTH (THE GATE) ================= */}
         <Route
           path="/login"
-          element={
-            user ? <Navigate to="/app/dashboard" replace /> : <Login />
-          }
+          element={user ? <Navigate to="/app/magic16" replace /> : <Login />}
         />
         <Route
           path="/signup"
-          element={
-            user ? <Navigate to="/app/dashboard" replace /> : <Signup />
-          }
+          element={user ? <Navigate to="/app/magic16" replace /> : <Signup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* ================= ONBOARDING ================= */}
+        {/* ================= 3. ONBOARDING (THE SETUP) ================= */}
         <Route
           path="/onboarding"
           element={
@@ -101,35 +90,26 @@ export default function AppRouter() {
           }
         />
 
-        {/* ================= PUBLIC INFO ================= */}
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
+        {/* ================= 4. LEGAL (FOR RAZORPAY COMPLIANCE) ================= */}
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
 
-        {/* Features dynamic */}
-        <Route
-          path="/features"
-          element={<Navigate to="/features/gpt" replace />}
-        />
-        <Route path="/features/:feature" element={<Features />} />
-
-        {/* ================= PROTECTED APP ================= */}
+        {/* ================= 5. THE CORE ENGINE (₹1,999/mo AREA) ================= */}
         <Route path="/app" element={appElement}>
-          {/* Default */}
+          {/* Landing in the app defaults to the workout for maximum friction-less action */}
           <Route index element={<Navigate to="magic16" replace />} />
 
-          {/* App Pages */}
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="gpt" element={<Gpt />} />
+          {/* High-Value Routes */}
           <Route path="magic16" element={<Magic16 />} />
           <Route path="result" element={<Result />} />
-          <Route path="feedback" element={<Feedback />} />
-          <Route path="billing" element={<Billing />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="leaderboard" element={<Leaderboard />} /> {/* THE COMPETITION */}
+          <Route path="gpt" element={<Gpt />} /> {/* THE COACH */}
+          <Route path="membership" element={<Billing />} /> {/* THE REVENUE */}
           <Route path="settings" element={<Settings />} />
         </Route>
 
-        {/* ================= 404 ================= */}
+        {/* ================= 6. THE FAIL-SAFE ================= */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </HelmetProvider>
