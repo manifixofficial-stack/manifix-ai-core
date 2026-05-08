@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 
@@ -6,54 +6,57 @@ import MainLayout from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useApp } from "./context/AppProvider";
 
-/* ---------------- 2026 High-Value Pages ---------------- */
-import Landing from "./pages/Landing"; // Now includes About & Features logic
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
-import Recruit from "./pages/Recruit"; 
-import ResetPassword from "./pages/ResetPassword";
+/* ── Public Pages ── */
+import Landing      from "./pages/Landing";
+import Privacy      from "./pages/Privacy";
+import Terms        from "./pages/Terms";
+import ResetPassword from "./pages/ResetPassword"; // ✅ now actually routed
 
-/* Auth - The Entryway */
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+/* ── Auth ── */
+import Login          from "./pages/Login";
+import Signup         from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 
-/* Onboarding - The Conversion */
+/* ── Onboarding ── */
 import Onboarding from "./pages/Onboarding";
 
-/* App Pages - The Billion Dollar Engine */
-import Dashboard from "./pages/Dashboard";
-import Gpt from "./pages/Gpt"; // Personal AI Strategist
-import Magic16 from "./pages/Magic16"; // Core Product
-import Result from "./pages/Result"; // Viral Share Page
-import Leaderboard from "./pages/Leaderboard"; // THE STATUS MOAT
-import Billing from "./pages/Billing"; // Renamed to "Membership" in UI
-import Settings from "./pages/Settings";
+/* ── App Pages ── */
+import Dashboard  from "./pages/Dashboard";
+import Gpt        from "./pages/Gpt";
+import Magic16    from "./pages/Magic16";
+import Result     from "./pages/Result";
+import Leaderboard from "./pages/Leaderboard";
+import Recruit    from "./pages/Recruit";
+import Billing    from "./pages/Billing";
+import Settings   from "./pages/Settings";
 
-/* 404 */
+/* ── 404 ── */
 import NotFound from "./pages/NotFound";
 
-/* ================= AUTO-SCROLL LOGIC ================= */
+/* ─────────────────────────────────────────────
+   SCROLL TO TOP ON ROUTE CHANGE
+───────────────────────────────────────────── */
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 }
 
+/* ─────────────────────────────────────────────
+   ROUTER
+───────────────────────────────────────────── */
 export default function AppRouter() {
   const { user } = useApp() || {};
 
-  /* ================= GROWTH LOGIC ================= */
-  const hasStarted =
-    typeof window !== "undefined" &&
-    window.localStorage?.getItem("magic16_started") === "true";
+  // ✅ memoized — reads localStorage once, not on every render
+  const hasStarted = useMemo(
+    () => localStorage.getItem("magic16_started") === "true",
+    []
+  );
 
-  /* ================= THE PROTECTED "ELITE" APP AREA ================= */
+  // Protected shell — gates the entire /app area
   const appElement = (
     <ProtectedRoute>
-      {/* If they haven't finished onboarding, force them to commit */}
       {hasStarted ? <MainLayout /> : <Navigate to="/onboarding" replace />}
     </ProtectedRoute>
   );
@@ -63,22 +66,33 @@ export default function AppRouter() {
       <ScrollToTop />
 
       <Routes>
-        {/* ================= 1. PUBLIC (THE HOOK) ================= */}
-        {/* About and Features are now sections on this Landing page */}
-        <Route path="/" element={<Landing />} />
 
-        {/* ================= 2. AUTH (THE GATE) ================= */}
+        {/* ══════════════════════════════════════
+            1. PUBLIC
+        ══════════════════════════════════════ */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms"   element={<Terms />} />
+
+        {/* ✅ ResetPassword is now actually mounted */}
+        <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* ══════════════════════════════════════
+            2. AUTH
+        ══════════════════════════════════════ */}
         <Route
           path="/login"
-          element={user ? <Navigate to="/app/magic16" replace /> : <Login />}
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
         />
         <Route
           path="/signup"
-          element={user ? <Navigate to="/app/magic16" replace /> : <Signup />}
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Signup />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* ================= 3. ONBOARDING (THE SETUP) ================= */}
+        {/* ══════════════════════════════════════
+            3. ONBOARDING
+        ══════════════════════════════════════ */}
         <Route
           path="/onboarding"
           element={
@@ -92,29 +106,28 @@ export default function AppRouter() {
           }
         />
 
-        {/* ================= 4. LEGAL (FOR RAZORPAY COMPLIANCE) ================= */}
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/terms" element={<Terms />} />
-
-        {/* ================= 5. THE CORE ENGINE (₹1,999/mo AREA) ================= */}
+        {/* ══════════════════════════════════════
+            4. PROTECTED APP  (/app/*)
+            All child paths are RELATIVE (no leading /)
+        ══════════════════════════════════════ */}
         <Route path="/app" element={appElement}>
-          {/* Landing in the app defaults to the workout for maximum friction-less action */}
-          <Route index element={<Navigate to="magic16" replace />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
 
-          {/* High-Value Routes */}
-          <Route path="magic16" element={<Magic16 />} />
-          <Route path="result" element={<Result />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="leaderboard" element={<Leaderboard />} /> {/* THE COMPETITION */}
-          <Route path="recruit" element={<Recruit />} /> {/* ADD THIS LINE */}
-          <Route path="gpt" element={<Gpt />} /> {/* THE COACH */}
-          <Route path="membership" element={<Billing />} /> {/* THE REVENUE */}
-          <Route path="settings" element={<Settings />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="dashboard"   element={<Dashboard />} />
+          <Route path="magic16"     element={<Magic16 />} />
+          <Route path="result"      element={<Result />} />
+          <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="recruit"     element={<Recruit />} />
+          <Route path="gpt"         element={<Gpt />} />
+          <Route path="membership"  element={<Billing />} />
+          <Route path="settings"    element={<Settings />} />
         </Route>
 
-        {/* ================= 6. THE FAIL-SAFE ================= */}
+        {/* ══════════════════════════════════════
+            5. 404
+        ══════════════════════════════════════ */}
         <Route path="*" element={<NotFound />} />
+
       </Routes>
     </HelmetProvider>
   );
