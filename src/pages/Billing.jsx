@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import "../styles/Billing555.css";
+import React, { useState } from "react";
+import "../styles/Billing666.css";
 import authService from "../services/auth.service";
 import logo from "../assets/logo.png";
 
@@ -8,15 +7,18 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [spotsLeft, setSpotsLeft] = useState(12); // Scarcity Logic
 
-  // Features rewritten for 2026 Premium Status
-  const premiumTiers = [
-    { title: "AI Vision Certification", desc: "Verified Proof of Discipline" },
-    { title: "The 1% Global Leaderboard", desc: "Exclusive ranking among high-performers" },
-    { title: "Grok-Class AI Strategist", desc: "24/7 hyper-personalized mindset coaching" },
-    { title: "Biometric AI Dashboard", desc: "Visualizing your evolution in real-time" },
-    { title: "Founder's Batch 2026", desc: "Lifetime badge on your global profile" }
+  const features = [
+    "Unlimited GPT Conversations",
+    "Magic16 Daily Ritual System",
+    "Real-Time Voice Chat",
+    "Personal AI Coach",
+    "Advanced Prompt Automation",
+    "Progress & Posture Tracking",
+    "Mood + Energy Insights",
+    "Adaptive Neon UI Themes",
+    "Early Access AI Experiments",
+    "Personalized AI Recommendations"
   ];
 
   const handleSubscribe = async () => {
@@ -26,22 +28,27 @@ export default function BillingPage() {
     setMessage("");
 
     try {
-      const user = await authService.getCurrentUser();
-      
-      if (!user || !user.id) {
-        throw new Error("⚠️ Secure Session Expired. Please Login.");
-      }
+   const user = await authService.getCurrentUser();
 
-      if (!window.Razorpay) throw new Error("Payment Gateway Timeout");
+console.log("USER:", user);
 
-      // ORDER CREATION
+if (!user || !user.id) {
+  throw new Error("User not logged in properly");
+}
+      if (!user) throw new Error("⚠️ Please login first");
+
+      if (!window.Razorpay) throw new Error("Payment gateway not loaded");
+
+      // Create order via backend
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id }),
+        body: JSON.stringify({
+          user_id: user.id
+        }),
       });
 
-      if (!res.ok) throw new Error("Cloud infrastructure issue. Try again.");
+      if (!res.ok) throw new Error("Server issue while creating order");
       const order = await res.json();
 
       const options = {
@@ -49,8 +56,8 @@ export default function BillingPage() {
         amount: order.amount,
         currency: order.currency,
         order_id: order.id,
-        name: "MANIFIX ELITE",
-        description: "Year 1 Founder Membership",
+        name: "ManifiX",
+        description: "Premium Subscription",
         image: logo,
         handler: async (response) => {
           try {
@@ -59,76 +66,56 @@ export default function BillingPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...response, user_id: user.id }),
             });
-            if (!verifyRes.ok) throw new Error("Verification Failed");
-            
-            setMessage("👑 Welcome to the 1%. Membership Activated.");
-            // Redirect to Magic16 after 2 seconds
-            setTimeout(() => window.location.href = "/app/magic16", 2000);
+            if (!verifyRes.ok) throw new Error("Payment verification failed");
+            setMessage("🎉 Premium Activated Successfully!");
           } catch (err) {
-            setError("Payment successful, but activation failed. Contact Support.");
+            console.error(err);
+            setError("Payment done but activation failed");
           }
         },
-        prefill: { name: user.name || "", email: user.email || "" },
-        theme: { color: "#FF00EA" }, // Your Brand Pink
+        modal: {
+          ondismiss: () => setError("Payment cancelled"),
+        },
+        prefill: {
+          name: user.name || "",
+          email: user.email || ""
+        },
+        theme: { color: "#00F5D4" },
       };
 
       const razor = new window.Razorpay(options);
       razor.open();
 
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(err.message.includes("Server") ? "Server issue while creating order" : err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="premium-membership-page">
-      <motion.div 
-        className="membership-container"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-      >
-        <img src={logo} alt="ManifiX" className="premium-logo" />
-        
-        <div className="scarcity-banner">
-          ⚠️ ONLY {spotsLeft} FOUNDER SLOTS REMAINING IN YOUR REGION
-        </div>
+    <div className="billing-page">
+      <div className="billing-container">
+        <img src={logo} alt="logo" className="billing-logo" />
+        <h1 className="billing-title">Upgrade to <span>ManifiX Premium</span></h1>
+        <p className="billing-sub">Unlock the full power of AI guidance, rituals and automation.</p>
 
-        <h1 className="premium-title">Join the <span>1% Club</span></h1>
-        <p className="premium-sub">The elite standard for AI-driven human discipline.</p>
+        <div className="pricing-card">
+          <div className="price">₹1999 <span>/month</span></div>
 
-        <div className="elite-card">
-          <div className="card-header">
-            <span className="tier-name">MANIFIX ELITE</span>
-            <div className="price-tag">
-              <span className="currency">₹</span>1,999<span className="period">/mo</span>
-            </div>
-          </div>
+          <ul className="feature-list">
+            {features.map((f, i) => <li key={i}>✓ {f}</li>)}
+          </ul>
 
-          <div className="feature-grid">
-            {premiumTiers.map((item, i) => (
-              <div key={i} className="feature-item">
-                <h4>{item.title}</h4>
-                <p>{item.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <button 
-            className={`elite-btn ${loading ? 'loading' : ''}`} 
-            onClick={handleSubscribe}
-            disabled={loading}
-          >
-            {loading ? "VERIFYING..." : "CLAIM MY SPOT 🔥"}
+          <button className="subscribe-btn" disabled={loading} onClick={handleSubscribe}>
+            {loading ? "🔄 Processing..." : "🚀 Subscribe Now"}
           </button>
 
-          <p className="secure-note">🛡️ Secure 256-bit Encrypted Transaction</p>
+          {message && <div className="success">{message}</div>}
+          {error && <div className="error">{error}</div>}
         </div>
-
-        {message && <motion.div initial={{y:20}} animate={{y:0}} className="success-msg">{message}</motion.div>}
-        {error && <div className="error-msg">{error}</div>}
-      </motion.div>
+      </div>
     </div>
   );
 }
