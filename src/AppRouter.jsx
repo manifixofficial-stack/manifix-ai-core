@@ -11,6 +11,7 @@ import Landing from "./pages/Landing"; // Now includes About & Features logic
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Recruit from "./pages/Recruit"; 
+import ResetPassword from "./pages/ResetPassword";
 
 /* Auth - The Entryway */
 import Login from "./pages/Login";
@@ -18,7 +19,7 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 
 /* Onboarding - The Conversion */
-import Onboarding from "./pages/OnboardingSystem";
+import Onboarding from "./pages/Onboarding";
 
 /* App Pages - The Billion Dollar Engine */
 import Dashboard from "./pages/Dashboard";
@@ -53,7 +54,7 @@ export default function AppRouter() {
   const appElement = (
     <ProtectedRoute>
       {/* If they haven't finished onboarding, force them to commit */}
-      {hasStarted ? <MainLayout /> : <Navigate to="/onboardingSystem" replace />}
+      {hasStarted ? <MainLayout /> : <Navigate to="/onboarding" replace />}
     </ProtectedRoute>
   );
 
@@ -109,6 +110,7 @@ export default function AppRouter() {
           <Route path="gpt" element={<Gpt />} /> {/* THE COACH */}
           <Route path="membership" element={<Billing />} /> {/* THE REVENUE */}
           <Route path="settings" element={<Settings />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Route>
 
         {/* ================= 6. THE FAIL-SAFE ================= */}
