@@ -252,23 +252,25 @@ const S = {
     transition: "all .2s",
   }),
 
-  // ── pose image
-  poseImageWrap: {
+// ✅ FIXED — full image shows without cutting
+poseImageWrap: {
     position: "relative",
     width: "100%",
-    height: 130,
+    aspectRatio: "4/3",       // ✅ responsive height, not fixed
     overflow: "hidden",
     border: "1px solid #1a1a1a",
     background: "#0c0c0c",
-  },
-  poseImage: {
+},
+
+poseImage: {
     width: "100%",
     height: "100%",
-    objectFit: "cover",
-    objectPosition: "center top",
-    opacity: 0.75,
+    objectFit: "contain",     // ✅ shows full image, no cropping
+    objectPosition: "center center",
+    opacity: 0.85,
+    background: "#0c0c0c",   // ✅ fills empty space with dark bg
     transition: "opacity 0.4s ease",
-  },
+},
   poseImageOverlay: {
     position: "absolute",
     inset: 0,
