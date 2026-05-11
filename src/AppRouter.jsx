@@ -82,7 +82,6 @@ export default function AppRouter() {
   );
 
   return (
-    <HelmetProvider>
       <ScrollToTop />
 
       <Routes>
@@ -148,6 +147,5 @@ export default function AppRouter() {
         <Route path="*" element={<NotFound />} />
 
       </Routes>
-    </HelmetProvider>
   );
 }
