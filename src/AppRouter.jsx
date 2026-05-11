@@ -47,21 +47,14 @@ function ScrollToTop() {
 export default function AppRouter() {
   const { user } = useApp() || {};
 
-  /* ✅ FIX: useState instead of useMemo
-     - useMemo([]) only ran ONCE at mount → always returned false → loop
-     - useState with initializer reads fresh value at mount
-     - onStarted() is passed to Onboarding so it can flip the flag
-       the moment it writes to localStorage, before navigating          */
   const [hasStarted, setHasStarted] = useState(
     () => localStorage.getItem("magic16_started") === "true"
   );
 
-  // Called by Onboarding right before it navigates to /app/dashboard
   const onStarted = useCallback(() => {
     setHasStarted(true);
   }, []);
 
-  /* ── Optional: sync if another tab completes onboarding ── */
   useEffect(() => {
     const handleStorage = (e) => {
       if (e.key === "magic16_started" && e.newValue === "true") {
@@ -72,7 +65,6 @@ export default function AppRouter() {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  // Protected shell — gates the entire /app area
   const appElement = (
     <ProtectedRoute>
       {hasStarted
@@ -82,21 +74,18 @@ export default function AppRouter() {
   );
 
   return (
+    <>
       <ScrollToTop />
 
       <Routes>
 
-        {/* ══════════════════════════════════════
-            1. PUBLIC
-        ══════════════════════════════════════ */}
+        {/* 1. PUBLIC */}
         <Route path="/"               element={<Landing />} />
         <Route path="/privacy"        element={<Privacy />} />
         <Route path="/terms"          element={<Terms />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ══════════════════════════════════════
-            2. AUTH
-        ══════════════════════════════════════ */}
+        {/* 2. AUTH */}
         <Route
           path="/login"
           element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
@@ -107,11 +96,7 @@ export default function AppRouter() {
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* ══════════════════════════════════════
-            3. ONBOARDING
-            ✅ passes onStarted so Onboarding can
-               update state BEFORE navigating
-        ══════════════════════════════════════ */}
+        {/* 3. ONBOARDING */}
         <Route
           path="/onboarding"
           element={
@@ -125,15 +110,12 @@ export default function AppRouter() {
           }
         />
 
-        {/* ══════════════════════════════════════
-            4. PROTECTED APP  (/app/*)
-        ══════════════════════════════════════ */}
+        {/* 4. PROTECTED APP (/app/*) */}
         <Route path="/app" element={appElement}>
           <Route index element={<Navigate to="dashboard" replace />} />
-
           <Route path="dashboard"   element={<Dashboard />} />
           <Route path="magic16"     element={<Magic16 />} />
-          <Route path="result"      element={<Result />} />  {/* ✅ /app/result */}
+          <Route path="result"      element={<Result />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="recruit"     element={<Recruit />} />
           <Route path="gpt"         element={<Gpt />} />
@@ -141,11 +123,10 @@ export default function AppRouter() {
           <Route path="settings"    element={<Settings />} />
         </Route>
 
-        {/* ══════════════════════════════════════
-            5. 404
-        ══════════════════════════════════════ */}
+        {/* 5. 404 */}
         <Route path="*" element={<NotFound />} />
 
       </Routes>
+    </>
   );
 }
