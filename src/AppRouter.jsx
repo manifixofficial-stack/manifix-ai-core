@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { HelmetProvider } from "react-helmet-async";
 
 import MainLayout     from "./components/Layout/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
