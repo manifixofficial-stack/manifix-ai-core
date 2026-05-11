@@ -16,21 +16,81 @@ const KEYS = {
   identity:  "magic16_identity",
   intensity: "magic16_intensity",
   totalSess: "magic16_total_sessions",
+  mode:      "magic16_mode",   // ✅ NEW — Addition 1
+  lang:      "magic16_lang",   // ✅ NEW — Addition 2
 };
 
 const XP_PER_LEVEL   = 500;
 const XP_PER_SESSION = 120;
 
 /* ─────────────────────────────────────────────
-   ✅ FIXED: loadState checks for missed days
-   and resets streak to 0 if user skipped
+   ✅ ADDITION 1 — MODE CONFIG
+───────────────────────────────────────────── */
+const MODES = [
+  {
+    id: "morning",
+    label: "Morning",
+    icon: "🌿",
+    sub: "Energise & activate",
+    color: "#c8a84b",
+    border: "#2a2010",
+    bg: "#0f0d08",
+  },
+  {
+    id: "sleep",
+    label: "Sleep",
+    icon: "🌙",
+    sub: "Wind-down ritual",
+    color: "#6a9fd4",
+    border: "#0f1e2e",
+    bg: "#080d18",
+    premium: true,
+  },
+  {
+    id: "focus",
+    label: "Focus",
+    icon: "🎯",
+    sub: "Deep work prep",
+    color: "#9b8fd4",
+    border: "#1e1a30",
+    bg: "#0d0b18",
+  },
+  {
+    id: "posture",
+    label: "Posture",
+    icon: "🧍",
+    sub: "Desk & remote work",
+    color: "#9bbdaa",
+    border: "#1a2a20",
+    bg: "#0a1410",
+    comingSoon: true,
+  },
+];
+
+/* ─────────────────────────────────────────────
+   ✅ ADDITION 2 — LANGUAGE CONFIG
+───────────────────────────────────────────── */
+const LANGUAGES = [
+  { code: "en",  flag: "🇬🇧", name: "English"  },
+  { code: "hi",  flag: "🇮🇳", name: "हिन्दी"    },
+  { code: "te",  flag: "🇮🇳", name: "తెలుగు"    },
+  { code: "ta",  flag: "🇮🇳", name: "தமிழ்"     },
+  { code: "es",  flag: "🇪🇸", name: "Español"   },
+  { code: "ar",  flag: "🇸🇦", name: "العربية"   },
+  { code: "fr",  flag: "🇫🇷", name: "Français"  },
+  { code: "pt",  flag: "🇧🇷", name: "Português" },
+  { code: "de",  flag: "🇩🇪", name: "Deutsch"   },
+  { code: "zh",  flag: "🇨🇳", name: "中文"       },
+];
+
+/* ─────────────────────────────────────────────
+   loadState — checks for missed days + new keys
 ───────────────────────────────────────────── */
 function loadState() {
   const today     = new Date().toDateString();
   const yesterday = new Date(Date.now() - 86400000).toDateString();
   const lastDate  = localStorage.getItem(KEYS.lastDate) || "";
 
-  // ✅ CRITICAL BUG FIX — streak resets if last session wasn't today OR yesterday
   let streak = Number(localStorage.getItem(KEYS.streak) || 0);
   if (lastDate && lastDate !== today && lastDate !== yesterday) {
     streak = 0;
@@ -40,15 +100,16 @@ function loadState() {
     localStorage.removeItem(KEYS.lastDate);
   }
 
-  const xp           = Number(localStorage.getItem(KEYS.xp)       || 0);
-  const level        = Number(localStorage.getItem(KEYS.level)     || 1);
-  const missionDone  = lastDate === today;
-  const goal         = localStorage.getItem(KEYS.goal)     || "Discipline";
-  const identity     = localStorage.getItem(KEYS.identity) || "I don't quit.";
-  const intensity    = localStorage.getItem(KEYS.intensity)|| "Standard";
-  const totalSess    = Number(localStorage.getItem(KEYS.totalSess) || streak);
+  const xp          = Number(localStorage.getItem(KEYS.xp)       || 0);
+  const level       = Number(localStorage.getItem(KEYS.level)     || 1);
+  const missionDone = lastDate === today;
+  const goal        = localStorage.getItem(KEYS.goal)     || "Discipline";
+  const identity    = localStorage.getItem(KEYS.identity) || "I don't quit.";
+  const intensity   = localStorage.getItem(KEYS.intensity)|| "Standard";
+  const totalSess   = Number(localStorage.getItem(KEYS.totalSess) || streak);
+  const mode        = localStorage.getItem(KEYS.mode) || "morning"; // ✅ NEW
+  const lang        = localStorage.getItem(KEYS.lang) || "en";      // ✅ NEW
 
-  // rank improves with streak + level
   let rankSeed = Number(localStorage.getItem(KEYS.rankSeed) || 0);
   if (!rankSeed) {
     rankSeed = Math.floor(Math.random() * 9000) + 2000;
@@ -56,11 +117,11 @@ function loadState() {
   }
   const globalRank = Math.max(1, rankSeed - streak * 40 - (level - 1) * 60);
 
-  return { streak, xp, level, missionDone, globalRank, goal, identity, intensity, totalSess };
+  return { streak, xp, level, missionDone, globalRank, goal, identity, intensity, totalSess, mode, lang };
 }
 
 /* ─────────────────────────────────────────────
-   recordSessionComplete — exported for Magic16
+   recordSessionComplete
 ───────────────────────────────────────────── */
 export function recordSessionComplete() {
   const today  = new Date().toDateString();
@@ -99,6 +160,7 @@ function injectStyles() {
     @keyframes db-streak  { 0%{transform:scale(0.6) rotate(-8deg);opacity:0} 60%{transform:scale(1.12) rotate(2deg)} 100%{transform:scale(1) rotate(0deg);opacity:1} }
     @keyframes db-xp-flow { from{background-position:-200% center} to{background-position:200% center} }
     @keyframes db-ticker  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes db-report-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(200,168,75,.3)} 50%{box-shadow:0 0 0 8px rgba(200,168,75,0)} }
 
     .db-shimmer {
       background: linear-gradient(90deg,#c8a84b,#ffe08a,#ffc83c,#ffe08a,#c8a84b);
@@ -113,6 +175,7 @@ function injectStyles() {
     .db-danger-btn  { animation: db-danger 1.6s ease-in-out infinite; }
     .db-streak-pop  { animation: db-streak .6s cubic-bezier(.34,1.56,.64,1) both; }
     .db-ticker      { animation: db-ticker .4s ease both; }
+    .db-report-pulse { animation: db-report-pulse 2s ease-in-out infinite; }
 
     .db-cta-btn {
       display: block; width: 100%; padding: 18px 0;
@@ -144,12 +207,63 @@ function injectStyles() {
       width: 100%;
     }
     .db-opt-btn:hover { color: #555; border-color: #2a2a2a; }
+
+    /* ── Mode selector ── */
+    .db-mode-card {
+      border: 1px solid #181818;
+      background: #0c0c0c;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .db-mode-card:hover { border-color: #2a2a2a; background: #0f0f0f; }
+    .db-mode-card.active { background: var(--mode-bg); border-color: var(--mode-border); }
+
+    /* ── Lang picker ── */
+    .db-lang-select {
+      background: #0c0c0c;
+      border: 1px solid #1a1a1a;
+      color: #555;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .12em;
+      padding: 7px 10px;
+      cursor: pointer;
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color .2s, color .2s;
+    }
+    .db-lang-select:hover { border-color: #2a2a2a; color: #888; }
+    .db-lang-select:focus { border-color: #c8a84b55; color: #c8a84b; }
+    .db-lang-select option { background: #0c0c0c; color: #888; }
+
+    /* ── Weekly report button ── */
+    .db-report-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 14px 16px;
+      background: #0c0c08;
+      border: 1px solid #2a2010;
+      color: #c8a84b;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: .18em; text-transform: uppercase;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .db-report-btn:hover { background: #0f0f0a; border-color: #c8a84b55; }
+    .db-report-btn:active { transform: scale(.99); }
   `;
   document.head.appendChild(s);
 }
 
 /* ─────────────────────────────────────────────
-   PSYCH COPY — rotates by streak
+   PSYCH COPY
 ───────────────────────────────────────────── */
 const PSYCH = [
   "The brain seeks comfort. Deny it.",
@@ -167,9 +281,6 @@ const getPsych = (streak, danger, done) => {
   return PSYCH[streak % PSYCH.length];
 };
 
-/* ─────────────────────────────────────────────
-   MILESTONE BADGES
-───────────────────────────────────────────── */
 const getMilestone = (streak) => {
   if (streak >= 16) return { label: "PROTOCOL COMPLETE", color: "#ffc83c" };
   if (streak >= 7)  return { label: "ONE WEEK WARRIOR",  color: "#c8a84b" };
@@ -178,17 +289,185 @@ const getMilestone = (streak) => {
 };
 
 /* ─────────────────────────────────────────────
-   COMPONENT
+   ✅ ADDITION 3 — WEEKLY REPORT COMPONENT
+───────────────────────────────────────────── */
+function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
+  const accuracy = Math.min(99, 70 + streak * 2);
+  const weekSess = Math.min(7, streak);
+  const weekXP   = weekSess * XP_PER_SESSION;
+
+  return (
+    <motion.div
+      style={{
+        position: "fixed", inset: 0,
+        background: "#000000f5",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        zIndex: 200, padding: "24px",
+        overflowY: "auto",
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        style={{
+          width: "min(400px, 100%)",
+          border: "1px solid #2a2010",
+          background: "#09090a",
+          padding: "24px 20px",
+        }}
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        {/* header */}
+        <div style={{
+          display: "flex", justifyContent: "space-between",
+          alignItems: "flex-start", marginBottom: 20,
+          borderBottom: "1px solid #141414", paddingBottom: 14,
+        }}>
+          <div>
+            <div style={{
+              fontFamily: "'Bebas Neue', sans-serif",
+              fontSize: 28, letterSpacing: ".06em", lineHeight: 1,
+            }} className="db-shimmer">Weekly Report</div>
+            <div style={{
+              fontSize: 9, letterSpacing: ".2em",
+              color: "#2a2a2a", textTransform: "uppercase", marginTop: 3,
+            }}>
+              {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            background: "transparent", border: "1px solid #1a1a1a",
+            color: "#333", fontFamily: "'DM Mono', monospace",
+            fontSize: 10, letterSpacing: ".15em", padding: "5px 10px",
+            cursor: "pointer", textTransform: "uppercase",
+          }}>✕ Close</button>
+        </div>
+
+        {/* stats grid */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr",
+          gap: 8, marginBottom: 16,
+        }}>
+          {[
+            { label: "Sessions this week", value: weekSess, suffix: "/ 7" },
+            { label: "XP earned",          value: weekXP,   suffix: "xp"  },
+            { label: "Accuracy score",     value: accuracy, suffix: "%"   },
+            { label: "Global rank",        value: `#${globalRank.toLocaleString()}`, suffix: "" },
+          ].map(({ label, value, suffix }) => (
+            <div key={label} style={{
+              border: "1px solid #181818", background: "#0c0c0c",
+              padding: "12px 14px",
+            }}>
+              <div style={{
+                fontSize: 8, letterSpacing: ".2em",
+                color: "#2a2a2a", textTransform: "uppercase", marginBottom: 5,
+              }}>{label}</div>
+              <div style={{
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 28, letterSpacing: ".03em", lineHeight: 1, color: "#c8a84b",
+              }}>
+                {value}
+                {suffix && <span style={{ fontSize: 13, color: "#3a3a3a", marginLeft: 4 }}>{suffix}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* streak bar */}
+        <div style={{
+          border: "1px solid #181818", background: "#0c0c0c",
+          padding: "12px 14px", marginBottom: 16,
+        }}>
+          <div style={{
+            fontSize: 8, letterSpacing: ".2em",
+            color: "#2a2a2a", textTransform: "uppercase", marginBottom: 8,
+          }}>
+            Weekly consistency
+          </div>
+          <div style={{ display: "flex", gap: 5 }}>
+            {Array.from({ length: 7 }, (_, i) => (
+              <div key={i} style={{
+                flex: 1, height: 28,
+                background: i < weekSess ? "#c8a84b" : "#111",
+                border: "1px solid #1a1a1a",
+                borderRadius: 2,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 8, color: i < weekSess ? "#80600a" : "#1a1a1a",
+              }}>
+                {i < weekSess ? "✓" : "—"}
+              </div>
+            ))}
+          </div>
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            marginTop: 5, fontSize: 7, color: "#222",
+            letterSpacing: ".1em", textTransform: "uppercase",
+          }}>
+            {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => (
+              <span key={d} style={{ flex: 1, textAlign: "center" }}>{d}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* insight */}
+        <div style={{
+          border: "1px solid #1e2a1e", background: "#0a0e0a",
+          padding: "12px 14px", marginBottom: 16,
+          borderLeft: "2px solid #4ade8055",
+        }}>
+          <div style={{
+            fontSize: 8, letterSpacing: ".2em",
+            color: "#1e4d1e", textTransform: "uppercase", marginBottom: 5,
+          }}>AI insight</div>
+          <div style={{ fontSize: 11, color: "#2a4a2a", lineHeight: 1.7, letterSpacing: ".06em" }}>
+            {weekSess >= 6
+              ? `Elite consistency. ${accuracy}% accuracy puts you in the top tier globally.`
+              : weekSess >= 4
+              ? `Good week. Push to 7/7 next week to unlock the One Week Warrior badge.`
+              : `${7 - weekSess} missed sessions this week. Each one costs you ~${(7 - weekSess) * 40} rank positions.`
+            }
+          </div>
+        </div>
+
+        {/* share */}
+        <button
+          className="db-cta-btn"
+          onClick={() => {
+            const text = `📊 My ManifiX Weekly Report\n\n🔥 Streak: ${streak} days\n⚡ XP: ${weekXP} this week\n🎯 Accuracy: ${accuracy}%\n🌍 Global Rank: #${globalRank.toLocaleString()}\n\n#ManifiXAI #Magic16 #Discipline`;
+            if (navigator.share) {
+              navigator.share({ title: "My ManifiX Weekly Report", text });
+            } else {
+              navigator.clipboard?.writeText(text);
+              alert("Copied to clipboard!");
+            }
+          }}
+        >
+          ↗ Share Report
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   MAIN COMPONENT
 ───────────────────────────────────────────── */
 export default function Dashboard() {
-  const [st,       setSt]      = useState(() => loadState());
-  const [timer,    setTimer]   = useState({ h: 0, m: 0, s: 0, expired: false });
-  const [danger,   setDanger]  = useState(false);
-  const [mounted,  setMounted] = useState(false);
-  const [levelUp,  setLevelUp] = useState(false);
-  const [newLevel, setNewLevel]= useState(1);
-  const [streakPop,setStreakPop]= useState(false);
-  const [psychIdx, setPsychIdx]= useState(0);
+  const [st,          setSt]         = useState(() => loadState());
+  const [timer,       setTimer]      = useState({ h: 0, m: 0, s: 0, expired: false });
+  const [danger,      setDanger]     = useState(false);
+  const [mounted,     setMounted]    = useState(false);
+  const [levelUp,     setLevelUp]    = useState(false);
+  const [newLevel,    setNewLevel]   = useState(1);
+  const [streakPop,   setStreakPop]  = useState(false);
+  const [psychIdx,    setPsychIdx]   = useState(0);
+  const [showReport,  setShowReport] = useState(false);  // ✅ NEW — Addition 3
+  const [activeMode,  setActiveMode] = useState(st.mode); // ✅ NEW — Addition 1
+  const [activeLang,  setActiveLang] = useState(st.lang); // ✅ NEW — Addition 2
 
   useEffect(() => {
     injectStyles();
@@ -196,8 +475,9 @@ export default function Dashboard() {
 
     const fresh = loadState();
     setSt(fresh);
+    setActiveMode(fresh.mode);
+    setActiveLang(fresh.lang);
 
-    // level-up detection
     const prev = Number(localStorage.getItem(KEYS.prevLevel) || fresh.level);
     if (fresh.level > prev) {
       setNewLevel(fresh.level);
@@ -206,29 +486,22 @@ export default function Dashboard() {
     }
     localStorage.setItem(KEYS.prevLevel, fresh.level);
 
-    // streak pop animation on load if streak > 0
     if (fresh.streak > 0) {
       setTimeout(() => setStreakPop(true), 600);
     }
 
-    // rotate psych line every 8s
     const id = setInterval(() => {
       setPsychIdx((i) => (i + 1) % PSYCH.length);
     }, 8000);
     return () => clearInterval(id);
   }, []);
 
-  // countdown to midnight (updates every second for drama)
   useEffect(() => {
     const tick = () => {
       const now  = new Date();
       const end  = new Date(); end.setHours(23, 59, 59, 999);
       const diff = end - now;
-      if (diff <= 0) {
-        setTimer({ h: 0, m: 0, s: 0, expired: true });
-        setDanger(true);
-        return;
-      }
+      if (diff <= 0) { setTimer({ h:0,m:0,s:0,expired:true }); setDanger(true); return; }
       const h = Math.floor(diff / 3_600_000);
       const m = Math.floor((diff % 3_600_000) / 60_000);
       const s = Math.floor((diff % 60_000) / 1000);
@@ -240,7 +513,6 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
-  // bridge for Magic16 to call after session
   useEffect(() => {
     window.__magic16_recordComplete = () => {
       recordSessionComplete();
@@ -248,6 +520,23 @@ export default function Dashboard() {
     };
     return () => { delete window.__magic16_recordComplete; };
   }, []);
+
+  /* ── ✅ Addition 1: save mode on change ── */
+  const handleModeChange = (modeId) => {
+    const mode = MODES.find(m => m.id === modeId);
+    if (mode?.comingSoon) return; // block coming-soon modes
+    setActiveMode(modeId);
+    localStorage.setItem(KEYS.mode, modeId);
+    setSt(prev => ({ ...prev, mode: modeId }));
+  };
+
+  /* ── ✅ Addition 2: save lang on change ── */
+  const handleLangChange = (e) => {
+    const lang = e.target.value;
+    setActiveLang(lang);
+    localStorage.setItem(KEYS.lang, lang);
+    setSt(prev => ({ ...prev, lang }));
+  };
 
   const { streak, xp, level, missionDone, globalRank,
           goal, identity, intensity, totalSess } = st;
@@ -260,6 +549,7 @@ export default function Dashboard() {
     : `${String(timer.h).padStart(2,"0")}:${String(timer.m).padStart(2,"0")}:${String(timer.s).padStart(2,"0")}`;
   const psychLine    = getPsych(streak, danger, missionDone);
   const milestone    = getMilestone(streak);
+  const currentLang  = LANGUAGES.find(l => l.code === activeLang) || LANGUAGES[0];
 
   const stagger = (i, extra = {}) => ({
     initial: { opacity: 0, y: 16 },
@@ -267,7 +557,6 @@ export default function Dashboard() {
     transition: { delay: i * 0.07, duration: 0.45, ease: "easeOut", ...extra },
   });
 
-  /* ── RENDER ── */
   return (
     <div style={{
       minHeight: "100dvh",
@@ -293,7 +582,6 @@ export default function Dashboard() {
         pointerEvents: "none",
       }} />
 
-      {/* ambient glow */}
       <div className="db-breathe" style={{
         position: "fixed",
         top: "20%", left: "50%",
@@ -306,7 +594,6 @@ export default function Dashboard() {
         transition: "background 1s",
       }} />
 
-      {/* corner marks */}
       {[
         { top:16,left:16,   borderTopWidth:2, borderLeftWidth:2   },
         { top:16,right:16,  borderTopWidth:2, borderRightWidth:2  },
@@ -332,9 +619,7 @@ export default function Dashboard() {
               alignItems:"center", justifyContent:"center",
               zIndex:100, gap:14,
             }}
-            initial={{ opacity:0 }}
-            animate={{ opacity:1 }}
-            exit={{ opacity:0 }}
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
           >
             <div className="db-float" style={{
               width:140, height:140, borderRadius:"50%",
@@ -347,16 +632,25 @@ export default function Dashboard() {
             }} className="db-shimmer">
               LEVEL {newLevel}<br/>UNLOCKED
             </div>
-            <div style={{
-              fontSize:11, letterSpacing:".22em",
-              color:"#444", textTransform:"uppercase",
-            }}>Neural capacity expanded</div>
-            <div style={{
-              fontSize:10, color:"#2a2a2a",
-              letterSpacing:".15em", textTransform:"uppercase",
-              marginTop:8,
-            }}>+{XP_PER_SESSION} XP this session</div>
+            <div style={{ fontSize:11, letterSpacing:".22em", color:"#444", textTransform:"uppercase" }}>Neural capacity expanded</div>
+            <div style={{ fontSize:10, color:"#2a2a2a", letterSpacing:".15em", textTransform:"uppercase", marginTop:8 }}>
+              +{XP_PER_SESSION} XP this session
+            </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ══ WEEKLY REPORT OVERLAY ══ */}
+      <AnimatePresence>
+        {showReport && (
+          <WeeklyReport
+            streak={streak}
+            xp={xp}
+            level={level}
+            totalSess={totalSess}
+            globalRank={globalRank}
+            onClose={() => setShowReport(false)}
+          />
         )}
       </AnimatePresence>
 
@@ -364,8 +658,7 @@ export default function Dashboard() {
       <div style={{
         position:"relative", zIndex:1,
         width:"min(440px,96vw)",
-        display:"flex", flexDirection:"column",
-        gap:0,
+        display:"flex", flexDirection:"column", gap:0,
       }}>
 
         {/* ══ HEADER ══ */}
@@ -399,8 +692,87 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
+        {/* ══ ✅ ADDITION 1 — MODE SELECTOR ══ */}
+        <motion.div {...stagger(1)}>
+          <div style={{
+            fontSize:8, letterSpacing:".22em",
+            color:"#2a2a2a", textTransform:"uppercase", marginBottom:8,
+          }}>Active mode</div>
+          <div style={{
+            display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr",
+            gap:6, marginBottom:14,
+          }}>
+            {MODES.map((mode) => {
+              const isActive = activeMode === mode.id;
+              return (
+                <div
+                  key={mode.id}
+                  className={`db-mode-card${isActive ? " active" : ""}`}
+                  style={{
+                    "--mode-bg":     mode.bg,
+                    "--mode-border": mode.border,
+                    opacity: mode.comingSoon ? 0.4 : 1,
+                    cursor: mode.comingSoon ? "not-allowed" : "pointer",
+                  }}
+                  onClick={() => handleModeChange(mode.id)}
+                  title={mode.comingSoon ? "Coming soon" : mode.label}
+                >
+                  <div style={{ fontSize:18, lineHeight:1 }}>{mode.icon}</div>
+                  <div style={{
+                    fontSize:9, fontWeight:700, letterSpacing:".12em",
+                    textTransform:"uppercase",
+                    color: isActive ? mode.color : "#2a2a2a",
+                    transition:"color .2s",
+                  }}>{mode.label}</div>
+                  <div style={{
+                    fontSize:8, letterSpacing:".05em",
+                    color: isActive ? mode.color + "88" : "#1c1c1c",
+                    lineHeight:1.3,
+                  }}>{mode.comingSoon ? "Soon" : mode.sub}</div>
+                  {mode.premium && !mode.comingSoon && (
+                    <div style={{
+                      position:"absolute", top:5, right:5,
+                      fontSize:7, letterSpacing:".1em",
+                      background:"#1a1408", color:"#c8a84b",
+                      border:"1px solid #2a2010", padding:"1px 4px",
+                    }}>PRO</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* ══ ✅ ADDITION 2 — LANGUAGE PICKER ══ */}
+        <motion.div {...stagger(2)} style={{ marginBottom:14 }}>
+          <div style={{
+            display:"flex", alignItems:"center", gap:10,
+            border:"1px solid #141414", background:"#0a0a0a", padding:"8px 12px",
+          }}>
+            <div style={{ fontSize:16, flexShrink:0 }}>{currentLang.flag}</div>
+            <div style={{ flex:1, position:"relative" }}>
+              <select
+                className="db-lang-select"
+                value={activeLang}
+                onChange={handleLangChange}
+              >
+                {LANGUAGES.map(l => (
+                  <option key={l.code} value={l.code}>
+                    {l.flag} {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{
+              fontSize:8, letterSpacing:".15em",
+              color:"#1e1e1e", textTransform:"uppercase",
+              flexShrink:0,
+            }}>Voice lang</div>
+          </div>
+        </motion.div>
+
         {/* ══ IDENTITY STRIP ══ */}
-        <motion.div {...stagger(1)} style={{
+        <motion.div {...stagger(3)} style={{
           border:"1px solid #141414",
           background:"#0a0a0a",
           padding:"10px 14px",
@@ -417,7 +789,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* ══ STAT STRIP ══ */}
-        <motion.div {...stagger(2)} style={{
+        <motion.div {...stagger(4)} style={{
           display:"grid", gridTemplateColumns:"1fr 1fr 1fr",
           gap:8, marginBottom:14,
         }}>
@@ -438,8 +810,7 @@ export default function Dashboard() {
               }}>{label}</span>
               <span style={{
                 fontFamily:"'Bebas Neue',sans-serif",
-                fontSize:32, letterSpacing:".03em",
-                lineHeight:1,
+                fontSize:32, letterSpacing:".03em", lineHeight:1,
                 color: accent && streak > 0 ? "#ffc83c" : "#e8e4d9",
               }}
                 className={label === "Streak" && streakPop ? "db-streak-pop" : ""}
@@ -478,7 +849,7 @@ export default function Dashboard() {
         </AnimatePresence>
 
         {/* ══ MAIN PROTOCOL CARD ══ */}
-        <motion.div {...stagger(3)} style={{
+        <motion.div {...stagger(5)} style={{
           border: danger ? "1px solid #2a1010" : "1px solid #1c1c1c",
           background: danger ? "#0a0808" : "#0b0b0b",
           padding:"20px 18px",
@@ -486,7 +857,6 @@ export default function Dashboard() {
           position:"relative", overflow:"hidden",
           transition:"border-color 1s, background 1s",
         }}>
-          {/* card scan */}
           <div style={{
             position:"absolute", left:0, right:0, height:"28%",
             background:"linear-gradient(180deg,transparent,rgba(200,168,75,.04),transparent)",
@@ -521,7 +891,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* protocol bar */}
           <div style={{ height:3, background:"#141414", marginBottom:6, overflow:"hidden" }}>
             <motion.div
               style={{ height:"100%", background:"linear-gradient(90deg,#c8a84b,#ffc83c)" }}
@@ -539,7 +908,6 @@ export default function Dashboard() {
             <span>{progressPct}%</span>
           </div>
 
-          {/* psych line — animated */}
           <AnimatePresence mode="wait">
             <motion.div
               key={missionDone ? "done" : danger ? "danger" : psychIdx}
@@ -562,19 +930,15 @@ export default function Dashboard() {
         </motion.div>
 
         {/* ══ 16-DAY DOT GRID ══ */}
-        <motion.div {...stagger(4)} style={{
-          border:"1px solid #141414",
-          background:"#0c0c0c",
-          padding:"12px 14px",
-          marginBottom:14,
+        <motion.div {...stagger(6)} style={{
+          border:"1px solid #141414", background:"#0c0c0c",
+          padding:"12px 14px", marginBottom:14,
         }}>
           <div style={{
             fontSize:8, letterSpacing:".22em",
             color:"#2a2a2a", textTransform:"uppercase", marginBottom:10,
           }}>16-day protocol map</div>
-          <div style={{
-            display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:6,
-          }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:6 }}>
             {Array.from({ length:16 },(_,i) => (
               <motion.div
                 key={i}
@@ -585,9 +949,7 @@ export default function Dashboard() {
                   border: i === dayProgress && !missionDone
                     ? "1px solid #ffc83c"
                     : "1px solid #1a1a1a",
-                  borderRadius:3,
-                  position:"relative",
-                  cursor:"default",
+                  borderRadius:3, position:"relative", cursor:"default",
                 }}
                 initial={{ scale:0.5, opacity:0 }}
                 animate={{ scale:1, opacity:1 }}
@@ -606,11 +968,9 @@ export default function Dashboard() {
         </motion.div>
 
         {/* ══ XP BAR ══ */}
-        <motion.div {...stagger(5)} style={{
-          border:"1px solid #181818",
-          background:"#0c0c0c",
-          padding:"12px 14px",
-          marginBottom:14,
+        <motion.div {...stagger(7)} style={{
+          border:"1px solid #181818", background:"#0c0c0c",
+          padding:"12px 14px", marginBottom:14,
         }}>
           <div style={{
             display:"flex", justifyContent:"space-between",
@@ -643,17 +1003,16 @@ export default function Dashboard() {
           )}
         </motion.div>
 
-        {/* ══ TIMER + MISSION (only if not done) ══ */}
+        {/* ══ TIMER + MISSION ══ */}
         {!missionDone && (
-          <motion.div {...stagger(6)} style={{
+          <motion.div {...stagger(8)} style={{
             display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14,
           }}>
             <div
               className={danger ? "db-danger-btn" : ""}
               style={{
                 border:`1px solid ${danger ? "#3a1010" : "#181818"}`,
-                background:"#0c0c0c",
-                padding:"14px",
+                background:"#0c0c0c", padding:"14px",
               }}
             >
               <span style={{
@@ -670,10 +1029,8 @@ export default function Dashboard() {
             </div>
 
             <div style={{
-              border:"1px solid #181818",
-              background:"#0c0c0c",
-              padding:"14px",
-              display:"flex", flexDirection:"column", gap:6,
+              border:"1px solid #181818", background:"#0c0c0c",
+              padding:"14px", display:"flex", flexDirection:"column", gap:6,
             }}>
               <span style={{
                 fontSize:8, letterSpacing:".22em",
@@ -684,22 +1041,19 @@ export default function Dashboard() {
                 fontSize:18, letterSpacing:".03em", lineHeight:1.2,
                 color: danger ? "#ff5c5c" : "#c8a84b",
               }}>
-                {danger ? "EXECUTE NOW" : "EXECUTE MAGIC16"}
+                {danger ? "EXECUTE NOW" : `EXECUTE ${MODES.find(m=>m.id===activeMode)?.label?.toUpperCase() || "MAGIC16"}`}
               </div>
-              <div style={{
-                fontSize:8, color:"#222",
-                letterSpacing:".12em", textTransform:"uppercase",
-              }}>16 min · AI verified</div>
+              <div style={{ fontSize:8, color:"#222", letterSpacing:".12em", textTransform:"uppercase" }}>
+                16 min · {currentLang.flag} {currentLang.name} · AI verified
+              </div>
             </div>
           </motion.div>
         )}
 
         {/* ══ CTA BUTTON ══ */}
-        <motion.div {...stagger(7)} style={{ marginBottom:10 }}>
+        <motion.div {...stagger(9)} style={{ marginBottom:10 }}>
           {missionDone ? (
-            <div className="db-cta-done">
-              ✓ Session Complete — Rest and Integrate
-            </div>
+            <div className="db-cta-done">✓ Session Complete — Rest and Integrate</div>
           ) : (
             <Link
               to="/app/magic16"
@@ -714,7 +1068,7 @@ export default function Dashboard() {
 
         {/* streak reset warning */}
         {!missionDone && (
-          <motion.div {...stagger(8)} style={{
+          <motion.div {...stagger(10)} style={{
             fontSize:9, letterSpacing:".15em",
             color: danger ? "#ff3c3c" : "#2a2a2a",
             textAlign:"center", textTransform:"uppercase", marginBottom:16,
@@ -733,10 +1087,8 @@ export default function Dashboard() {
             initial={{ opacity:0, y:10 }}
             animate={{ opacity:1, y:0 }}
             style={{
-              border:"1px solid #1e4d1e",
-              background:"#0a140a",
-              padding:"14px 16px",
-              marginBottom:14,
+              border:"1px solid #1e4d1e", background:"#0a140a",
+              padding:"14px 16px", marginBottom:14,
               display:"flex", alignItems:"center", gap:12,
             }}
           >
@@ -754,8 +1106,45 @@ export default function Dashboard() {
           </motion.div>
         )}
 
+        {/* ══ ✅ ADDITION 3 — WEEKLY REPORT BUTTON (streak >= 7) ══ */}
+        <AnimatePresence>
+          {streak >= 7 && (
+            <motion.div
+              {...stagger(11)}
+              style={{ marginBottom:10 }}
+              initial={{ opacity:0, y:10 }}
+              animate={{ opacity:1, y:0 }}
+              exit={{ opacity:0 }}
+            >
+              <button
+                className="db-report-btn db-report-pulse"
+                onClick={() => setShowReport(true)}
+              >
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:16 }}>📊</span>
+                  <div style={{ textAlign:"left" }}>
+                    <div style={{ fontSize:10, letterSpacing:".18em", color:"#c8a84b" }}>
+                      Weekly Report Ready
+                    </div>
+                    <div style={{
+                      fontSize:8, letterSpacing:".12em",
+                      color:"#3a3010", marginTop:2,
+                    }}>
+                      {streak} day streak · Share to Instagram
+                    </div>
+                  </div>
+                </div>
+                <div style={{
+                  fontSize:10, letterSpacing:".15em",
+                  color:"#c8a84b44",
+                }}>→</div>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ══ SECONDARY ACTIONS ══ */}
-        <motion.div {...stagger(9)} style={{
+        <motion.div {...stagger(12)} style={{
           display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20,
         }}>
           <button
@@ -774,7 +1163,6 @@ export default function Dashboard() {
           <button
             className="db-opt-btn"
             onClick={() => {
-              // reset for testing (dev only)
               const confirm = window.confirm("Reset all progress?");
               if (confirm) {
                 Object.values(KEYS).forEach(k => localStorage.removeItem(k));
@@ -786,7 +1174,6 @@ export default function Dashboard() {
           </button>
         </motion.div>
 
-        {/* ══ FOOTER ══ */}
         <div style={{
           fontSize:8, letterSpacing:".22em",
           color:"#1a1a1a", textAlign:"center", textTransform:"uppercase",
