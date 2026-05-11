@@ -1,319 +1,144 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
-import logo from "../assets/logo.svg";
-import bgImage from "../assets/backgrounds/dark-gradient.jpg";
 
-// ─── Inline styles (no external CSS dependency) ───────────────────────────────
-const S = {
-  wrapper: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundImage: `url(${bgImage})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    position: "relative",
-    padding: "24px 16px",
-  },
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background:
-      "linear-gradient(135deg, rgba(0,0,0,0.72) 0%, rgba(10,10,30,0.85) 100%)",
-    backdropFilter: "blur(2px)",
-    zIndex: 0,
-  },
-  loadingOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.6)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 999,
-    backdropFilter: "blur(4px)",
-  },
-  loadingText: {
-    color: "#fff",
-    fontSize: "15px",
-    fontWeight: 500,
-    letterSpacing: "0.04em",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-  spinner: {
-    width: "18px",
-    height: "18px",
-    border: "2.5px solid rgba(255,255,255,0.25)",
-    borderTopColor: "#a78bfa",
-    borderRadius: "50%",
-    animation: "spin 0.8s linear infinite",
-  },
-  card: {
-    position: "relative",
-    zIndex: 1,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    backdropFilter: "blur(24px)",
-    borderRadius: "20px",
-    padding: "44px 40px",
-    width: "100%",
-    maxWidth: "420px",
-    boxShadow:
-      "0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05) inset",
-    animation: "slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
-  },
-  brand: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    marginBottom: "28px",
-  },
-  logoWrap: {
-    width: "52px",
-    height: "52px",
-    borderRadius: "14px",
-    background: "linear-gradient(135deg, #7c3aed, #4f46e5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: "12px",
-    boxShadow: "0 8px 24px rgba(124,58,237,0.4)",
-  },
-  logoImg: { width: "28px", height: "28px", filter: "brightness(0) invert(1)" },
-  brandName: {
-    fontSize: "22px",
-    fontWeight: 700,
-    color: "#fff",
-    margin: 0,
-    letterSpacing: "-0.02em",
-  },
-  tagline: {
-    fontSize: "12px",
-    color: "rgba(255,255,255,0.4)",
-    margin: "4px 0 0",
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-  },
-  heading: {
-    fontSize: "20px",
-    fontWeight: 600,
-    color: "#fff",
-    textAlign: "center",
-    margin: "0 0 6px",
-    letterSpacing: "-0.01em",
-  },
-  subtitle: {
-    fontSize: "13.5px",
-    color: "rgba(255,255,255,0.42)",
-    textAlign: "center",
-    margin: "0 0 28px",
-  },
-  fieldWrap: {
-    position: "relative",
-    marginBottom: "14px",
-  },
-  label: {
-    display: "block",
-    fontSize: "12px",
-    fontWeight: 500,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: "6px",
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-  },
-  input: (focused, hasError) => ({
-    width: "100%",
-    padding: "12px 44px 12px 14px",
-    background: "rgba(255,255,255,0.06)",
-    border: `1.5px solid ${
-      hasError
-        ? "rgba(248,113,113,0.6)"
-        : focused
-        ? "rgba(167,139,250,0.7)"
-        : "rgba(255,255,255,0.10)"
-    }`,
-    borderRadius: "10px",
-    color: "#fff",
-    fontSize: "14.5px",
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color 0.2s, box-shadow 0.2s",
-    boxShadow: focused ? "0 0 0 3px rgba(124,58,237,0.15)" : "none",
-    fontFamily: "inherit",
-  }),
-  eyeBtn: {
-    position: "absolute",
-    right: "12px",
-    bottom: "12px",
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: "2px",
-    color: "rgba(255,255,255,0.4)",
-    display: "flex",
-    alignItems: "center",
-    transition: "color 0.2s",
-    lineHeight: 1,
-  },
-  hint: {
-    fontSize: "12px",
-    color: "rgba(248,113,113,0.85)",
-    margin: "-8px 0 10px",
-  },
-  row: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    margin: "2px 0 20px",
-  },
-  checkLabel: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    cursor: "pointer",
-    fontSize: "13px",
-    color: "rgba(255,255,255,0.5)",
-    userSelect: "none",
-  },
-  checkbox: {
-    width: "16px",
-    height: "16px",
-    accentColor: "#7c3aed",
-    cursor: "pointer",
-  },
-  forgotLink: {
-    fontSize: "13px",
-    color: "#a78bfa",
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: 0,
-    fontFamily: "inherit",
-    textDecoration: "underline",
-    textUnderlineOffset: "2px",
-  },
-  primaryBtn: (disabled) => ({
-    width: "100%",
-    padding: "13px",
-    background: disabled
-      ? "rgba(124,58,237,0.35)"
-      : "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
-    color: disabled ? "rgba(255,255,255,0.4)" : "#fff",
-    border: "none",
-    borderRadius: "10px",
-    fontSize: "15px",
-    fontWeight: 600,
-    cursor: disabled ? "not-allowed" : "pointer",
-    letterSpacing: "0.01em",
-    fontFamily: "inherit",
-    transition: "opacity 0.2s, transform 0.1s",
-    boxShadow: disabled ? "none" : "0 6px 20px rgba(124,58,237,0.4)",
-    transform: "translateY(0)",
-  }),
-  divider: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    margin: "20px 0",
-    color: "rgba(255,255,255,0.2)",
-    fontSize: "12px",
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-  },
-  dividerLine: {
-    flex: 1,
-    height: "1px",
-    background: "rgba(255,255,255,0.08)",
-  },
-  socialBtn: {
-    width: "100%",
-    padding: "12px",
-    background: "rgba(255,255,255,0.05)",
-    border: "1.5px solid rgba(255,255,255,0.10)",
-    borderRadius: "10px",
-    color: "rgba(255,255,255,0.75)",
-    fontSize: "14px",
-    fontWeight: 500,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "10px",
-    fontFamily: "inherit",
-    transition: "background 0.2s, border-color 0.2s",
-    marginBottom: "10px",
-  },
-  errorBox: {
-    background: "rgba(248,113,113,0.10)",
-    border: "1px solid rgba(248,113,113,0.3)",
-    borderRadius: "8px",
-    padding: "10px 14px",
-    color: "rgba(248,113,113,0.9)",
-    fontSize: "13px",
-    margin: "0 0 14px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  successBox: {
-    background: "rgba(52,211,153,0.10)",
-    border: "1px solid rgba(52,211,153,0.3)",
-    borderRadius: "8px",
-    padding: "10px 14px",
-    color: "rgba(52,211,153,0.9)",
-    fontSize: "13px",
-    margin: "0 0 14px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  footer: {
-    textAlign: "center",
-    marginTop: "22px",
-    fontSize: "13px",
-    color: "rgba(255,255,255,0.38)",
-  },
-  footerLink: {
-    color: "#a78bfa",
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontSize: "13px",
-    fontWeight: 500,
-    padding: 0,
-    marginLeft: "4px",
-  },
-  trust: {
-    textAlign: "center",
-    fontSize: "11.5px",
-    color: "rgba(255,255,255,0.22)",
-    marginTop: "18px",
-    letterSpacing: "0.03em",
-  },
-};
+/* ─────────────────────────────────────────────
+   STYLE INJECTION
+───────────────────────────────────────────── */
+function injectStyles() {
+  if (document.getElementById("login-styles")) return;
+  const s = document.createElement("style");
+  s.id = "login-styles";
+  s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-// ─── Eye Icons ─────────────────────────────────────────────────────────────────
-const EyeOpen = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-const EyeClosed = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-    <line x1="1" y1="1" x2="23" y2="23"/>
-  </svg>
-);
+    @keyframes lg-scan {
+      from { top: -4px; }
+      to   { top: 100%; }
+    }
+    @keyframes lg-grid {
+      0%,100% { opacity:.04; }
+      50%     { opacity:.08; }
+    }
+    @keyframes lg-breathe {
+      0%,100% { opacity:.12; transform:translateX(-50%) scale(1); }
+      50%     { opacity:.22; transform:translateX(-50%) scale(1.08); }
+    }
+    @keyframes lg-fade-up {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes lg-shimmer {
+      from { background-position:-200% center; }
+      to   { background-position:200% center; }
+    }
+    @keyframes lg-blink {
+      0%,100% { opacity:1; }
+      50%     { opacity:0; }
+    }
+    @keyframes lg-spin {
+      to { transform:rotate(360deg); }
+    }
+    @keyframes lg-glitch1 {
+      0%,100% { clip-path:inset(0 0 95% 0); transform:translateX(0); }
+      20%     { clip-path:inset(30% 0 50% 0); transform:translateX(-3px); }
+      40%     { clip-path:inset(60% 0 10% 0); transform:translateX(3px); }
+      80%     { clip-path:inset(80% 0 5% 0); transform:translateX(-2px); }
+    }
+    @keyframes lg-glitch2 {
+      0%,100% { clip-path:inset(50% 0 30% 0); opacity:0; }
+      25%     { clip-path:inset(20% 0 60% 0); transform:translateX(5px); opacity:1; }
+      75%     { clip-path:inset(70% 0 10% 0); transform:translateX(-5px); opacity:1; }
+    }
+
+    .lg-fade-up  { animation: lg-fade-up 0.5s ease both; }
+    .lg-shimmer  {
+      background: linear-gradient(90deg,#c8a84b,#ffe08a,#ffc83c,#ffe08a,#c8a84b);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: lg-shimmer 3s linear infinite;
+    }
+    .lg-glitch { position:relative; }
+    .lg-glitch::before {
+      content: attr(data-text);
+      position: absolute; inset:0;
+      font-family:inherit; font-size:inherit;
+      letter-spacing:inherit; color:#ff3c3c;
+      animation: lg-glitch1 3s infinite;
+    }
+    .lg-glitch::after {
+      content: attr(data-text);
+      position: absolute; inset:0;
+      font-family:inherit; font-size:inherit;
+      letter-spacing:inherit; color:#c8a84b;
+      animation: lg-glitch2 3s infinite;
+    }
+
+    .lg-input {
+      width:100%; padding:13px 14px;
+      background:#0e0e0e;
+      border:1px solid #1e1e1e;
+      color:#e8e4d9;
+      font-family:'DM Mono',monospace;
+      font-size:13px; letter-spacing:.08em;
+      outline:none; transition:border-color .2s;
+      caret-color:#ffc83c;
+      border-radius:0;
+    }
+    .lg-input::placeholder { color:#2a2a2a; }
+    .lg-input:focus { border-color:#ffc83c; }
+    .lg-input.error { border-color:#ff3c3c; }
+    .lg-input:-webkit-autofill {
+      -webkit-box-shadow:0 0 0 100px #0e0e0e inset !important;
+      -webkit-text-fill-color:#e8e4d9 !important;
+    }
+
+    .lg-btn-primary {
+      width:100%; padding:15px 0;
+      background:#ffc83c; color:#080808;
+      border:none; cursor:pointer;
+      font-family:'DM Mono',monospace;
+      font-size:12px; font-weight:700;
+      letter-spacing:.22em; text-transform:uppercase;
+      transition:background .15s, transform .1s;
+    }
+    .lg-btn-primary:hover:not(:disabled) { background:#ffe08a; }
+    .lg-btn-primary:active:not(:disabled) { transform:scale(.99); }
+    .lg-btn-primary:disabled {
+      background:#111; color:#2a2a2a;
+      border:1px solid #1a1a1a; cursor:not-allowed;
+    }
+
+    .lg-btn-google {
+      width:100%; padding:13px 0;
+      background:transparent;
+      border:1px solid #1e1e1e; color:#555;
+      font-family:'DM Mono',monospace;
+      font-size:11px; font-weight:500;
+      letter-spacing:.15em; text-transform:uppercase;
+      cursor:pointer; display:flex;
+      align-items:center; justify-content:center; gap:10px;
+      transition:border-color .2s, color .2s;
+    }
+    .lg-btn-google:hover { border-color:#2e2e2e; color:#888; }
+
+    .lg-check {
+      accent-color:#ffc83c;
+      cursor:pointer;
+      width:14px; height:14px;
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+/* ─────────────────────────────────────────────
+   GOOGLE ICON (inline SVG — no dependency)
+───────────────────────────────────────────── */
 const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 48 48">
+  <svg width="16" height="16" viewBox="0 0 48 48">
     <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
     <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.5 16 19 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
     <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.5-2.9-11.3-7l-6.5 5C9.8 39.6 16.4 44 24 44z"/>
@@ -321,15 +146,42 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ─── Field Component ───────────────────────────────────────────────────────────
-function Field({ id, label, type, value, onChange, onKeyDown, placeholder, error, disabled, showToggle, showPassword, onToggle }) {
-  const [focused, setFocused] = useState(false);
+/* ─────────────────────────────────────────────
+   EYE ICONS
+───────────────────────────────────────────── */
+const EyeOpen = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+const EyeClosed = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+
+/* ─────────────────────────────────────────────
+   FIELD COMPONENT
+───────────────────────────────────────────── */
+function Field({ id, label, type, value, onChange, onKeyDown,
+  placeholder, error, disabled, showToggle, showPassword, onToggle }) {
   return (
-    <div style={S.fieldWrap}>
-      <label htmlFor={id} style={S.label}>{label}</label>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontSize: 8, letterSpacing: ".22em",
+        color: "#2e2e2e", textTransform: "uppercase",
+        marginBottom: 6, display: "block",
+        fontFamily: "'DM Mono',monospace",
+      }}>{label}</div>
       <div style={{ position: "relative" }}>
         <input
           id={id}
+          className={`lg-input${error ? " error" : ""}`}
           type={showToggle ? (showPassword ? "text" : "password") : type}
           value={value}
           placeholder={placeholder}
@@ -337,168 +189,291 @@ function Field({ id, label, type, value, onChange, onKeyDown, placeholder, error
           autoComplete={type === "password" ? "current-password" : "email"}
           onChange={onChange}
           onKeyDown={onKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          style={S.input(focused, !!error)}
           aria-invalid={!!error}
-          aria-describedby={error ? `${id}-error` : undefined}
         />
         {showToggle && (
           <button
             type="button"
             onClick={onToggle}
-            style={S.eyeBtn}
+            style={{
+              position: "absolute", right: 12, top: "50%",
+              transform: "translateY(-50%)",
+              background: "none", border: "none",
+              cursor: "pointer", color: "#333",
+              display: "flex", alignItems: "center",
+              transition: "color .2s", padding: 0,
+            }}
             tabIndex={-1}
-            aria-label={showPassword ? "Hide password" : "Show password"}
           >
             {showPassword ? <EyeOpen /> : <EyeClosed />}
           </button>
         )}
       </div>
       {error && (
-        <p id={`${id}-error`} role="alert" style={S.hint}>{error}</p>
+        <div style={{
+          fontSize: 10, letterSpacing: ".1em",
+          color: "#ff5c5c", marginTop: 5,
+          fontFamily: "'DM Mono',monospace",
+          textTransform: "uppercase",
+        }}>{error}</div>
       )}
     </div>
   );
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────
+   MAIN COMPONENT
+───────────────────────────────────────────── */
 export default function Login() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [remember,     setRemember]     = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [success,      setSuccess]      = useState("");
+  const [fieldErrors,  setFieldErrors]  = useState({ email:"", password:"" });
 
   const emailRef = useRef(null);
 
-  // Auto-focus email on mount
   useEffect(() => {
+    injectStyles();
     emailRef.current?.focus();
   }, []);
 
-  // Inject keyframe animations once
-  useEffect(() => {
-    const styleId = "manifix-login-keyframes";
-    if (document.getElementById(styleId)) return;
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-      @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes slideUp {
-        from { opacity: 0; transform: translateY(20px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      input::placeholder { color: rgba(255,255,255,0.22); }
-      input:-webkit-autofill {
-        -webkit-box-shadow: 0 0 0 100px rgba(124,58,237,0.08) inset !important;
-        -webkit-text-fill-color: #fff !important;
-      }
-    `;
-    document.head.appendChild(style);
-  }, []);
-
-  // ── Validation ──────────────────────────────────────────────────────────────
   const isValidEmail = (v) => /\S+@\S+\.\S+/.test(v);
 
   const validate = () => {
-    const errors = { email: "", password: "" };
-    if (!email.trim()) errors.email = "Email is required";
-    else if (!isValidEmail(email)) errors.email = "Enter a valid email address";
-    if (!password) errors.password = "Password is required";
-    else if (password.length < 6) errors.password = "Password must be at least 6 characters";
-    setFieldErrors(errors);
-    return !errors.email && !errors.password;
+    const e = { email:"", password:"" };
+    if (!email.trim())          e.email    = "Email required";
+    else if (!isValidEmail(email)) e.email = "Enter valid email";
+    if (!password)              e.password = "Password required";
+    else if (password.length < 6) e.password = "Min 6 characters";
+    setFieldErrors(e);
+    return !e.email && !e.password;
   };
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
-  const handleLogin = async () => {
-    setError("");
-    setSuccess("");
+  const handleLogin = useCallback(async () => {
+    setError(""); setSuccess("");
     if (!validate()) return;
-
     setLoading(true);
     try {
       await authService.login(email.trim().toLowerCase(), password, remember);
-      setSuccess("Login successful! Redirecting...");
-      setTimeout(() => navigate("/dashboard"), 800);
+      setSuccess("Access granted. Entering system...");
+      setTimeout(() => navigate("/app/dashboard"), 1000);
     } catch (err) {
-      // Generic message — never leak "user not found" vs "wrong password"
       setError(
         err?.response?.status === 401
-          ? "Incorrect email or password."
-          : err?.message || "Login failed. Please try again."
+          ? "Incorrect credentials. Try again."
+          : err?.message || "Authentication failed. Retry."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, remember, navigate]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleLogin();
   };
 
-  const clearFieldError = (field) =>
-    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+  const clearField = (f) =>
+    setFieldErrors((p) => ({ ...p, [f]:"" }));
 
-  // ── Google OAuth ─────────────────────────────────────────────────────────────
   const handleGoogle = async () => {
     try {
       await authService.loginWithGoogle?.();
     } catch {
-      setError("Google login failed. Please try again.");
+      setError("Google authentication failed.");
     }
   };
 
-  const isDisabled = loading;
-
+  /* ── RENDER ── */
   return (
-    <div style={S.wrapper} role="main">
-      <div style={S.overlay} aria-hidden="true" />
+    <div style={{
+      minHeight: "100dvh",
+      background: "#080808",
+      fontFamily: "'DM Mono','Courier New',monospace",
+      color: "#e8e4d9",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      overflow: "hidden",
+      padding: "24px 16px",
+    }}>
 
-      {/* Loading overlay */}
+      {/* bg grid */}
+      <div style={{
+        position: "fixed", inset: 0,
+        backgroundImage:
+          "linear-gradient(rgba(255,200,60,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,200,60,.04) 1px,transparent 1px)",
+        backgroundSize: "40px 40px",
+        animation: "lg-grid 4s ease-in-out infinite",
+        pointerEvents: "none",
+      }} />
+
+      {/* ambient glow */}
+      <div style={{
+        position: "fixed",
+        top: "30%", left: "50%",
+        width: 500, height: 300,
+        background: "radial-gradient(ellipse,rgba(200,168,75,.1) 0%,transparent 70%)",
+        animation: "lg-breathe 5s ease-in-out infinite",
+        pointerEvents: "none",
+      }} />
+
+      {/* scan line */}
+      <div style={{
+        position: "fixed", left:0, right:0, height:2,
+        background: "linear-gradient(90deg,transparent,rgba(255,200,60,.06),rgba(255,200,60,.12),rgba(255,200,60,.06),transparent)",
+        animation: "lg-scan 3.5s linear infinite",
+        pointerEvents: "none", zIndex:0,
+      }} />
+
+      {/* corner marks */}
+      {[
+        { top:16,left:16,   borderTopWidth:2, borderLeftWidth:2   },
+        { top:16,right:16,  borderTopWidth:2, borderRightWidth:2  },
+        { bottom:16,left:16,  borderBottomWidth:2, borderLeftWidth:2   },
+        { bottom:16,right:16, borderBottomWidth:2, borderRightWidth:2  },
+      ].map((pos,i) => (
+        <div key={i} style={{
+          position:"fixed", width:18, height:18,
+          borderColor:"#1e1e1e", borderStyle:"solid", borderWidth:0,
+          ...pos,
+        }} />
+      ))}
+
+      {/* loading overlay */}
       {loading && (
-        <div style={S.loadingOverlay} aria-live="polite" aria-label="Authenticating">
-          <p style={S.loadingText}>
-            <span style={S.spinner} aria-hidden="true" />
-            Authenticating securely…
-          </p>
+        <div style={{
+          position:"fixed", inset:0,
+          background:"rgba(8,8,8,.85)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          zIndex:100, flexDirection:"column", gap:16,
+        }}>
+          <div style={{
+            width:24, height:24,
+            border:"2px solid #1e1e1e",
+            borderTopColor:"#ffc83c",
+            borderRadius:"50%",
+            animation:"lg-spin .7s linear infinite",
+          }} />
+          <div style={{
+            fontSize:10, letterSpacing:".25em",
+            color:"#333", textTransform:"uppercase",
+          }}>Authenticating...</div>
         </div>
       )}
 
-      <div style={S.card} role="region" aria-label="Login form">
+      {/* ── CARD ── */}
+      <div className="lg-fade-up" style={{
+        position: "relative", zIndex:1,
+        width: "min(400px,96vw)",
+        border: "1px solid #1a1a1a",
+        background: "#0b0b0b",
+        padding: "36px 32px",
+      }}>
 
-        {/* Brand */}
-        <div style={S.brand}>
-          <div style={S.logoWrap} aria-hidden="true">
-            <img src={logo} alt="" style={S.logoImg} />
+        {/* inner scan */}
+        <div style={{
+          position:"absolute", left:0, right:0, height:"25%",
+          background:"linear-gradient(180deg,transparent,rgba(200,168,75,.03),transparent)",
+          animation:"lg-scan 3s ease-in-out infinite",
+          pointerEvents:"none", top:0,
+        }} />
+
+        {/* ── LOGO — pure text, no image needed ── */}
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+
+          {/* system status dot */}
+          <div style={{
+            display:"inline-flex", alignItems:"center", gap:6,
+            border:"1px solid #1e1e1e", padding:"4px 12px",
+            marginBottom:20,
+          }}>
+            <span style={{
+              width:6, height:6, borderRadius:"50%",
+              background:"#ffc83c",
+              animation:"lg-blink 1.2s ease-in-out infinite",
+              display:"inline-block",
+            }} />
+            <span style={{
+              fontSize:8, letterSpacing:".25em",
+              color:"#3a3a3a", textTransform:"uppercase",
+            }}>System online</span>
           </div>
-          <h1 style={S.brandName}>ManifiX</h1>
-          <p style={S.tagline}>Intelligence meets Intention</p>
+
+          {/* main logo — Bebas Neue, no image */}
+          <div
+            className="lg-glitch"
+            data-text="MANIFIX"
+            style={{
+              fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:64, letterSpacing:".08em",
+              lineHeight:1, color:"#e8e4d9",
+              marginBottom:4,
+            }}
+          >
+            MANIFIX
+          </div>
+
+          {/* AI badge */}
+          <div style={{
+            fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:18, letterSpacing:".3em",
+            marginBottom:8,
+          }} className="lg-shimmer">
+            AI
+          </div>
+
+          <div style={{
+            fontSize:9, letterSpacing:".22em",
+            color:"#2a2a2a", textTransform:"uppercase",
+          }}>
+            Intelligence meets intention
+          </div>
         </div>
 
-        <h2 style={S.heading}>Welcome back</h2>
-        <p style={S.subtitle}>Sign in to your account to continue</p>
+        {/* ── HEADING ── */}
+        <div style={{
+          fontSize:9, letterSpacing:".22em",
+          color:"#2e2e2e", textTransform:"uppercase",
+          marginBottom:20, borderLeft:"2px solid #1e1e1e",
+          paddingLeft:10,
+        }}>
+          Neural access portal
+        </div>
 
-        {/* Status banners */}
+        {/* ── ERROR ── */}
         {error && (
-          <div style={S.errorBox} role="alert" aria-live="assertive">
-            <span aria-hidden="true">⚠</span> {error}
-          </div>
-        )}
-        {success && (
-          <div style={S.successBox} role="status" aria-live="polite">
-            <span aria-hidden="true">✓</span> {success}
+          <div style={{
+            border:"1px solid #2a1010", background:"#0a0808",
+            padding:"10px 12px", marginBottom:14,
+            fontSize:10, letterSpacing:".1em",
+            color:"#ff5c5c", textTransform:"uppercase",
+            display:"flex", alignItems:"center", gap:8,
+          }}>
+            <span>⚠</span> {error}
           </div>
         )}
 
-        {/* Email */}
+        {/* ── SUCCESS ── */}
+        {success && (
+          <div style={{
+            border:"1px solid #1e4d1e", background:"#0a140a",
+            padding:"10px 12px", marginBottom:14,
+            fontSize:10, letterSpacing:".1em",
+            color:"#4ade80", textTransform:"uppercase",
+            display:"flex", alignItems:"center", gap:8,
+          }}>
+            <span>✓</span> {success}
+          </div>
+        )}
+
+        {/* ── EMAIL ── */}
         <Field
           id="login-email"
           label="Email address"
@@ -506,12 +481,12 @@ export default function Login() {
           value={email}
           placeholder="you@example.com"
           error={fieldErrors.email}
-          disabled={isDisabled}
-          onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
+          disabled={loading}
+          onChange={(e) => { setEmail(e.target.value); clearField("email"); }}
           onKeyDown={handleKeyDown}
         />
 
-        {/* Password */}
+        {/* ── PASSWORD ── */}
         <Field
           id="login-password"
           label="Password"
@@ -519,89 +494,130 @@ export default function Login() {
           value={password}
           placeholder="••••••••"
           error={fieldErrors.password}
-          disabled={isDisabled}
+          disabled={loading}
           showToggle
           showPassword={showPassword}
-          onToggle={() => setShowPassword((p) => !p)}
-          onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
+          onToggle={() => setShowPassword(p => !p)}
+          onChange={(e) => { setPassword(e.target.value); clearField("password"); }}
           onKeyDown={handleKeyDown}
         />
 
-        {/* Remember + Forgot */}
-        <div style={S.row}>
-          <label style={S.checkLabel}>
+        {/* ── REMEMBER + FORGOT ── */}
+        <div style={{
+          display:"flex", justifyContent:"space-between",
+          alignItems:"center", marginBottom:20,
+        }}>
+          <label style={{
+            display:"flex", alignItems:"center", gap:8,
+            cursor:"pointer", fontSize:10,
+            letterSpacing:".12em", color:"#2a2a2a",
+            textTransform:"uppercase",
+          }}>
             <input
               type="checkbox"
+              className="lg-check"
               checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              style={S.checkbox}
-              aria-label="Remember me"
+              onChange={e => setRemember(e.target.checked)}
             />
             Remember me
           </label>
           <button
             type="button"
-            style={S.forgotLink}
             onClick={() => navigate("/forgot-password")}
-            aria-label="Go to forgot password page"
+            style={{
+              fontSize:10, letterSpacing:".12em",
+              color:"#ffc83c", background:"none",
+              border:"none", cursor:"pointer",
+              fontFamily:"inherit", textTransform:"uppercase",
+              padding:0,
+            }}
           >
             Forgot password?
           </button>
         </div>
 
-        {/* Primary CTA */}
+        {/* ── PRIMARY CTA ── */}
         <button
           type="button"
-          style={S.primaryBtn(isDisabled)}
+          className="lg-btn-primary"
           onClick={handleLogin}
-          disabled={isDisabled}
-          aria-busy={loading}
-          aria-label="Sign in to ManifiX"
-          onMouseEnter={(e) => { if (!isDisabled) e.currentTarget.style.opacity = "0.88"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
-          onMouseDown={(e) => { if (!isDisabled) e.currentTarget.style.transform = "translateY(1px)"; }}
-          onMouseUp={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
+          disabled={loading}
+          style={{ marginBottom:12 }}
         >
-          {loading ? "Signing in…" : "Sign In"}
+          {loading ? "Authenticating..." : "Enter System →"}
         </button>
 
-        {/* Divider */}
-        <div style={S.divider} aria-hidden="true">
-          <span style={S.dividerLine} />
-          or continue with
-          <span style={S.dividerLine} />
+        {/* ── DIVIDER ── */}
+        <div style={{
+          display:"flex", alignItems:"center", gap:12,
+          margin:"16px 0",
+        }}>
+          <div style={{ flex:1, height:1, background:"#141414" }} />
+          <span style={{
+            fontSize:8, letterSpacing:".2em",
+            color:"#1e1e1e", textTransform:"uppercase",
+          }}>or</span>
+          <div style={{ flex:1, height:1, background:"#141414" }} />
         </div>
 
-        {/* Google */}
+        {/* ── GOOGLE ── */}
         <button
           type="button"
-          style={S.socialBtn}
+          className="lg-btn-google"
           onClick={handleGoogle}
-          disabled={isDisabled}
-          aria-label="Sign in with Google"
-          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.09)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; }}
+          disabled={loading}
+          style={{ marginBottom:24 }}
         >
-          <GoogleIcon /> Continue with Google
+          <GoogleIcon />
+          Continue with Google
         </button>
 
-        {/* Trust line */}
-        <p style={S.trust} aria-hidden="true">
-          🔒 256-bit encrypted · SOC 2 compliant · Zero data sold
-        </p>
+        {/* ── TRUST LINE ── */}
+        <div style={{
+          border:"1px solid #111", background:"#0c0c0c",
+          padding:"8px 12px", marginBottom:20,
+          display:"flex", justifyContent:"space-between",
+          alignItems:"center",
+        }}>
+          {["256-bit encrypted","Zero data sold","SOC 2"].map((t,i) => (
+            <span key={i} style={{
+              fontSize:8, letterSpacing:".12em",
+              color:"#222", textTransform:"uppercase",
+            }}>✓ {t}</span>
+          ))}
+        </div>
 
-        {/* Footer */}
-        <p style={S.footer}>
-          Don't have an account?
+        {/* ── FOOTER ── */}
+        <div style={{
+          textAlign:"center", fontSize:10,
+          letterSpacing:".12em", color:"#2a2a2a",
+          textTransform:"uppercase",
+        }}>
+          No account?{" "}
           <button
             type="button"
-            style={S.footerLink}
-            onClick={() => navigate("/register")}
-            aria-label="Go to registration page"
+            onClick={() => navigate("/signup")}
+            style={{
+              color:"#ffc83c", background:"none",
+              border:"none", cursor:"pointer",
+              fontFamily:"inherit", fontSize:10,
+              letterSpacing:".12em", textTransform:"uppercase",
+              padding:0,
+            }}
           >
-            Create one free
+            Create one free →
           </button>
-        </p>
+        </div>
+
+        {/* ── FOOTER BRAND ── */}
+        <div style={{
+          textAlign:"center", marginTop:20,
+          fontSize:8, letterSpacing:".22em",
+          color:"#141414", textTransform:"uppercase",
+        }}>
+          ManifiX AI · Magic16 · {new Date().getFullYear()}
+        </div>
+
       </div>
     </div>
   );
