@@ -1,182 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ManifiX — Login</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080808" />
+    <meta name="description" content="ManifiX — AI Automation Platform" />
 
-  <style>
-    body {
-      background: #0d0d0d;
-      color: white;
-      font-family: Inter, system-ui, sans-serif;
-      margin: 0;
-    }
+    <!-- Favicon — place favicon.ico in /public folder -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.ico" />
 
-    .container {
-      max-width: 380px;
-      margin: auto;
-      padding: 20px;
-      margin-top: 60px;
-      background: #1a1a1a;
-      border-radius: 20px;
-      border: 1px solid #333;
-      box-shadow: 0 0 20px rgba(0,0,0,0.5);
-    }
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
 
-    .logo {
-      display: block;
-      margin: auto;
-      width: 55px;
-      height: 55px;
-      border-radius: 12px;
-    }
+    <title>ManifiX</title>
 
-    input {
-      width: 100%;
-      padding: 12px;
-      margin-top: 6px;
-      border-radius: 12px;
-      background: #111;
-      border: 1px solid #333;
-      color: white;
-      font-size: 15px;
-    }
+    <style>
+      /* Base reset — React root fills the screen */
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    button {
-      width: 100%;
-      margin-top: 14px;
-      padding: 12px;
-      border-radius: 12px;
-      font-weight: 600;
-      font-size: 16px;
-      cursor: pointer;
-      border: none;
-    }
+      html, body, #root {
+        height: 100%;
+        width: 100%;
+      }
 
-    .btn-main {
-      background: white;
-      color: black;
-    }
+      body {
+        background: #080808;
+        color: #ffffff;
+        font-family: 'DM Mono', monospace;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
 
-    .btn-main:hover {
-      background: #dcdcdc;
-    }
+      /* Loading state shown before React mounts */
+      #root:empty::after {
+        content: 'MANIFIX';
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 32px;
+        letter-spacing: 0.3em;
+        color: rgba(212, 175, 55, 0.5);
+        animation: pulse 1.4s ease-in-out infinite;
+      }
 
-    .btn-google {
-      background: #151515;
-      color: white;
-      border: 1px solid #333;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50%       { opacity: 0.8; }
+      }
 
-    .divider {
-      text-align: center;
-      margin: 20px 0;
-      color: #777;
-      font-size: 13px;
-    }
+      /* Scrollbar — dark gold theme */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: #0e0e0e; }
+      ::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.3); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.55); }
 
-    .feedback {
-      text-align: center;
-      font-size: 14px;
-      margin-top: 10px;
-      color: #bbb;
-    }
-  </style>
-</head>
+      /* Selection highlight */
+      ::selection {
+        background: rgba(212,175,55,0.25);
+        color: #fff;
+      }
+    </style>
+  </head>
 
-<body>
+  <body>
+    <!-- React mounts here -->
+    <div id="root"></div>
 
-  <div class="container">
-
-    <img src="assets/logo.png" class="logo" alt="ManifiX Logo">
-
-    <h2 style="text-align:center; margin-top:15px;">Welcome to ManifiX</h2>
-    <p style="text-align:center; color:#aaa; font-size:14px;">
-      Sign in to your AI world
-    </p>
-
-    <form id="login-form">
-
-      <label>Email</label>
-      <input type="email" id="email" required />
-
-      <label>Password</label>
-      <input type="password" id="password" minlength="6" required />
-
-      <button type="submit" class="btn-main">Continue</button>
-
-    </form>
-
-    <div class="divider">OR</div>
-
-    <button id="google-btn" class="btn-google">
-      <img src="https://www.svgrepo.com/show/475656/google-color.svg" width="18" />
-      Continue with Google
-    </button>
-
-    <p id="feedback" class="feedback"></p>
-
-  </div>
-
-<script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-const supabase = createClient(
-  "https://sxzltwqufjsjcbsihwcr.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN4emx0d3F1ZmpzamNic2lod2NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNDE5MTQsImV4cCI6MjA3NjcxNzkxNH0.c53Wqu8CEhr3vDCs_Z8qKGV4S1BxGhIToo4WtBGE5fk"
-);
-
-const form = document.getElementById("login-form");
-const googleBtn = document.getElementById("google-btn");
-const feedback = document.getElementById("feedback");
-
-// EMAIL LOGIN
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  feedback.textContent = "Signing in...";
-
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
-
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error) {
-    feedback.textContent = error.message;
-    feedback.style.color = "red";
-    return;
-  }
-
-  window.location.href = "gpt.html";
-});
-
-// GOOGLE LOGIN
-googleBtn.addEventListener("click", async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: "https://magix-09.netlify.app/gpt.html"
-    }
-  });
-
-  if (error) {
-    feedback.textContent = error.message;
-    feedback.style.color = "red";
-  }
-});
-
-// AUTO REDIRECT
-supabase.auth.getSession().then(({ data }) => {
-  if (data.session) {
-    window.location.href = "gpt.html";
-  }
-});
-</script>
-
-</body>
+    <!-- Vite / CRA entry point -->
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
 </html>
