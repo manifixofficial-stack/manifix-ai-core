@@ -7,14 +7,21 @@
  * ✔ Prevents white screen on reload
  * ✔ Correct auth listener cleanup
  * ✔ Normalized error handling
+ * ✔ Hardcoded production URLs (manifixai.com)
  * ========================================================== */
 
 import supabase from "./supabase";
+
+// ─── Production URLs ────────────────────────────────────────
+const PROD_URL      = "https://www.manifixai.com";
+const DASHBOARD_URL = `${PROD_URL}/app/dashboard`;
+const RESET_URL     = `${PROD_URL}/reset-password`;
 
 // ===============================================
 // 🔒 AUTH SERVICE CLASS
 // ===============================================
 class AuthService {
+
   // ===========================================
   // 🔐 SIGN UP
   // ===========================================
@@ -27,7 +34,6 @@ class AuthService {
       });
 
       if (error) throw error;
-
       return data?.user || null;
     } catch (err) {
       throw new Error(err.message || "Sign up failed");
@@ -39,14 +45,12 @@ class AuthService {
   // ===========================================
   async login(email, password) {
     try {
-      const { data, error } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (error) throw error;
-
       return data?.user || null;
     } catch (err) {
       throw new Error(err.message || "Login failed");
@@ -54,23 +58,25 @@ class AuthService {
   }
 
   // ===========================================
- // 🔑 SIGN IN WITH GOOGLE (OAUTH) - v2 redirect-safe
-async loginWithGoogle() {
-  try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin, // user returns here
-      },
-    });
+  // 🔑 SIGN IN WITH GOOGLE (OAUTH)
+  // ✅ Fixed: hardcoded production redirect URL
+  // ===========================================
+  async loginWithGoogle() {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: DASHBOARD_URL, // ✅ always → manifixai.com/app/dashboard
+        },
+      });
 
-    if (error) throw error;
-    // Do NOT expect user here, user comes back via onAuthStateChange
-    return data; 
-  } catch (err) {
-    throw new Error(err.message || "Google login failed");
+      if (error) throw error;
+      // User comes back via onAuthStateChange — not here
+      return data;
+    } catch (err) {
+      throw new Error(err.message || "Google login failed");
+    }
   }
-}
 
   // ===========================================
   // 🚪 SIGN OUT
@@ -121,17 +127,17 @@ async loginWithGoogle() {
       callback(session?.user || null);
     });
 
-    // Proper cleanup
     return () => subscription.unsubscribe();
   }
 
   // ===========================================
   // 🔄 RESET PASSWORD (EMAIL LINK)
+  // ✅ Fixed: hardcoded production reset URL
   // ===========================================
   async resetPassword(email) {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: RESET_URL, // ✅ always → manifixai.com/reset-password
       });
 
       if (error) throw error;
