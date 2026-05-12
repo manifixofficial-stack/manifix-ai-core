@@ -599,7 +599,7 @@ export default function Magic16() {
         if (videoRef.current?.srcObject) {
           videoRef.current.srcObject.getTracks().forEach(t => t.stop());
         }
-        navigate("/result", {
+        navigate("/app/result", {
           state: {
             accuracy: finalAccuracy,
             isPro:    notifiedProRef.current,
