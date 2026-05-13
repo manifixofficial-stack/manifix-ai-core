@@ -1,93 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
-    <!-- Favicons -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="96x96"
-      href="/favicon-96x96.png"
-    />
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="/apple-touch-icon.png"
-    />
+import App from "./App";
+import "./index.css";
 
-    <!-- Manifest TEMPORARILY DISABLED -->
-    <!-- <link rel="manifest" href="/site.webmanifest" /> -->
+import { AppProvider } from "./context/AppProvider";
 
-    <!-- Mobile Responsive -->
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
+const container = document.getElementById("root");
 
-    <!-- SEO -->
-    <meta
-      name="description"
-      content="ManifiX AI - Magic16 & GPT Intelligence"
-    />
+if (!container) {
+  throw new Error("Root container #root not found");
+}
 
-    <!-- Theme -->
-    <meta name="theme-color" content="#000000" />
+const root = createRoot(container);
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="ManifiX AI" />
-    <meta
-      property="og:description"
-      content="ManifiX AI - Magic16 & GPT Intelligence"
-    />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.manifixai.com" />
-
-    <meta
-      property="og:image"
-      content="https://www.manifixai.com/web-app-manifest-512x512.png"
-    />
-
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-
-    <meta name="twitter:title" content="ManifiX AI" />
-
-    <meta
-      name="twitter:description"
-      content="ManifiX AI - Magic16 & GPT Intelligence"
-    />
-
-    <meta
-      name="twitter:image"
-      content="https://www.manifixai.com/web-app-manifest-512x512.png"
-    />
-
-    <!-- Structured SEO -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "ManifiX AI",
-        "url": "https://www.manifixai.com",
-        "logo": "https://www.manifixai.com/web-app-manifest-512x512.png"
-      }
-    </script>
-
-    <!-- Title -->
-    <title>ManifiX AI</title>
-
-    <!-- Razorpay -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  </head>
-
-  <body>
-    <!-- React Root -->
-    <div id="root"></div>
-
-    <!-- React Entry -->
-    <script type="module" src="/src/index.jsx"></script>
-  </body>
-</html>
+root.render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <AppProvider>
+        <App />
+      </AppProvider>
+    </BrowserRouter>
+  </React.StrictMode>
+);
