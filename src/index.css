@@ -1,7 +1,236 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* =========================================
+   MANIFIX AI — PREMIUM GLOBAL STYLES
+   Gold + Black Luxury Theme
+========================================= */
+
+:root {
+  --bg-primary: #050505;
+  --bg-secondary: #0d0d0d;
+
+  --gold-primary: #d4af37;
+  --gold-light: #f5d77a;
+  --gold-dark: #8b6b15;
+
+  --text-primary: #ffffff;
+  --text-secondary: #b8b8b8;
+
+  --border-gold: rgba(212, 175, 55, 0.35);
+
+  --shadow-gold: 0 0 20px rgba(212, 175, 55, 0.25);
+  --transition: all 0.3s ease;
+}
+
+/* =========================================
+   RESET
+========================================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* =========================================
+   BODY
+========================================= */
 
 body {
-  @apply bg-white text-gray-900 dark:bg-darkbg dark:text-white;
+  background: linear-gradient(
+    135deg,
+    #000000,
+    #050505,
+    #0d0d0d
+  );
+
+  color: var(--text-primary);
+
+  font-family: "Poppins", sans-serif;
+
+  min-height: 100vh;
+
+  overflow-x: hidden;
+
+  -webkit-font-smoothing: antialiased;
+}
+
+/* =========================================
+   SCROLLBAR
+========================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    to bottom,
+    var(--gold-primary),
+    var(--gold-dark)
+  );
+
+  border-radius: 10px;
+}
+
+/* =========================================
+   LINKS
+========================================= */
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* =========================================
+   BUTTONS
+========================================= */
+
+button {
+  border: none;
+  outline: none;
+  cursor: pointer;
+
+  background: linear-gradient(
+    135deg,
+    var(--gold-primary),
+    var(--gold-dark)
+  );
+
+  color: #000;
+
+  font-weight: 700;
+
+  border-radius: 14px;
+
+  padding: 12px 24px;
+
+  transition: var(--transition);
+
+  box-shadow: var(--shadow-gold);
+}
+
+button:hover {
+  transform: translateY(-2px) scale(1.03);
+
+  background: linear-gradient(
+    135deg,
+    var(--gold-light),
+    var(--gold-primary)
+  );
+
+  box-shadow:
+    0 0 25px rgba(212, 175, 55, 0.5),
+    0 0 50px rgba(212, 175, 55, 0.2);
+}
+
+/* =========================================
+   INPUTS
+========================================= */
+
+input,
+textarea {
+  width: 100%;
+
+  background: rgba(255, 255, 255, 0.04);
+
+  border: 1px solid var(--border-gold);
+
+  color: white;
+
+  padding: 14px;
+
+  border-radius: 14px;
+
+  outline: none;
+
+  transition: var(--transition);
+
+  backdrop-filter: blur(10px);
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--gold-primary);
+
+  box-shadow:
+    0 0 10px rgba(212, 175, 55, 0.3),
+    0 0 20px rgba(212, 175, 55, 0.1);
+}
+
+/* =========================================
+   CARDS
+========================================= */
+
+.card {
+  background: rgba(255, 255, 255, 0.03);
+
+  border: 1px solid var(--border-gold);
+
+  border-radius: 24px;
+
+  padding: 24px;
+
+  backdrop-filter: blur(18px);
+
+  box-shadow:
+    0 0 20px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(212, 175, 55, 0.08);
+
+  transition: var(--transition);
+}
+
+.card:hover {
+  transform: translateY(-5px);
+
+  border-color: var(--gold-primary);
+
+  box-shadow:
+    0 0 25px rgba(212, 175, 55, 0.2),
+    0 0 50px rgba(212, 175, 55, 0.08);
+}
+
+/* =========================================
+   GOLD TEXT EFFECT
+========================================= */
+
+.gold-text {
+  background: linear-gradient(
+    135deg,
+    #fff3b0,
+    #d4af37,
+    #8b6b15
+  );
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* =========================================
+   GLOW EFFECT
+========================================= */
+
+.gold-glow {
+  box-shadow:
+    0 0 10px rgba(212, 175, 55, 0.5),
+    0 0 20px rgba(212, 175, 55, 0.2);
+}
+
+/* =========================================
+   SELECTION
+========================================= */
+
+::selection {
+  background: var(--gold-primary);
+  color: black;
+}
+
+/* =========================================
+   SMOOTH ANIMATION
+========================================= */
+
+html {
+  scroll-behavior: smooth;
 }
