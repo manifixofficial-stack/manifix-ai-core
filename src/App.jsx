@@ -5,7 +5,7 @@ export default function App() {
 
   /* Notification Permission */
   useEffect(() => {
-    if ("Notification" in window") {
+    if ("Notification" in window) {
       Notification.requestPermission();
     }
   }, []);
