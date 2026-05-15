@@ -7,6 +7,7 @@ import { useApp }     from "./context/AppProvider";
 
 /* ── Public Pages ── */
 import Landing       from "./pages/Landing";
+import Home          from "./pages/Home";
 import Privacy       from "./pages/Privacy";
 import Terms         from "./pages/Terms";
 import ResetPassword from "./pages/ResetPassword";
@@ -43,6 +44,23 @@ function ScrollToTop() {
 
 /* ─────────────────────────────────────────────
    ROUTER
+   
+   FLOW (billion-dollar UX):
+   ┌─────────────────────────────────────────┐
+   │  /          → Landing  (marketing hero) │
+   │  /home      → Home     (product deep)   │
+   │  /login     → Login                     │
+   │  /signup    → Signup                    │
+   │  /onboarding→ Onboarding (post-signup)  │
+   │  /app/*     → Protected app             │
+   └─────────────────────────────────────────┘
+
+   Visitor journey:
+   Landing → clicks CTA → Home → clicks Start → Signup
+   → Onboarding → Dashboard → full app
+
+   Returning user:
+   / → already logged in → /app/dashboard (skip marketing)
 ───────────────────────────────────────────── */
 export default function AppRouter() {
   const { user } = useApp() || {};
@@ -79,13 +97,26 @@ export default function AppRouter() {
 
       <Routes>
 
-        {/* 1. PUBLIC */}
-        <Route path="/"               element={<Landing />} />
+        {/* ── 1. LANDING (first impression, marketing hero) ── */}
+        {/* Logged-in users skip straight to dashboard         */}
+        <Route
+          path="/"
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Landing />}
+        />
+
+        {/* ── 2. HOME (product deep-dive, second step) ─────── */}
+        {/* Logged-in users skip to dashboard                   */}
+        <Route
+          path="/home"
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Home />}
+        />
+
+        {/* ── 3. PUBLIC LEGAL / UTILITY ────────────────────── */}
         <Route path="/privacy"        element={<Privacy />} />
         <Route path="/terms"          element={<Terms />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* 2. AUTH */}
+        {/* ── 4. AUTH ──────────────────────────────────────── */}
         <Route
           path="/login"
           element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
@@ -96,7 +127,7 @@ export default function AppRouter() {
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* 3. ONBOARDING */}
+        {/* ── 5. ONBOARDING (post-signup, pre-dashboard) ───── */}
         <Route
           path="/onboarding"
           element={
@@ -110,7 +141,7 @@ export default function AppRouter() {
           }
         />
 
-        {/* 4. PROTECTED APP (/app/*) */}
+        {/* ── 6. PROTECTED APP (/app/*) ────────────────────── */}
         <Route path="/app" element={appElement}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard"   element={<Dashboard />} />
@@ -123,7 +154,7 @@ export default function AppRouter() {
           <Route path="settings"    element={<Settings />} />
         </Route>
 
-        {/* 5. 404 */}
+        {/* ── 7. 404 ───────────────────────────────────────── */}
         <Route path="*" element={<NotFound />} />
 
       </Routes>
