@@ -248,14 +248,7 @@ export default function Landing() {
     document.head.appendChild(el);
   }, []);
 
-  // Redirect if logged in
-  useEffect(() => {
-    try {
-      const user = authService?.getCurrentUser?.();
-      if (user) navigate("/app/magic16", { replace: true });
-    } catch (e) { console.error(e); }
-  }, [navigate]);
-
+  
   // Navbar scroll effect
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 40);
