@@ -20,7 +20,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 /* ── Onboarding ── */
 import Onboarding from "./pages/Onboarding";
 
-/* ── App Pages ── */
+/* ── Core App Pages ── */
 import Dashboard   from "./pages/Dashboard";
 import Gpt         from "./pages/Gpt";
 import Magic16     from "./pages/Magic16";
@@ -30,6 +30,18 @@ import Recruit     from "./pages/Recruit";
 import Billing     from "./pages/Billing";
 import Settings    from "./pages/Settings";
 
+/* ── Health Ecosystem Pages ── */
+import MentalHealth     from "./pages/MentalHealth";
+import SleepHealth      from "./pages/SleepHealth";
+import NutritionHealth  from "./pages/NutritionHealth";
+import StressHealth     from "./pages/StressHealth";
+import ChronicHealth    from "./pages/ChronicHealth";
+import WomenHealth      from "./pages/WomenHealth";
+import ElderlyHealth    from "./pages/ElderlyHealth";
+import MedicationHealth from "./pages/MedicationHealth";
+import ChildrenHealth   from "./pages/ChildrenHealth";
+import PreventiveHealth from "./pages/PreventiveHealth";
+
 /* ── 404 ── */
 import NotFound from "./pages/NotFound";
 
@@ -38,29 +50,16 @@ import NotFound from "./pages/NotFound";
 ───────────────────────────────────────────── */
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
   return null;
 }
 
 /* ─────────────────────────────────────────────
-   ROUTER
-   
-   FLOW (billion-dollar UX):
-   ┌─────────────────────────────────────────┐
-   │  /          → Landing  (marketing hero) │
-   │  /home      → Home     (product deep)   │
-   │  /login     → Login                     │
-   │  /signup    → Signup                    │
-   │  /onboarding→ Onboarding (post-signup)  │
-   │  /app/*     → Protected app             │
-   └─────────────────────────────────────────┘
-
-   Visitor journey:
-   Landing → clicks CTA → Home → clicks Start → Signup
-   → Onboarding → Dashboard → full app
-
-   Returning user:
-   / → already logged in → /app/dashboard (skip marketing)
+   APP ROUTER
 ───────────────────────────────────────────── */
 export default function AppRouter() {
   const { user } = useApp() || {};
@@ -79,15 +78,21 @@ export default function AppRouter() {
         setHasStarted(true);
       }
     };
+
     window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   const appElement = (
     <ProtectedRoute>
-      {hasStarted
-        ? <MainLayout />
-        : <Navigate to="/onboarding" replace />}
+      {hasStarted ? (
+        <MainLayout />
+      ) : (
+        <Navigate to="/onboarding" replace />
+      )}
     </ProtectedRoute>
   );
 
@@ -97,37 +102,56 @@ export default function AppRouter() {
 
       <Routes>
 
-        {/* ── 1. LANDING (first impression, marketing hero) ── */}
-        {/* Logged-in users skip straight to dashboard         */}
+        {/* ───────────────── LANDING ───────────────── */}
         <Route
           path="/"
-          element={user ? <Navigate to="/app/dashboard" replace /> : <Landing />}
+          element={
+            user
+              ? <Navigate to="/app/dashboard" replace />
+              : <Landing />
+          }
         />
 
-        {/* ── 2. HOME (product deep-dive, second step) ─────── */}
-        {/* Logged-in users skip to dashboard                   */}
+        {/* ───────────────── HOME ───────────────── */}
         <Route
           path="/home"
-          element={user ? <Navigate to="/app/dashboard" replace /> : <Home />}
+          element={
+            user
+              ? <Navigate to="/app/dashboard" replace />
+              : <Home />
+          }
         />
 
-        {/* ── 3. PUBLIC LEGAL / UTILITY ────────────────────── */}
-        <Route path="/privacy"        element={<Privacy />} />
-        <Route path="/terms"          element={<Terms />} />
+        {/* ───────────────── LEGAL ───────────────── */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* ── 4. AUTH ──────────────────────────────────────── */}
+        {/* ───────────────── AUTH ───────────────── */}
         <Route
           path="/login"
-          element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
+          element={
+            user
+              ? <Navigate to="/app/dashboard" replace />
+              : <Login />
+          }
         />
+
         <Route
           path="/signup"
-          element={user ? <Navigate to="/app/dashboard" replace /> : <Signup />}
+          element={
+            user
+              ? <Navigate to="/app/dashboard" replace />
+              : <Signup />
+          }
         />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* ── 5. ONBOARDING (post-signup, pre-dashboard) ───── */}
+        <Route
+          path="/forgot-password"
+          element={<ForgotPassword />}
+        />
+
+        {/* ───────────────── ONBOARDING ───────────────── */}
         <Route
           path="/onboarding"
           element={
@@ -141,20 +165,90 @@ export default function AppRouter() {
           }
         />
 
-        {/* ── 6. PROTECTED APP (/app/*) ────────────────────── */}
+        {/* ───────────────── PROTECTED APP ───────────────── */}
         <Route path="/app" element={appElement}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard"   element={<Dashboard />} />
-          <Route path="magic16"     element={<Magic16 />} />
-          <Route path="result"      element={<Result />} />
+
+          {/* Default */}
+          <Route
+            index
+            element={<Navigate to="dashboard" replace />}
+          />
+
+          {/* Core */}
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="magic16" element={<Magic16 />} />
+          <Route path="result" element={<Result />} />
           <Route path="leaderboard" element={<Leaderboard />} />
-          <Route path="recruit"     element={<Recruit />} />
-          <Route path="gpt"         element={<Gpt />} />
-          <Route path="membership"  element={<Billing />} />
-          <Route path="settings"    element={<Settings />} />
+          <Route path="recruit" element={<Recruit />} />
+          <Route path="gpt" element={<Gpt />} />
+          <Route path="membership" element={<Billing />} />
+          <Route path="settings" element={<Settings />} />
+
+          {/* ───────────────── HEALTH ECOSYSTEM ───────────────── */}
+
+          {/* Mental */}
+          <Route
+            path="mental"
+            element={<MentalHealth />}
+          />
+
+          {/* Sleep */}
+          <Route
+            path="sleep"
+            element={<SleepHealth />}
+          />
+
+          {/* Nutrition */}
+          <Route
+            path="nutrition"
+            element={<NutritionHealth />}
+          />
+
+          {/* Stress */}
+          <Route
+            path="stress"
+            element={<StressHealth />}
+          />
+
+          {/* Chronic */}
+          <Route
+            path="chronic"
+            element={<ChronicHealth />}
+          />
+
+          {/* Women */}
+          <Route
+            path="women"
+            element={<WomenHealth />}
+          />
+
+          {/* Elderly */}
+          <Route
+            path="elderly"
+            element={<ElderlyHealth />}
+          />
+
+          {/* Medication */}
+          <Route
+            path="medication"
+            element={<MedicationHealth />}
+          />
+
+          {/* Children */}
+          <Route
+            path="children"
+            element={<ChildrenHealth />}
+          />
+
+          {/* Preventive */}
+          <Route
+            path="preventive"
+            element={<PreventiveHealth />}
+          />
+
         </Route>
 
-        {/* ── 7. 404 ───────────────────────────────────────── */}
+        {/* ───────────────── 404 ───────────────── */}
         <Route path="*" element={<NotFound />} />
 
       </Routes>
