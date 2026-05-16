@@ -52,6 +52,11 @@ import {
   LogOut,
   ChevronLeft,
   BellRing,
+  Pause,
+  Play,
+  AlertCircle,
+  Footprints,
+  Brain,
 } from "lucide-react";
 
 export default function NutritionHealth() {
@@ -780,7 +785,7 @@ export default function NutritionHealth() {
                   <div style={{ fontSize: "5rem", fontWeight: 900, color: "#FFD700", marginBottom: 8 }}>{water}</div>
                   <div style={{ color: "#888", fontSize: "1.1rem", marginBottom: 32 }}>of {waterGoal} glasses</div>
 
-                  <div className="water-tracker" style={{ marginBottom: 32 }}>
+                  <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap", marginBottom: 32 }}>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                       <div key={n} className={`water-drop ${n <= water ? "filled" : ""}`} onClick={() => setWater(n === water ? n - 1 : n)}>
                         <Droplets size={n <= water ? 18 : 16} />
@@ -1289,47 +1294,5 @@ export default function NutritionHealth() {
         </main>
       </div>
     </>
-  );
-}
-
-// Fix for Pause icon not imported
-function Pause(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-    </svg>
-  );
-}
-
-function Play(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="5 3 19 12 5 21 5 3"/>
-    </svg>
-  );
-}
-
-function AlertCircle(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-  );
-}
-
-function Footprints(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5 10 7.31 8.5 8 8 10.5"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 1.81 1.5 2.5 2 5"/>
-      <path d="M2 19c1.5 0 2.5-.5 3-2 .5-1.5 2-2 2-2s-1.5-.5-2-2c-.5-1.5-.5-2-2-2s-1.5.5-2 2c-.5 1.5-1 2-1 2s.5.5 1 1c1 1 1 2 1 2s.5.5 1 1c.5.5 1 1 1 1s-.5-.5-1-1c-1-1-2-1-2-1s-1.5.5-2 2c-.5 1.5-1 2-1 2"/><path d="M18 17c1.5 0 2.5-.5 3-2 .5-1.5 2-2 2-2s-1.5-.5-2-2c-.5-1.5-.5-2-2-2s-1.5.5-2 2c-.5 1.5-1 2-1 2s.5.5 1 1c1 1 1 2 1 2s.5.5 1 1c.5.5 1 1 1 1s-.5-.5-1-1c-1-1-2-1-2-1s-1.5.5-2 2c-.5 1.5-1 2-1 2"/>
-    </svg>
-  );
-}
-
-function Star(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-    </svg>
   );
 }
