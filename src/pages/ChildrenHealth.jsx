@@ -1,280 +1,442 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Baby,
-  Brain,
-  Activity,
-  Heart,
-  Sparkles,
-  Gamepad2,
-  Trophy,
-  Smile,
-  Apple,
-  Moon,
-  ChevronRight,
-  ShieldCheck,
-  BookOpen,
-  Timer,
-  Star,
-  Rocket,
+  Baby, Brain, Activity, Heart, Sparkles, Gamepad2,
+  Smile, Apple, Moon, ChevronRight, ShieldCheck,
+  BookOpen, Timer, Star, Rocket, Check,
 } from "lucide-react";
 
-export default function ChildrenHealth() {
-  const [growthScore, setGrowthScore] = useState(78);
-  const [energy, setEnergy] = useState(92);
-  const [steps, setSteps] = useState(5200);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setGrowthScore((prev) => (prev >= 98 ? 78 : prev + 1));
-      setSteps((prev) => prev + Math.floor(Math.random() * 150));
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const wellnessCards = useMemo(
-    () => [
-      {
-        title: "Brain Development",
-        value: "94%",
-        icon: Brain,
-        color: "from-violet-500 to-purple-600",
-      },
-      {
-        title: "Daily Activity",
-        value: "8.1K",
-        icon: Activity,
-        color: "from-cyan-500 to-blue-500",
-      },
-      {
-        title: "Healthy Sleep",
-        value: "9.2h",
-        icon: Moon,
-        color: "from-indigo-500 to-sky-500",
-      },
-      {
-        title: "Nutrition Balance",
-        value: "91%",
-        icon: Apple,
-        color: "from-green-500 to-emerald-600",
-      },
-    ],
-    []
+// ─── Animated Ring (SVG) ────────────────────────────────────────────────────
+function RingProgress({ value = 78, size = 160, stroke = 10, color = "url(#rg1)" }) {
+  const r = (size - stroke * 2) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - value / 100);
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      <defs>
+        <linearGradient id="rg1" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#00e5c4" />
+          <stop offset="100%" stopColor="#005fff" />
+        </linearGradient>
+        <linearGradient id="rg2" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#a29bfe" />
+          <stop offset="100%" stopColor="#ff6b6b" />
+        </linearGradient>
+      </defs>
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={stroke}
+      />
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        fill="none" stroke={color} strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={offset}
+        style={{ transition: "stroke-dashoffset 1.6s cubic-bezier(.4,0,.2,1)" }}
+      />
+    </svg>
   );
+}
+
+// ─── Bar Progress ───────────────────────────────────────────────────────────
+function BarProgress({ label, value, color }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13, color: "#6b8fa8" }}>
+        <span>{label}</span>
+        <span style={{ fontWeight: 600, color: "#e8f4f8" }}>{value}%</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 100, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+        <div style={{
+          height: "100%", borderRadius: 100,
+          width: `${value}%`,
+          background: color,
+          transition: "width 1.5s cubic-bezier(.4,0,.2,1)"
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Metric Card ────────────────────────────────────────────────────────────
+function MetricCard({ icon: Icon, title, value, color, bgColor }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: "#0d2236",
+        border: `1px solid ${hovered ? "rgba(0,229,196,0.3)" : "rgba(0,229,196,0.12)"}`,
+        borderRadius: 24,
+        padding: 24,
+        transition: "all 0.3s",
+        transform: hovered ? "translateY(-5px)" : "translateY(0)",
+        cursor: "default",
+      }}
+    >
+      <div style={{
+        width: 52, height: 52, borderRadius: 16,
+        background: bgColor,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        marginBottom: 18,
+      }}>
+        <Icon size={24} color={color} />
+      </div>
+      <p style={{ fontSize: 13, color: "#6b8fa8", fontWeight: 500, marginBottom: 8 }}>{title}</p>
+      <p style={{ fontSize: 36, fontWeight: 800, color, fontFamily: "'Syne', sans-serif", marginBottom: 10 }}>{value}</p>
+      <div style={{ fontSize: 12, color: "#00e5c4", display: "flex", alignItems: "center", gap: 5 }}>
+        <Rocket size={13} /> Healthy progress improving
+      </div>
+    </div>
+  );
+}
+
+// ─── Habit Row ──────────────────────────────────────────────────────────────
+function HabitRow({ index, label }) {
+  const [done, setDone] = useState(index < 4);
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={() => setDone(d => !d)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "13px 16px",
+        borderRadius: 16,
+        border: `1px solid ${hovered ? "rgba(0,229,196,0.2)" : "rgba(255,255,255,0.05)"}`,
+        background: hovered ? "rgba(0,229,196,0.04)" : "transparent",
+        marginBottom: 10,
+        cursor: "pointer",
+        transition: "all 0.2s",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 12,
+          background: "rgba(0,229,196,0.1)",
+          color: "#00e5c4",
+          fontWeight: 700, fontSize: 13,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>{index + 1}</div>
+        <span style={{ fontSize: 14, fontWeight: 500 }}>{label}</span>
+      </div>
+      <div style={{
+        width: 28, height: 28, borderRadius: 9,
+        border: done ? "1px solid #00e5c4" : "1px solid rgba(255,255,255,0.15)",
+        background: done ? "rgba(0,229,196,0.15)" : "transparent",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "all 0.2s",
+        color: "#00e5c4",
+      }}>
+        {done && <Check size={14} />}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+export default function ChildrenHealth() {
+  const [score, setScore] = useState(78);
+  const [steps, setSteps] = useState(5200);
+  const [dir, setDir] = useState(1);
+
+  // Animate score & steps
+  useEffect(() => {
+    const id = setInterval(() => {
+      setScore(prev => {
+        const next = prev + dir;
+        if (next >= 98 || next <= 78) setDir(d => -d);
+        return next;
+      });
+      setSteps(prev => prev + Math.floor(Math.random() * 130 + 20));
+    }, 2500);
+    return () => clearInterval(id);
+  }, [dir]);
+
+  const wellnessCards = useMemo(() => [
+    { icon: Brain,    title: "Brain Development", value: "94%",  color: "#a29bfe", bgColor: "rgba(162,155,254,0.12)" },
+    { icon: Activity, title: "Daily Activity",     value: "8.1K", color: "#00e5c4", bgColor: "rgba(0,229,196,0.10)" },
+    { icon: Moon,     title: "Healthy Sleep",      value: "9.2h", color: "#005fff", bgColor: "rgba(0,95,255,0.12)"  },
+    { icon: Apple,    title: "Nutrition Balance",  value: "91%",  color: "#00e676", bgColor: "rgba(0,230,118,0.10)" },
+  ], []);
 
   const habits = [
-    "Morning stretching",
-    "Healthy breakfast",
-    "Outdoor sunlight play",
-    "Screen-time balance",
-    "Learning focus games",
-    "Night sleep routine",
+    "Morning stretching", "Healthy breakfast", "Outdoor sunlight play",
+    "Screen-time balance", "Learning focus games", "Night sleep routine",
   ];
 
-  return (
-    <div className="min-h-screen bg-[#050816] text-white overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.25),transparent_40%)]" />
+  const s = {
+    root: {
+      minHeight: "100vh",
+      background: "#020d1a",
+      color: "#e8f4f8",
+      fontFamily: "'DM Sans', sans-serif",
+      overflowX: "hidden",
+      position: "relative",
+    },
+    orb: (top, left, w, h, c) => ({
+      position: "fixed", borderRadius: "50%",
+      filter: "blur(100px)", pointerEvents: "none", zIndex: 0,
+      top, left, width: w, height: h,
+      background: c,
+    }),
+    wrap: {
+      position: "relative", zIndex: 1,
+      maxWidth: 1200, margin: "0 auto", padding: "40px 24px",
+    },
+    nav: {
+      display: "flex", alignItems: "center",
+      justifyContent: "space-between", marginBottom: 60,
+    },
+    logo: {
+      display: "flex", alignItems: "center", gap: 10,
+      fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 22,
+    },
+    logoDot: {
+      width: 34, height: 34, borderRadius: 10,
+      background: "linear-gradient(135deg,#00e5c4,#005fff)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 16,
+    },
+    navLinks: { display: "flex", gap: 28 },
+    navLink: { color: "#6b8fa8", textDecoration: "none", fontSize: 14, fontWeight: 500 },
+    btnPrimary: {
+      padding: "14px 28px", borderRadius: 100,
+      background: "linear-gradient(135deg,#00e5c4,#005fff)",
+      border: "none", color: "#000", fontWeight: 700,
+      fontSize: 15, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+      transition: "all 0.3s",
+    },
+    btnGhost: {
+      padding: "14px 28px", borderRadius: 100,
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(0,229,196,0.15)",
+      color: "#e8f4f8", fontSize: 15, cursor: "pointer",
+      fontFamily: "'DM Sans', sans-serif", fontWeight: 500, transition: "all 0.3s",
+    },
+    hero: {
+      display: "grid",
+      gridTemplateColumns: "1fr 380px",
+      gap: 60, alignItems: "center", marginBottom: 80,
+    },
+    badge: {
+      display: "inline-flex", alignItems: "center", gap: 8,
+      background: "rgba(0,229,196,0.08)",
+      border: "1px solid rgba(0,229,196,0.2)",
+      borderRadius: 100, padding: "8px 18px",
+      fontSize: 13, color: "#00e5c4", fontWeight: 500, marginBottom: 28,
+    },
+    pulseDot: {
+      width: 8, height: 8, borderRadius: "50%",
+      background: "#00e5c4",
+      animation: "pulse 2s infinite",
+    },
+    h1: {
+      fontFamily: "'Syne', sans-serif", fontWeight: 800,
+      fontSize: 64, lineHeight: 1.05, marginBottom: 20,
+    },
+    grad: {
+      background: "linear-gradient(90deg,#00e5c4,#005fff,#a29bfe)",
+      WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+      backgroundClip: "text",
+    },
+    desc: { color: "#6b8fa8", fontSize: 17, lineHeight: 1.7, maxWidth: 480, marginBottom: 36 },
+    scoreCard: {
+      background: "#0d2236",
+      border: "1px solid rgba(0,229,196,0.15)",
+      borderRadius: 28, padding: 28,
+    },
+    sectionHead: {
+      display: "flex", justifyContent: "space-between",
+      alignItems: "flex-end", marginBottom: 32,
+    },
+    sectionTitle: {
+      fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800,
+    },
+    cardsGrid: {
+      display: "grid", gridTemplateColumns: "repeat(4,1fr)",
+      gap: 18, marginBottom: 70,
+    },
+    bottomGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 },
+    habitsCard: {
+      background: "#0d2236",
+      border: "1px solid rgba(0,229,196,0.12)",
+      borderRadius: 28, padding: 28,
+    },
+    funCard: {
+      background: "linear-gradient(145deg,rgba(0,95,255,0.15),rgba(162,155,254,0.1))",
+      border: "1px solid rgba(0,95,255,0.2)",
+      borderRadius: 28, padding: 28,
+    },
+    funStatsGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 },
+    funStat: {
+      background: "rgba(0,0,0,0.25)", borderRadius: 16, padding: 14,
+      border: "1px solid rgba(255,255,255,0.07)", textAlign: "center",
+    },
+  };
 
-      <div className="relative z-10 max-w-7xl mx-auto px-5 py-10">
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/10 backdrop-blur-xl mb-6">
-              <Sparkles className="w-4 h-4 text-cyan-300" />
-              <span className="text-sm text-zinc-200 tracking-wide">
-                AI Smart Children Wellness
-              </span>
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+        @keyframes pulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(0,229,196,0.4); }
+          50%      { box-shadow: 0 0 0 6px rgba(0,229,196,0); }
+        }
+      `}</style>
+
+      <div style={s.root}>
+        {/* Orbs */}
+        <div style={s.orb("-100px","-100px","500px","500px","radial-gradient(circle,rgba(0,229,196,0.13),transparent 70%)")} />
+        <div style={s.orb("auto","-150px","600px","600px","radial-gradient(circle,rgba(0,95,255,0.10),transparent 70%)")} />
+
+        <div style={s.wrap}>
+          {/* NAV */}
+          <nav style={s.nav}>
+            <div style={s.logo}>
+              <div style={s.logoDot}>🌟</div>
+              ManifiX
+            </div>
+            <div style={s.navLinks}>
+              {["Dashboard","Activity","Nutrition","Reports"].map(l => (
+                <a key={l} href="#" style={s.navLink}>{l}</a>
+              ))}
+            </div>
+            <button style={s.btnPrimary}>Get Started</button>
+          </nav>
+
+          {/* HERO */}
+          <div style={s.hero}>
+            <div>
+              <div style={s.badge}>
+                <span style={s.pulseDot} />
+                AI-Powered Children Wellness Platform
+              </div>
+              <h1 style={s.h1}>
+                Healthy Kids.<br />
+                <span style={s.grad}>Strong Future.</span>
+              </h1>
+              <p style={s.desc}>
+                ManifiX helps children build healthy habits, improve movement, balance screen time,
+                track nutrition, and develop smarter daily routines using AI-powered wellness systems.
+              </p>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                <button style={s.btnPrimary}>Start Healthy Journey →</button>
+                <button style={s.btnGhost}>Explore AI Tracking</button>
+              </div>
             </div>
 
-            <h1 className="text-5xl md:text-7xl font-black leading-tight">
-              Healthy Kids.
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                Strong Future.
-              </span>
-            </h1>
+            {/* Score Card */}
+            <div style={s.scoreCard}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                <div>
+                  <p style={{ fontSize: 12, color: "#6b8fa8", letterSpacing: ".8px", textTransform: "uppercase", fontWeight: 500, marginBottom: 8 }}>
+                    Growth Wellness Score
+                  </p>
+                  <p style={{ fontFamily: "'Syne',sans-serif", fontSize: 64, fontWeight: 800, lineHeight: 1, color: "#00e5c4" }}>
+                    {score}
+                  </p>
+                </div>
+                <div style={{
+                  width: 72, height: 72, borderRadius: 20,
+                  background: "linear-gradient(135deg,#00e5c4,#005fff)",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32,
+                }}>👶</div>
+              </div>
 
-            <p className="mt-6 text-zinc-300 text-lg leading-relaxed max-w-xl">
-              ManifiX helps children build healthy habits, improve movement,
-              balance screen time, track nutrition, and develop smarter daily
-              routines using AI-powered wellness systems.
-            </p>
+              <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 20px" }}>
+                <div style={{ position: "relative" }}>
+                  <RingProgress value={score} size={150} stroke={10} color="url(#rg1)" />
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <Baby size={28} color="#00e5c4" />
+                  </div>
+                </div>
+              </div>
 
-            <div className="flex flex-wrap gap-4 mt-8">
-              <button className="px-6 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 font-semibold hover:scale-105 transition-all duration-300 shadow-2xl shadow-cyan-500/30">
-                Start Healthy Journey
-              </button>
+              <BarProgress label="Focus & Learning" value={89} color="linear-gradient(90deg,#00e5c4,#005fff)" />
+              <BarProgress label="Energy Balance"   value={92} color="linear-gradient(90deg,#00b894,#00cec9)" />
 
-              <button className="px-6 py-4 rounded-2xl border border-white/15 bg-white/5 backdrop-blur-xl hover:bg-white/10 transition-all duration-300">
-                Explore AI Tracking
-              </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, padding: 14 }}>
+                  <div style={{ fontSize: 12, color: "#6b8fa8", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                    <Activity size={13} /> Daily Steps
+                  </div>
+                  <p style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700 }}>
+                    {steps.toLocaleString()}
+                  </p>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, padding: 14 }}>
+                  <div style={{ fontSize: 12, color: "#6b8fa8", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                    <Heart size={13} /> Wellness
+                  </div>
+                  <p style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, color: "#00e5c4" }}>
+                    Excellent
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <p className="text-zinc-400 text-sm">Growth Wellness Score</p>
-                <h2 className="text-5xl font-black mt-2">{growthScore}</h2>
-              </div>
+          {/* WELLNESS CARDS */}
+          <div style={s.sectionHead}>
+            <div>
+              <div style={s.sectionTitle}>Smart Wellness System</div>
+              <p style={{ color: "#6b8fa8", marginTop: 4, fontSize: 14 }}>AI-powered healthy development tracking.</p>
+            </div>
+            <button style={{ background: "none", border: "none", color: "#00e5c4", fontSize: 14, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              View Full Dashboard <ChevronRight size={16} />
+            </button>
+          </div>
 
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-500 to-blue-700 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                <Baby className="w-10 h-10" />
+          <div style={s.cardsGrid}>
+            {wellnessCards.map((c, i) => <MetricCard key={i} {...c} />)}
+          </div>
+
+          {/* BOTTOM GRID */}
+          <div style={s.bottomGrid}>
+            {/* Habits */}
+            <div style={s.habitsCard}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 22, display: "flex", alignItems: "center", gap: 10 }}>
+                <ShieldCheck size={24} color="#00e5c4" /> Healthy Daily Habits
               </div>
+              {habits.map((h, i) => <HabitRow key={i} index={i} label={h} />)}
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-2 text-sm text-zinc-300">
-                  <span>Focus & Learning</span>
-                  <span>89%</span>
-                </div>
-                <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full w-[89%] bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-2 text-sm text-zinc-300">
-                  <span>Energy Balance</span>
-                  <span>{energy}%</span>
-                </div>
-                <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full w-[92%] bg-gradient-to-r from-green-400 to-emerald-500 rounded-full" />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-8">
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                <div className="flex items-center gap-2 text-zinc-400 text-sm mb-2">
-                  <Activity className="w-4 h-4" />
-                  Daily Steps
-                </div>
-                <p className="text-2xl font-bold">{steps}</p>
-              </div>
-
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                <div className="flex items-center gap-2 text-zinc-400 text-sm mb-2">
-                  <Heart className="w-4 h-4" />
-                  Wellness Level
-                </div>
-                <p className="text-2xl font-bold">Excellent</p>
+            {/* Fun AI card */}
+            <div style={s.funCard}>
+              <div style={{
+                width: 60, height: 60, borderRadius: 18,
+                background: "rgba(0,95,255,0.2)",
+                border: "1px solid rgba(0,95,255,0.3)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 28, marginBottom: 22,
+              }}>🎮</div>
+              <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, lineHeight: 1.2, marginBottom: 14, maxWidth: 300 }}>
+                Fun AI Wellness For Modern Kids
+              </h2>
+              <p style={{ color: "#6b8fa8", fontSize: 14, lineHeight: 1.7, maxWidth: 340, marginBottom: 24 }}>
+                Interactive wellness tracking makes healthy living feel fun, rewarding, and engaging for children and families.
+              </p>
+              <div style={s.funStatsGrid}>
+                {[
+                  { icon: <BookOpen size={20} color="#00e5c4" />, val: "93%",   label: "Learning" },
+                  { icon: <Smile     size={20} color="#ffd166" />, val: "Happy", label: "Mood"     },
+                  { icon: <Timer     size={20} color="#00e5c4" />, val: "2h",    label: "Outdoor"  },
+                ].map((st, i) => (
+                  <div key={i} style={s.funStat}>
+                    <div style={{ marginBottom: 8 }}>{st.icon}</div>
+                    <p style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, marginBottom: 3 }}>{st.val}</p>
+                    <p style={{ fontSize: 11, color: "#6b8fa8" }}>{st.label}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
-
-        <section className="mt-20">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-black">
-                Smart Kids Wellness System
-              </h2>
-              <p className="text-zinc-400 mt-2">
-                AI-powered healthy development tracking.
-              </p>
-            </div>
-
-            <button className="hidden md:flex items-center gap-2 text-cyan-400 hover:gap-3 transition-all duration-300">
-              View Full Dashboard
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {wellnessCards.map((item, index) => {
-              const Icon = item.icon;
-
-              return (
-                <div
-                  key={index}
-                  className="group bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl hover:scale-[1.03] transition-all duration-500"
-                >
-                  <div
-                    className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center mb-5 shadow-lg`}
-                  >
-                    <Icon className="w-7 h-7" />
-                  </div>
-
-                  <h3 className="text-xl font-bold">{item.title}</h3>
-
-                  <p className="text-4xl font-black mt-5">{item.value}</p>
-
-                  <div className="flex items-center gap-2 mt-4 text-cyan-300 text-sm">
-                    <Rocket className="w-4 h-4" />
-                    Healthy progress improving
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="mt-20 grid lg:grid-cols-2 gap-8">
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <ShieldCheck className="w-8 h-8 text-cyan-400" />
-              <h2 className="text-3xl font-black">Healthy Daily Habits</h2>
-            </div>
-
-            <div className="space-y-4">
-              {habits.map((habit, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-5 py-4 hover:bg-white/10 transition-all duration-300"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-300 font-bold">
-                      {index + 1}
-                    </div>
-                    <p className="font-medium">{habit}</p>
-                  </div>
-
-                  <Star className="w-5 h-5 text-zinc-500" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-cyan-500/20 to-blue-700/20 border border-cyan-500/20 rounded-3xl p-8 backdrop-blur-2xl relative overflow-hidden">
-            <div className="absolute -top-16 -right-16 w-40 h-40 bg-cyan-500/20 blur-3xl rounded-full" />
-
-            <div className="relative z-10">
-              <div className="w-16 h-16 rounded-2xl bg-cyan-500/20 flex items-center justify-center mb-6 border border-cyan-400/20">
-                <Gamepad2 className="w-8 h-8 text-cyan-300" />
-              </div>
-
-              <h2 className="text-4xl font-black leading-tight max-w-md">
-                Fun AI Wellness For Modern Kids
-              </h2>
-
-              <p className="mt-5 text-zinc-200 leading-relaxed max-w-lg">
-                Interactive wellness tracking makes healthy living feel fun,
-                rewarding, and engaging for children and families.
-              </p>
-
-              <div className="grid grid-cols-3 gap-4 mt-10">
-                <div className="bg-black/20 rounded-2xl p-4 border border-white/10">
-                  <BookOpen className="w-6 h-6 mb-3 text-cyan-300" />
-                  <p className="text-2xl font-black">93%</p>
-                  <span className="text-xs text-zinc-300">Learning</span>
-                </div>
-
-                <div className="bg-black/20 rounded-2xl p-4 border border-white/10">
-                  <Smile className="w-6 h-6 mb-3 text-yellow-300" />
-                  <p className="text-2xl font-black">Happy</p>
-                  <span className="text-xs text-zinc-300">Mood</span>
-                </div>
-
-                <div className="bg-black/20 rounded-2xl p-4 border border-white/10">
-                  <Timer className="w-6 h-6 mb-3 text-green-300" />
-                  <p className="text-2xl font-black">2h</p>
-                  <span className="text-xs text-zinc-300">Outdoor</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
-    </div>
+    </>
   );
 }
