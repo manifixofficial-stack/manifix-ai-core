@@ -824,19 +824,63 @@ return (
         }}
       >
         
-        {/* Quick Trackers */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-          {[
-            { label: "💧 Water", val: `${data.water}/8`, color: "#60a5fa" },
-            { label: "😴 Sleep", val: `${data.sleepHours}h`, color: "#a78bfa" },
-            { label: "😰 Stress", val: `${data.stress}/10`, color: data.stress > 5 ? "#f87171" : "#4ade80" },
-          ].map(t => (
-            <div key={t.label} style={{ border: `2px solid ${t.color}33`, background: `${t.color}08`, padding: "10px", borderRadius: 10, textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: "#6a6a6a", marginBottom: 4 }}>{t.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: t.color }}>{t.val}</div>
-            </div>
-          ))}
-        </div>
+{/* Quick Trackers */}
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 8,
+  }}
+>
+  {[
+    {
+      label: "💧 Water",
+      val: data.water + "/8",
+      color: "#60a5fa",
+    },
+    {
+      label: "😴 Sleep",
+      val: data.sleepHours + "h",
+      color: "#a78bfa",
+    },
+    {
+      label: "😰 Stress",
+      val: data.stress + "/10",
+      color: data.stress > 5 ? "#f87171" : "#4ade80",
+    },
+  ].map((t) => (
+    <div
+      key={t.label}
+      style={{
+        border: "2px solid " + t.color + "33",
+        background: t.color + "08",
+        padding: "10px",
+        borderRadius: 10,
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          color: "#6a6a6a",
+          marginBottom: 4,
+        }}
+      >
+        {t.label}
+      </div>
+
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 800,
+          color: t.color,
+        }}
+      >
+        {t.val}
+      </div>
+    </div>
+  ))}
+</div>
         
         {/* Daily Habits */}
         <div>
