@@ -366,30 +366,173 @@ function LogModal({ onClose, onSave, accent }) {
   const [energy, setEnergy] = useState(7);
   const [stress, setStress] = useState(3);
   const [note, setNote] = useState("");
-  
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
-      <div style={{ background: "#030d07", border: `3px solid ${accent}`, padding: 20, width: "min(400px, 100%)", borderRadius: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#f0ede6" }}>📝 Daily Health Log</span>
-          <button onClick={onClose} style={{ fontSize: 20, background: "none", border: "none", color: "#666", cursor: "pointer" }}>✕</button>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.9)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "#030d07",
+          border: "3px solid " + accent,
+          padding: 20,
+          width: "min(400px, 100%)",
+          borderRadius: 16,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#f0ede6",
+            }}
+          >
+            📝 Daily Health Log
+          </span>
+
+          <button
+            onClick={onClose}
+            style={{
+              fontSize: 20,
+              background: "none",
+              border: "none",
+              color: "#666",
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
         </div>
-        {[{l:"Mood", v:mood, s:setMood, e:"😊"}, {l:"Energy", v:energy, s:setEnergy, e:"⚡"}, {l:"Stress", v:stress, s:setStress, e:"😰"}].map(item => (
-          <div key={item.l} style={{ marginBottom: 12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#8a8680", marginBottom:4 }}>{item.l} <span style={{color:accent}}>{item.v}/10</span></div>
-            <input type="range" min="1" max="10" value={item.v} onChange={(e)=>item.s(parseInt(e.target.value))} style={{width:"100%", accentColor: accent}}/>
+
+        {[
+          { l: "Mood", v: mood, s: setMood, e: "😊" },
+          { l: "Energy", v: energy, s: setEnergy, e: "⚡" },
+          { l: "Stress", v: stress, s: setStress, e: "😰" },
+        ].map((item) => (
+          <div
+            key={item.l}
+            style={{ marginBottom: 12 }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 12,
+                color: "#8a8680",
+                marginBottom: 4,
+              }}
+            >
+              <span>
+                {item.e} {item.l}
+              </span>
+
+              <span style={{ color: accent }}>
+                {item.v}/10
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={item.v}
+              onChange={(e) =>
+                item.s(parseInt(e.target.value))
+              }
+              style={{
+                width: "100%",
+                accentColor: accent,
+              }}
+            />
           </div>
         ))}
-        <textarea placeholder="Notes (optional)" value={note} onChange={(e)=>setNote(e.target.value)} rows={2} style={{width:"100%",padding:"10px",fontSize:13,background:"#1a1a1a",border:`1px solid #333`,color:"#f0ede6",borderRadius:8,marginBottom:16,resize:"vertical",fontFamily:"inherit"}}/>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={onClose} style={{flex:1,padding:"12px",background:"#1a1a1a",border:"2px solid #333",color:"#8a8680",borderRadius:10,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button onClick={()=>onSave({mood,energy,stress,note})} style={{flex:1,padding:"12px",background:accent,border:"2px solid #000",color:"#030d07",borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>Save Log</button>
+
+        <textarea
+          placeholder="Notes (optional)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          style={{
+            width: "100%",
+            padding: "10px",
+            fontSize: 13,
+            background: "#1a1a1a",
+            border: "1px solid #333",
+            color: "#f0ede6",
+            borderRadius: 8,
+            marginBottom: 16,
+            resize: "vertical",
+            fontFamily: "inherit",
+          }}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "12px",
+              background: "#1a1a1a",
+              border: "2px solid #333",
+              color: "#8a8680",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={() =>
+              onSave({
+                mood,
+                energy,
+                stress,
+                note,
+              })
+            }
+            style={{
+              flex: 1,
+              padding: "12px",
+              background: accent,
+              border: "2px solid #000",
+              color: "#030d07",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontWeight: 600,
+            }}
+          >
+            Save Log
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
 /* ════════════════════════════════════════════════════════════
    9. MAIN COMPONENT: PreventiveHealth
 ════════════════════════════════════════════════════════════ */
