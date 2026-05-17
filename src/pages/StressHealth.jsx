@@ -1,1271 +1,1080 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+/**
+ * ManifiX AI — Stress & Burnout Health Module
+ * Black #080808 + Gold #ffc83c + Bebas Neue + DM Mono
+ * Real features: HRV, SOS, Meditation Timer, Cortisol, Journal,
+ * Mood Tracker, Breathing, Trigger Correlation, Coping Strategies
+ */
+
+import {
+  useEffect, useState, useCallback, useRef, useMemo,
+} from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Brain, HeartPulse, Moon, Flame, Smile, TimerReset, BarChart3, Bell, Sparkles,
-  PlayCircle, PauseCircle, SkipForward, Plus, X, CheckCircle2, ChevronRight,
-  ChevronDown, ChevronUp, Save, Trash2, Edit2, Download, Settings, Home,
-  Calendar, BookOpen, Trophy, Target, Clock, Wind, Sun, Cloud, Zap, AlertTriangle,
-  Info, Volume2, VolumeX, RefreshCw, Star, ArrowRight, Minus, Heart, Coffee,
-  Smartphone, Users, Briefcase, Wallet, Dumbbell, BookMarked, MessageCircle,
-  Shield, TrendingUp, History, LucideIcon, AlertCircle, Mic, Activity, Lock
-} from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell,
 } from "recharts";
 
-const GOLD = "#D4AF37";
-const GOLD_LIGHT = "#F5D76E";
-const GOLD_DARK = "#AA8C2C";
-const BG = "#050505";
-const CARD_BG = "rgba(212, 175, 55, 0.03)";
-const CARD_BORDER = "rgba(212, 175, 55, 0.12)";
+/* ═══════════════ MANIFIX DESIGN TOKENS ═══════════════ */
+const GOLD   = "#ffc83c";
+const DIM    = "#c8a84b";
+const BG     = "#080808";
+const CARD   = "#0c0c0c";
+const BOR    = "#1a1a1a";
+const FONT   = "'DM Mono','Courier New',monospace";
+const HEAD   = "'Bebas Neue',sans-serif";
+const GREEN  = "#4ade80";
+const RED    = "#ef4444";
+const PURPLE = "#A78BFA";
+const BLUE   = "#60A5FA";
+const ORANGE = "#f97316";
 
-const moodEmojis = {
-  Overwhelmed: "😰", Anxious: "😟", Tired: "😴", Restless: "🤸",
-  "Burned Out": "🔥", Peaceful: "😌", Calm: "😌", Focused: "🎯", Energized: "⚡"
+/* ═══════════════ GLOBAL CSS ═══════════════ */
+function injectCSS() {
+  if (document.getElementById("str-css")) return;
+  const s = document.createElement("style");
+  s.id = "str-css";
+  s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    @keyframes str-scan{from{top:-4px}to{top:100%}}
+    @keyframes str-blink{0%,100%{opacity:1}50%{opacity:0}}
+    @keyframes str-up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes str-spin{to{transform:rotate(360deg)}}
+    @keyframes str-pulse{0%,100%{opacity:.07;transform:scale(1)}50%{opacity:.18;transform:scale(1.08)}}
+    @keyframes str-beat{0%,100%{transform:scale(1)}14%{transform:scale(1.35)}28%{transform:scale(1)}}
+    @keyframes str-shimmer{from{background-position:-200% center}to{background-position:200% center}}
+    @keyframes str-breath-in{from{transform:scale(1)}to{transform:scale(1.55)}}
+    @keyframes str-breath-out{from{transform:scale(1.55)}to{transform:scale(1)}}
+    @keyframes str-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    .str-up{animation:str-up .45s cubic-bezier(.22,.68,0,1.2) both}
+    .str-btn{cursor:pointer;transition:all .15s}
+    .str-btn:hover{opacity:.88;transform:translateY(-1px)}
+    .str-btn:active{transform:translateY(0)}
+    .str-input{background:#0a0a0a;border:1px solid #1a1a1a;color:#e8e4d9;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.06em;padding:10px 14px;width:100%;outline:none;transition:border-color .2s;resize:none}
+    .str-input:focus{border-color:#ffc83c55}
+    .str-input::placeholder{color:#252525}
+    .str-select{background:#0a0a0a;border:1px solid #1a1a1a;color:#e8e4d9;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.06em;padding:10px 14px;width:100%;outline:none;appearance:none}
+    .str-range{width:100%;accent-color:#ffc83c}
+    ::-webkit-scrollbar{width:4px}
+    ::-webkit-scrollbar-track{background:#0a0a0a}
+    ::-webkit-scrollbar-thumb{background:#1e1e1e;border-radius:2px}
+    .str-nav-btn.active{color:${GOLD};border-bottom:2px solid ${GOLD}}
+    .str-card-hover{transition:border-color .2s}
+    .str-card-hover:hover{border-color:#2a2a2a!important}
+  `;
+  document.head.appendChild(s);
+}
+
+/* ═══════════════ DATA ═══════════════ */
+function useLS(key, init) {
+  const [v, setV] = useState(() => {
+    try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : init; } catch { return init; }
+  });
+  const set = useCallback(val => {
+    const next = typeof val === "function" ? val(v) : val;
+    setV(next);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+  }, [key, v]);
+  return [v, set];
+}
+
+const MOOD_MAP = {
+  Overwhelmed:"😰", Anxious:"😟", Tired:"😴", Restless:"🤸",
+  "Burned Out":"🔥", Peaceful:"😌", Calm:"🧘", Focused:"🎯", Energized:"⚡",
+};
+const MOOD_VALS = {
+  Peaceful:10, Calm:9, Energized:8, Focused:7, Tired:5,
+  Restless:4, Anxious:3, "Burned Out":2, Overwhelmed:1,
 };
 
-const moodValues = {
-  Peaceful: 10, Calm: 9, Energized: 8, Focused: 7, Tired: 5,
-  Restless: 4, Anxious: 3, "Burned Out": 2, Overwhelmed: 1
-};
-
-const dailyTips = [
-  "Hydrate before caffeine.", "Walk for 5 minutes after stressful work.",
-  "Avoid doom-scrolling before sleep.", "Take one deep breath before replying emotionally.",
-  "Stretch your shoulders every hour.", "Write down 3 things you're grateful for.",
-  "Practice the 5-4-3-2-1 grounding technique.", "Listen to calming music for 10 minutes.",
-  "Step outside and feel the sun on your face.", "Progressive muscle relaxation before bed."
+const TRIGGERS = [
+  {id:1,label:"Work Pressure",icon:"💼"}, {id:2,label:"Financial",icon:"💰"},
+  {id:3,label:"Relationships",icon:"👥"}, {id:4,label:"Health Worry",icon:"🫀"},
+  {id:5,label:"Poor Sleep",icon:"🌙"},   {id:6,label:"Too Much Caffeine",icon:"☕"},
+  {id:7,label:"Social Media",icon:"📱"}, {id:8,label:"Environment",icon:"🔔"},
+  {id:9,label:"Uncertainty",icon:"🌫️"},  {id:10,label:"Physical Tension",icon:"🏋️"},
 ];
 
-const stressPrograms = [
-  { id: 1, title: "2-Minute Calm Reset", duration: 2, level: "Beginner", icon: TimerReset, description: "Quick stress relief for busy moments. Focuses on instant nervous system reset through breath pacing.", steps: ["Find a quiet spot", "Inhale 4 seconds", "Hold 4 seconds", "Exhale 6 seconds", "Repeat 8 cycles"], category: "breathing" },
-  { id: 2, title: "Anxiety Cooldown", duration: 7, level: "Popular", icon: Brain, description: "Targeted anxiety reduction using cognitive reframing and grounding techniques.", steps: ["Acknowledge the anxiety", "Name 5 things you see", "Name 4 things you touch", "Name 3 sounds", "Challenge one thought", "Breathe slowly", "Accept what you cannot control"], category: "anxiety" },
-  { id: 3, title: "Deep Breathing", duration: 5, level: "Daily", icon: HeartPulse, description: "Diaphragmatic breathing to activate the parasympathetic nervous system.", steps: ["Place hand on belly", "Breathe in through nose", "Feel belly expand", "Exhale through pursed lips", "Feel belly contract", "Find your rhythm"], category: "breathing" },
-  { id: 4, title: "Sleep Stress Release", duration: 10, level: "Night", icon: Moon, description: "Progressive muscle relaxation and body scan for deep sleep preparation.", steps: ["Lie comfortably", "Close your eyes", "Scan from toes upward", "Tense each muscle group", "Hold for 5 seconds", "Release tension", "Notice the warmth", "Let go of thoughts"], category: "sleep" },
-  { id: 5, title: "Mindful Walking", duration: 5, level: "Beginner", icon: Wind, description: "Combine movement with mindfulness to reduce cortisol and improve mood.", steps: ["Start walking slowly", "Feel each footstep", "Notice your surroundings", "Match breath to steps", "Release mental tension", "End with gratitude"], category: "movement" },
-  { id: 6, title: "Workplace Decompression", duration: 3, level: "Daily", icon: Briefcase, description: "Quick desk-friendly exercises to reduce work stress without leaving your station.", steps: ["Roll shoulders back 5 times", "Neck stretches side to side", "Close eyes, deep breath", "Unclench jaw", "Stretch arms overhead", "Reset posture"], category: "workplace" }
+const PROGRAMS = [
+  {id:1,title:"2-Min Calm Reset",duration:2,level:"Beginner",emoji:"⏱️",desc:"Instant nervous system reset through breath pacing.",steps:["Find a quiet spot","Inhale 4 seconds","Hold 4 seconds","Exhale 6 seconds","Repeat 8 cycles"]},
+  {id:2,title:"Anxiety Cooldown",duration:7,level:"Popular",emoji:"🧠",desc:"Grounding + cognitive reframing for acute anxiety.",steps:["Acknowledge the anxiety","Name 5 things you see","Name 4 things you touch","Name 3 sounds","Challenge one thought","Breathe slowly","Accept what you can't control"]},
+  {id:3,title:"Deep Breathing",duration:5,level:"Daily",emoji:"💨",desc:"Activate parasympathetic nervous system fully.",steps:["Place hand on belly","Breathe in through nose","Feel belly expand","Exhale through pursed lips","Feel belly contract","Find your rhythm"]},
+  {id:4,title:"Sleep Stress Release",duration:10,level:"Night",emoji:"🌙",desc:"Progressive relaxation for deep sleep preparation.",steps:["Lie comfortably","Close your eyes","Scan from toes upward","Tense each muscle group","Hold for 5 seconds","Release tension","Notice the warmth","Let go of thoughts"]},
+  {id:5,title:"Mindful Walk",duration:5,level:"Beginner",emoji:"🚶",desc:"Movement + mindfulness to reduce cortisol.",steps:["Start walking slowly","Feel each footstep","Notice surroundings","Match breath to steps","Release mental tension","End with gratitude"]},
+  {id:6,title:"Desk Decompression",duration:3,level:"Daily",emoji:"💻",desc:"Desk-friendly stress release without leaving your station.",steps:["Roll shoulders back 5x","Neck stretches side to side","Close eyes, deep breath","Unclench jaw","Stretch arms overhead","Reset posture"]},
 ];
 
-const copingStrategies = [
-  { id: 1, title: "Box Breathing", desc: "4-4-4-4 pattern for instant calm", category: "Breathing", time: "3 min" },
-  { id: 2, title: "5-4-3-2-1 Grounding", desc: "Engage all five senses to return to present", category: "Grounding", time: "2 min" },
-  { id: 3, title: "Progressive Relaxation", desc: "Systematically release muscle tension", category: "Relaxation", time: "10 min" },
-  { id: 4, title: "Thought Reframing", desc: "Challenge and reframe negative thoughts", category: "Cognitive", time: "5 min" },
-  { id: 5, title: "Body Scan", desc: "Mindful awareness from head to toe", category: "Mindfulness", time: "8 min" },
-  { id: 6, title: "Gratitude Journal", desc: "Write 3 things you appreciate", category: "Journaling", time: "5 min" },
-  { id: 7, title: "Visualization", desc: "Picture your safe, calm place", category: "Visualization", time: "5 min" },
-  { id: 8, title: "Self-Compassion Break", desc: "Kind words to yourself in hard moments", category: "Compassion", time: "3 min" }
+const MEDITATIONS = [
+  {id:1,title:"Morning Calm",duration:5,focus:"Start the day centred",emoji:"🌅"},
+  {id:2,title:"Midday Reset",duration:10,focus:"Release afternoon tension",emoji:"🕛"},
+  {id:3,title:"Evening Wind Down",duration:15,focus:"Transition to rest mode",emoji:"🌙"},
+  {id:4,title:"Panic SOS",duration:3,focus:"Immediate calm response",emoji:"🆘"},
+  {id:5,title:"Focus Deepener",duration:7,focus:"Enhance concentration",emoji:"🎯"},
+  {id:6,title:"Self-Love Journey",duration:12,focus:"Build inner compassion",emoji:"❤️"},
 ];
 
-const triggers = [
-  { id: 1, label: "Work Pressure", icon: Briefcase },
-  { id: 2, label: "Financial Concerns", icon: Wallet },
-  { id: 3, label: "Relationship Issues", icon: Users },
-  { id: 4, label: "Health Worries", icon: HeartPulse },
-  { id: 5, label: "Lack of Sleep", icon: Moon },
-  { id: 6, label: "Too Much Caffeine", icon: Coffee },
-  { id: 7, label: "Social Media", icon: Smartphone },
-  { id: 8, label: "Noise/Environment", icon: Bell },
-  { id: 9, label: "Uncertainty", icon: Cloud },
-  { id: 10, label: "Physical Tension", icon: Dumbbell }
+const COPING = [
+  {id:1,title:"Box Breathing",desc:"4-4-4-4 pattern for instant calm",time:"3 min"},
+  {id:2,title:"5-4-3-2-1 Grounding",desc:"Engage all five senses to return to present",time:"2 min"},
+  {id:3,title:"Progressive Relaxation",desc:"Systematically release muscle tension",time:"10 min"},
+  {id:4,title:"Thought Reframing",desc:"Challenge and reframe negative thoughts",time:"5 min"},
+  {id:5,title:"Body Scan",desc:"Mindful awareness from head to toe",time:"8 min"},
+  {id:6,title:"Gratitude Journal",desc:"Write 3 things you appreciate",time:"5 min"},
 ];
 
-const meditationSessions = [
-  { id: 1, title: "Morning Calm", duration: 5, level: "All Levels", focus: "Start the day centered", icon: Sun },
-  { id: 2, title: "Midday Reset", duration: 10, level: "Intermediate", focus: "Release afternoon tension", icon: Clock },
-  { id: 3, title: "Evening Wind Down", duration: 15, level: "All Levels", focus: "Transition to rest mode", icon: Moon },
-  { id: 4, title: "Panic SOS", duration: 3, level: "Emergency", focus: "Immediate calm response", icon: AlertCircle },
-  { id: 5, title: "Focus Deepener", duration: 7, level: "Advanced", focus: "Enhance concentration", icon: Target },
-  { id: 6, title: "Self-Love Journey", duration: 12, level: "All Levels", focus: "Build inner compassion", icon: Heart }
+const DAILY_TIPS = [
+  "Hydrate before caffeine.","Walk 5 minutes after stressful work.","Avoid doom-scrolling before sleep.",
+  "Take one deep breath before replying emotionally.","Stretch your shoulders every hour.",
+  "Write down 3 things you're grateful for.","Practice the 5-4-3-2-1 grounding technique.",
+  "Listen to calming music for 10 minutes.","Step outside and feel sun on your face.",
+  "Progressive muscle relaxation before bed.",
 ];
 
-export default function StressHealth() {
-  const [activeTab, setActiveTab] = useState("home");
-  const [stressScore, setStressScore] = useState(68);
-  const [streak, setStreak] = useLocalStorage("aurum_streak", 12);
-  const [selectedMood, setSelectedMood] = useState(null);
-  const [moodHistory, setMoodHistory] = useLocalStorage("stressMoods", []);
-  const [activeProgram, setActiveProgram] = useState(null);
-  const [programRunning, setProgramRunning] = useState(false);
-  const [programTime, setProgramTime] = useState(0);
-  const [programStep, setProgramStep] = useState(0);
-  const [breathingPhase, setBreathingPhase] = useState("idle");
-  const [journalEntries, setJournalEntries] = useLocalStorage("stressJournal", []);
-  const [showJournalModal, setShowJournalModal] = useState(false);
-  const [journalForm, setJournalForm] = useState({ trigger: [], mood: "", intensity: 5, notes: "" });
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [quizAnswers, setQuizAnswers] = useState({});
-  const [quizComplete, setQuizComplete] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useLocalStorage("aurum_sound", true);
-  const [selectedCoping, setSelectedCoping] = useState(null);
-  const [copingActive, setCopingActive] = useState(false);
-  const [copingTime, setCopingTime] = useState(0);
-  const [tipIndex, setTipIndex] = useState(0);
-  const [activeTriggers, setActiveTriggers] = useLocalStorage("stressTriggers", []);
-  const [goals, setGoals] = useLocalStorage("stressGoals", [
-    { id: 1, text: "Complete 3 sessions today", done: false },
-    { id: 2, text: "Log mood twice today", done: false },
-    { id: 3, text: "Practice breathing for 5 min", done: false },
-    { id: 4, text: "Write one journal entry", done: false }
-  ]);
-  
-  // New Real Features State
-  const [hrvData, setHrvData] = useLocalStorage("aurum_hrv", []);
-  const [cortisolLevel, setCortisolLevel] = useState(12); // mcg/dL baseline
-  const [showSOS, setShowSOS] = useState(false);
-  const [meditationActive, setMeditationActive] = useState(null);
-  const [meditationTimer, setMeditationTimer] = useState(0);
-  const [meditationRunning, setMeditationRunning] = useState(false);
-  const [voiceCoaching, setVoiceCoaching] = useLocalStorage("aurum_voice", false);
-  const [dailyForecast, setDailyForecast] = useState(null);
-  const [achievements, setAchievements] = useLocalStorage("aurum_achievements", []);
-  const [lastCheckIn, setLastCheckIn] = useLocalStorage("aurum_lastCheck", null);
+const GOALS_INIT = [
+  {id:1,text:"Complete 3 sessions today",done:false},
+  {id:2,text:"Log mood twice today",done:false},
+  {id:3,text:"Practice breathing for 5 min",done:false},
+  {id:4,text:"Write one journal entry",done:false},
+];
 
-  const programInterval = useRef(null);
-  const copingInterval = useRef(null);
-  const meditationInterval = useRef(null);
-  const hrvInterval = useRef(null);
+/* ═══════════════ SHARED CARD ═══════════════ */
+const Card = ({children, style={}, className=""}) => (
+  <div className={`str-card-hover ${className}`} style={{
+    background:CARD, border:`1px solid ${BOR}`,
+    padding:20, ...style,
+  }}>{children}</div>
+);
+
+const Label = ({children, style={}}) => (
+  <div style={{fontSize:8,letterSpacing:".2em",color:"#252525",textTransform:"uppercase",marginBottom:6,...style}}>{children}</div>
+);
+
+const Stat = ({label,value,color=GOLD,size=30}) => (
+  <div style={{background:CARD,border:`1px solid ${BOR}`,padding:"12px 14px"}}>
+    <Label>{label}</Label>
+    <div style={{fontFamily:HEAD,fontSize:size,color,lineHeight:1}}>{value}</div>
+  </div>
+);
+
+const Bar = ({pct,color=GOLD,height=4}) => (
+  <div style={{height,background:"#111",overflow:"hidden",borderRadius:height,marginTop:8}}>
+    <motion.div initial={{width:0}} animate={{width:`${Math.min(pct,100)}%`}} transition={{duration:1.2,ease:"easeOut"}}
+      style={{height:"100%",background:`linear-gradient(90deg,${DIM},${color})`,borderRadius:height}} />
+  </div>
+);
+
+/* ═══════════════ BREATHING CIRCLE ═══════════════ */
+function BreathCircle({active, onToggle}) {
+  const [phase,setPhase] = useState("idle");
+  const [count,setCount] = useState(4);
+  const [cycles,setCycles] = useState(0);
+  const ref = useRef(null);
+  const seq = useRef([{l:"Inhale",s:4},{l:"Hold",s:4},{l:"Exhale",s:6},{l:"Rest",s:2}]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTipIndex(prev => (prev + 1) % dailyTips.length);
-    }, 4000);
-    return () => clearInterval(interval);
+    if (!active) { clearInterval(ref.current); setPhase("idle"); return; }
+    let pi = 0, ct = seq.current[0].s;
+    setPhase("Inhale"); setCount(ct);
+    ref.current = setInterval(() => {
+      ct--;
+      if (ct < 0) {
+        pi = (pi + 1) % seq.current.length;
+        if (pi === 0) setCycles(c => c + 1);
+        ct = seq.current[pi].s;
+        setPhase(seq.current[pi].l);
+      }
+      setCount(ct);
+    }, 1000);
+    return () => clearInterval(ref.current);
+  }, [active]);
+
+  const isIn  = phase === "Inhale";
+  const isOut = phase === "Exhale";
+  const sz    = active ? (isIn ? 130 : isOut ? 70 : 100) : 90;
+
+  return (
+    <div style={{textAlign:"center",padding:"20px 0"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:160,position:"relative"}}>
+        <motion.div animate={{width:sz,height:sz}} transition={{duration:isIn?4:isOut?6:1,ease:"easeInOut"}}
+          style={{borderRadius:"50%",background:`${GOLD}18`,border:`2px solid ${GOLD}55`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          {active && <><div style={{fontFamily:HEAD,fontSize:28,color:GOLD,lineHeight:1}}>{count}</div>
+          <div style={{fontSize:8,letterSpacing:".15em",color:DIM,textTransform:"uppercase"}}>{phase}</div></>}
+          {!active && <div style={{fontSize:28}}>🫁</div>}
+        </motion.div>
+      </div>
+      {active && <div style={{fontSize:8,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:12}}>Cycles: {cycles}</div>}
+      <button className="str-btn" onClick={onToggle} style={{padding:"10px 24px",background:active?"transparent":GOLD,color:active?"#ef4444":"#080808",border:active?`1px solid #ef4444`:"none",fontFamily:FONT,fontSize:10,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase"}}>
+        {active ? "⏹ Stop" : "▶ Start Exercise"}
+      </button>
+    </div>
+  );
+}
+
+/* ═══════════════ SOS OVERLAY ═══════════════ */
+function SosOverlay({onClose}) {
+  const [phase,setPhase] = useState("Inhale");
+  const [count,setCount] = useState(4);
+  const ref = useRef(null);
+  const seq = [{l:"Inhale",s:4},{l:"Hold",s:4},{l:"Exhale",s:6},{l:"Rest",s:2}];
+
+  useEffect(() => {
+    let pi = 0, ct = 4;
+    ref.current = setInterval(() => {
+      ct--;
+      if (ct < 0) { pi = (pi + 1) % seq.length; ct = seq[pi].s; setPhase(seq[pi].l); }
+      setCount(ct);
+    }, 1000);
+    return () => clearInterval(ref.current);
   }, []);
 
-  // Simulate HRV data collection
+  const sz = phase === "Inhale" ? 200 : phase === "Exhale" ? 100 : 160;
+
+  return (
+    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+      style={{position:"fixed",inset:0,background:"#000000f5",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
+      <div style={{fontFamily:HEAD,fontSize:36,color:RED,letterSpacing:".08em",marginBottom:8}}>SOS CALM MODE</div>
+      <div style={{fontSize:9,letterSpacing:".2em",color:"#333",textTransform:"uppercase",marginBottom:40}}>Follow the circle · Breathe slowly</div>
+      <motion.div animate={{width:sz,height:sz}} transition={{duration:phase==="Inhale"?4:phase==="Exhale"?6:1,ease:"easeInOut"}}
+        style={{borderRadius:"50%",background:"rgba(239,68,68,0.15)",border:"2px solid rgba(239,68,68,0.4)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",marginBottom:40}}>
+        <div style={{fontFamily:HEAD,fontSize:36,color:RED,lineHeight:1}}>{count}</div>
+        <div style={{fontSize:9,letterSpacing:".15em",color:"rgba(239,68,68,0.6)",textTransform:"uppercase"}}>{phase}</div>
+      </motion.div>
+      <div style={{fontSize:10,color:"#3a3a3a",letterSpacing:".12em",marginBottom:24}}>3-minute emergency protocol</div>
+      <button className="str-btn" onClick={onClose} style={{padding:"12px 28px",background:"transparent",border:`1px solid ${BOR}`,color:"#444",fontFamily:FONT,fontSize:10,letterSpacing:".18em",textTransform:"uppercase"}}>Exit SOS Mode</button>
+    </motion.div>
+  );
+}
+
+/* ═══════════════ MAIN COMPONENT ═══════════════ */
+export default function Stress() {
+  const navigate = useNavigate();
+
+  const [tab,setTab]             = useState("home");
+  const [stressScore,setScore]   = useState(() => Number(localStorage.getItem("str_score")||68));
+  const [streak,setStreak]       = useLS("str_streak",12);
+  const [moods,setMoods]         = useLS("str_moods",[]);
+  const [journal,setJournal]     = useLS("str_journal",[]);
+  const [goals,setGoals]         = useLS("str_goals",GOALS_INIT);
+  const [activeTriggers,setAT]   = useLS("str_triggers",[]);
+  const [hrvData,setHrv]         = useLS("str_hrv",[]);
+  const [achievements,setAch]    = useLS("str_ach",[]);
+  const [soundOn,setSound]       = useLS("str_sound",true);
+  const [voiceOn,setVoice]       = useLS("str_voice",false);
+
+  const [selMood,setSelMood]     = useState(null);
+  const [showSOS,setShowSOS]     = useState(false);
+  const [activeProgram,setAP]    = useState(null);
+  const [progRunning,setProgR]   = useState(false);
+  const [progTime,setProgT]      = useState(0);
+  const [progStep,setProgS]      = useState(0);
+  const [breathActive,setBrA]    = useState(false);
+  const [medActive,setMedA]      = useState(null);
+  const [medTime,setMedT]        = useState(0);
+  const [medRunning,setMedR]     = useState(false);
+  const [showJModal,setJModal]   = useState(false);
+  const [jForm,setJForm]         = useState({trigger:[],mood:"",intensity:5,notes:""});
+  const [showQuiz,setShowQuiz]   = useState(false);
+  const [quizA,setQuizA]         = useState({});
+  const [quizDone,setQuizDone]   = useState(false);
+  const [selCoping,setSelCoping] = useState(null);
+  const [copingRun,setCopingR]   = useState(false);
+  const [copingTime,setCopingT]  = useState(0);
+  const [tipIdx,setTipIdx]       = useState(0);
+  const [cortisol,setCortisol]   = useState(12);
+  const [forecast,setForecast]   = useState(null);
+  const [showSettings,setShowS]  = useState(false);
+
+  const progRef   = useRef(null);
+  const medRef    = useRef(null);
+  const copRef    = useRef(null);
+  const hrvRef    = useRef(null);
+
   useEffect(() => {
-    if (activeTab === "tracker" || activeTab === "home") {
-      const collectHRV = () => {
-        const baseline = 45 + Math.random() * 20;
-        const newPoint = { time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), value: baseline, stress: Math.max(0, 100 - baseline * 1.2) };
-        setHrvData(prev => [...prev.slice(-14), newPoint]);
-      };
-      collectHRV();
-      hrvInterval.current = setInterval(collectHRV, 30000);
-    }
-    return () => { if (hrvInterval.current) clearInterval(hrvInterval.current); };
-  }, [activeTab, setHrvData]);
+    injectCSS();
+    const id = setInterval(() => setTipIdx(i => (i+1)%DAILY_TIPS.length), 4500);
+    return () => clearInterval(id);
+  }, []);
 
-  // Daily Stress Forecast Generation
+  /* HRV simulation */
   useEffect(() => {
-    const today = new Date().toDateString();
-    if (lastCheckIn !== today) {
-      // Generate AI-like forecast based on time and day
-      const hour = new Date().getHours();
-      const dayOfWeek = new Date().getDay();
-      const baseStress = dayOfWeek >= 1 && dayOfWeek <= 5 ? 60 : 35; // Weekday vs weekend
-      const timeMod = hour >= 9 && hour <= 17 ? 15 : -10; // Work hours
-      const forecast = {
-        morning: Math.min(100, baseStress + Math.random() * 10),
-        afternoon: Math.min(100, baseStress + timeMod + Math.random() * 15),
-        evening: Math.min(100, baseStress - 10 + Math.random() * 10),
-        recommendation: baseStress > 60 ? "High stress expected. Schedule 2 breathing sessions today." : "Manageable stress levels. Light mindfulness recommended."
-      };
-      setDailyForecast(forecast);
-    }
-  }, [lastCheckIn]);
+    const collect = () => {
+      const v = 40 + Math.random() * 25;
+      setHrv(p => [...p.slice(-14), {time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}), value:Math.round(v), stress:Math.round(Math.max(0,100-v*1.2))}]);
+    };
+    collect();
+    hrvRef.current = setInterval(collect, 28000);
+    return () => clearInterval(hrvRef.current);
+  }, []);
 
-  const moodChartData = useMemo(() => {
-    const last7 = moodHistory.slice(-7);
-    if (last7.length < 2) return [];
-    return last7.map((m, i) => ({
-      day: `Day ${moodHistory.length - 7 + i + 1}`,
-      value: moodValues[m.mood] || 5
-    }));
-  }, [moodHistory]);
-
-  const triggerCorrelation = useMemo(() => {
-    if (journalEntries.length === 0) return [];
-    const counts = {};
-    journalEntries.forEach(entry => {
-      entry.trigger.forEach(t => {
-        const trigger = triggers.find(tr => tr.id === t);
-        const name = trigger?.label || "Unknown";
-        counts[name] = (counts[name] || 0) + 1;
-      });
+  /* Daily forecast */
+  useEffect(() => {
+    const h = new Date().getHours(), d = new Date().getDay();
+    const base = d >= 1 && d <= 5 ? 58 : 32;
+    setForecast({
+      morning: Math.round(base + Math.random()*10),
+      afternoon: Math.round(base + (h>=9&&h<=17?15:-5) + Math.random()*15),
+      evening: Math.round(base - 12 + Math.random()*10),
+      tip: base > 55 ? "High stress expected today. Schedule 2 breathing sessions." : "Manageable day. Light mindfulness recommended.",
     });
-    return Object.entries(counts)
-      .map(([name, count]) => ({ name, value: count }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  }, [journalEntries]);
+  }, []);
 
-  const startProgram = useCallback((program) => {
-    setActiveProgram(program);
-    setProgramTime(0);
-    setProgramStep(0);
-    setProgramRunning(true);
-    setBreathingPhase("inhale");
+  const moodChartData = useMemo(() => moods.slice(-7).map((m,i) => ({day:`D${i+1}`,value:MOOD_VALS[m.mood]||5})), [moods]);
+  const triggerCorr   = useMemo(() => {
+    const counts = {};
+    journal.forEach(e => e.trigger?.forEach(t => { const tr = TRIGGERS.find(x => x.id===t); if(tr) counts[tr.label] = (counts[tr.label]||0)+1; }));
+    return Object.entries(counts).map(([n,v])=>({name:n,value:v})).sort((a,b)=>b.value-a.value).slice(0,5);
+  }, [journal]);
+  const avgMood      = useMemo(() => moods.length ? (moods.reduce((a,m)=>a+(MOOD_VALS[m.mood]||5),0)/moods.length).toFixed(1) : "—", [moods]);
+  const medTaken     = moods.filter(m=>["Peaceful","Calm","Energized"].includes(m.mood)).length;
 
-    const totalSeconds = program.duration * 60;
-    const stepDuration = totalSeconds / program.steps.length;
+  const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  const stressColor = stressScore<=25?GREEN:stressScore<=50?BLUE:stressScore<=70?GOLD:stressScore<=85?ORANGE:RED;
+  const stressLabel = stressScore<=25?"Very Low":stressScore<=50?"Low":stressScore<=70?"Moderate":stressScore<=85?"High":"Critical";
 
-    programInterval.current = setInterval(() => {
-      setProgramTime(prev => {
-        const newTime = prev + 1;
-        const currentStep = Math.floor(newTime / stepDuration);
-        if (currentStep >= program.steps.length) {
-          clearInterval(programInterval.current);
-          setProgramRunning(false);
-          setBreathingPhase("done");
-          setGoals(prev => prev.map(g => g.id === 3 ? { ...g, done: true } : g));
-          // Add achievement
-          setAchievements(prev => {
-            const newAch = { id: Date.now(), type: "program", name: program.title, date: new Date().toISOString() };
-            return [...prev, newAch].slice(-50);
-          });
-          return newTime;
+  const startProgram = useCallback(prog => {
+    setAP(prog); setProgT(0); setProgS(0); setProgR(true);
+    const stepDur = (prog.duration*60)/prog.steps.length;
+    clearInterval(progRef.current);
+    progRef.current = setInterval(() => {
+      setProgT(prev => {
+        const n = prev+1;
+        const cs = Math.floor(n/stepDur);
+        if (cs >= prog.steps.length) {
+          clearInterval(progRef.current); setProgR(false);
+          setGoals(g => g.map(x => x.id===3?{...x,done:true}:x));
+          setAch(a => [...a,{id:Date.now(),name:prog.title,date:new Date().toISOString()}].slice(-50));
+          return n;
         }
-        setProgramStep(currentStep);
-        const phaseIndex = Math.floor((newTime % stepDuration) / (stepDuration / 4));
-        const phases = ["inhale", "hold", "exhale", "rest"];
-        setBreathingPhase(phases[phaseIndex]);
-        return newTime;
+        setProgS(cs); return n;
       });
     }, 1000);
-  }, [setGoals, setAchievements]);
+  }, [setGoals, setAch]);
 
   const stopProgram = useCallback(() => {
-    if (programInterval.current) clearInterval(programInterval.current);
-    setProgramRunning(false);
-    setBreathingPhase("idle");
-    setActiveProgram(null);
+    clearInterval(progRef.current); setProgR(false); setAP(null);
   }, []);
 
-  const pauseProgram = useCallback(() => {
-    if (programInterval.current) {
-      clearInterval(programInterval.current);
-      programInterval.current = null;
-      setProgramRunning(false);
-    }
-  }, []);
+  const pauseProgram = useCallback(() => { clearInterval(progRef.current); setProgR(false); }, []);
 
   const resumeProgram = useCallback(() => {
     if (!activeProgram) return;
-    setProgramRunning(true);
-    const stepDuration = (activeProgram.duration * 60) / activeProgram.steps.length;
-    programInterval.current = setInterval(() => {
-      setProgramTime(prev => {
-        const newTime = prev + 1;
-        const currentStep = Math.floor(newTime / stepDuration);
-        if (currentStep >= activeProgram.steps.length) {
-          clearInterval(programInterval.current);
-          setProgramRunning(false);
-          setBreathingPhase("done");
-          return newTime;
-        }
-        setProgramStep(currentStep);
-        const phaseIndex = Math.floor((newTime % stepDuration) / (stepDuration / 4));
-        const phases = ["inhale", "hold", "exhale", "rest"];
-        setBreathingPhase(phases[phaseIndex]);
-        return newTime;
+    setProgR(true);
+    const stepDur = (activeProgram.duration*60)/activeProgram.steps.length;
+    progRef.current = setInterval(() => {
+      setProgT(prev => {
+        const n = prev+1;
+        const cs = Math.floor(n/stepDur);
+        if (cs >= activeProgram.steps.length) { clearInterval(progRef.current); setProgR(false); return n; }
+        setProgS(cs); return n;
       });
     }, 1000);
   }, [activeProgram]);
 
-  const selectMood = useCallback((mood) => {
-    setSelectedMood(mood);
-    const entry = { id: Date.now(), mood, timestamp: new Date().toISOString() };
-    setMoodHistory(prev => [...prev, entry]);
-    if (["Peaceful", "Calm", "Energized"].includes(mood)) {
-      setStreak(prev => prev + 1);
-    }
-    setGoals(prev => prev.map(g => g.id === 2 ? { ...g, done: true } : g));
-    setLastCheckIn(new Date().toDateString());
-  }, [setMoodHistory, setGoals, setLastCheckIn]);
+  const logMood = useCallback(mood => {
+    setSelMood(mood);
+    const entry = {id:Date.now(),mood,timestamp:new Date().toISOString()};
+    setMoods(p => [...p,entry]);
+    if (["Peaceful","Calm","Energized"].includes(mood)) setStreak(s => s+1);
+    setGoals(g => g.map(x => x.id===2?{...x,done:true}:x));
+  }, [setMoods, setGoals, setStreak]);
 
-  const toggleTrigger = useCallback((id) => {
-    setActiveTriggers(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
-  }, [setActiveTriggers]);
+  const saveJournal = useCallback(() => {
+    if (!jForm.mood || !jForm.trigger.length) return;
+    setJournal(p => [...p,{id:Date.now(),date:new Date().toISOString(),...jForm}]);
+    setJModal(false); setJForm({trigger:[],mood:"",intensity:5,notes:""});
+    setGoals(g => g.map(x => x.id===4?{...x,done:true}:x));
+    setCortisol(v => Math.max(5,v-2));
+  }, [jForm, setJournal, setGoals]);
 
-  const saveJournalEntry = useCallback(() => {
-    if (!journalForm.mood || journalForm.trigger.length === 0) return;
-    const entry = { id: Date.now(), date: new Date().toISOString(), ...journalForm };
-    setJournalEntries(prev => [...prev, entry]);
-    setShowJournalModal(false);
-    setJournalForm({ trigger: [], mood: "", intensity: 5, notes: "" });
-    setGoals(prev => prev.map(g => g.id === 4 ? { ...g, done: true } : g));
-    // Update cortisol simulation
-    setCortisolLevel(prev => Math.max(5, prev - 2));
-  }, [journalForm, setJournalEntries, setGoals]);
-
-  const deleteJournalEntry = useCallback((id) => {
-    setJournalEntries(prev => prev.filter(e => e.id !== id));
-  }, [setJournalEntries]);
-
-  const toggleGoal = useCallback((id) => {
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, done: !g.done } : g));
-  }, [setGoals]);
-
-  const exportData = useCallback(() => {
-    const data = { moodHistory, journalEntries, activeTriggers, goals, streak, hrvData, achievements, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `stress-health-${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [moodHistory, journalEntries, activeTriggers, goals, streak, hrvData, achievements]);
-
-  const resetData = useCallback(() => {
-    setMoodHistory([]);
-    setJournalEntries([]);
-    setActiveTriggers([]);
-    setGoals([
-      { id: 1, text: "Complete 3 sessions today", done: false },
-      { id: 2, text: "Log mood twice today", done: false },
-      { id: 3, text: "Practice breathing for 5 min", done: false },
-      { id: 4, text: "Write one journal entry", done: false }
-    ]);
-    setStreak(0);
-    setStressScore(68);
-    setHrvData([]);
-    setAchievements([]);
-  }, [setMoodHistory, setJournalEntries, setActiveTriggers, setGoals, setHrvData, setAchievements]);
-
-  const quizQuestions = [
-    { id: 1, text: "How often do you feel overwhelmed?", options: ["Rarely", "Sometimes", "Often", "Always"] },
-    { id: 2, text: "How well do you sleep?", options: ["Very well", "Mostly well", "Poorly", "Very poorly"] },
-    { id: 3, text: "How often do you feel anxious?", options: ["Never", "Rarely", "Sometimes", "Frequently"] },
-    { id: 4, text: "How is your work-life balance?", options: ["Excellent", "Good", "Fair", "Poor"] },
-    { id: 5, text: "Do you have time for self-care?", options: ["Always", "Usually", "Rarely", "Never"] }
-  ];
-
-  const calculateStressScore = useCallback(() => {
-    const values = { Rarely: 2, Sometimes: 3, Often: 4, Always: 5, Never: 1, Frequently: 5, Verywell: 1, Mostlywell: 2, Poorly: 4, Verypoorly: 5, Excellent: 1, Good: 2, Fair: 3, Poor: 5, Usually: 2 };
-    let total = 0;
-    Object.values(quizAnswers).forEach(answer => {
-      total += values[answer.replace(/\s/g, "")] || 3;
-    });
-    const maxScore = quizQuestions.length * 5;
-    const normalizedScore = Math.round((total / maxScore) * 100);
-    setStressScore(Math.min(100, normalizedScore));
-    setQuizComplete(true);
-    setTimeout(() => setShowQuiz(false), 2000);
-  }, [quizAnswers]);
-
-  const startSOS = useCallback(() => {
-    setShowSOS(true);
-    setBreathingPhase("inhale");
-    const phases = ["inhale", "hold", "exhale", "rest"];
-    let p = 0;
-    const sosInterval = setInterval(() => {
-      p = (p + 1) % 4;
-      setBreathingPhase(phases[p]);
-    }, 4000);
-    setTimeout(() => {
-      clearInterval(sosInterval);
-      setShowSOS(false);
-      setBreathingPhase("idle");
-    }, 180000); // 3 minutes SOS
-  }, []);
-
-  const startMeditation = useCallback((session) => {
-    setMeditationActive(session);
-    setMeditationTimer(0);
-    setMeditationRunning(true);
-    meditationInterval.current = setInterval(() => {
-      setMeditationTimer(prev => {
-        const newTime = prev + 1;
-        if (newTime >= session.duration * 60) {
-          clearInterval(meditationInterval.current);
-          setMeditationRunning(false);
-          setMeditationActive(null);
-          setGoals(prev => prev.map(g => g.id === 1 ? { ...g, done: true } : g));
-          return newTime;
-        }
-        return newTime;
+  const startMed = useCallback(sess => {
+    setMedA(sess); setMedT(0); setMedR(true);
+    clearInterval(medRef.current);
+    medRef.current = setInterval(() => {
+      setMedT(prev => {
+        const n = prev+1;
+        if (n >= sess.duration*60) { clearInterval(medRef.current); setMedR(false); setMedA(null); setGoals(g=>g.map(x=>x.id===1?{...x,done:true}:x)); return n; }
+        return n;
       });
     }, 1000);
   }, [setGoals]);
 
-  const stopMeditation = useCallback(() => {
-    if (meditationInterval.current) clearInterval(meditationInterval.current);
-    setMeditationRunning(false);
-    setMeditationActive(null);
-    setMeditationTimer(0);
-  }, []);
+  const stopMed = useCallback(() => { clearInterval(medRef.current); setMedR(false); setMedA(null); setMedT(0); }, []);
 
-  const tabs = [
-    { id: "home", icon: Home, label: "Home" },
-    { id: "programs", icon: PlayCircle, label: "Programs" },
-    { id: "tracker", icon: BarChart3, label: "Tracker" },
-    { id: "journal", icon: BookOpen, label: "Journal" },
-    { id: "tools", icon: Zap, label: "Tools" }
+  const calcStress = useCallback(() => {
+    const vals = {Rarely:2,Sometimes:3,Often:4,Always:5,Never:1,Frequently:5,"Very well":1,"Mostly well":2,Poorly:4,"Very poorly":5,Excellent:1,Good:2,Fair:3,Poor:5,Always_sc:1,Usually:2};
+    let total = Object.values(quizA).reduce((a,v)=>a+(vals[v]||3),0);
+    const sc = Math.round((total/(QUIZ.length*5))*100);
+    setScore(sc); localStorage.setItem("str_score",sc); setQuizDone(true);
+    setTimeout(() => setShowQuiz(false), 1800);
+  }, [quizA]);
+
+  const exportData = useCallback(() => {
+    const d = {moods,journal,activeTriggers,goals,streak,hrvData,achievements,exportedAt:new Date().toISOString()};
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:"application/json"}));
+    a.download = `manifix-stress-${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+  }, [moods,journal,activeTriggers,goals,streak,hrvData,achievements]);
+
+  const QUIZ = [
+    {id:1,q:"How often do you feel overwhelmed?",opts:["Rarely","Sometimes","Often","Always"]},
+    {id:2,q:"How well do you sleep?",opts:["Very well","Mostly well","Poorly","Very poorly"]},
+    {id:3,q:"How often do you feel anxious?",opts:["Never","Rarely","Sometimes","Frequently"]},
+    {id:4,q:"How is your work-life balance?",opts:["Excellent","Good","Fair","Poor"]},
+    {id:5,q:"Do you have time for self-care?",opts:["Always","Usually","Rarely","Never"]},
   ];
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  const TABS = [
+    {id:"home",label:"Home",emoji:"🏠"},
+    {id:"programs",label:"Programs",emoji:"▶"},
+    {id:"tracker",label:"Tracker",emoji:"📊"},
+    {id:"journal",label:"Journal",emoji:"📓"},
+    {id:"tools",label:"Tools",emoji:"⚡"},
+  ];
 
-  const getStressLevel = (score) => {
-    if (score <= 25) return { label: "Very Low", color: "#34D399" };
-    if (score <= 40) return { label: "Low", color: "#60A5FA" };
-    if (score <= 60) return { label: "Moderate", color: GOLD };
-    if (score <= 80) return { label: "High", color: "#F97316" };
-    return { label: "Critical", color: "#EF4444" };
-  };
+  /* ── RENDER ── */
+  return (
+    <div style={{minHeight:"100dvh",background:BG,color:"#e8e4d9",fontFamily:FONT,position:"relative",overflowX:"hidden"}}>
 
-  const stressLevel = getStressLevel(stressScore);
+      {/* Ambient glow */}
+      <div style={{position:"fixed",top:"15%",left:"50%",transform:"translateX(-50%)",width:500,height:260,background:`radial-gradient(ellipse,${GOLD}0a 0%,transparent 70%)`,animation:"str-pulse 5s ease-in-out infinite",pointerEvents:"none"}} />
 
-  /* ════════════════════════════════════════════════════════════
-     RENDER FUNCTIONS
-  ═════════════════════════════════════════════════════════════ */
-  const renderHome = () => (
-    <div className="space-y-8">
-      {/* SOS Button Fixed */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={startSOS}
-        className="fixed right-6 bottom-24 md:bottom-8 z-30 w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white shadow-lg shadow-red-500/40 flex items-center justify-center border-2 border-red-400/50"
-      >
-        <AlertTriangle size={24} />
-      </motion.button>
+      {/* SOS overlay */}
+      <AnimatePresence>{showSOS && <SosOverlay onClose={()=>setShowSOS(false)}/>}</AnimatePresence>
 
-      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-3xl p-8 md:p-12" style={{ background: `linear-gradient(135deg, ${GOLD}15 0%, ${BG} 50%, ${GOLD}08 100%)`, border: `1px solid ${GOLD}30` }}>
-        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full opacity-20" style={{ background: `radial-gradient(circle, ${GOLD}80, transparent)`, filter: "blur(60px)" }} />
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-yellow-500/20 bg-yellow-500/10 mb-6">
-            <Sparkles size={14} className="text-yellow-400" />
-            <span className="text-sm tracking-wider text-yellow-300">AI STRESS MANAGEMENT PLATFORM</span>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-black leading-tight">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-amber-300">Reduce Stress.</span>
-            <br />
-            <span className="text-white">Reclaim Peace.</span>
-          </h1>
-          <p className="text-gray-400 text-lg mt-5 max-w-2xl leading-relaxed">Guided breathing, emotional resets, AI-powered calm routines, sleep recovery, and burnout prevention — built for modern life.</p>
-          <div className="flex flex-wrap gap-4 mt-8">
-            <button onClick={() => setActiveTab("programs")} className="px-6 py-4 rounded-2xl bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-bold hover:scale-105 transition-all shadow-lg shadow-yellow-500/30">Start Recovery Session</button>
-            <button onClick={() => setShowQuiz(true)} className="px-6 py-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 hover:bg-yellow-500/20 transition-all">Take Stress Assessment</button>
-          </div>
-        </div>
-      </motion.div>
+      {/* PROGRAM OVERLAY */}
+      <AnimatePresence>
+        {activeProgram && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            style={{position:"fixed",inset:0,background:"#000000f2",zIndex:150,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div style={{textAlign:"center",maxWidth:400,width:"100%"}}>
+              <div style={{fontFamily:HEAD,fontSize:32,color:"#e8e4d9",marginBottom:4}}>{activeProgram.title}</div>
+              <div style={{fontSize:8,letterSpacing:".2em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:30}}>Step {progStep+1} of {activeProgram.steps.length}</div>
 
-      {/* Daily Forecast */}
-      {dailyForecast && (
-        <GoldCard className="p-5 border-l-4" style={{ borderLeftColor: GOLD }}>
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-              <Sun size={20} className="text-yellow-400" />
-            </div>
-            <div>
-              <h3 className="font-bold text-white mb-1">Today's Stress Forecast</h3>
-              <p className="text-sm text-gray-400 mb-3">{dailyForecast.recommendation}</p>
-              <div className="flex gap-4">
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500" /><span className="text-xs text-gray-400">AM: {Math.round(dailyForecast.morning)}%</span></div>
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500" /><span className="text-xs text-gray-400">PM: {Math.round(dailyForecast.afternoon)}%</span></div>
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500" /><span className="text-xs text-gray-400">Eve: {Math.round(dailyForecast.evening)}%</span></div>
+              <motion.div animate={{scale:progRunning?[1,1.3,1]:[1]}} transition={{duration:4,repeat:Infinity,ease:"easeInOut"}}
+                style={{width:160,height:160,borderRadius:"50%",background:`${GOLD}15`,border:`2px solid ${GOLD}44`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",margin:"0 auto 28px"}}>
+                <div style={{fontSize:11,color:GOLD,letterSpacing:".12em",textTransform:"uppercase"}}>Breathe</div>
+                <div style={{fontFamily:HEAD,fontSize:44,color:GOLD,lineHeight:1}}>{fmt(progTime)}</div>
+              </motion.div>
+
+              <div style={{background:CARD,border:`1px solid ${BOR}`,padding:"14px 18px",marginBottom:20,fontSize:12,color:"#4a4a4a",lineHeight:1.7}}>
+                {activeProgram.steps[progStep]}
+              </div>
+
+              <div style={{display:"flex",justifyContent:"center",gap:10,marginBottom:16}}>
+                {Array.from({length:activeProgram.steps.length},(_,i)=>(
+                  <div key={i} style={{width:28,height:3,borderRadius:2,background:i<=progStep?GOLD:"#1a1a1a",transition:"background .3s"}} />
+                ))}
+              </div>
+
+              <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                <button className="str-btn" onClick={progRunning?pauseProgram:resumeProgram} style={{padding:"12px 20px",background:`${GOLD}22`,border:`1px solid ${GOLD}44`,color:GOLD,fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>
+                  {progRunning?"⏸ Pause":"▶ Resume"}
+                </button>
+                <button className="str-btn" onClick={stopProgram} style={{padding:"12px 20px",background:"transparent",border:`1px solid ${BOR}`,color:"#444",fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>✕ Stop</button>
               </div>
             </div>
-          </div>
-        </GoldCard>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <GoldCard className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Stress Level</p>
-              <h2 className="text-4xl font-black text-white mt-2">{stressScore}%</h2>
-              <p className="text-sm mt-1" style={{ color: stressLevel.color }}>{stressLevel.label}</p>
-            </div>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: `${stressLevel.color}15` }}>
-              <BarChart3 size={28} style={{ color: stressLevel.color }} />
-            </div>
-          </div>
-          <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mt-4">
-            <motion.div initial={{ width: 0 }} animate={{ width: `${stressScore}%` }} transition={{ duration: 1.5 }} className="h-full rounded-full" style={{ background: `linear-gradient(to right, ${stressLevel.color}80, ${stressLevel.color})` }} />
-          </div>
-        </GoldCard>
-
-        <GoldCard className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">Calm Streak</p>
-              <h2 className="text-4xl font-black text-white mt-2">{streak} days</h2>
-              <p className="text-sm text-gray-400 mt-1">Keep it going</p>
-            </div>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "rgba(249,115,22,0.15)" }}>
-              <Flame size={28} className="text-orange-400" />
-            </div>
-          </div>
-        </GoldCard>
-
-        <GoldCard className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">HRV Score</p>
-              <h2 className="text-4xl font-black text-white mt-2">{hrvData.length > 0 ? Math.round(hrvData[hrvData.length - 1]?.value || 0) : "—"}</h2>
-              <p className="text-sm text-gray-400 mt-1">ms (Heart Rate Variability)</p>
-            </div>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: `${GOLD}15` }}>
-              <HeartPulse size={28} className="text-yellow-400" />
-            </div>
-          </div>
-        </GoldCard>
-      </div>
-
-      {/* Mood Quick Log */}
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        {moodHistory.slice(-5).map(entry => (
-          <div key={entry.id} className="flex-shrink-0 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-center">
-            <p className="text-2xl">{moodEmojis[entry.mood] || "😊"}</p>
-            <p className="text-xs text-gray-500 mt-1">{entry.mood}</p>
-          </div>
-        ))}
-        {moodHistory.length === 0 && (
-          <div className="flex-shrink-0 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-center">
-            <p className="text-sm text-gray-500">No mood entries yet</p>
-          </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <GoldCard className="p-6">
-          <div className="flex items-center gap-3 mb-4"><Brain size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Daily Goals</h3></div>
-          <div className="space-y-3">
-            {goals.map(goal => (
-              <div key={goal.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => toggleGoal(goal.id)}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-6 h-6 rounded-md border flex items-center justify-center ${goal.done ? "bg-yellow-500/20 border-yellow-400" : "border-white/20"}`}>
-                    {goal.done && <CheckCircle2 size={14} className="text-yellow-400" />}
-                  </div>
-                  <span className={`text-sm ${goal.done ? "text-gray-500 line-through" : "text-white"}`}>{goal.text}</span>
+      {/* MEDITATION OVERLAY */}
+      <AnimatePresence>
+        {medActive && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            style={{position:"fixed",inset:0,background:"#000000f5",zIndex:140,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div style={{textAlign:"center",maxWidth:360,width:"100%"}}>
+              <div style={{fontSize:40,marginBottom:14}}>{medActive.emoji}</div>
+              <div style={{fontFamily:HEAD,fontSize:32,color:"#e8e4d9",marginBottom:4}}>{medActive.title}</div>
+              <div style={{fontSize:9,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:36}}>{medActive.focus}</div>
+
+              <motion.div animate={medRunning?{scale:[1,1.1,1]}:{}} transition={{duration:8,repeat:Infinity,ease:"easeInOut"}}
+                style={{width:180,height:180,borderRadius:"50%",background:`${PURPLE}15`,border:`2px solid ${PURPLE}44`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",margin:"0 auto 28px"}}>
+                <div style={{fontFamily:HEAD,fontSize:42,color:PURPLE,lineHeight:1}}>{fmt(medTime)}</div>
+                <div style={{fontSize:9,letterSpacing:".12em",color:`${PURPLE}88`,textTransform:"uppercase",marginTop:4}}>
+                  {fmt(medActive.duration*60-medTime)} left
                 </div>
-              </div>
-            ))}
-          </div>
-        </GoldCard>
+              </motion.div>
 
-        <GoldCard className="p-6">
-          <div className="flex items-center gap-3 mb-4"><Target size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Active Triggers</h3></div>
-          {activeTriggers.length === 0 ? (
-            <p className="text-gray-500 text-sm">No triggers identified yet</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {activeTriggers.map(t => {
-                const trigger = triggers.find(tr => tr.id === t);
-                return (
-                  <div key={t} className="px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-sm text-yellow-300 flex items-center gap-2">
-                    {trigger && <trigger.icon size={14} />}
-                    {trigger?.label}
-                  </div>
-                );
-              })}
+              <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+                <button className="str-btn" onClick={()=>setMedR(!medRunning)} style={{padding:"12px 20px",background:`${PURPLE}22`,border:`1px solid ${PURPLE}44`,color:PURPLE,fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>
+                  {medRunning?"⏸ Pause":"▶ Resume"}
+                </button>
+                <button className="str-btn" onClick={stopMed} style={{padding:"12px 20px",background:"transparent",border:`1px solid ${BOR}`,color:"#444",fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>✕ Stop</button>
+              </div>
             </div>
-          )}
-        </GoldCard>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Achievements */}
-      {achievements.length > 0 && (
-        <GoldCard className="p-6">
-          <div className="flex items-center gap-3 mb-4"><Trophy size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Recent Achievements</h3></div>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {achievements.slice(-5).reverse().map(ach => (
-              <div key={ach.id} className="flex-shrink-0 px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 text-center">
-                <Star size={24} className="text-yellow-400 mx-auto mb-2" />
-                <p className="text-xs text-yellow-300">{ach.name}</p>
-                <p className="text-[10px] text-gray-500 mt-1">{new Date(ach.date).toLocaleDateString()}</p>
-              </div>
-            ))}
-          </div>
-        </GoldCard>
-      )}
-
+      {/* QUIZ MODAL */}
       <AnimatePresence>
         {showQuiz && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowQuiz(false)}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
-              <GoldCard className="p-6 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-yellow-300">Stress Assessment</h3>
-                  <button onClick={() => setShowQuiz(false)} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><X size={16} className="text-gray-400" /></button>
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            onClick={()=>setShowQuiz(false)}
+            style={{position:"fixed",inset:0,background:"#000000dd",zIndex:130,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <motion.div initial={{scale:.92}} animate={{scale:1}} exit={{scale:.92}} onClick={e=>e.stopPropagation()}
+              style={{background:CARD,border:`1px solid ${BOR}`,padding:24,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+                <div style={{fontFamily:HEAD,fontSize:22,color:GOLD}}>STRESS ASSESSMENT</div>
+                <button className="str-btn" onClick={()=>setShowQuiz(false)} style={{background:"transparent",border:`1px solid ${BOR}`,color:"#444",padding:"4px 10px",fontFamily:FONT,fontSize:10}}>✕</button>
+              </div>
+              {quizDone ? (
+                <div style={{textAlign:"center",padding:"24px 0"}}>
+                  <div style={{fontSize:44,marginBottom:12}}>✅</div>
+                  <div style={{fontFamily:HEAD,fontSize:28,color:"#e8e4d9",marginBottom:6}}>COMPLETE</div>
+                  <div style={{fontSize:11,color:"#3a3a3a"}}>Your stress level: <span style={{color:stressColor,fontWeight:700}}>{stressScore}%</span></div>
                 </div>
-                {quizComplete ? (
-                  <div className="text-center py-8">
-                    <Shield size={48} className="text-yellow-400 mx-auto mb-4" />
-                    <h4 className="text-2xl font-bold text-white mb-2">Assessment Complete</h4>
-                    <p className="text-gray-400">Your stress level: <span className="text-yellow-400 font-bold">{stressScore}%</span></p>
-                    <p className="text-sm text-gray-500 mt-2">We've personalized your recommendations based on your results.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {quizQuestions.map((q, qi) => (
-                      <div key={q.id}>
-                        <p className="text-sm font-medium text-white mb-3">{qi + 1}. {q.text}</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {q.options.map(opt => (
-                            <button key={opt} onClick={() => setQuizAnswers(prev => ({ ...prev, [q.id]: opt }))} className={`px-4 py-2 rounded-xl text-sm transition-all ${quizAnswers[q.id] === opt ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40" : "bg-white/5 text-gray-400 border border-white/10 hover:border-yellow-500/20"}`}>{opt}</button>
+              ) : (
+                <>
+                  {QUIZ.map((q,qi) => (
+                    <div key={q.id} style={{marginBottom:18}}>
+                      <div style={{fontSize:11,color:"#4a4a4a",marginBottom:10}}>{qi+1}. {q.q}</div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                        {q.opts.map(o => (
+                          <button key={o} className="str-btn" onClick={()=>setQuizA(p=>({...p,[q.id]:o}))}
+                            style={{padding:"8px 12px",background:quizA[q.id]===o?`${GOLD}22`:"#111",border:`1px solid ${quizA[q.id]===o?GOLD:BOR}`,color:quizA[q.id]===o?GOLD:"#3a3a3a",fontFamily:FONT,fontSize:10,letterSpacing:".08em",textAlign:"left"}}>
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <button className="str-btn" onClick={calcStress} disabled={Object.keys(quizA).length<QUIZ.length}
+                    style={{width:"100%",padding:"14px 0",background:Object.keys(quizA).length>=QUIZ.length?GOLD:"#111",color:Object.keys(quizA).length>=QUIZ.length?"#080808":"#2a2a2a",border:"none",fontFamily:FONT,fontSize:11,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase"}}>
+                    Calculate My Score
+                  </button>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* JOURNAL MODAL */}
+      <AnimatePresence>
+        {showJModal && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            onClick={()=>setJModal(false)}
+            style={{position:"fixed",inset:0,background:"#000000dd",zIndex:130,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <motion.div initial={{scale:.92}} animate={{scale:1}} exit={{scale:.92}} onClick={e=>e.stopPropagation()}
+              style={{background:CARD,border:`1px solid ${BOR}`,padding:24,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+                <div style={{fontFamily:HEAD,fontSize:22,color:GOLD}}>NEW JOURNAL ENTRY</div>
+                <button className="str-btn" onClick={()=>setJModal(false)} style={{background:"transparent",border:`1px solid ${BOR}`,color:"#444",padding:"4px 10px",fontFamily:FONT,fontSize:10}}>✕</button>
+              </div>
+              <Label>How are you feeling?</Label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+                {Object.entries(MOOD_MAP).map(([m,e]) => (
+                  <button key={m} className="str-btn" onClick={()=>setJForm(p=>({...p,mood:m}))}
+                    style={{padding:"6px 10px",background:jForm.mood===m?`${GOLD}22`:"#111",border:`1px solid ${jForm.mood===m?GOLD:BOR}`,color:jForm.mood===m?GOLD:"#3a3a3a",fontFamily:FONT,fontSize:10}}>
+                    {e} {m}
+                  </button>
+                ))}
+              </div>
+              <Label>Stress triggers</Label>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+                {TRIGGERS.map(t => (
+                  <button key={t.id} className="str-btn" onClick={()=>setJForm(p=>({...p,trigger:p.trigger.includes(t.id)?p.trigger.filter(x=>x!==t.id):[...p.trigger,t.id]}))}
+                    style={{padding:"8px 10px",background:jForm.trigger.includes(t.id)?`${GOLD}22`:"#111",border:`1px solid ${jForm.trigger.includes(t.id)?GOLD:BOR}`,color:jForm.trigger.includes(t.id)?GOLD:"#3a3a3a",fontFamily:FONT,fontSize:9,textAlign:"left",display:"flex",alignItems:"center",gap:6}}>
+                    <span>{t.icon}</span><span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+              <Label>Intensity: {jForm.intensity}/10</Label>
+              <input type="range" min="1" max="10" value={jForm.intensity} onChange={e=>setJForm(p=>({...p,intensity:Number(e.target.value)}))} className="str-range" style={{width:"100%",marginBottom:14}} />
+              <textarea className="str-input" rows={3} placeholder="Write about how you're feeling..." value={jForm.notes} onChange={e=>setJForm(p=>({...p,notes:e.target.value}))} style={{marginBottom:14}} />
+              <button className="str-btn" onClick={saveJournal} disabled={!jForm.mood||!jForm.trigger.length}
+                style={{width:"100%",padding:"14px 0",background:jForm.mood&&jForm.trigger.length?GOLD:"#111",color:jForm.mood&&jForm.trigger.length?"#080808":"#2a2a2a",border:"none",fontFamily:FONT,fontSize:11,fontWeight:700,letterSpacing:".18em",textTransform:"uppercase"}}>
+                Save Entry
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SETTINGS MODAL */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+            onClick={()=>setShowS(false)}
+            style={{position:"fixed",inset:0,background:"#000000dd",zIndex:130,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <motion.div initial={{scale:.92}} animate={{scale:1}} exit={{scale:.92}} onClick={e=>e.stopPropagation()}
+              style={{background:CARD,border:`1px solid ${BOR}`,padding:24,maxWidth:360,width:"100%"}}>
+              <div style={{fontFamily:HEAD,fontSize:22,color:GOLD,marginBottom:18}}>SETTINGS</div>
+              {[
+                {label:"Sound Effects",val:soundOn,set:setSound},
+                {label:"Voice Coaching",val:voiceOn,set:setVoice},
+              ].map(({label,val,set}) => (
+                <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${BOR}`,padding:"12px 14px",marginBottom:8}}>
+                  <div style={{fontSize:11,color:"#4a4a4a"}}>{label}</div>
+                  <button className="str-btn" onClick={()=>set(!val)}
+                    style={{width:44,height:24,borderRadius:12,background:val?GOLD:"#1a1a1a",border:"none",position:"relative",transition:"background .2s"}}>
+                    <div style={{width:18,height:18,borderRadius:"50%",background:val?"#080808":"#555",position:"absolute",top:3,left:val?23:3,transition:"left .2s"}} />
+                  </button>
+                </div>
+              ))}
+              <button className="str-btn" onClick={exportData}
+                style={{width:"100%",padding:"12px 0",background:"transparent",border:`1px solid ${BOR}`,color:"#3a3a3a",fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase",marginTop:8}}>
+                ↓ Export Data
+              </button>
+              <button className="str-btn" onClick={()=>{setMoods([]);setJournal([]);setGoals(GOALS_INIT);setStreak(0);setHrv([]);setAch([]);setShowS(false)}}
+                style={{width:"100%",padding:"12px 0",background:"transparent",border:`1px solid #2a1010`,color:"#ef4444",fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase",marginTop:8}}>
+                ↺ Reset All Data
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══════════════ HEADER ═══════════════ */}
+      <div style={{borderBottom:`1px solid ${BOR}`,padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:BG,zIndex:20}}>
+        <div>
+          <div style={{fontFamily:HEAD,fontSize:28,letterSpacing:".04em",lineHeight:1}}>😓 STRESS & BURNOUT</div>
+          <div style={{fontSize:8,letterSpacing:".2em",color:"#252525",textTransform:"uppercase",marginTop:2}}>AI Stress Management · WHO ICD-11 Burnout Protocol</div>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:8,letterSpacing:".15em",color:"#252525",textTransform:"uppercase"}}>Stress Level</div>
+            <div style={{fontFamily:HEAD,fontSize:22,color:stressColor}}>{stressScore}% {stressLabel}</div>
+          </div>
+          <button className="str-btn" onClick={()=>setShowSOS(true)} style={{padding:"8px 12px",background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:RED,fontFamily:FONT,fontSize:9,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase"}}>🆘 SOS</button>
+          <button className="str-btn" onClick={()=>setShowS(true)} style={{padding:"8px 12px",background:"transparent",border:`1px solid ${BOR}`,color:"#3a3a3a",fontFamily:FONT,fontSize:9,letterSpacing:".12em"}}>⚙</button>
+          <button className="str-btn" onClick={()=>navigate("/app/dashboard")} style={{background:"transparent",border:`1px solid ${BOR}`,color:"#333",fontFamily:FONT,fontSize:9,letterSpacing:".15em",padding:"8px 12px",textTransform:"uppercase"}}>← Back</button>
+        </div>
+      </div>
+
+      {/* ═══════════════ TAB NAV ═══════════════ */}
+      <div style={{borderBottom:`1px solid ${BOR}`,padding:"0 20px",display:"flex",gap:0,overflowX:"auto",background:BG,position:"sticky",top:57,zIndex:19}}>
+        {TABS.map(t => (
+          <button key={t.id} className="str-btn" onClick={()=>setTab(t.id)}
+            style={{padding:"12px 16px",background:"transparent",border:"none",borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`,color:tab===t.id?GOLD:"#2a2a2a",fontFamily:FONT,fontSize:9,letterSpacing:".15em",textTransform:"uppercase",whiteSpace:"nowrap",transition:"all .2s"}}>
+            {t.emoji} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════ CONTENT ═══════════════ */}
+      <div style={{maxWidth:900,margin:"0 auto",padding:"20px 16px 60px"}}>
+        <AnimatePresence mode="wait">
+          <motion.div key={tab} initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} transition={{duration:.3}} className="str-up">
+
+            {/* ────── HOME ────── */}
+            {tab==="home" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+                {/* Forecast */}
+                {forecast && (
+                  <Card style={{borderLeft:`3px solid ${GOLD}`}}>
+                    <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+                      <div style={{fontSize:28}}>☀️</div>
+                      <div style={{flex:1}}>
+                        <Label style={{marginBottom:4}}>Today's Stress Forecast</Label>
+                        <div style={{fontSize:11,color:"#3a3a3a",lineHeight:1.7,marginBottom:10}}>{forecast.tip}</div>
+                        <div style={{display:"flex",gap:16}}>
+                          {[["Morning",forecast.morning,GREEN],["Afternoon",forecast.afternoon,GOLD],["Evening",forecast.evening,BLUE]].map(([l,v,c])=>(
+                            <div key={l}>
+                              <div style={{fontSize:7,letterSpacing:".15em",color:"#252525",textTransform:"uppercase"}}>{l}</div>
+                              <div style={{fontFamily:HEAD,fontSize:20,color:c}}>{v}%</div>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    ))}
-                    <button onClick={calculateStressScore} disabled={Object.keys(quizAnswers).length < quizQuestions.length} className="w-full py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all">Calculate Score</button>
-                  </div>
+                    </div>
+                  </Card>
                 )}
-              </GoldCard>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
-      {/* SOS Overlay */}
-      <AnimatePresence>
-        {showSOS && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-            <div className="text-center">
-              <motion.div
-                animate={breathingPhase === "inhale" ? { scale: 1.6 } : breathingPhase === "exhale" ? { scale: 0.9 } : { scale: 1.6 }}
-                transition={{ duration: breathingPhase === "rest" ? 2 : 4, ease: "easeInOut" }}
-                className="w-64 h-64 rounded-full mx-auto mb-8 flex items-center justify-center"
-                style={{ background: `radial-gradient(circle, rgba(239,68,68,0.3), rgba(239,68,68,0.05))`, border: "3px solid rgba(239,68,68,0.5)" }}
-              >
-                <span className="text-xl font-bold text-red-300 capitalize">{breathingPhase}</span>
-              </motion.div>
-              <p className="text-white text-lg font-bold mb-2">SOS Emergency Calm</p>
-              <p className="text-gray-400 text-sm">Follow the circle. Breathe slowly.</p>
-              <button onClick={stopProgram} className="mt-8 px-8 py-3 rounded-xl bg-red-500/20 text-red-300 border border-red-500/30">Exit SOS Mode</button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-
-  const renderPrograms = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-400">Stress Recovery Programs</h2>
-        <p className="text-gray-400 text-sm mt-1">Select a program and follow the guided steps</p>
-      </div>
-
-      <div className="grid sm:grid-cols-2 gap-4">
-        {stressPrograms.map(program => {
-          const Icon = program.icon;
-          return (
-            <motion.div key={program.id} whileHover={{ y: -4 }} className="rounded-2xl p-5 cursor-pointer transition-all" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}20` }} onClick={() => startProgram(program)}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}15` }}>
-                      <Icon size={22} className="text-yellow-400" />
+                {/* Stats row */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                  <Card>
+                    <Label>Stress Score</Label>
+                    <div style={{fontFamily:HEAD,fontSize:36,color:stressColor,lineHeight:1}}>{stressScore}%</div>
+                    <div style={{fontSize:9,color:stressColor,marginTop:4,letterSpacing:".1em"}}>{stressLabel}</div>
+                    <Bar pct={stressScore} color={stressColor} />
+                    <button className="str-btn" onClick={()=>setShowQuiz(true)}
+                      style={{marginTop:10,width:"100%",padding:"8px 0",background:"transparent",border:`1px solid ${BOR}`,color:"#2a2a2a",fontFamily:FONT,fontSize:8,letterSpacing:".15em",textTransform:"uppercase"}}>
+                      Retake Assessment
+                    </button>
+                  </Card>
+                  <Card>
+                    <Label>Calm Streak</Label>
+                    <div style={{fontFamily:HEAD,fontSize:36,color:GOLD,lineHeight:1}}>{streak} days</div>
+                    <div style={{fontSize:9,color:"#2a2a2a",marginTop:4}}>Peaceful/Calm/Energized moods</div>
+                    <div style={{marginTop:12,fontSize:22}}>🔥</div>
+                  </Card>
+                  <Card>
+                    <Label>HRV (Live)</Label>
+                    <div style={{fontFamily:HEAD,fontSize:36,color:PURPLE,lineHeight:1}}>
+                      {hrvData.length?hrvData[hrvData.length-1].value:"—"}
                     </div>
-                    <div>
-                      <h3 className="font-bold text-white">{program.title}</h3>
-                      <p className="text-sm text-gray-500">{program.duration} min · {program.level}</p>
+                    <div style={{fontSize:9,color:"#2a2a2a",marginTop:4}}>ms · Heart Rate Variability</div>
+                    <div style={{marginTop:4,fontSize:8,color:PURPLE,letterSpacing:".1em",textTransform:"uppercase",animation:"str-blink 1.2s infinite"}}>● Live</div>
+                  </Card>
+                </div>
+
+                {/* Goals */}
+                <Card>
+                  <Label>Daily Goals</Label>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {goals.map(g => (
+                      <div key={g.id} className="str-btn" onClick={()=>setGoals(prev=>prev.map(x=>x.id===g.id?{...x,done:!x.done}:x))}
+                        style={{display:"flex",alignItems:"center",gap:10,border:`1px solid ${g.done?"#1e4d1e":BOR}`,background:g.done?"#0a140a":"#111",padding:"10px 12px"}}>
+                        <div style={{width:18,height:18,borderRadius:"50%",border:`2px solid ${g.done?GREEN:BOR}`,background:g.done?GREEN:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#080808",fontSize:10,flexShrink:0}}>
+                          {g.done&&"✓"}
+                        </div>
+                        <span style={{fontSize:10,color:g.done?"#4a4a4a":"#3a3a3a",textDecoration:g.done?"line-through":"none"}}>{g.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Active triggers */}
+                {activeTriggers.length > 0 && (
+                  <Card>
+                    <Label>Active Stress Triggers</Label>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {activeTriggers.map(id => {
+                        const t = TRIGGERS.find(x=>x.id===id);
+                        return t ? <div key={id} style={{padding:"5px 10px",background:`${GOLD}12`,border:`1px solid ${GOLD}33`,color:GOLD,fontSize:9,letterSpacing:".1em",display:"flex",alignItems:"center",gap:5}}><span>{t.icon}</span><span>{t.label}</span></div> : null;
+                      })}
                     </div>
-                  </div>
-                  <p className="text-sm text-gray-400 leading-relaxed">{program.description}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-4 text-yellow-400 text-sm">
-                <PlayCircle size={14} /><span>Tap to start</span><ArrowRight size={14} />
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+                  </Card>
+                )}
 
-      {/* Meditation Sessions */}
-      <h3 className="text-xl font-bold text-white mt-8 mb-4">Guided Meditation</h3>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {meditationSessions.map(session => {
-          const SessIcon = session.icon;
-          return (
-            <motion.div key={session.id} whileHover={{ scale: 1.02 }} className="rounded-2xl p-5 cursor-pointer transition-all" style={{ background: "rgba(212,175,55,0.05)", border: `1px solid ${GOLD}15` }} onClick={() => startMeditation(session)}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}10` }}>
-                  <SessIcon size={18} className="text-yellow-400" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">{session.title}</h4>
-                  <p className="text-xs text-gray-500">{session.duration} min</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400">{session.focus}</p>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      <AnimatePresence>
-        {activeProgram && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="text-center max-w-md w-full">
-              <div className="mb-8">
-                <h3 className="text-2xl font-bold text-white mb-2">{activeProgram.title}</h3>
-                <p className="text-gray-400 text-sm">Step {programStep + 1} of {activeProgram.steps.length}</p>
-              </div>
-
-              <motion.div
-                animate={breathingPhase === "inhale" ? { scale: 1.4 } : breathingPhase === "exhale" ? { scale: 0.9 } : breathingPhase === "hold" ? { scale: 1.4 } : { scale: 1 }}
-                transition={{ duration: breathingPhase === "hold" ? 1 : breathingPhase === "rest" ? 0.5 : 4, ease: "easeInOut" }}
-                className="w-48 h-48 rounded-full mx-auto mb-8 flex items-center justify-center"
-                style={{ background: breathingPhase === "done" ? "rgba(52,211,153,0.2)" : `radial-gradient(circle, ${GOLD}60, ${GOLD}08)`, border: `2px solid ${GOLD}50` }}
-              >
-                <span className="text-lg font-bold text-yellow-400 capitalize">{breathingPhase === "done" ? "Complete!" : breathingPhase}</span>
-              </motion.div>
-
-              <div className="bg-white/5 rounded-2xl p-4 mb-6 border border-white/10">
-                <p className="text-white font-medium">{activeProgram.steps[programStep]}</p>
-              </div>
-
-              <div className="flex items-center justify-center gap-4 mb-6">
-                <button onClick={programRunning ? pauseProgram : resumeProgram} className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-400">
-                  {programRunning ? <PauseCircle size={24} /> : <PlayCircle size={24} />}
-                </button>
-                <button onClick={stopProgram} className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400"><X size={24} /></button>
-              </div>
-
-              <p className="text-3xl font-black text-white">{formatTime(programTime)} / {activeProgram.duration}:00</p>
-
-              <div className="flex gap-1 justify-center mt-4">
-                {activeProgram.steps.map((_, i) => (
-                  <div key={i} className={`h-1 w-8 rounded-full transition-all ${i <= programStep ? "bg-yellow-400" : "bg-white/10"}`} />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {meditationActive && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="text-center max-w-md w-full">
-              <motion.div
-                animate={meditationRunning ? { scale: [1, 1.2, 1] } : {}}
-                transition={{ duration: 8, repeat: meditationRunning ? Infinity : 0, ease: "easeInOut" }}
-                className="w-64 h-64 rounded-full mx-auto mb-8 flex items-center justify-center"
-                style={{ background: `radial-gradient(circle, ${GOLD}30, transparent)`, border: `2px solid ${GOLD}40` }}
-              >
-                <div className="text-center">
-                  <p className="text-4xl font-black text-white mb-2">{formatTime(meditationTimer)}</p>
-                  <p className="text-sm text-gray-400">Remaining: {formatTime(meditationActive.duration * 60 - meditationTimer)}</p>
-                </div>
-              </motion.div>
-              <h3 className="text-2xl font-bold text-white mb-2">{meditationActive.title}</h3>
-              <p className="text-gray-400 text-sm mb-8">{meditationActive.focus}</p>
-              <div className="flex items-center justify-center gap-4">
-                <button onClick={() => setMeditationRunning(!meditationRunning)} className="w-14 h-14 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-400">
-                  {meditationRunning ? <PauseCircle size={28} /> : <PlayCircle size={28} />}
-                </button>
-                <button onClick={stopMeditation} className="w-14 h-14 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400"><X size={28} /></button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-
-  const renderTracker = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-400">Mood & Stress Tracker</h2>
-        <p className="text-gray-400 text-sm mt-1">Track your emotional patterns and stress levels</p>
-      </div>
-
-      <GoldCard className="p-6">
-        <h3 className="font-bold text-white mb-4">How are you feeling?</h3>
-        <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-          {Object.entries(moodEmojis).map(([mood, emoji]) => (
-            <button key={mood} onClick={() => selectMood(mood)} className={`p-4 rounded-xl text-center transition-all ${selectedMood === mood ? "bg-yellow-500/20 border border-yellow-500/40 scale-105" : "bg-white/5 border border-white/5 hover:border-yellow-500/20"}`}>
-              <p className="text-3xl mb-1">{emoji}</p>
-              <p className="text-xs text-gray-400">{mood}</p>
-            </button>
-          ))}
-        </div>
-      </GoldCard>
-
-      {/* HRV Real-time Chart */}
-      <GoldCard className="p-6">
-        <h3 className="font-bold text-white mb-4 flex items-center gap-2"><HeartPulse size={18} className="text-yellow-400" />Real-Time HRV (ms)</h3>
-        {hrvData.length > 1 ? (
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={hrvData}>
-                <defs>
-                  <linearGradient id="hrvGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={GOLD} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={GOLD} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="time" stroke="rgba(255,255,255,0.2)" fontSize={10} />
-                <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} domain={[30, 70]} />
-                <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
-                <Area type="monotone" dataKey="value" stroke={GOLD} fill="url(#hrvGrad)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="text-gray-500 text-sm text-center py-8">Collecting heart rate variability data...</p>
-        )}
-      </GoldCard>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        <GoldCard className="p-6">
-          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-yellow-400" />Mood Trend</h3>
-          {moodChartData.length > 1 ? (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={moodChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="day" stroke="rgba(255,255,255,0.2)" fontSize={10} />
-                  <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} domain={[0, 10]} />
-                  <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
-                  <Line type="monotone" dataKey="value" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-sm text-center py-8">Log your mood daily to see trends</p>
-          )}
-        </GoldCard>
-
-        <GoldCard className="p-6">
-          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><AlertTriangle size={18} className="text-yellow-400" />Stress Triggers</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {triggers.map(t => (
-              <button key={t.id} onClick={() => toggleTrigger(t.id)} className={`p-3 rounded-xl text-sm flex items-center gap-2 transition-all ${activeTriggers.includes(t.id) ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40" : "bg-white/5 text-gray-400 border border-white/5 hover:border-yellow-500/20"}`}>
-                <t.icon size={14} />
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </GoldCard>
-      </div>
-
-      {/* Trigger Correlation Pie */}
-      {triggerCorrelation.length > 0 && (
-        <GoldCard className="p-6">
-          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Activity size={18} className="text-yellow-400" />Trigger Correlation Analysis</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={triggerCorrelation} cx="50%" cy="50%" outerRadius={80} innerRadius={40} dataKey="value" nameKey="name">
-                  {triggerCorrelation.map((_, i) => (
-                    <Cell key={`cell-${i}`} fill={[GOLD, "#F97316", "#60A5FA", "#A78BFA", "#34D399"][i % 5]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap justify-center gap-4 mt-4">
-            {triggerCorrelation.map((c, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ background: [GOLD, "#F97316", "#60A5FA", "#A78BFA", "#34D399"][i % 5] }} />
-                <span className="text-xs text-gray-400">{c.name} ({c.value})</span>
-              </div>
-            ))}
-          </div>
-        </GoldCard>
-      )}
-    </div>
-  );
-
-  const renderJournal = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-400">Stress Journal</h2>
-          <p className="text-gray-400 text-sm mt-1">Document your stress patterns and coping experiences</p>
-        </div>
-        <button onClick={() => setShowJournalModal(true)} className="px-4 py-2 rounded-xl bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30 text-sm flex items-center gap-2">
-          <Plus size={16} /> New Entry
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {journalEntries.length === 0 ? (
-          <GoldCard className="p-12 text-center">
-            <BookOpen size={48} className="text-yellow-500/30 mx-auto mb-4" />
-            <p className="text-gray-500">No journal entries yet</p>
-            <p className="text-sm text-gray-600 mt-1">Start tracking your stress patterns</p>
-          </GoldCard>
-        ) : (
-          [...journalEntries].reverse().map(entry => (
-            <GoldCard key={entry.id} className="p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="text-xs text-gray-500">{new Date(entry.date).toLocaleString()}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-lg">{moodEmojis[entry.mood] || "😊"}</span>
-                    <span className="text-white font-medium">{entry.mood}</span>
-                    <span className="text-xs text-gray-500">Intensity: {entry.intensity}/10</span>
-                  </div>
-                </div>
-                <button onClick={() => deleteJournalEntry(entry.id)} className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center hover:bg-red-500/20"><Trash2 size={14} className="text-red-400" /></button>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {entry.trigger.map(t => {
-                  const trigger = triggers.find(tr => tr.id === t);
-                  return trigger ? (
-                    <span key={t} className="text-xs px-2 py-1 rounded-lg bg-yellow-500/10 text-yellow-300 border border-yellow-500/20 flex items-center gap-1">
-                      <trigger.icon size={10} /> {trigger.label}
-                    </span>
-                  ) : null;
-                })}
-              </div>
-              {entry.notes && <p className="text-sm text-gray-400 italic">"{entry.notes}"</p>}
-            </GoldCard>
-          ))
-        )}
-      </div>
-
-      <AnimatePresence>
-        {showJournalModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowJournalModal(false)}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
-              <GoldCard className="p-6 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-yellow-300">New Journal Entry</h3>
-                  <button onClick={() => setShowJournalModal(false)} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><X size={16} className="text-gray-400" /></button>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">How are you feeling?</label>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(moodEmojis).map(([mood, emoji]) => (
-                        <button key={mood} onClick={() => setJournalForm(p => ({ ...p, mood }))} className={`px-3 py-2 rounded-xl text-sm transition-all ${journalForm.mood === mood ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40" : "bg-white/5 text-gray-400 border border-white/10"}`}>{emoji} {mood}</button>
+                {/* Achievements */}
+                {achievements.length > 0 && (
+                  <Card>
+                    <Label>Recent Achievements</Label>
+                    <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6}}>
+                      {[...achievements].reverse().slice(0,6).map(a => (
+                        <div key={a.id} style={{flexShrink:0,background:"#111",border:`1px solid ${GOLD}22`,padding:"10px 12px",textAlign:"center",minWidth:100}}>
+                          <div style={{fontSize:20,marginBottom:4}}>⭐</div>
+                          <div style={{fontSize:9,color:GOLD,letterSpacing:".08em"}}>{a.name}</div>
+                          <div style={{fontSize:7,color:"#2a2a2a",marginTop:2}}>{new Date(a.date).toLocaleDateString()}</div>
+                        </div>
                       ))}
                     </div>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {/* ────── PROGRAMS ────── */}
+            {tab==="programs" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{fontFamily:HEAD,fontSize:28,color:"#e8e4d9"}}>STRESS RECOVERY PROGRAMS</div>
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  {PROGRAMS.map(prog => (
+                    <Card key={prog.id} style={{cursor:"pointer"}} className="str-card-hover">
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
+                        <div style={{fontSize:28}}>{prog.emoji}</div>
+                        <div style={{fontSize:8,padding:"3px 8px",background:`${GOLD}15`,border:`1px solid ${GOLD}33`,color:GOLD,letterSpacing:".12em",textTransform:"uppercase"}}>{prog.level}</div>
+                      </div>
+                      <div style={{fontFamily:HEAD,fontSize:18,color:"#e8e4d9",marginBottom:3}}>{prog.title}</div>
+                      <div style={{fontSize:9,color:`${GOLD}88`,marginBottom:6}}>{prog.duration} min</div>
+                      <div style={{fontSize:10,color:"#2a2a2a",lineHeight:1.6,marginBottom:12}}>{prog.desc}</div>
+                      <button className="str-btn" onClick={()=>startProgram(prog)}
+                        style={{width:"100%",padding:"10px 0",background:GOLD,color:"#080808",border:"none",fontFamily:FONT,fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase"}}>
+                        ▶ Start Program
+                      </button>
+                    </Card>
+                  ))}
+                </div>
+
+                <div style={{fontFamily:HEAD,fontSize:22,color:"#e8e4d9",marginTop:8}}>GUIDED MEDITATION</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                  {MEDITATIONS.map(s => (
+                    <Card key={s.id} style={{cursor:"pointer"}} className="str-card-hover">
+                      <div style={{fontSize:28,marginBottom:8}}>{s.emoji}</div>
+                      <div style={{fontSize:11,color:"#e8e4d9",fontWeight:500,marginBottom:3}}>{s.title}</div>
+                      <div style={{fontSize:9,color:`${PURPLE}88`,marginBottom:6}}>{s.duration} min</div>
+                      <div style={{fontSize:9,color:"#2a2a2a",marginBottom:10}}>{s.focus}</div>
+                      <button className="str-btn" onClick={()=>startMed(s)}
+                        style={{width:"100%",padding:"8px 0",background:`${PURPLE}22`,border:`1px solid ${PURPLE}44`,color:PURPLE,fontFamily:FONT,fontSize:9,letterSpacing:".12em",textTransform:"uppercase"}}>
+                        ▶ Start
+                      </button>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ────── TRACKER ────── */}
+            {tab==="tracker" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{fontFamily:HEAD,fontSize:28,color:"#e8e4d9"}}>MOOD & STRESS TRACKER</div>
+
+                <Card>
+                  <Label>How are you feeling right now?</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                    {Object.entries(MOOD_MAP).map(([mood,emoji]) => (
+                      <button key={mood} className="str-btn" onClick={()=>logMood(mood)}
+                        style={{padding:"12px 8px",background:selMood===mood?`${GOLD}22`:"#111",border:`1px solid ${selMood===mood?GOLD:BOR}`,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:24}}>{emoji}</span>
+                        <span style={{fontSize:8,letterSpacing:".1em",color:selMood===mood?GOLD:"#2a2a2a",textTransform:"uppercase"}}>{mood}</span>
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">What's causing stress?</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {triggers.map(t => (
-                        <button key={t.id} onClick={() => setJournalForm(p => ({ ...p, trigger: p.trigger.includes(t.id) ? p.trigger.filter(id => id !== t.id) : [...p.trigger, t.id] }))} className={`p-2 rounded-lg text-xs flex items-center gap-1 transition-all ${journalForm.trigger.includes(t.id) ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40" : "bg-white/5 text-gray-400 border border-white/5"}`}>
-                          <t.icon size={12} /> {t.label}
+                  {selMood && <div style={{textAlign:"center",marginTop:12,fontSize:11,color:GOLD}}>✓ Logged: {selMood}</div>}
+                </Card>
+
+                {/* HRV Chart */}
+                <Card>
+                  <Label>Real-Time HRV (Heart Rate Variability)</Label>
+                  {hrvData.length > 2 ? (
+                    <div style={{height:180}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={hrvData}>
+                          <defs>
+                            <linearGradient id="hrvG" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={GOLD} stopOpacity={0.35}/>
+                              <stop offset="100%" stopColor={GOLD} stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#111"/>
+                          <XAxis dataKey="time" stroke="#252525" fontSize={9}/>
+                          <YAxis stroke="#252525" fontSize={9} domain={[30,70]}/>
+                          <Tooltip contentStyle={{background:"#0c0c0c",border:`1px solid ${BOR}`,color:"#e8e4d9",fontSize:10}}/>
+                          <Area type="monotone" dataKey="value" stroke={GOLD} fill="url(#hrvG)" strokeWidth={2}/>
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : <div style={{textAlign:"center",padding:"30px 0",fontSize:9,letterSpacing:".15em",color:"#1e1e1e",textTransform:"uppercase"}}>Collecting data...</div>}
+                </Card>
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  {/* Mood trend */}
+                  <Card>
+                    <Label>7-Day Mood Trend</Label>
+                    {moodChartData.length > 1 ? (
+                      <div style={{height:160}}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={moodChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#111"/>
+                            <XAxis dataKey="day" stroke="#252525" fontSize={9}/>
+                            <YAxis stroke="#252525" fontSize={9} domain={[0,10]}/>
+                            <Tooltip contentStyle={{background:"#0c0c0c",border:`1px solid ${BOR}`,color:"#e8e4d9",fontSize:10}}/>
+                            <Line type="monotone" dataKey="value" stroke={GOLD} strokeWidth={2} dot={{fill:GOLD,r:3}}/>
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : <div style={{textAlign:"center",padding:"30px 0",fontSize:9,letterSpacing:".15em",color:"#1e1e1e",textTransform:"uppercase"}}>Log mood daily to see trends</div>}
+                    <div style={{marginTop:8,display:"flex",justifyContent:"space-between"}}>
+                      <div><div style={{fontSize:7,color:"#252525",textTransform:"uppercase",letterSpacing:".15em"}}>Avg Mood</div><div style={{fontFamily:HEAD,fontSize:20,color:GOLD}}>{avgMood}</div></div>
+                      <div><div style={{fontSize:7,color:"#252525",textTransform:"uppercase",letterSpacing:".15em"}}>Calm Sessions</div><div style={{fontFamily:HEAD,fontSize:20,color:GREEN}}>{medTaken}</div></div>
+                    </div>
+                  </Card>
+
+                  {/* Trigger correlation */}
+                  <Card>
+                    <Label>Trigger Correlation</Label>
+                    {triggerCorr.length > 0 ? (
+                      <div style={{height:160}}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={triggerCorr} cx="50%" cy="50%" outerRadius={65} innerRadius={30} dataKey="value" nameKey="name">
+                              {triggerCorr.map((_,i)=>(
+                                <Cell key={i} fill={[GOLD,ORANGE,BLUE,PURPLE,GREEN][i%5]}/>
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{background:"#0c0c0c",border:`1px solid ${BOR}`,color:"#e8e4d9",fontSize:10}}/>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : <div style={{textAlign:"center",padding:"30px 0",fontSize:9,letterSpacing:".15em",color:"#1e1e1e",textTransform:"uppercase"}}>Add journal entries to see correlations</div>}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:6}}>
+                      {triggerCorr.map((c,i)=>(
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:4}}>
+                          <div style={{width:6,height:6,borderRadius:"50%",background:[GOLD,ORANGE,BLUE,PURPLE,GREEN][i%5]}}/>
+                          <span style={{fontSize:8,color:"#2a2a2a"}}>{c.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Trigger selector */}
+                <Card>
+                  <Label>Identify Your Stress Triggers</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                    {TRIGGERS.map(t => (
+                      <button key={t.id} className="str-btn" onClick={()=>setAT(p=>p.includes(t.id)?p.filter(x=>x!==t.id):[...p,t.id])}
+                        style={{padding:"10px 6px",background:activeTriggers.includes(t.id)?`${GOLD}20`:"#111",border:`1px solid ${activeTriggers.includes(t.id)?GOLD:BOR}`,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:18}}>{t.icon}</span>
+                        <span style={{fontSize:7,letterSpacing:".08em",color:activeTriggers.includes(t.id)?GOLD:"#2a2a2a",textTransform:"uppercase",textAlign:"center"}}>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* ────── JOURNAL ────── */}
+            {tab==="journal" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{fontFamily:HEAD,fontSize:28,color:"#e8e4d9"}}>STRESS JOURNAL</div>
+                  <button className="str-btn" onClick={()=>setJModal(true)}
+                    style={{padding:"10px 16px",background:GOLD,color:"#080808",border:"none",fontFamily:FONT,fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase"}}>
+                    + New Entry
+                  </button>
+                </div>
+
+                {journal.length === 0 ? (
+                  <Card style={{textAlign:"center",padding:"50px 20px"}}>
+                    <div style={{fontSize:40,marginBottom:12}}>📓</div>
+                    <div style={{fontSize:11,color:"#2a2a2a",letterSpacing:".12em",textTransform:"uppercase"}}>No entries yet</div>
+                    <div style={{fontSize:10,color:"#1a1a1a",marginTop:6}}>Start tracking your stress patterns</div>
+                  </Card>
+                ) : (
+                  [...journal].reverse().map(entry => {
+                    const mood = MOOD_MAP[entry.mood];
+                    return (
+                      <Card key={entry.id}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                          <div>
+                            <div style={{fontSize:8,color:"#252525",letterSpacing:".12em",marginBottom:4}}>{new Date(entry.date).toLocaleString()}</div>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <span style={{fontSize:20}}>{mood}</span>
+                              <span style={{fontSize:11,color:"#4a4a4a"}}>{entry.mood}</span>
+                              <span style={{fontSize:8,color:"#252525",padding:"2px 6px",border:`1px solid ${BOR}`}}>Intensity {entry.intensity}/10</span>
+                            </div>
+                          </div>
+                          <button className="str-btn" onClick={()=>setJournal(p=>p.filter(x=>x.id!==entry.id))}
+                            style={{padding:"4px 8px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",color:RED,fontFamily:FONT,fontSize:8}}>✕</button>
+                        </div>
+                        {entry.trigger?.length > 0 && (
+                          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                            {entry.trigger.map(id=>{const t=TRIGGERS.find(x=>x.id===id);return t?<div key={id} style={{padding:"3px 8px",background:`${GOLD}12`,border:`1px solid ${GOLD}22`,color:GOLD,fontSize:8,display:"flex",alignItems:"center",gap:4}}><span>{t.icon}</span><span>{t.label}</span></div>:null;})}
+                          </div>
+                        )}
+                        {entry.notes && <div style={{fontSize:10,color:"#3a3a3a",lineHeight:1.7,fontStyle:"italic",borderLeft:`2px solid ${BOR}`,paddingLeft:10}}>"{entry.notes}"</div>}
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* ────── TOOLS ────── */}
+            {tab==="tools" && (
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{fontFamily:HEAD,fontSize:28,color:"#e8e4d9"}}>STRESS RELIEF TOOLS</div>
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,alignItems:"start"}}>
+                  <Card>
+                    <Label>Box Breathing Exercise</Label>
+                    <BreathCircle active={breathActive} onToggle={()=>setBrA(!breathActive)} />
+                  </Card>
+
+                  <Card>
+                    <Label>Coping Strategies</Label>
+                    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+                      {COPING.map(c => (
+                        <button key={c.id} className="str-btn" onClick={()=>{setSelCoping(c);setCopingR(false);setCopingT(0);}}
+                          style={{padding:"10px 12px",background:selCoping?.id===c.id?`${GOLD}18`:"#111",border:`1px solid ${selCoping?.id===c.id?GOLD:BOR}`,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div>
+                            <div style={{fontSize:10,color:"#e8e4d9"}}>{c.title}</div>
+                            <div style={{fontSize:8,color:"#252525",marginTop:2}}>{c.desc}</div>
+                          </div>
+                          <div style={{fontSize:8,color:GOLD,letterSpacing:".08em",flexShrink:0,marginLeft:8}}>{c.time}</div>
                         </button>
                       ))}
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">Intensity: {journalForm.intensity}/10</label>
-                    <input type="range" min="1" max="10" value={journalForm.intensity} onChange={e => setJournalForm(p => ({ ...p, intensity: parseInt(e.target.value) }))} className="w-full accent-yellow-400" />
-                    <div className="flex justify-between text-xs text-gray-500"><span>Low</span><span>High</span></div>
-                  </div>
-                  <textarea placeholder="Write about how you're feeling..." value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-yellow-500/40 resize-none h-24" />
-                  <button onClick={saveJournalEntry} disabled={!journalForm.mood || journalForm.trigger.length === 0} className="w-full py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-black font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all flex items-center justify-center gap-2"><Save size={16} /> Save Entry</button>
+                    {selCoping && (
+                      <div style={{border:`1px solid ${BOR}`,padding:12}}>
+                        <div style={{fontSize:10,color:"#3a3a3a",marginBottom:10}}>{selCoping.desc}</div>
+                        <button className="str-btn" onClick={()=>{
+                          setCopingR(!copingRun);
+                          if (!copingRun) {
+                            setCopingT(0);
+                            copRef.current = setInterval(()=>setCopingT(p=>p+1),1000);
+                          } else { clearInterval(copRef.current); }
+                        }}
+                          style={{width:"100%",padding:"10px 0",background:copingRun?"transparent":GOLD,color:copingRun?RED:"#080808",border:copingRun?`1px solid ${RED}`:"none",fontFamily:FONT,fontSize:10,fontWeight:700,letterSpacing:".15em",textTransform:"uppercase"}}>
+                          {copingRun?"⏹ Stop":"▶ Start"}
+                        </button>
+                        {copingRun && <div style={{textAlign:"center",fontFamily:HEAD,fontSize:28,color:GOLD,marginTop:10}}>{fmt(copingTime)}</div>}
+                      </div>
+                    )}
+                  </Card>
+
+                  <Card>
+                    <Label>Daily Tip</Label>
+                    <div style={{minHeight:100,display:"flex",alignItems:"center",justifyContent:"center",padding:"10px 0"}}>
+                      <AnimatePresence mode="wait">
+                        <motion.div key={tipIdx} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.4}}
+                          style={{fontSize:12,color:"#4a4a4a",lineHeight:1.8,textAlign:"center"}}>
+                          {DAILY_TIPS[tipIdx]}
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                    <button className="str-btn" onClick={()=>setTipIdx(p=>(p+1)%DAILY_TIPS.length)}
+                      style={{width:"100%",padding:"8px 0",background:"transparent",border:`1px solid ${BOR}`,color:"#2a2a2a",fontFamily:FONT,fontSize:9,letterSpacing:".15em",textTransform:"uppercase"}}>
+                      Next Tip →
+                    </button>
+                  </Card>
                 </div>
-              </GoldCard>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
 
-  const renderTools = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-400">Stress Relief Tools</h2>
-        <p className="text-gray-400 text-sm mt-1">Interactive techniques and coping strategies</p>
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <GoldCard className="p-6">
-          <div className="flex items-center gap-3 mb-5"><Wind size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Breathing Exercise</h3></div>
-          <div className="flex flex-col items-center py-4">
-            <BreathingExercise />
-          </div>
-        </GoldCard>
-
-        <GoldCard className="p-6">
-          <div className="flex items-center gap-3 mb-5"><MessageCircle size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Coping Strategies</h3></div>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {copingStrategies.map(s => (
-              <button key={s.id} onClick={() => { setSelectedCoping(s); setCopingActive(false); setCopingTime(0); }} className={`w-full p-3 rounded-xl text-left transition-all ${selectedCoping?.id === s.id ? "bg-yellow-500/20 border border-yellow-500/30" : "bg-white/5 border border-white/5 hover:border-yellow-500/20"}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-white">{s.title}</p>
-                    <p className="text-xs text-gray-500">{s.desc}</p>
+                {/* Cortisol & Recovery */}
+                <Card>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+                    <div>
+                      <Label>Estimated Cortisol Level</Label>
+                      <div style={{fontSize:9,color:"#1e1e1e",marginBottom:12,lineHeight:1.6}}>Estimated from mood logs + breathing sessions</div>
+                      <Bar pct={Math.min(100,cortisol*8)} color={cortisol<10?GREEN:cortisol<15?GOLD:RED} height={8}/>
+                      <div style={{fontFamily:HEAD,fontSize:30,color:cortisol<10?GREEN:cortisol<15?GOLD:RED,marginTop:8}}>{cortisol} mcg/dL</div>
+                      <div style={{fontSize:8,color:"#1e1e1e"}}>Normal: 6–23 mcg/dL (morning)</div>
+                      <button className="str-btn" onClick={()=>{setCortisol(v=>Math.max(5,v-1));saveJournal;}}
+                        style={{marginTop:10,padding:"8px 14px",background:`${GREEN}22`,border:`1px solid ${GREEN}44`,color:GREEN,fontFamily:FONT,fontSize:9,letterSpacing:".12em",textTransform:"uppercase"}}>
+                        Breathing session → cortisol ↓
+                      </button>
+                    </div>
+                    <div>
+                      <Label>Recovery Status</Label>
+                      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
+                        {[
+                          {label:"Parasympathetic Balance",val:`${Math.max(20,100-stressScore)}%`,color:GREEN},
+                          {label:"Nervous System State",val:hrvData.length>3?"Recovering":"Idle",color:GOLD},
+                          {label:"Sleep Readiness",val:`${Math.max(30,80-stressScore*0.5).toFixed(0)}%`,color:BLUE},
+                          {label:"Burnout Risk",val:stressScore>70?"High":stressScore>50?"Moderate":"Low",color:stressScore>70?RED:stressScore>50?GOLD:GREEN},
+                        ].map(({label,val,color}) => (
+                          <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${BOR}`,paddingBottom:8}}>
+                            <span style={{fontSize:9,color:"#2a2a2a"}}>{label}</span>
+                            <span style={{fontSize:10,color,fontWeight:700}}>{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-xs text-yellow-400">{s.time}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-          {selectedCoping && (
-            <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/5">
-              <p className="text-sm text-gray-300">{selectedCoping.desc}</p>
-              <button
-                onClick={() => {
-                  setCopingActive(!copingActive);
-                  if (!copingActive) {
-                    setCopingTime(0);
-                    const minutes = parseInt(selectedCoping.time);
-                    copingInterval.current = setInterval(() => setCopingTime(p => p + 1), 1000);
-                    setTimeout(() => {
-                      if (copingInterval.current) clearInterval(copingInterval.current);
-                      setCopingActive(false);
-                    }, minutes * 60 * 1000);
-                  } else {
-                    if (copingInterval.current) clearInterval(copingInterval.current);
-                  }
-                }}
-                className="w-full mt-3 py-2 rounded-lg bg-yellow-500/20 text-yellow-300 text-sm hover:bg-yellow-500/30 transition-colors"
-              >
-                {copingActive ? "Stop Session" : "Start Now"}
-              </button>
-              {copingActive && <p className="text-center text-white font-mono mt-2">{formatTime(copingTime)}</p>}
-            </div>
-          )}
-        </GoldCard>
+                </Card>
 
-        <GoldCard className="p-6">
-          <div className="flex items-center gap-3 mb-5"><Bell size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Daily Tip</h3></div>
-          <div className="min-h-[120px] flex items-center justify-center">
-            <motion.p key={tipIndex} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-lg text-white text-center leading-relaxed">{dailyTips[tipIndex]}</motion.p>
-          </div>
-          <button onClick={() => setTipIndex(p => (p + 1) % dailyTips.length)} className="w-full mt-4 py-2 rounded-xl bg-yellow-500/20 text-yellow-300 text-sm hover:bg-yellow-500/30 transition-colors">Next Tip →</button>
-        </GoldCard>
-      </div>
-
-      <GoldCard className="p-6">
-        <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Info size={18} className="text-yellow-400" />Quick Stress Relief Guide</h3>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { title: "5-4-3-2-1 Grounding", desc: "5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste", icon: Target },
-            { title: "Box Breathing", desc: "Inhale 4s, Hold 4s, Exhale 4s, Hold 4s. Repeat 4 times.", icon: Clock },
-            { title: "Progressive Relaxation", desc: "Tense and release each muscle group from toes to head", icon: Shield },
-            { title: "Gratitude Shift", desc: "Name 3 things you're grateful for right now", icon: Heart }
-          ].map((item, i) => (
-            <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/5">
-              <item.icon size={20} className="text-yellow-400 mb-2" />
-              <h4 className="font-bold text-white text-sm mb-1">{item.title}</h4>
-              <p className="text-xs text-gray-400">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </GoldCard>
-
-      {/* Cortisol & Recovery */}
-      <GoldCard className="p-6">
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-bold text-white mb-2 flex items-center gap-2"><Activity size={18} className="text-yellow-400" />Simulated Cortisol Level</h3>
-            <p className="text-sm text-gray-400 mb-4">Estimated based on mood logs and breathing sessions</p>
-            <div className="h-4 bg-white/5 rounded-full overflow-hidden">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, cortisolLevel * 8)}%` }} transition={{ duration: 1 }} className="h-full rounded-full" style={{ background: `linear-gradient(to right, ${cortisolLevel < 10 ? '#34D399' : cortisolLevel < 15 ? '#FBBF24' : '#EF4444'}, ${cortisolLevel < 10 ? '#059669' : cortisolLevel < 15 ? '#D97706' : '#B91C1C'})` }} />
-            </div>
-            <p className="text-2xl font-black text-white mt-2">{cortisolLevel} mcg/dL</p>
-            <p className="text-xs text-gray-500">Normal range: 6-23 mcg/dL (morning)</p>
-          </div>
-          <div>
-            <h3 className="font-bold text-white mb-2 flex items-center gap-2"><Moon size={18} className="text-yellow-400" />Recovery Status</h3>
-            <div className="space-y-3 mt-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Parasympathetic Balance</span>
-                <span className="text-sm font-bold text-green-400">{Math.max(20, 100 - stressScore)}%</span>
+                {/* Quick Guide */}
+                <Card>
+                  <Label>Quick Stress Relief Guide</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {[
+                      {title:"5-4-3-2-1 Ground",desc:"See 5 things, touch 4, hear 3, smell 2, taste 1",emoji:"🌍"},
+                      {title:"Box Breathing",desc:"In 4s · Hold 4s · Out 4s · Hold 4s · Repeat 4×",emoji:"🫁"},
+                      {title:"Prog. Relaxation",desc:"Tense and release each muscle group head to toe",emoji:"💪"},
+                      {title:"Gratitude Shift",desc:"Name 3 things you are grateful for right now",emoji:"❤️"},
+                    ].map((item,i) => (
+                      <div key={i} style={{background:"#111",border:`1px solid ${BOR}`,padding:"12px 10px"}}>
+                        <div style={{fontSize:22,marginBottom:8}}>{item.emoji}</div>
+                        <div style={{fontSize:10,color:"#e8e4d9",marginBottom:4}}>{item.title}</div>
+                        <div style={{fontSize:9,color:"#2a2a2a",lineHeight:1.6}}>{item.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Nervous System Reset</span>
-                <span className="text-sm font-bold text-yellow-400">{hrvData.length > 3 ? "Active" : "Idle"}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Sleep Readiness</span>
-                <span className="text-sm font-bold text-blue-400">{Math.max(30, 80 - stressScore * 0.5)}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </GoldCard>
-    </div>
-  );
+            )}
 
-  return (
-    <div className="min-h-screen bg-[#050505] text-white relative overflow-hidden">
-      <div className="fixed inset-0" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.05) 0%, transparent 50%)" }} />
-      <div className="fixed top-0 right-0 w-[500px] h-[500px] opacity-15" style={{ background: `radial-gradient(circle, ${GOLD}30, transparent)`, filter: "blur(100px)" }} />
-
-      <header className="relative z-20 border-b border-white/5 bg-black/50 backdrop-blur-xl sticky top-0">
-        <div className="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${GOLD_LIGHT}, ${GOLD}, ${GOLD_DARK})` }}>
-              <Sparkles size={20} className="text-black" />
-            </div>
-            <div>
-              <h1 className="font-black text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-400">AURUM CALM</h1>
-              <p className="text-[10px] text-gray-500 tracking-widest uppercase">STRESS MANAGEMENT</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20">
-              <Flame size={14} className="text-yellow-400" />
-              <span className="text-sm font-bold text-yellow-300">{streak}d</span>
-            </div>
-            <button onClick={() => setShowSettings(!showSettings)} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10"><Settings size={18} className="text-gray-400" /></button>
-          </div>
-        </div>
-      </header>
-
-      <main className="relative z-10 max-w-7xl mx-auto px-5 py-8 pb-28 md:pb-8">
-        <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-            {activeTab === "home" && renderHome()}
-            {activeTab === "programs" && renderPrograms()}
-            {activeTab === "tracker" && renderTracker()}
-            {activeTab === "journal" && renderJournal()}
-            {activeTab === "tools" && renderTools()}
           </motion.div>
         </AnimatePresence>
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden">
-        <div className="bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-white/5 px-4 py-2">
-          <div className="flex items-center justify-around">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all ${activeTab === tab.id ? "text-yellow-400" : "text-gray-500"}`}>
-                  <Icon size={20} />
-                  <span className="text-[10px]">{tab.label}</span>
-                  {activeTab === tab.id && <div className="w-1 h-1 rounded-full bg-yellow-400" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
-
-      <div className="hidden md:flex fixed left-5 top-1/2 -translate-y-1/2 z-20 flex-col gap-2">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`group relative w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${activeTab === tab.id ? "bg-yellow-500/20 border border-yellow-500/30" : "bg-white/5 border border-white/5 hover:bg-white/10"}`}>
-              <Icon size={18} className={activeTab === tab.id ? "text-yellow-400" : "text-gray-500 group-hover:text-gray-300"} />
-              {activeTab === tab.id && <div className="absolute -left-1 w-1 h-6 rounded-full bg-yellow-400" />}
-              <div className="absolute left-14 px-3 py-1.5 rounded-lg bg-[#111] border border-white/10 text-sm text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">{tab.label}</div>
-            </button>
-          );
-        })}
       </div>
-
-      <AnimatePresence>
-        {showSettings && (
-          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center" onClick={() => setShowSettings(false)}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-              <GoldCard className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-white">Settings</h3>
-                  <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"><X size={16} className="text-gray-400" /></button>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
-                    <div className="flex items-center gap-3"><Volume2 size={18} className="text-yellow-400" /><div><p className="text-sm font-medium text-white">Sound Effects</p><p className="text-xs text-gray-500">{soundEnabled ? "Enabled" : "Disabled"}</p></div></div>
-                    <button onClick={() => setSoundEnabled(!soundEnabled)} className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${soundEnabled ? "bg-yellow-500" : "bg-gray-600"}`}>
-                      <div className="w-5 h-5 rounded-full bg-white shadow-md transition-transform" style={{ transform: soundEnabled ? "translateX(20px)" : "translateX(0)" }} />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
-                    <div className="flex items-center gap-3"><Mic size={18} className="text-yellow-400" /><div><p className="text-sm font-medium text-white">Voice Coaching</p><p className="text-xs text-gray-500">{voiceCoaching ? "Enabled" : "Disabled"}</p></div></div>
-                    <button onClick={() => setVoiceCoaching(!voiceCoaching)} className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${voiceCoaching ? "bg-yellow-500" : "bg-gray-600"}`}>
-                      <div className="w-5 h-5 rounded-full bg-white shadow-md transition-transform" style={{ transform: voiceCoaching ? "translateX(20px)" : "translateX(0)" }} />
-                    </button>
-                  </div>
-                  <button onClick={exportData} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-yellow-500/10 transition-colors">
-                    <Download size={18} className="text-yellow-400" />
-                    <div className="text-left"><p className="text-sm font-medium text-white">Export Data</p><p className="text-xs text-gray-500">Download your health data</p></div>
-                  </button>
-                  <button onClick={resetData} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-red-500/10 transition-colors">
-                    <RefreshCw size={18} className="text-red-400" />
-                    <div className="text-left"><p className="text-sm font-medium text-white">Reset All Data</p><p className="text-xs text-gray-500">Clear everything</p></div>
-                  </button>
-                </div>
-              </GoldCard>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
-   HELPER COMPONENTS & HOOKS
-════════════════════════════════════════════════════════════ */
-function useLocalStorage(key, initialValue) {
-  const [storedValue, setStoredValue] = useState(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
-
-  const setValue = value => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.warn("LocalStorage update failed", error);
-    }
-  };
-  return [storedValue, setValue];
-}
-
-function GoldCard({ children, className = "" }) {
-  return (
-    <div className={`rounded-3xl bg-gradient-to-b from-white/[0.07] to-white/[0.02] border border-yellow-500/10 backdrop-blur-xl ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-function BreathingExercise() {
-  const [phase, setPhase] = useState("idle");
-  const [cycles, setCycles] = useState(0);
-  const intervalRef = useRef(null);
-
-  const start = useCallback(() => {
-    setCycles(0);
-    setPhase("inhale");
-    let p = 0;
-    const phases = ["inhale", "hold", "exhale", "rest"];
-    intervalRef.current = setInterval(() => {
-      p = (p + 1) % 4;
-      if (p === 0) setCycles(c => c + 1);
-      setPhase(phases[p]);
-    }, 4000);
-  }, []);
-
-  const stop = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setPhase("idle");
-    setCycles(0);
-  }, []);
-
-  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
-
-  return (
-    <div className="text-center">
-      <motion.div
-        animate={phase === "inhale" ? { scale: 1.5 } : phase === "exhale" ? { scale: 0.8 } : phase === "hold" ? { scale: 1.5 } : { scale: 1 }}
-        transition={{ duration: phase === "hold" ? 1 : 4, ease: "easeInOut" }}
-        className="w-32 h-32 rounded-full mx-auto mb-4 flex items-center justify-center"
-        style={{ background: phase === "idle" ? "rgba(255,255,255,0.05)" : `radial-gradient(circle, ${GOLD}60, ${GOLD}08)`, border: `2px solid ${GOLD}50` }}
-      >
-        <span className="text-sm font-bold text-yellow-400 capitalize">{phase === "idle" ? "Start" : phase}</span>
-      </motion.div>
-      <p className="text-xs text-gray-500 mb-3">Cycles: {cycles}</p>
-      <button onClick={phase === "idle" ? start : stop} className={`px-6 py-2 rounded-xl text-sm font-semibold transition-all ${phase === "idle" ? "bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30" : "bg-red-500/20 text-red-300 hover:bg-red-500/30"}`}>
-        {phase === "idle" ? "Start Exercise" : "Stop"}
-      </button>
     </div>
   );
 }
