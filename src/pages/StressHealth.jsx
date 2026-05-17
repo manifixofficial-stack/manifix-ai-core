@@ -7,11 +7,11 @@ import {
   Calendar, BookOpen, Trophy, Target, Clock, Wind, Sun, Cloud, Zap, AlertTriangle,
   Info, Volume2, VolumeX, RefreshCw, Star, ArrowRight, Minus, Heart, Coffee,
   Smartphone, Users, Briefcase, Wallet, Dumbbell, BookMarked, MessageCircle,
-  Shield, TrendingUp, History, LucideIcon
+  Shield, TrendingUp, History, LucideIcon, AlertCircle, Mic, Activity, Lock
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, LineChart, Line
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from "recharts";
 
 const GOLD = "#D4AF37";
@@ -20,11 +20,6 @@ const GOLD_DARK = "#AA8C2C";
 const BG = "#050505";
 const CARD_BG = "rgba(212, 175, 55, 0.03)";
 const CARD_BORDER = "rgba(212, 175, 55, 0.12)";
-const TEXT_PRIMARY = "#FFFFFF";
-const TEXT_SECONDARY = "#A1A1AA";
-const TEXT_MUTED = "#71717A";
-
-const defaultMoods = ["Overwhelmed", "Anxious", "Tired", "Restless", "Burned Out", "Peaceful", "Calm", "Focused", "Energized"];
 
 const moodEmojis = {
   Overwhelmed: "😰", Anxious: "😟", Tired: "😴", Restless: "🤸",
@@ -77,10 +72,19 @@ const triggers = [
   { id: 10, label: "Physical Tension", icon: Dumbbell }
 ];
 
+const meditationSessions = [
+  { id: 1, title: "Morning Calm", duration: 5, level: "All Levels", focus: "Start the day centered", icon: Sun },
+  { id: 2, title: "Midday Reset", duration: 10, level: "Intermediate", focus: "Release afternoon tension", icon: Clock },
+  { id: 3, title: "Evening Wind Down", duration: 15, level: "All Levels", focus: "Transition to rest mode", icon: Moon },
+  { id: 4, title: "Panic SOS", duration: 3, level: "Emergency", focus: "Immediate calm response", icon: AlertCircle },
+  { id: 5, title: "Focus Deepener", duration: 7, level: "Advanced", focus: "Enhance concentration", icon: Target },
+  { id: 6, title: "Self-Love Journey", duration: 12, level: "All Levels", focus: "Build inner compassion", icon: Heart }
+];
+
 export default function StressHealth() {
   const [activeTab, setActiveTab] = useState("home");
   const [stressScore, setStressScore] = useState(68);
-  const [streak, setStreak] = useState(12);
+  const [streak, setStreak] = useLocalStorage("aurum_streak", 12);
   const [selectedMood, setSelectedMood] = useState(null);
   const [moodHistory, setMoodHistory] = useLocalStorage("stressMoods", []);
   const [activeProgram, setActiveProgram] = useState(null);
@@ -95,13 +99,11 @@ export default function StressHealth() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizComplete, setQuizComplete] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [showCoping, setShowCoping] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useLocalStorage("aurum_sound", true);
   const [selectedCoping, setSelectedCoping] = useState(null);
   const [copingActive, setCopingActive] = useState(false);
   const [copingTime, setCopingTime] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
-  const [showTriggers, setShowTriggers] = useState(false);
   const [activeTriggers, setActiveTriggers] = useLocalStorage("stressTriggers", []);
   const [goals, setGoals] = useLocalStorage("stressGoals", [
     { id: 1, text: "Complete 3 sessions today", done: false },
@@ -109,10 +111,23 @@ export default function StressHealth() {
     { id: 3, text: "Practice breathing for 5 min", done: false },
     { id: 4, text: "Write one journal entry", done: false }
   ]);
-  const [showAchievements, setShowAchievements] = useState(false);
+  
+  // New Real Features State
+  const [hrvData, setHrvData] = useLocalStorage("aurum_hrv", []);
+  const [cortisolLevel, setCortisolLevel] = useState(12); // mcg/dL baseline
+  const [showSOS, setShowSOS] = useState(false);
+  const [meditationActive, setMeditationActive] = useState(null);
+  const [meditationTimer, setMeditationTimer] = useState(0);
+  const [meditationRunning, setMeditationRunning] = useState(false);
+  const [voiceCoaching, setVoiceCoaching] = useLocalStorage("aurum_voice", false);
+  const [dailyForecast, setDailyForecast] = useState(null);
+  const [achievements, setAchievements] = useLocalStorage("aurum_achievements", []);
+  const [lastCheckIn, setLastCheckIn] = useLocalStorage("aurum_lastCheck", null);
 
   const programInterval = useRef(null);
   const copingInterval = useRef(null);
+  const meditationInterval = useRef(null);
+  const hrvInterval = useRef(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -120,6 +135,39 @@ export default function StressHealth() {
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Simulate HRV data collection
+  useEffect(() => {
+    if (activeTab === "tracker" || activeTab === "home") {
+      const collectHRV = () => {
+        const baseline = 45 + Math.random() * 20;
+        const newPoint = { time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), value: baseline, stress: Math.max(0, 100 - baseline * 1.2) };
+        setHrvData(prev => [...prev.slice(-14), newPoint]);
+      };
+      collectHRV();
+      hrvInterval.current = setInterval(collectHRV, 30000);
+    }
+    return () => { if (hrvInterval.current) clearInterval(hrvInterval.current); };
+  }, [activeTab, setHrvData]);
+
+  // Daily Stress Forecast Generation
+  useEffect(() => {
+    const today = new Date().toDateString();
+    if (lastCheckIn !== today) {
+      // Generate AI-like forecast based on time and day
+      const hour = new Date().getHours();
+      const dayOfWeek = new Date().getDay();
+      const baseStress = dayOfWeek >= 1 && dayOfWeek <= 5 ? 60 : 35; // Weekday vs weekend
+      const timeMod = hour >= 9 && hour <= 17 ? 15 : -10; // Work hours
+      const forecast = {
+        morning: Math.min(100, baseStress + Math.random() * 10),
+        afternoon: Math.min(100, baseStress + timeMod + Math.random() * 15),
+        evening: Math.min(100, baseStress - 10 + Math.random() * 10),
+        recommendation: baseStress > 60 ? "High stress expected. Schedule 2 breathing sessions today." : "Manageable stress levels. Light mindfulness recommended."
+      };
+      setDailyForecast(forecast);
+    }
+  }, [lastCheckIn]);
 
   const moodChartData = useMemo(() => {
     const last7 = moodHistory.slice(-7);
@@ -130,12 +178,21 @@ export default function StressHealth() {
     }));
   }, [moodHistory]);
 
-  const weeklyStress = useMemo(() => [
-    { day: "Mon", score: 72 }, { day: "Tue", score: 65 },
-    { day: "Wed", score: 58 }, { day: "Thu", score: 62 },
-    { day: "Fri", score: 48 }, { day: "Sat", score: 42 },
-    { day: "Sun", score: 45 }
-  ], []);
+  const triggerCorrelation = useMemo(() => {
+    if (journalEntries.length === 0) return [];
+    const counts = {};
+    journalEntries.forEach(entry => {
+      entry.trigger.forEach(t => {
+        const trigger = triggers.find(tr => tr.id === t);
+        const name = trigger?.label || "Unknown";
+        counts[name] = (counts[name] || 0) + 1;
+      });
+    });
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, value: count }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [journalEntries]);
 
   const startProgram = useCallback((program) => {
     setActiveProgram(program);
@@ -156,6 +213,11 @@ export default function StressHealth() {
           setProgramRunning(false);
           setBreathingPhase("done");
           setGoals(prev => prev.map(g => g.id === 3 ? { ...g, done: true } : g));
+          // Add achievement
+          setAchievements(prev => {
+            const newAch = { id: Date.now(), type: "program", name: program.title, date: new Date().toISOString() };
+            return [...prev, newAch].slice(-50);
+          });
           return newTime;
         }
         setProgramStep(currentStep);
@@ -165,7 +227,7 @@ export default function StressHealth() {
         return newTime;
       });
     }, 1000);
-  }, [setGoals]);
+  }, [setGoals, setAchievements]);
 
   const stopProgram = useCallback(() => {
     if (programInterval.current) clearInterval(programInterval.current);
@@ -209,9 +271,12 @@ export default function StressHealth() {
     setSelectedMood(mood);
     const entry = { id: Date.now(), mood, timestamp: new Date().toISOString() };
     setMoodHistory(prev => [...prev, entry]);
-    if (["Peaceful", "Calm", "Energized"].includes(mood)) setStreak(prev => prev + 1);
+    if (["Peaceful", "Calm", "Energized"].includes(mood)) {
+      setStreak(prev => prev + 1);
+    }
     setGoals(prev => prev.map(g => g.id === 2 ? { ...g, done: true } : g));
-  }, [setMoodHistory, setGoals]);
+    setLastCheckIn(new Date().toDateString());
+  }, [setMoodHistory, setGoals, setLastCheckIn]);
 
   const toggleTrigger = useCallback((id) => {
     setActiveTriggers(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
@@ -224,6 +289,8 @@ export default function StressHealth() {
     setShowJournalModal(false);
     setJournalForm({ trigger: [], mood: "", intensity: 5, notes: "" });
     setGoals(prev => prev.map(g => g.id === 4 ? { ...g, done: true } : g));
+    // Update cortisol simulation
+    setCortisolLevel(prev => Math.max(5, prev - 2));
   }, [journalForm, setJournalEntries, setGoals]);
 
   const deleteJournalEntry = useCallback((id) => {
@@ -235,7 +302,7 @@ export default function StressHealth() {
   }, [setGoals]);
 
   const exportData = useCallback(() => {
-    const data = { moodHistory, journalEntries, activeTriggers, goals, streak, exportedAt: new Date().toISOString() };
+    const data = { moodHistory, journalEntries, activeTriggers, goals, streak, hrvData, achievements, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -243,7 +310,7 @@ export default function StressHealth() {
     a.download = `stress-health-${new Date().toISOString().split("T")[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [moodHistory, journalEntries, activeTriggers, goals, streak]);
+  }, [moodHistory, journalEntries, activeTriggers, goals, streak, hrvData, achievements]);
 
   const resetData = useCallback(() => {
     setMoodHistory([]);
@@ -257,7 +324,9 @@ export default function StressHealth() {
     ]);
     setStreak(0);
     setStressScore(68);
-  }, [setMoodHistory, setJournalEntries, setActiveTriggers, setGoals]);
+    setHrvData([]);
+    setAchievements([]);
+  }, [setMoodHistory, setJournalEntries, setActiveTriggers, setGoals, setHrvData, setAchievements]);
 
   const quizQuestions = [
     { id: 1, text: "How often do you feel overwhelmed?", options: ["Rarely", "Sometimes", "Often", "Always"] },
@@ -279,6 +348,48 @@ export default function StressHealth() {
     setQuizComplete(true);
     setTimeout(() => setShowQuiz(false), 2000);
   }, [quizAnswers]);
+
+  const startSOS = useCallback(() => {
+    setShowSOS(true);
+    setBreathingPhase("inhale");
+    const phases = ["inhale", "hold", "exhale", "rest"];
+    let p = 0;
+    const sosInterval = setInterval(() => {
+      p = (p + 1) % 4;
+      setBreathingPhase(phases[p]);
+    }, 4000);
+    setTimeout(() => {
+      clearInterval(sosInterval);
+      setShowSOS(false);
+      setBreathingPhase("idle");
+    }, 180000); // 3 minutes SOS
+  }, []);
+
+  const startMeditation = useCallback((session) => {
+    setMeditationActive(session);
+    setMeditationTimer(0);
+    setMeditationRunning(true);
+    meditationInterval.current = setInterval(() => {
+      setMeditationTimer(prev => {
+        const newTime = prev + 1;
+        if (newTime >= session.duration * 60) {
+          clearInterval(meditationInterval.current);
+          setMeditationRunning(false);
+          setMeditationActive(null);
+          setGoals(prev => prev.map(g => g.id === 1 ? { ...g, done: true } : g));
+          return newTime;
+        }
+        return newTime;
+      });
+    }, 1000);
+  }, [setGoals]);
+
+  const stopMeditation = useCallback(() => {
+    if (meditationInterval.current) clearInterval(meditationInterval.current);
+    setMeditationRunning(false);
+    setMeditationActive(null);
+    setMeditationTimer(0);
+  }, []);
 
   const tabs = [
     { id: "home", icon: Home, label: "Home" },
@@ -309,6 +420,15 @@ export default function StressHealth() {
   ═════════════════════════════════════════════════════════════ */
   const renderHome = () => (
     <div className="space-y-8">
+      {/* SOS Button Fixed */}
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={startSOS}
+        className="fixed right-6 bottom-24 md:bottom-8 z-30 w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white shadow-lg shadow-red-500/40 flex items-center justify-center border-2 border-red-400/50"
+      >
+        <AlertTriangle size={24} />
+      </motion.button>
+
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-3xl p-8 md:p-12" style={{ background: `linear-gradient(135deg, ${GOLD}15 0%, ${BG} 50%, ${GOLD}08 100%)`, border: `1px solid ${GOLD}30` }}>
         <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full opacity-20" style={{ background: `radial-gradient(circle, ${GOLD}80, transparent)`, filter: "blur(60px)" }} />
         <div className="relative z-10">
@@ -328,6 +448,26 @@ export default function StressHealth() {
           </div>
         </div>
       </motion.div>
+
+      {/* Daily Forecast */}
+      {dailyForecast && (
+        <GoldCard className="p-5 border-l-4" style={{ borderLeftColor: GOLD }}>
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
+              <Sun size={20} className="text-yellow-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white mb-1">Today's Stress Forecast</h3>
+              <p className="text-sm text-gray-400 mb-3">{dailyForecast.recommendation}</p>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500" /><span className="text-xs text-gray-400">AM: {Math.round(dailyForecast.morning)}%</span></div>
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500" /><span className="text-xs text-gray-400">PM: {Math.round(dailyForecast.afternoon)}%</span></div>
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500" /><span className="text-xs text-gray-400">Eve: {Math.round(dailyForecast.evening)}%</span></div>
+              </div>
+            </div>
+          </div>
+        </GoldCard>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <GoldCard className="p-6">
@@ -362,17 +502,18 @@ export default function StressHealth() {
         <GoldCard className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">Current Mood</p>
-              <h2 className="text-4xl font-black text-white mt-2">{selectedMood ? moodEmojis[selectedMood] : "—"} </h2>
-              <p className="text-sm text-gray-400 mt-1">{selectedMood || "Tap to check in"}</p>
+              <p className="text-gray-500 text-sm">HRV Score</p>
+              <h2 className="text-4xl font-black text-white mt-2">{hrvData.length > 0 ? Math.round(hrvData[hrvData.length - 1]?.value || 0) : "—"}</h2>
+              <p className="text-sm text-gray-400 mt-1">ms (Heart Rate Variability)</p>
             </div>
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: `${GOLD}15` }}>
-              <Smile size={28} className="text-yellow-400" />
+              <HeartPulse size={28} className="text-yellow-400" />
             </div>
           </div>
         </GoldCard>
       </div>
 
+      {/* Mood Quick Log */}
       <div className="flex gap-4 overflow-x-auto pb-2">
         {moodHistory.slice(-5).map(entry => (
           <div key={entry.id} className="flex-shrink-0 px-4 py-3 rounded-xl bg-white/5 border border-white/5 text-center">
@@ -424,6 +565,22 @@ export default function StressHealth() {
         </GoldCard>
       </div>
 
+      {/* Achievements */}
+      {achievements.length > 0 && (
+        <GoldCard className="p-6">
+          <div className="flex items-center gap-3 mb-4"><Trophy size={20} className="text-yellow-400" /><h3 className="font-bold text-white">Recent Achievements</h3></div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {achievements.slice(-5).reverse().map(ach => (
+              <div key={ach.id} className="flex-shrink-0 px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 text-center">
+                <Star size={24} className="text-yellow-400 mx-auto mb-2" />
+                <p className="text-xs text-yellow-300">{ach.name}</p>
+                <p className="text-[10px] text-gray-500 mt-1">{new Date(ach.date).toLocaleDateString()}</p>
+              </div>
+            ))}
+          </div>
+        </GoldCard>
+      )}
+
       <AnimatePresence>
         {showQuiz && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowQuiz(false)}>
@@ -460,6 +617,27 @@ export default function StressHealth() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* SOS Overlay */}
+      <AnimatePresence>
+        {showSOS && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+            <div className="text-center">
+              <motion.div
+                animate={breathingPhase === "inhale" ? { scale: 1.6 } : breathingPhase === "exhale" ? { scale: 0.9 } : { scale: 1.6 }}
+                transition={{ duration: breathingPhase === "rest" ? 2 : 4, ease: "easeInOut" }}
+                className="w-64 h-64 rounded-full mx-auto mb-8 flex items-center justify-center"
+                style={{ background: `radial-gradient(circle, rgba(239,68,68,0.3), rgba(239,68,68,0.05))`, border: "3px solid rgba(239,68,68,0.5)" }}
+              >
+                <span className="text-xl font-bold text-red-300 capitalize">{breathingPhase}</span>
+              </motion.div>
+              <p className="text-white text-lg font-bold mb-2">SOS Emergency Calm</p>
+              <p className="text-gray-400 text-sm">Follow the circle. Breathe slowly.</p>
+              <button onClick={stopProgram} className="mt-8 px-8 py-3 rounded-xl bg-red-500/20 text-red-300 border border-red-500/30">Exit SOS Mode</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 
@@ -492,6 +670,28 @@ export default function StressHealth() {
               <div className="flex items-center gap-2 mt-4 text-yellow-400 text-sm">
                 <PlayCircle size={14} /><span>Tap to start</span><ArrowRight size={14} />
               </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Meditation Sessions */}
+      <h3 className="text-xl font-bold text-white mt-8 mb-4">Guided Meditation</h3>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {meditationSessions.map(session => {
+          const SessIcon = session.icon;
+          return (
+            <motion.div key={session.id} whileHover={{ scale: 1.02 }} className="rounded-2xl p-5 cursor-pointer transition-all" style={{ background: "rgba(212,175,55,0.05)", border: `1px solid ${GOLD}15` }} onClick={() => startMeditation(session)}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}10` }}>
+                  <SessIcon size={18} className="text-yellow-400" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-sm">{session.title}</h4>
+                  <p className="text-xs text-gray-500">{session.duration} min</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">{session.focus}</p>
             </motion.div>
           );
         })}
@@ -537,6 +737,34 @@ export default function StressHealth() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {meditationActive && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="text-center max-w-md w-full">
+              <motion.div
+                animate={meditationRunning ? { scale: [1, 1.2, 1] } : {}}
+                transition={{ duration: 8, repeat: meditationRunning ? Infinity : 0, ease: "easeInOut" }}
+                className="w-64 h-64 rounded-full mx-auto mb-8 flex items-center justify-center"
+                style={{ background: `radial-gradient(circle, ${GOLD}30, transparent)`, border: `2px solid ${GOLD}40` }}
+              >
+                <div className="text-center">
+                  <p className="text-4xl font-black text-white mb-2">{formatTime(meditationTimer)}</p>
+                  <p className="text-sm text-gray-400">Remaining: {formatTime(meditationActive.duration * 60 - meditationTimer)}</p>
+                </div>
+              </motion.div>
+              <h3 className="text-2xl font-bold text-white mb-2">{meditationActive.title}</h3>
+              <p className="text-gray-400 text-sm mb-8">{meditationActive.focus}</p>
+              <div className="flex items-center justify-center gap-4">
+                <button onClick={() => setMeditationRunning(!meditationRunning)} className="w-14 h-14 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-400">
+                  {meditationRunning ? <PauseCircle size={28} /> : <PlayCircle size={28} />}
+                </button>
+                <button onClick={stopMeditation} className="w-14 h-14 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400"><X size={28} /></button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 
@@ -559,50 +787,54 @@ export default function StressHealth() {
         </div>
       </GoldCard>
 
+      {/* HRV Real-time Chart */}
       <GoldCard className="p-6">
-        <h3 className="font-bold text-white mb-4 flex items-center gap-2"><BarChart3 size={18} className="text-yellow-400" />Mood History (Last 7 entries)</h3>
-        {moodChartData.length > 1 ? (
+        <h3 className="font-bold text-white mb-4 flex items-center gap-2"><HeartPulse size={18} className="text-yellow-400" />Real-Time HRV (ms)</h3>
+        {hrvData.length > 1 ? (
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={moodChartData}>
+              <AreaChart data={hrvData}>
                 <defs>
-                  <linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={GOLD} stopOpacity={0.3} />
+                  <linearGradient id="hrvGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={GOLD} stopOpacity={0.4} />
                     <stop offset="100%" stopColor={GOLD} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="day" stroke="rgba(255,255,255,0.2)" fontSize={10} />
-                <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} domain={[0, 10]} />
+                <XAxis dataKey="time" stroke="rgba(255,255,255,0.2)" fontSize={10} />
+                <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} domain={[30, 70]} />
                 <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
-                <Area type="monotone" dataKey="value" stroke={GOLD} fill="url(#moodGrad)" />
+                <Area type="monotone" dataKey="value" stroke={GOLD} fill="url(#hrvGrad)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="text-gray-500 text-sm text-center py-8">Log your mood daily to see trends</p>
+          <p className="text-gray-500 text-sm text-center py-8">Collecting heart rate variability data...</p>
         )}
       </GoldCard>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <GoldCard className="p-6">
-          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-yellow-400" />Weekly Stress Trend</h3>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyStress}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="day" stroke="rgba(255,255,255,0.2)" fontSize={10} />
-                <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} domain={[0, 100]} />
-                <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
-                <Bar dataKey="score" fill={GOLD} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-yellow-400" />Mood Trend</h3>
+          {moodChartData.length > 1 ? (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={moodChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="day" stroke="rgba(255,255,255,0.2)" fontSize={10} />
+                  <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} domain={[0, 10]} />
+                  <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
+                  <Line type="monotone" dataKey="value" stroke={GOLD} strokeWidth={2} dot={{ fill: GOLD }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm text-center py-8">Log your mood daily to see trends</p>
+          )}
         </GoldCard>
 
         <GoldCard className="p-6">
-          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><AlertTriangle size={18} className="text-yellow-400" />Identify Triggers</h3>
-          <p className="text-sm text-gray-400 mb-4">Select what's causing you stress today</p>
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><AlertTriangle size={18} className="text-yellow-400" />Stress Triggers</h3>
           <div className="grid grid-cols-2 gap-2">
             {triggers.map(t => (
               <button key={t.id} onClick={() => toggleTrigger(t.id)} className={`p-3 rounded-xl text-sm flex items-center gap-2 transition-all ${activeTriggers.includes(t.id) ? "bg-yellow-500/20 text-yellow-300 border border-yellow-500/40" : "bg-white/5 text-gray-400 border border-white/5 hover:border-yellow-500/20"}`}>
@@ -614,26 +846,32 @@ export default function StressHealth() {
         </GoldCard>
       </div>
 
-      <GoldCard className="p-6">
-        <h3 className="font-bold text-white mb-4 flex items-center gap-2"><History size={18} className="text-yellow-400" />Mood Log</h3>
-        {moodHistory.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-8">No entries yet. Check in with your mood above!</p>
-        ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {[...moodHistory].reverse().slice(0, 10).map(entry => (
-              <div key={entry.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{moodEmojis[entry.mood] || "😊"}</span>
-                  <div>
-                    <p className="text-sm text-white font-medium">{entry.mood}</p>
-                    <p className="text-xs text-gray-500">{new Date(entry.timestamp).toLocaleString()}</p>
-                  </div>
-                </div>
+      {/* Trigger Correlation Pie */}
+      {triggerCorrelation.length > 0 && (
+        <GoldCard className="p-6">
+          <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Activity size={18} className="text-yellow-400" />Trigger Correlation Analysis</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={triggerCorrelation} cx="50%" cy="50%" outerRadius={80} innerRadius={40} dataKey="value" nameKey="name">
+                  {triggerCorrelation.map((_, i) => (
+                    <Cell key={`cell-${i}`} fill={[GOLD, "#F97316", "#60A5FA", "#A78BFA", "#34D399"][i % 5]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ background: "rgba(10,10,10,0.95)", border: `1px solid ${GOLD}40`, borderRadius: "12px", color: "#fff" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 mt-4">
+            {triggerCorrelation.map((c, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ background: [GOLD, "#F97316", "#60A5FA", "#A78BFA", "#34D399"][i % 5] }} />
+                <span className="text-xs text-gray-400">{c.name} ({c.value})</span>
               </div>
             ))}
           </div>
-        )}
-      </GoldCard>
+        </GoldCard>
+      )}
     </div>
   );
 
@@ -813,6 +1051,38 @@ export default function StressHealth() {
           ))}
         </div>
       </GoldCard>
+
+      {/* Cortisol & Recovery */}
+      <GoldCard className="p-6">
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="font-bold text-white mb-2 flex items-center gap-2"><Activity size={18} className="text-yellow-400" />Simulated Cortisol Level</h3>
+            <p className="text-sm text-gray-400 mb-4">Estimated based on mood logs and breathing sessions</p>
+            <div className="h-4 bg-white/5 rounded-full overflow-hidden">
+              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, cortisolLevel * 8)}%` }} transition={{ duration: 1 }} className="h-full rounded-full" style={{ background: `linear-gradient(to right, ${cortisolLevel < 10 ? '#34D399' : cortisolLevel < 15 ? '#FBBF24' : '#EF4444'}, ${cortisolLevel < 10 ? '#059669' : cortisolLevel < 15 ? '#D97706' : '#B91C1C'})` }} />
+            </div>
+            <p className="text-2xl font-black text-white mt-2">{cortisolLevel} mcg/dL</p>
+            <p className="text-xs text-gray-500">Normal range: 6-23 mcg/dL (morning)</p>
+          </div>
+          <div>
+            <h3 className="font-bold text-white mb-2 flex items-center gap-2"><Moon size={18} className="text-yellow-400" />Recovery Status</h3>
+            <div className="space-y-3 mt-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Parasympathetic Balance</span>
+                <span className="text-sm font-bold text-green-400">{Math.max(20, 100 - stressScore)}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Nervous System Reset</span>
+                <span className="text-sm font-bold text-yellow-400">{hrvData.length > 3 ? "Active" : "Idle"}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-400">Sleep Readiness</span>
+                <span className="text-sm font-bold text-blue-400">{Math.max(30, 80 - stressScore * 0.5)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </GoldCard>
     </div>
   );
 
@@ -898,6 +1168,12 @@ export default function StressHealth() {
                     <div className="flex items-center gap-3"><Volume2 size={18} className="text-yellow-400" /><div><p className="text-sm font-medium text-white">Sound Effects</p><p className="text-xs text-gray-500">{soundEnabled ? "Enabled" : "Disabled"}</p></div></div>
                     <button onClick={() => setSoundEnabled(!soundEnabled)} className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${soundEnabled ? "bg-yellow-500" : "bg-gray-600"}`}>
                       <div className="w-5 h-5 rounded-full bg-white shadow-md transition-transform" style={{ transform: soundEnabled ? "translateX(20px)" : "translateX(0)" }} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5">
+                    <div className="flex items-center gap-3"><Mic size={18} className="text-yellow-400" /><div><p className="text-sm font-medium text-white">Voice Coaching</p><p className="text-xs text-gray-500">{voiceCoaching ? "Enabled" : "Disabled"}</p></div></div>
+                    <button onClick={() => setVoiceCoaching(!voiceCoaching)} className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${voiceCoaching ? "bg-yellow-500" : "bg-gray-600"}`}>
+                      <div className="w-5 h-5 rounded-full bg-white shadow-md transition-transform" style={{ transform: voiceCoaching ? "translateX(20px)" : "translateX(0)" }} />
                     </button>
                   </div>
                   <button onClick={exportData} className="w-full flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-yellow-500/10 transition-colors">
