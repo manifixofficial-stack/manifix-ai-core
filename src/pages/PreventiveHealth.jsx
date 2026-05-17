@@ -265,7 +265,15 @@ function injectCSS() {
    8. SUB-COMPONENTS
 ════════════════════════════════════════════════════════════ */
 
-function LargeButton({ children, onClick, color, icon, disabled, ariaLabel, variant = "primary" }) {
+function LargeButton({
+  children,
+  onClick,
+  color,
+  icon,
+  disabled,
+  ariaLabel,
+  variant = "primary",
+}) {
   return (
     <button
       onClick={onClick}
@@ -275,9 +283,31 @@ function LargeButton({ children, onClick, color, icon, disabled, ariaLabel, vari
       style={{
         width: "100%",
         padding: "16px 18px",
-        background: disabled ? "#1a1a1a" : (variant === "primary" ? (color || PREV_THEME.accent) : "#0a1a0f"),
-        border: `2px solid ${disabled ? "#333" : (variant === "primary" ? (color ? "#000" : PREV_THEME.accentDim) : PREV_THEME.border)}`,
-        color: disabled ? "#555" : (variant === "primary" ? (color ? "#fff" : "#030d07") : (color || PREV_THEME.accent)),
+
+        background: disabled
+          ? "#1a1a1a"
+          : variant === "primary"
+          ? color || PREV_THEME.accent
+          : "#0a1a0f",
+
+        border:
+          "2px solid " +
+          (disabled
+            ? "#333"
+            : variant === "primary"
+            ? color
+              ? "#000"
+              : PREV_THEME.accentDim
+            : PREV_THEME.border),
+
+        color: disabled
+          ? "#555"
+          : variant === "primary"
+          ? color
+            ? "#fff"
+            : "#030d07"
+          : color || PREV_THEME.accent,
+
         fontSize: PREV_THEME.fontSizeBase,
         fontWeight: 700,
         fontFamily: "'Syne', sans-serif",
@@ -293,7 +323,12 @@ function LargeButton({ children, onClick, color, icon, disabled, ariaLabel, vari
         opacity: disabled ? 0.6 : 1,
       }}
     >
-      {icon && <span style={{ fontSize: 20 }}>{icon}</span>}
+      {icon && (
+        <span style={{ fontSize: 20 }}>
+          {icon}
+        </span>
+      )}
+
       <span>{children}</span>
     </button>
   );
@@ -305,8 +340,15 @@ function HabitCard({ habit, data, onToggle, accent }) {
       onClick={() => onToggle(habit.id)}
       className="card-prev"
       style={{
-        border: `2px solid ${data?.completed ? accent : "#222"}`,
-        background: data?.completed ? `${accent}11` : "#0a0a0a",
+        border:
+          "2px solid " +
+          (data?.completed ? accent : "#222"),
+
+        background:
+          data?.completed
+            ? accent + "11"
+            : "#0a0a0a",
+
         padding: "12px 14px",
         borderRadius: 10,
         display: "flex",
@@ -315,47 +357,181 @@ function HabitCard({ habit, data, onToggle, accent }) {
         cursor: "pointer",
         transition: "all .2s",
         width: "100%",
-        textAlign: "left"
+        textAlign: "left",
       }}
-      aria-label={`Toggle ${habit.name}`}
+      aria-label={"Toggle " + habit.name}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 22 }}>{habit.icon}</span>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <span style={{ fontSize: 22 }}>
+          {habit.icon}
+        </span>
+
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: data?.completed ? "#6a6a6a" : "#f0ede6", textDecoration: data?.completed ? "line-through" : "none" }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: data?.completed
+                ? "#6a6a6a"
+                : "#f0ede6",
+
+              textDecoration: data?.completed
+                ? "line-through"
+                : "none",
+            }}
+          >
             {habit.name}
           </div>
-          <div style={{ fontSize: 10, color: "#8a8680" }}>{data?.streak || 0} day streak</div>
+
+          <div
+            style={{
+              fontSize: 10,
+              color: "#8a8680",
+            }}
+          >
+            {(data?.streak || 0) + " day streak"}
+          </div>
         </div>
       </div>
-      <div style={{
-        width: 28, height: 28, borderRadius: "50%",
-        border: `2px solid ${data?.completed ? accent : "#333"}`,
-        background: data?.completed ? accent : "transparent",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: data?.completed ? "#030d07" : "transparent",
-        fontSize: 14, transition: "all .2s"
-      }}>✓</div>
+
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: "50%",
+
+          border:
+            "2px solid " +
+            (data?.completed ? accent : "#333"),
+
+          background: data?.completed
+            ? accent
+            : "transparent",
+
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+
+          color: data?.completed
+            ? "#030d07"
+            : "transparent",
+
+          fontSize: 14,
+          transition: "all .2s",
+        }}
+      >
+        ✓
+      </div>
     </button>
   );
 }
 
 function WHOImpactPanel({ domainKey, accent, open }) {
   const d = PREVENT_DOMAINS[domainKey];
+
   if (!d || !open) return null;
+
   return (
-    <div className="fade-up" style={{
-      border: `2px solid ${accent}33`, background: "#0a0a0a", padding: "16px 18px", marginTop: 10, borderRadius: 10
-    }}>
-      <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 8 }}>WHO Domain · {d.who_code}</div>
-      <div style={{ fontSize: 16, color: accent, fontWeight: 700, marginBottom: 10 }}>{d.domain}</div>
+    <div
+      className="fade-up"
+      style={{
+        border: "2px solid " + accent + "33",
+        background: "#0a0a0a",
+        padding: "16px 18px",
+        marginTop: 10,
+        borderRadius: 10,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: ".18em",
+          color: "#2a2a2a",
+          textTransform: "uppercase",
+          marginBottom: 8,
+        }}
+      >
+        {"WHO Domain · " + d.who_code}
+      </div>
+
+      <div
+        style={{
+          fontSize: 16,
+          color: accent,
+          fontWeight: 700,
+          marginBottom: 10,
+        }}
+      >
+        {d.domain}
+      </div>
+
       {[d.stat1, d.stat2, d.stat3, d.stat4].map((s, i) => (
-        <div key={i} style={{ fontSize: 13, color: i === 0 ? "#4a4a4a" : "#2a2a2a", lineHeight: 1.6, borderLeft: `3px solid ${i === 0 ? accent : "#222" }, paddingLeft: 10, marginBottom: 6 }}>{s}</div>
+        <div
+          key={i}
+          style={{
+            fontSize: 13,
+            color: i === 0 ? "#4a4a4a" : "#2a2a2a",
+            lineHeight: 1.6,
+
+            borderLeft:
+              "3px solid " +
+              (i === 0 ? accent : "#222"),
+
+            paddingLeft: 10,
+            marginBottom: 6,
+          }}
+        >
+          {s}
+        </div>
       ))}
-      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "2px solid #1a1a1a", fontSize: 11, color: "#2a2a2a", letterSpacing: ".08em" }}>{d.sdg} · {d.lmic}</div>
-      <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-        <span style={{ fontSize: 11, color: accent, fontWeight: 600 }}>✅ {d.module}</span>
-        <span style={{ fontSize: 11, color: "#4a4a4a" }}>{d.promise}</span>
+
+      <div
+        style={{
+          marginTop: 10,
+          paddingTop: 10,
+          borderTop: "2px solid #1a1a1a",
+          fontSize: 11,
+          color: "#2a2a2a",
+          letterSpacing: ".08em",
+        }}
+      >
+        {d.sdg + " · " + d.lmic}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 6,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            color: accent,
+            fontWeight: 600,
+          }}
+        >
+          {"✅ " + d.module}
+        </span>
+
+        <span
+          style={{
+            fontSize: 11,
+            color: "#4a4a4a",
+          }}
+        >
+          {d.promise}
+        </span>
       </div>
     </div>
   );
