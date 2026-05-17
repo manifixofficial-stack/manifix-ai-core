@@ -1,19 +1,9 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
  * ║  MAGIC16 × ManifiX AI — Preventive Health Module v5.0                 ║
- * ║                                                                          ║
- * ║  PREVENTIVE HEALTH MODULE FEATURES:                                     ║
- * ║  • 90-Day Wellness Roadmap & Habit Streak System                       ║
- * ║  • AI-Powered Prevention Score (NCD Risk Forecast)                     ║
- * ║  • Daily Health Log (Mood, Energy, Stress, Sleep)                      ║
- * ║  • Interactive Breathing & Recovery Tool                               ║
- * ║  • Hydration & Movement Trackers                                     ║
- * ║  • WHO Preventive Guidelines Integration                               ║
- * ║  • Multilingual Voice Coaching (20 Languages)                          ║
- * ║  • Offline-First LMIC Optimized                                        ║
+ * ║  Fixed Build Error: Ensured all JSX tags are properly closed & balanced ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
-
 import {
   useEffect, useRef, useState, useCallback, useMemo,
 } from "react";
@@ -68,7 +58,7 @@ const PREVENT_DOMAINS = {
    2. THEME CONFIG — Fresh, Vitality-Focused Premium Dark
 ════════════════════════════════════════════════════════════ */
 const PREV_THEME = {
-  accent:        "#4ADE80",        // Vitality green
+  accent:        "#4ADE80",
   accentDim:     "#166534",
   accentGlow:    "rgba(74,222,128,0.12)",
   progressGrad:  "linear-gradient(90deg,#14532D,#166534,#4ADE80,#86EFAC)",
@@ -146,7 +136,15 @@ const PREV_PHRASES = {
     tip:        "预防提示：{tip}。简单行动，强大保护。",
     done:       "今天预防专注度极佳。未来的您会感谢您。",
   },
-  // ... (abbreviated - all 20 languages follow same pattern)
+  "fr-FR": {
+    welcome: "Bienvenue dans votre parcours de santé préventive.",
+    habit_done: "Habitude accomplie ! Votre série continue.",
+    breathe: "Respirez avec moi. Inspirez le calme, expirez le stress.",
+    log_saved: "Entrée de santé enregistrée.",
+    roadmap: "Jour {day} de votre parcours de 90 jours.",
+    tip: "Conseil préventif : {tip}.",
+    done: "Excellent focus préventif aujourd'hui."
+  }
 };
 
 function ph(lang, key, vars = {}) {
@@ -186,7 +184,7 @@ function loadPreventData() {
     if (saved) return JSON.parse(saved);
   } catch {}
   return {
-    habits: {}, // { h_id: { completed: bool, streak: number } }
+    habits: {},
     roadmapDay: Math.max(1, Math.floor((Date.now() - new Date("2026-01-01").getTime()) / (1000*60*60*24)) % 90),
     water: 0,
     sleepHours: 7.5,
@@ -246,17 +244,23 @@ function injectCSS() {
   const el = document.createElement("style");
   el.id = "prev-css";
   el.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+    @import 'https://cdn.jsdelivr.net/npm/@fontsource/syne/400.css';
+    @import 'https://cdn.jsdelivr.net/npm/@fontsource/syne/700.css';
+    @import 'https://cdn.jsdelivr.net/npm/@fontsource/syne/800.css';
+    @import 'https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono/400.css';
+    @import 'https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono/700.css';
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @keyframes pulse-soft{0%,100%{opacity:.08;transform:scale(1)}50%{opacity:.15;transform:scale(1.04)}}
     @keyframes fade-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes breathe-anim{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.5);opacity:1}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     .fade-up{animation:fade-up .45s cubic-bezier(.22,.68,0,1.2) both}
     .pulse-soft{animation:pulse-soft 5s ease-in-out infinite}
     .btn-prev:hover{filter:brightness(1.08);transform:translateY(-1px);transition:all .18s}
     .btn-prev:active{transform:translateY(0)}
     .card-prev:focus{outline:2px solid #4ADE80;outline-offset:2px}
     .breathing-circle{animation:breathe-anim 8s ease-in-out infinite}
+    input[type="range"]{height:6px;cursor:pointer}
   `;
   document.head.appendChild(el);
 }
@@ -265,15 +269,7 @@ function injectCSS() {
    8. SUB-COMPONENTS
 ════════════════════════════════════════════════════════════ */
 
-function LargeButton({
-  children,
-  onClick,
-  color,
-  icon,
-  disabled,
-  ariaLabel,
-  variant = "primary",
-}) {
+function LargeButton({ children, onClick, color, icon, disabled, ariaLabel, variant = "primary" }) {
   return (
     <button
       onClick={onClick}
@@ -283,31 +279,9 @@ function LargeButton({
       style={{
         width: "100%",
         padding: "16px 18px",
-
-        background: disabled
-          ? "#1a1a1a"
-          : variant === "primary"
-          ? color || PREV_THEME.accent
-          : "#0a1a0f",
-
-        border:
-          "2px solid " +
-          (disabled
-            ? "#333"
-            : variant === "primary"
-            ? color
-              ? "#000"
-              : PREV_THEME.accentDim
-            : PREV_THEME.border),
-
-        color: disabled
-          ? "#555"
-          : variant === "primary"
-          ? color
-            ? "#fff"
-            : "#030d07"
-          : color || PREV_THEME.accent,
-
+        background: disabled ? "#1a1a1a" : variant === "primary" ? (color || PREV_THEME.accent) : "#0a1a0f",
+        border: `2px solid ${disabled ? "#333" : variant === "primary" ? (color ? "#000" : PREV_THEME.accentDim) : PREV_THEME.border}`,
+        color: disabled ? "#555" : variant === "primary" ? (color ? "#fff" : "#030d07") : (color || PREV_THEME.accent),
         fontSize: PREV_THEME.fontSizeBase,
         fontWeight: 700,
         fontFamily: "'Syne', sans-serif",
@@ -323,12 +297,7 @@ function LargeButton({
         opacity: disabled ? 0.6 : 1,
       }}
     >
-      {icon && (
-        <span style={{ fontSize: 20 }}>
-          {icon}
-        </span>
-      )}
-
+      {icon && <span style={{ fontSize: 20 }}>{icon}</span>}
       <span>{children}</span>
     </button>
   );
@@ -340,15 +309,8 @@ function HabitCard({ habit, data, onToggle, accent }) {
       onClick={() => onToggle(habit.id)}
       className="card-prev"
       style={{
-        border:
-          "2px solid " +
-          (data?.completed ? accent : "#222"),
-
-        background:
-          data?.completed
-            ? accent + "11"
-            : "#0a0a0a",
-
+        border: `2px solid ${data?.completed ? accent : "#222"}`,
+        background: data?.completed ? `${accent}11` : "#0a0a0a",
         padding: "12px 14px",
         borderRadius: 10,
         display: "flex",
@@ -359,73 +321,18 @@ function HabitCard({ habit, data, onToggle, accent }) {
         width: "100%",
         textAlign: "left",
       }}
-      aria-label={"Toggle " + habit.name}
+      aria-label={`Toggle ${habit.name}`}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <span style={{ fontSize: 22 }}>
-          {habit.icon}
-        </span>
-
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 22 }}>{habit.icon}</span>
         <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: data?.completed
-                ? "#6a6a6a"
-                : "#f0ede6",
-
-              textDecoration: data?.completed
-                ? "line-through"
-                : "none",
-            }}
-          >
+          <div style={{ fontSize: 13, fontWeight: 600, color: data?.completed ? "#6a6a6a" : "#f0ede6", textDecoration: data?.completed ? "line-through" : "none" }}>
             {habit.name}
           </div>
-
-          <div
-            style={{
-              fontSize: 10,
-              color: "#8a8680",
-            }}
-          >
-            {(data?.streak || 0) + " day streak"}
-          </div>
+          <div style={{ fontSize: 10, color: "#8a8680" }}>{(data?.streak || 0)} day streak</div>
         </div>
       </div>
-
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: "50%",
-
-          border:
-            "2px solid " +
-            (data?.completed ? accent : "#333"),
-
-          background: data?.completed
-            ? accent
-            : "transparent",
-
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-
-          color: data?.completed
-            ? "#030d07"
-            : "transparent",
-
-          fontSize: 14,
-          transition: "all .2s",
-        }}
-      >
+      <div style={{ width: 28, height: 28, borderRadius: "50%", border: `2px solid ${data?.completed ? accent : "#333"}`, background: data?.completed ? accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: data?.completed ? "#030d07" : "transparent", fontSize: 14, transition: "all .2s" }}>
         ✓
       </div>
     </button>
@@ -434,104 +341,25 @@ function HabitCard({ habit, data, onToggle, accent }) {
 
 function WHOImpactPanel({ domainKey, accent, open }) {
   const d = PREVENT_DOMAINS[domainKey];
-
   if (!d || !open) return null;
 
   return (
-    <div
-      className="fade-up"
-      style={{
-        border: "2px solid " + accent + "33",
-        background: "#0a0a0a",
-        padding: "16px 18px",
-        marginTop: 10,
-        borderRadius: 10,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: ".18em",
-          color: "#2a2a2a",
-          textTransform: "uppercase",
-          marginBottom: 8,
-        }}
-      >
-        {"WHO Domain · " + d.who_code}
+    <div className="fade-up" style={{ border: `2px solid ${accent}33`, background: "#0a0a0a", padding: "16px 18px", marginTop: 10, borderRadius: 10 }}>
+      <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 8 }}>
+        {`WHO Domain · ${d.who_code}`}
       </div>
-
-      <div
-        style={{
-          fontSize: 16,
-          color: accent,
-          fontWeight: 700,
-          marginBottom: 10,
-        }}
-      >
-        {d.domain}
-      </div>
-
+      <div style={{ fontSize: 16, color: accent, fontWeight: 700, marginBottom: 10 }}>{d.domain}</div>
       {[d.stat1, d.stat2, d.stat3, d.stat4].map((s, i) => (
-        <div
-          key={i}
-          style={{
-            fontSize: 13,
-            color: i === 0 ? "#4a4a4a" : "#2a2a2a",
-            lineHeight: 1.6,
-
-            borderLeft:
-              "3px solid " +
-              (i === 0 ? accent : "#222"),
-
-            paddingLeft: 10,
-            marginBottom: 6,
-          }}
-        >
+        <div key={i} style={{ fontSize: 13, color: i === 0 ? "#4a4a4a" : "#2a2a2a", lineHeight: 1.6, borderLeft: `3px solid ${i === 0 ? accent : "#222"}`, paddingLeft: 10, marginBottom: 6 }}>
           {s}
         </div>
       ))}
-
-      <div
-        style={{
-          marginTop: 10,
-          paddingTop: 10,
-          borderTop: "2px solid #1a1a1a",
-          fontSize: 11,
-          color: "#2a2a2a",
-          letterSpacing: ".08em",
-        }}
-      >
-        {d.sdg + " · " + d.lmic}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "2px solid #1a1a1a", fontSize: 11, color: "#2a2a2a", letterSpacing: ".08em" }}>
+        {d.sdg} · {d.lmic}
       </div>
-
-      <div
-        style={{
-          marginTop: 8,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 6,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 11,
-            color: accent,
-            fontWeight: 600,
-          }}
-        >
-          {"✅ " + d.module}
-        </span>
-
-        <span
-          style={{
-            fontSize: 11,
-            color: "#4a4a4a",
-          }}
-        >
-          {d.promise}
-        </span>
+      <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+        <span style={{ fontSize: 11, color: accent, fontWeight: 600 }}>✅ {d.module}</span>
+        <span style={{ fontSize: 11, color: "#4a4a4a" }}>{d.promise}</span>
       </div>
     </div>
   );
@@ -544,171 +372,31 @@ function LogModal({ onClose, onSave, accent }) {
   const [note, setNote] = useState("");
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.9)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          background: "#030d07",
-          border: "3px solid " + accent,
-          padding: 20,
-          width: "min(400px, 100%)",
-          borderRadius: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#f0ede6",
-            }}
-          >
-            📝 Daily Health Log
-          </span>
-
-          <button
-            onClick={onClose}
-            style={{
-              fontSize: 20,
-              background: "none",
-              border: "none",
-              color: "#666",
-              cursor: "pointer",
-            }}
-          >
-            ✕
-          </button>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+      <div style={{ background: "#030d07", border: `3px solid ${accent}`, padding: 20, width: "min(400px, 100%)", borderRadius: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#f0ede6" }}>📝 Daily Health Log</span>
+          <button onClick={onClose} style={{ fontSize: 20, background: "none", border: "none", color: "#666", cursor: "pointer" }}>✕</button>
         </div>
-
-        {[
-          { l: "Mood", v: mood, s: setMood, e: "😊" },
-          { l: "Energy", v: energy, s: setEnergy, e: "⚡" },
-          { l: "Stress", v: stress, s: setStress, e: "😰" },
-        ].map((item) => (
-          <div
-            key={item.l}
-            style={{ marginBottom: 12 }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 12,
-                color: "#8a8680",
-                marginBottom: 4,
-              }}
-            >
-              <span>
-                {item.e} {item.l}
-              </span>
-
-              <span style={{ color: accent }}>
-                {item.v}/10
-              </span>
+        {[{ l: "Mood", v: mood, s: setMood, e: "😊" }, { l: "Energy", v: energy, s: setEnergy, e: "⚡" }, { l: "Stress", v: stress, s: setStress, e: "😰" }].map((item) => (
+          <div key={item.l} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#8a8680", marginBottom: 4 }}>
+              <span>{item.e} {item.l}</span>
+              <span style={{ color: accent }}>{item.v}/10</span>
             </div>
-
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={item.v}
-              onChange={(e) =>
-                item.s(parseInt(e.target.value))
-              }
-              style={{
-                width: "100%",
-                accentColor: accent,
-              }}
-            />
+            <input type="range" min="1" max="10" value={item.v} onChange={(e) => item.s(parseInt(e.target.value))} style={{ width: "100%", accentColor: accent }} />
           </div>
         ))}
-
-        <textarea
-          placeholder="Notes (optional)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={2}
-          style={{
-            width: "100%",
-            padding: "10px",
-            fontSize: 13,
-            background: "#1a1a1a",
-            border: "1px solid #333",
-            color: "#f0ede6",
-            borderRadius: 8,
-            marginBottom: 16,
-            resize: "vertical",
-            fontFamily: "inherit",
-          }}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              padding: "12px",
-              background: "#1a1a1a",
-              border: "2px solid #333",
-              color: "#8a8680",
-              borderRadius: 10,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Cancel
-          </button>
-
-          <button
-            onClick={() =>
-              onSave({
-                mood,
-                energy,
-                stress,
-                note,
-              })
-            }
-            style={{
-              flex: 1,
-              padding: "12px",
-              background: accent,
-              border: "2px solid #000",
-              color: "#030d07",
-              borderRadius: 10,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontWeight: 600,
-            }}
-          >
-            Save Log
-          </button>
+        <textarea placeholder="Notes (optional)" value={note} onChange={(e) => setNote(e.target.value)} rows={2} style={{ width: "100%", padding: "10px", fontSize: 13, background: "#1a1a1a", border: "1px solid #333", color: "#f0ede6", borderRadius: 8, marginBottom: 16, resize: "vertical", fontFamily: "inherit" }} />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "12px", background: "#1a1a1a", border: "2px solid #333", color: "#8a8680", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={() => onSave({ mood, energy, stress, note })} style={{ flex: 1, padding: "12px", background: accent, border: "2px solid #000", color: "#030d07", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Save Log</button>
         </div>
       </div>
     </div>
   );
 }
+
 /* ════════════════════════════════════════════════════════════
    9. MAIN COMPONENT: PreventiveHealth
 ════════════════════════════════════════════════════════════ */
@@ -730,34 +418,45 @@ export default function PreventiveHealth() {
   
   useEffect(() => {
     injectCSS();
-    const timer = setTimeout(() => { setLoading(false); speak(ph(lang, "welcome")); }, 1000);
+    const timer = setTimeout(() => {
+      setLoading(false);
+      speak(ph(lang, "welcome"));
+    }, 1000);
     return () => clearTimeout(timer);
   }, [lang, speak]);
   
   useEffect(() => {
-    const on=()=>setOffline(false), off=()=>setOffline(true);
-    window.addEventListener("online", on); window.addEventListener("offline", off);
-    return ()=>{ window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+    const on=()=>setOffline(false); 
+    const off=()=>setOffline(true);
+    window.addEventListener("online", on); 
+    window.addEventListener("offline", off);
+    return ()=>{ 
+      window.removeEventListener("online", on); 
+      window.removeEventListener("offline", off); 
+    };
   }, []);
   
-  useEffect(() => savePreventData(data), [data]);
+  useEffect(() => {
+    if (!loading) savePreventData(data);
+  }, [data, loading]);
   
   const toggleHabit = useCallback((id) => {
     setData(prev => {
       const current = prev.habits[id] || { completed: false, streak: 0 };
+      const isCompleting = !current.completed;
+      speak(isCompleting ? ph(lang, "habit_done") : "");
       return {
         ...prev,
         habits: {
           ...prev.habits,
           [id]: {
-            completed: !current.completed,
-            streak: !current.completed ? current.streak + 1 : Math.max(0, current.streak - 1)
+            completed: isCompleting,
+            streak: isCompleting ? current.streak + 1 : Math.max(0, current.streak - 1)
           }
         }
       };
     });
-    if (!data.habits[id]?.completed) speak(ph(lang, "habit_done"));
-  }, [data.habits, lang, speak]);
+  }, [lang, speak]);
   
   const handleSaveLog = useCallback((entry) => {
     setData(prev => ({
@@ -772,7 +471,7 @@ export default function PreventiveHealth() {
   }, [lang, speak]);
   
   const startBreathing = useCallback(() => {
-    setBreathingActive(true);
+    setBreathingActive(v => !v);
     speak(ph(lang, "breathe"));
   }, [lang, speak]);
   
@@ -782,333 +481,116 @@ export default function PreventiveHealth() {
   const BG = PREV_THEME.bg;
   const B = PREV_THEME.border;
   
-if (loading) {
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100dvh", background: BG, color: "#f0ede6", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ fontSize: 52, marginBottom: 20, animation: "pulse-soft 3s ease-in-out infinite" }}>🛡️</div>
+        <div style={{ fontSize: 15, letterSpacing: ".12em", color: A, textTransform: "uppercase", marginBottom: 16 }}>Loading Preventive Care…</div>
+        <div style={{ width: 30, height: 30, border: `3px solid ${B}`, borderTopColor: A, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        background: BG,
-        color: "#f0ede6",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "'JetBrains Mono', monospace",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 52,
-          marginBottom: 20,
-          animation: "pulse-soft 3s ease-in-out infinite",
-        }}
-      >
-        🛡️
-      </div>
+    <div style={{ minHeight: "100dvh", background: BG, color: "#f0ede6", fontFamily: "'JetBrains Mono', 'Courier New', monospace", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", position: "relative" }}>
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", backgroundImage: `linear-gradient(${PREV_THEME.grid} 1px, transparent 1px), linear-gradient(90deg, ${PREV_THEME.grid} 1px, transparent 1px)`, backgroundSize: "44px 44px" }} />
+      <div style={{ position: "fixed", top: "28%", left: "50%", transform: "translateX(-50%)", width: 400, height: 200, background: `radial-gradient(ellipse, ${A}0d 0%, transparent 70%)`, animation: "pulse-soft 5s ease-in-out infinite", pointerEvents: "none" }} />
 
-      <div
-        style={{
-          fontSize: 15,
-          letterSpacing: ".12em",
-          color: A,
-          textTransform: "uppercase",
-          marginBottom: 16,
-        }}
-      >
-        Loading Preventive Care…
-      </div>
+      {offline && (
+        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 99, fontSize: 12, letterSpacing: ".12em", background: "#0a1a0f", border: `2px solid ${A}`, color: A, padding: "6px 16px", textTransform: "uppercase", borderRadius: 8 }}>
+          ⚡ Offline — All features work
+        </div>
+      )}
 
-      <div
-        style={{
-          width: 30,
-          height: 30,
-          border: "3px solid " + B,
-          borderTopColor: A,
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite",
-        }}
-      />
-    </div>
-  );
-}
-
-return (
-  <div
-    style={{
-      minHeight: "100dvh",
-      background: BG,
-      color: "#f0ede6",
-      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      overflow: "hidden",
-      position: "relative",
-    }}
-  >
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        pointerEvents: "none",
-        backgroundImage:
-          "linear-gradient(" +
-          PREV_THEME.grid +
-          " 1px, transparent 1px), linear-gradient(90deg, " +
-          PREV_THEME.grid +
-          " 1px, transparent 1px)",
-        backgroundSize: "44px 44px",
-      }}
-    />
-
-    <div
-      style={{
-        position: "fixed",
-        top: "28%",
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: 400,
-        height: 200,
-        background:
-          "radial-gradient(ellipse, " +
-          A +
-          "0d 0%, transparent 70%)",
-        animation: "pulse-soft 5s ease-in-out infinite",
-        pointerEvents: "none",
-      }}
-    />
-
-    {offline && (
-      <div
-        style={{
-          position: "fixed",
-          top: 12,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 99,
-          fontSize: 12,
-          letterSpacing: ".12em",
-          background: "#0a1a0f",
-          border: "2px solid " + A,
-          color: A,
-          padding: "6px 16px",
-          textTransform: "uppercase",
-          borderRadius: 8,
-        }}
-      >
-        ⚡ Offline — All features work
-      </div>
-    )}
-
-    <div
-      style={{
-        position: "relative",
-        zIndex: 2,
-        width: "min(480px, 98vw)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        paddingTop: 20,
-        paddingBottom: 48,
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          paddingBottom: 12,
-          borderBottom: "2px solid #1a1a1a",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontFamily: "'Syne', sans-serif",
-              fontSize: 30,
-              fontWeight: 800,
-              letterSpacing: "-.01em",
-              lineHeight: 1,
-              color: "#f0ede6",
-            }}
-          >
-            ManifiX <span style={{ color: A }}>Prevent</span>
+      <div style={{ position: "relative", zIndex: 2, width: "min(480px, 98vw)", display: "flex", flexDirection: "column", gap: 14, paddingTop: 20, paddingBottom: 48 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 12, borderBottom: "2px solid #1a1a1a" }}>
+          <div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: "-.01em", lineHeight: 1, color: "#f0ede6" }}>
+              ManifiX <span style={{ color: A }}>Prevent</span>
+            </div>
+            <div style={{ fontSize: 13, letterSpacing: ".14em", color: A, textTransform: "uppercase", marginTop: 4, opacity: 0.8 }}>
+              {PREV_THEME.tagline}
+            </div>
           </div>
-
-          <div
-            style={{
-              fontSize: 13,
-              letterSpacing: ".14em",
-              color: A,
-              textTransform: "uppercase",
-              marginTop: 4,
-              opacity: 0.8,
-            }}
-          >
-            {PREV_THEME.tagline}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+            <button onClick={goBack} style={{ fontSize: 14, letterSpacing: ".1em", color: "#4a4a4a", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, textTransform: "uppercase" }}>← Dashboard</button>
+            <div style={{ fontSize: 13, letterSpacing: ".12em", color: "#2a2a2a", textTransform: "uppercase" }}>{lang}</div>
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            onClick={goBack}
-            style={{
-              fontSize: 14,
-              letterSpacing: ".1em",
-              color: "#4a4a4a",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              padding: 0,
-              textTransform: "uppercase",
-            }}
-          >
-            ← Dashboard
-          </button>
-
-          <div
-            style={{
-              fontSize: 13,
-              letterSpacing: ".12em",
-              color: "#2a2a2a",
-              textTransform: "uppercase",
-            }}
-          >
-            {lang}
+        {/* Wellness Score & Trackers */}
+        <div className="fade-up" style={{ border: `2px solid ${A}44`, background: `${A}08`, padding: "16px 18px", borderRadius: 12, textAlign: "center" }}>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "#6a6a6a", letterSpacing: ".1em", textTransform: "uppercase" }}>Prevention Score</div>
+            <div style={{ fontSize: 48, fontWeight: 800, color: A, lineHeight: 1, margin: "4px 0" }}>{wellnessScore}</div>
+            <div style={{ fontSize: 11, color: "#8a8680" }}>Day {data.roadmapDay} / 90 Roadmap</div>
           </div>
-        </div>
-      </div>
 
-      {/* Wellness Score */}
-      <div
-        className="fade-up"
-        style={{
-          border: "2px solid " + A + "44",
-          background: A + "08",
-          padding: "16px 18px",
-          borderRadius: 12,
-          textAlign: "center",
-        }}
-      >
-        
-{/* Quick Trackers */}
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    gap: 8,
-  }}
->
-  {[
-    {
-      label: "💧 Water",
-      val: data.water + "/8",
-      color: "#60a5fa",
-    },
-    {
-      label: "😴 Sleep",
-      val: data.sleepHours + "h",
-      color: "#a78bfa",
-    },
-    {
-      label: "😰 Stress",
-      val: data.stress + "/10",
-      color: data.stress > 5 ? "#f87171" : "#4ade80",
-    },
-  ].map((t) => (
-    <div
-      key={t.label}
-      style={{
-        border: "2px solid " + t.color + "33",
-        background: t.color + "08",
-        padding: "10px",
-        borderRadius: 10,
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          color: "#6a6a6a",
-          marginBottom: 4,
-        }}
-      >
-        {t.label}
-      </div>
-
-      <div
-        style={{
-          fontSize: 18,
-          fontWeight: 800,
-          color: t.color,
-        }}
-      >
-        {t.val}
-      </div>
-    </div>
-  ))}
-</div>
-        
-        {/* Daily Habits */}
-        <div>
-          <div style={{ fontSize: 14, letterSpacing: ".14em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 10 }}>
-            📋 Daily Prevention Habits ({completedHabits}/{DEFAULT_HABITS.length})
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {DEFAULT_HABITS.map(habit => (
-              <HabitCard key={habit.id} habit={habit} data={data.habits[habit.id]} onToggle={toggleHabit} accent={A} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+            {[{ label: "💧 Water", val: data.water + "/8", color: "#60a5fa" }, { label: "😴 Sleep", val: data.sleepHours + "h", color: "#a78bfa" }, { label: "😰 Stress", val: data.stress + "/10", color: data.stress > 5 ? "#f87171" : "#4ade80" }].map((t) => (
+              <div key={t.label} style={{ border: `2px solid ${t.color}33`, background: `${t.color}08`, padding: "10px", borderRadius: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#6a6a6a", marginBottom: 4 }}>{t.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: t.color }}>{t.val}</div>
+              </div>
             ))}
           </div>
-        </div>
-        
-        {/* Breathing & Recovery */}
-        <LargeButton onClick={startBreathing} color={PREV_THEME.infoColor} icon="🌬️" ariaLabel="Start breathing exercise">
-          {breathingActive ? "🧘 Breathe in Progress…" : "Start Breathing Exercise"}
-        </LargeButton>
-        {breathingActive && (
-          <div className="fade-up" style={{ textAlign: "center", padding: "20px 0" }}>
-            <div className="breathing-circle" style={{ width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, " + A + "33, " + A + "08)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + A + "66" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: A }}>Breathe</span>
+
+          {/* Daily Habits */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 14, letterSpacing: ".14em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 10 }}>
+              📋 Daily Prevention Habits ({completedHabits}/{DEFAULT_HABITS.length})
             </div>
-            <div style={{ fontSize: 12, color: "#8a8680" }}>Inhale 4s · Hold 4s · Exhale 6s</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {DEFAULT_HABITS.map(habit => (
+                <HabitCard key={habit.id} habit={habit} data={data.habits[habit.id]} onToggle={toggleHabit} accent={A} />
+              ))}
+            </div>
           </div>
-        )}
-        
-        {/* Quick Log Button */}
-        <LargeButton onClick={() => setShowLogModal(true)} variant="secondary" icon="📝" ariaLabel="Log daily health metrics">
-          Log Daily Health
-        </LargeButton>
-        
-        {/* WHO Guidelines */}
-        <button
-          onClick={() => setShowWHO(v => !v)}
-          style={{
-            width: "100%", padding: "12px 16px", fontSize: 13, letterSpacing: ".12em", textTransform: "uppercase",
-            background: "transparent", border: "2px solid " + A + "33", color: A, borderRadius: 10, cursor: "pointer",
-            fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center"
-          }}
-        >
-          <span>{showWHO ? "▾" : "▸"} WHO Preventive Guidelines</span>
-          <span style={{ color: "#4a4a4a", fontSize: 11 }}>{PREVENT_DOMAINS[activeDomain].who_code}</span>
-        </button>
-        <WHOImpactPanel domainKey={activeDomain} accent={A} open={showWHO} />
-        
-        {/* Footer */}
-        <div style={{ textAlign: "center", fontSize: 11, letterSpacing: ".12em", color: "#1a1a1a", textTransform: "uppercase", paddingTop: 8 }}>
-          Voice: {lang} · WHO SDG 3.4 · {offline ? "Offline-first" : "Cloud-synced"} · 90-Day Roadmap Active
+
+          {/* Breathing & Recovery */}
+          <div style={{ marginBottom: 8 }}>
+            <LargeButton onClick={startBreathing} color={PREV_THEME.infoColor} icon="🌬️" ariaLabel="Start breathing exercise">
+              {breathingActive ? "🧘 Breathe in Progress…" : "Start Breathing Exercise"}
+            </LargeButton>
+            {breathingActive && (
+              <div className="fade-up" style={{ textAlign: "center", padding: "20px 0" }}>
+                <div className="breathing-circle" style={{ width: 120, height: 120, borderRadius: "50%", background: `radial-gradient(circle, ${A}33, ${A}08)`, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${A}66` }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: A }}>Breathe</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#8a8680" }}>Inhale 4s · Hold 4s · Exhale 6s</div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Log Button */}
+          <LargeButton onClick={() => setShowLogModal(true)} variant="secondary" icon="📝" ariaLabel="Log daily health metrics">
+            Log Daily Health
+          </LargeButton>
+
+          {/* WHO Guidelines */}
+          <button onClick={() => setShowWHO(v => !v)} style={{ width: "100%", padding: "12px 16px", marginTop: 12, fontSize: 13, letterSpacing: ".12em", textTransform: "uppercase", background: "transparent", border: `2px solid ${A}33`, color: A, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>{showWHO ? "▾" : "▸"} WHO Preventive Guidelines</span>
+            <span style={{ color: "#4a4a4a", fontSize: 11 }}>{PREVENT_DOMAINS[activeDomain].who_code}</span>
+          </button>
+          
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            {Object.keys(PREVENT_DOMAINS).map(key => (
+              <button key={key} onClick={() => setActiveDomain(key)} style={{ flex: 1, padding: "8px", fontSize: 10, border: `1px solid ${activeDomain === key ? A : "#222"}`, background: activeDomain === key ? `${A}22` : "transparent", color: activeDomain === key ? A : "#666", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", fontFamily: "inherit" }}>
+                {PREVENT_DOMAINS[key].who_code}
+              </button>
+            ))}
+          </div>
+          <WHOImpactPanel domainKey={activeDomain} accent={A} open={showWHO} />
+
+          {/* Footer */}
+          <div style={{ textAlign: "center", fontSize: 11, letterSpacing: ".12em", color: "#1a1a1a", textTransform: "uppercase", paddingTop: 8 }}>
+            Voice: {lang} · WHO SDG 3.4 · {offline ? "Offline-first" : "Cloud-synced"} · 90-Day Roadmap Active
+          </div>
         </div>
+
+        {showLogModal && <LogModal onClose={() => setShowLogModal(false)} onSave={handleSaveLog} accent={A} />}
       </div>
-      
-      {showLogModal && <LogModal onClose={() => setShowLogModal(false)} onSave={handleSaveLog} accent={A} />}
     </div>
   );
 }
