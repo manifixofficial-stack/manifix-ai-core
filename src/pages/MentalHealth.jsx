@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 const GOLD     = "#ffc83c";
 const DIM      = "#c8a84b";
 const BG       = "#080808";
-const CARD     = "#0c0c0c";   /* was "CARd" — now fixed */
+const CARD     = "#0c0c0c";
 const BOR      = "#1a1a1a";
 const FONT     = "'DM Mono','Courier New',monospace";
 const HEAD     = "'Bebas Neue',sans-serif";
@@ -321,7 +321,7 @@ export default function MentalHealth() {
               {TIPS[tipIdx]}
             </div>
           </div>
-          <div style={{display:"flex",gap:4"}}>
+          <div style={{display:"flex",gap:4}}>
             {TIPS.map((_,i) => (
               <div key={i} style={{width:5,height:5,borderRadius:"50%",background:i===tipIdx?"#080808":"#c8a84b",transition:"all .3s"}} />
             ))}
@@ -419,7 +419,7 @@ export default function MentalHealth() {
 
             {todayDone && (
               <div style={{border:"1px solid #1e4d1e",background:"#0a140a",padding:"10px 14px",fontSize:9,color:"#4ade80",letterSpacing:".12em",textTransform:"uppercase"}}>
-                ✓ Today's mood logged · Come back tomorrow
+                ✓ Today&apos;s mood logged · Come back tomorrow
               </div>
             )}
 
@@ -442,7 +442,7 @@ export default function MentalHealth() {
             </Card>
 
             <div>
-              <Label>What's on your mind? (optional)</Label>
+              <Label>What&apos;s on your mind? (optional)</Label>
               <textarea
                 value={note} onChange={e=>setNote(e.target.value)}
                 placeholder="Write freely. This is your safe space..."
@@ -545,7 +545,7 @@ export default function MentalHealth() {
                 <div style={{margin:"auto",textAlign:"center",color:MUTED,fontSize:9,letterSpacing:".12em",textTransform:"uppercase",lineHeight:2.2}}>
                   <div style={{fontSize:36,marginBottom:10}}>🧠</div>
                   I am here to listen and support you.<br/>
-                  Share what's on your mind.
+                  Share what&apos;s on your mind.
                 </div>
               )}
               {chat.map((m,i) => (
