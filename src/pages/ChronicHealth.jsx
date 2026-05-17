@@ -160,7 +160,6 @@ const CHRONIC_PHRASES = {
     progress:   "¡Progreso increíble! Tu puntuación de bienestar mejoró {pts} puntos.",
     encourage:  "Cada elección saludable se acumula. Estás construyendo un mañana más fuerte.",
   },
-  // ... (abbreviated for brevity - all 20 languages follow same pattern)
   "zh-CN": {
     welcome:    "欢迎开启您的慢性病管理之旅。小步骤创造大改变。",
     risk_low:   "优秀！您的风险较低。请继续保持这些健康习惯。",
@@ -202,38 +201,19 @@ const DAILY_HABITS = [
    6. RISK CALCULATOR — WHO-Aligned Algorithm
 ════════════════════════════════════════════════════════════ */
 function calculateRisk(profile) {
-  // Simplified WHO PEN risk model adaptation
   let score = 0;
-  
-  // Age factor
   if (profile.age >= 45) score += 15;
   else if (profile.age >= 35) score += 8;
-  
-  // BMI factor
   if (profile.bmi >= 30) score += 20;
   else if (profile.bmi >= 25) score += 10;
-  
-  // Family history
   if (profile.familyHistory) score += 12;
-  
-  // Activity level (0-10 scale, lower = worse)
   score += Math.max(0, 15 - profile.activityLevel * 1.5);
-  
-  // Diet quality (0-10 scale)
   score += Math.max(0, 12 - profile.dietQuality * 1.2);
-  
-  // Smoking
   if (profile.smokes) score += 18;
-  
-  // BP status
   if (profile.bpStatus === "high") score += 22;
   else if (profile.bpStatus === "elevated") score += 10;
-  
-  // Blood sugar
   if (profile.bloodSugar === "prediabetic") score += 16;
   else if (profile.bloodSugar === "diabetic") score += 25;
-  
-  // Cap at 100
   return Math.min(100, Math.round(score));
 }
 
@@ -248,8 +228,6 @@ function getRiskTier(score) {
 ════════════════════════════════════════════════════════════ */
 function generatePlan(riskScore, profile, lang) {
   const goals = [];
-  
-  // Priority based on risk factors
   if (profile.bmi >= 25) {
     goals.push({
       id: "weight",
@@ -260,7 +238,6 @@ function generatePlan(riskScore, profile, lang) {
       streak: 0,
     });
   }
-  
   if (profile.activityLevel < 5) {
     goals.push({
       id: "activity",
@@ -271,7 +248,6 @@ function generatePlan(riskScore, profile, lang) {
       streak: 0,
     });
   }
-  
   if (profile.dietQuality < 6) {
     goals.push({
       id: "nutrition",
@@ -282,7 +258,6 @@ function generatePlan(riskScore, profile, lang) {
       streak: 0,
     });
   }
-  
   if (profile.bpStatus !== "normal") {
     goals.push({
       id: "sodium",
@@ -293,8 +268,6 @@ function generatePlan(riskScore, profile, lang) {
       streak: 0,
     });
   }
-  
-  // Always include mindfulness for stress-CVD link
   goals.push({
     id: "mindful",
     title: "Stress Resilience",
@@ -303,9 +276,7 @@ function generatePlan(riskScore, profile, lang) {
     who_ref: "WHO Mental Health Gap Action Programme",
     streak: 0,
   });
-  
-  // Sort by impact (simplified)
-  return goals.slice(0, 3); // Top 3 micro-goals for focus
+  return goals.slice(0, 3);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -321,7 +292,6 @@ function loadProfile() {
     const saved = localStorage.getItem("manifix_chronic_profile");
     if (saved) return JSON.parse(saved);
   } catch {}
-  // Default safe profile
   return {
     age: 40,
     bmi: 24,
@@ -395,6 +365,7 @@ function injectCSS() {
     @keyframes glow{0%,100%{box-shadow:0 0 0 rgba(248,113,113,0)}50%{box-shadow:0 0 20px rgba(248,113,113,0.3)}}
     @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
     @keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.25)}28%{transform:scale(1)}42%{transform:scale(1.15)}70%{transform:scale(1)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     .fade-up{animation:fade-up .4s cubic-bezier(.22,.68,0,1.2) both}
     .pulse-soft{animation:pulse-soft 4s ease-in-out infinite}
     .btn-chronic:hover{filter:brightness(1.1);transform:translateY(-1px);transition:all .15s}
@@ -613,22 +584,21 @@ export default function ChronicAI() {
   
   const riskScore = useMemo(() => calculateRisk(profile), [profile]);
   const riskTier = useMemo(() => getRiskTier(riskScore), [riskScore]);
-  const plan = useMemo(() => generatePlan(riskScore, profile, lang), [riskScore, profile, lang]);
   
-  // Wellness score calculation (0-100)
+  // FIX 1: Move plan to useState instead of useMemo to fix streak persistence bug
+  const [plan, setPlan] = useState(() => generatePlan(riskScore, profile, lang));
+  
   const wellnessScore = useMemo(() => {
     const habitCompletion = Object.values(habits).filter(v => v > 0).length;
     const planProgress = plan.filter(g => g.streak > 0).length;
-    const base = 100 - riskScore; // Lower risk = higher wellness
+    const base = 100 - riskScore;
     const habitsBonus = habitCompletion * 3;
     const planBonus = planProgress * 5;
     return Math.min(100, Math.round(base + habitsBonus + planBonus));
   }, [riskScore, habits, plan]);
   
-  // Load initial data
   useEffect(() => {
     injectCSS();
-    // Simulate AI analysis delay
     const timer = setTimeout(() => {
       setLoading(false);
       speak(ph(lang, "welcome"));
@@ -636,7 +606,6 @@ export default function ChronicAI() {
     return () => clearTimeout(timer);
   }, [lang, speak]);
   
-  // Offline listener
   useEffect(() => {
     const on = () => setOffline(false);
     const off = () => setOffline(true);
@@ -648,37 +617,31 @@ export default function ChronicAI() {
     };
   }, []);
   
-  // Save profile changes
   useEffect(() => {
     saveProfile(profile);
   }, [profile]);
   
-  // Save daily habits at midnight reset (simplified)
   useEffect(() => {
     saveHabits(habits);
   }, [habits]);
   
-  // Handle habit increment
   const handleHabitChange = useCallback((id, newValue) => {
     setHabits(prev => ({ ...prev, [id]: newValue }));
     if (newValue >= DAILY_HABITS.find(h=>h.id===id)?.target) {
       speak(ph(lang, "habit_done"));
-      // Confetti for completion
       if (newValue === DAILY_HABITS.find(h=>h.id===id)?.target) {
         confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 }, colors: [CHRONIC_THEME.accent] });
       }
     }
   }, [lang, speak]);
   
-  // Handle plan goal increment
+  // FIX 2: handlePlanIncrement now correctly updates useState-based plan
   const handlePlanIncrement = useCallback((goalId) => {
     setPlan(prev => prev.map(g => 
       g.id === goalId ? { ...g, streak: (g.streak || 0) + 1 } : g
     ));
-    // Update wellness implicitly via dependency
   }, []);
   
-  // Handle log submission
   const handleLogSubmit = useCallback(() => {
     if (!logValue.trim()) return;
     const newLog = {
@@ -687,12 +650,11 @@ export default function ChronicAI() {
       value: logValue,
       timestamp: Date.now(),
     };
-    setLogs(prev => [newLog, ...prev.slice(0, 9)]); // Keep last 10
+    setLogs(prev => [newLog, ...prev.slice(0, 9)]);
     setLogValue("");
     setShowLogModal(false);
     speak(ph(lang, "log_saved"));
     
-    // Auto-update profile if relevant
     if (logType === "bp" && logValue.includes("/")) {
       const [sys] = logValue.split("/").map(Number);
       if (sys) {
@@ -712,15 +674,12 @@ export default function ChronicAI() {
     }
   }, [logType, logValue, lang, speak]);
   
-  // Quick profile update helpers
   const updateProfile = useCallback((field, value) => {
     setProfile(prev => ({ ...prev, [field]: value }));
   }, []);
   
-  // Navigation
   const goBack = useCallback(() => navigate("/app/dashboard"), [navigate]);
   
-  // Theme shortcuts
   const A = CHRONIC_THEME.accent;
   const BG = CHRONIC_THEME.bg;
   const B = CHRONIC_THEME.border;
@@ -738,23 +697,18 @@ export default function ChronicAI() {
   return (
     <div style={{minHeight:"100dvh",background:BG,color:"#f0ede6",fontFamily:"'JetBrains Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",position:"relative"}}>
       
-      {/* Background grid */}
       <div style={{position:"fixed",inset:0,pointerEvents:"none",backgroundImage:`linear-gradient(${CHRONIC_THEME.grid} 1px,transparent 1px),linear-gradient(90deg,${CHRONIC_THEME.grid} 1px,transparent 1px)`,backgroundSize:"40px 40px"}}/>
       
-      {/* Ambient pulse */}
       <div style={{position:"fixed",top:"30%",left:"50%",transform:"translateX(-50%)",width:400,height:200,background:`radial-gradient(ellipse,${A}0d 0%,transparent 75%)`,animation:"pulse-soft 6s ease-in-out infinite",pointerEvents:"none"}}/>
       
-      {/* Offline badge */}
       {offline && (
         <div style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",zIndex:99,fontSize:8,letterSpacing:".16em",background:"#160d0d",border:`1px solid ${A}`,color:A,padding:"3px 12px",textTransform:"uppercase"}}>
           ⚡ Offline — All features available
         </div>
       )}
       
-      {/* Main container */}
       <div style={{position:"relative",zIndex:2,width:"min(440px,96vw)",display:"flex",flexDirection:"column",gap:10,paddingTop:16,paddingBottom:40}}>
         
-        {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",paddingBottom:10,borderBottom:"1px solid #111"}}>
           <div>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,letterSpacing:"-.02em",lineHeight:1,color:"#f0ede6"}}>
@@ -768,7 +722,6 @@ export default function ChronicAI() {
           </div>
         </div>
         
-        {/* Risk Score Card */}
         <div className="fade-up" style={{
           border:`1px solid ${riskTier.color}33`,
           background:`${riskTier.color}06`,
@@ -785,7 +738,6 @@ export default function ChronicAI() {
           </div>
         </div>
         
-        {/* Domain Selector */}
         <div style={{display:"flex",gap:4,overflowX:"auto",paddingBottom:4}}>
           {Object.entries(CHRONIC_DOMAINS).map(([key, domain]) => (
             <button
@@ -812,7 +764,6 @@ export default function ChronicAI() {
           ))}
         </div>
         
-        {/* Wellness Score Mini */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"#080808",border:"1px solid #111",borderRadius:4}}>
           <span style={{fontSize:8,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase"}}>Wellness Score</span>
           <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -823,7 +774,6 @@ export default function ChronicAI() {
           </div>
         </div>
         
-        {/* Today's Micro-Goals */}
         <div>
           <div style={{fontSize:8,letterSpacing:".22em",color:"#1e1e1e",textTransform:"uppercase",marginBottom:8}}>
             🎯 Your Prevention Plan · Day {Math.floor(Math.random()*90)+1}
@@ -837,6 +787,31 @@ export default function ChronicAI() {
               lang={lang}
             />
           ))}
+          <button 
+            onClick={()=>{
+              setPlan(generatePlan(riskScore, profile, lang));
+              speak(ph(lang, "plan_ready"));
+              confetti({ particleCount: 80, spread: 80, origin: { y: 0.7 } });
+            }}
+            className="btn-chronic"
+            style={{
+              width:"100%",
+              padding:"8px",
+              fontSize:7,
+              letterSpacing:".14em",
+              textTransform:"uppercase",
+              background:"transparent",
+              border:`1px solid ${A}33`,
+              color:A,
+              borderRadius:3,
+              cursor:"pointer",
+              fontFamily:"inherit",
+              marginTop:4,
+              transition:"all .15s"
+            }}
+          >
+            ✨ Refresh AI Plan
+          </button>
           <button 
             onClick={()=>setShowWHO(v=>!v)}
             style={{
@@ -860,13 +835,13 @@ export default function ChronicAI() {
           <WHOImpactPanel domainKey={activeDomain} accent={A} open={showWHO}/>
         </div>
         
-        {/* Daily Habits Tracker */}
         <div>
           <div style={{fontSize:8,letterSpacing:".22em",color:"#1e1e1e",textTransform:"uppercase",marginBottom:8}}>
             📋 Today's Health Habits
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {DAILY_HABITS.slice(0,6).map(habit => (
+            {/* FIX 3: Show all 8 habits instead of slicing at 6 */}
+            {DAILY_HABITS.map(habit => (
               <HabitCard
                 key={habit.id}
                 habit={habit}
@@ -878,7 +853,6 @@ export default function ChronicAI() {
           </div>
         </div>
         
-        {/* Quick Log Button */}
         <button
           onClick={()=>setShowLogModal(true)}
           className="btn-chronic"
@@ -904,7 +878,6 @@ export default function ChronicAI() {
           📝 Log Reading (BP / Sugar / Weight)
         </button>
         
-        {/* Recent Logs Preview */}
         {logs.length > 0 && (
           <div style={{border:"1px solid #111",background:"#070707",padding:"10px 12px",borderRadius:4}}>
             <div style={{fontSize:8,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:6}}>
@@ -916,7 +889,6 @@ export default function ChronicAI() {
           </div>
         )}
         
-        {/* Profile Quick Edit */}
         <div style={{border:"1px solid #111",background:"#070707",padding:"12px",borderRadius:4}}>
           <div style={{fontSize:8,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:8}}>
             ⚙️ Quick Profile Update
@@ -957,31 +929,7 @@ export default function ChronicAI() {
           </div>
         </div>
         
-        {/* Action Buttons */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-          <button
-            onClick={()=>{
-              speak(ph(lang, "plan_ready"));
-              confetti({ particleCount: 80, spread: 80, origin: { y: 0.7 } });
-            }}
-            className="btn-chronic"
-            style={{
-              padding:"10px",
-              background:A,
-              color:"#0a0505",
-              border:"none",
-              fontSize:8,
-              letterSpacing:".14em",
-              textTransform:"uppercase",
-              borderRadius:4,
-              cursor:"pointer",
-              fontFamily:"inherit",
-              fontWeight:600,
-              transition:"all .15s"
-            }}
-          >
-            ✨ Refresh Plan
-          </button>
           <button
             onClick={()=>navigate("/app/medication")}
             style={{
@@ -1002,14 +950,12 @@ export default function ChronicAI() {
           </button>
         </div>
         
-        {/* Footer */}
         <div style={{textAlign:"center",fontSize:7,letterSpacing:".16em",color:"#0e0e0e",textTransform:"uppercase",paddingTop:8}}>
           WHO SDG 3.4 · LMIC Optimized · {offline?"Offline-first":"Cloud-synced"}
         </div>
         
       </div>
       
-      {/* Log Modal */}
       {showLogModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}}>
           <div style={{background:"#0a0505",border:`1px solid ${A}`,padding:16,width:"min(360px,100%)",borderRadius:6}}>
