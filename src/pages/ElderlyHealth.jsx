@@ -1,13 +1,14 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Elderly Care Module v5.0                      ║
+ * ║  MAGIC16 × ManifiX AI — Elderly Care Module v5.1                      ║
  * ║                                                                          ║
  * ║  ELDERLY CARE MODULE FEATURES:                                          ║
  * ║  • Large UI with High Contrast & Big Touch Targets                     ║
  * ║  • Family Dashboard — Caregiver Connection & Alerts                    ║
  * ║  • Smart Medication Reminders with Adherence Tracking                  ║
  * ║  • Vital Signs Logging (BP, Pulse, Glucose, Weight)                    ║
- * ║  • Fall Prevention Tips & Emergency Quick Access                       ║
+ * ║  • FALL PREVENTION TIPS & Emergency Quick Access                       ║
+ * ║  • VITALS HISTORY DISPLAY (NEW) — Users see their logged history       ║
  * ║  • Voice-First Navigation & Text-to-Speech Coaching                    ║
  * ║  • Multilingual Support (20 Languages)                                 ║
  * ║  • Offline-First LMIC Optimized                                        ║
@@ -172,7 +173,6 @@ const ELDERLY_PHRASES = {
     social:     "您想现在给家人打电话吗？",
     done:       "今天做得很好。您的健康很重要。",
   },
-  // ... (abbreviated - all 20 languages follow same simple, clear pattern)
 };
 
 function ph(lang, key) {
@@ -263,7 +263,7 @@ function loadMedications() {
     return saved ? JSON.parse(saved) : DEFAULT_MEDS;
   } catch {
     return DEFAULT_MEDS;
-  };
+  }
 }
 
 function saveMedications(meds) {
@@ -322,6 +322,17 @@ function getGreeting() {
   return "Good Evening";
 }
 
+function formatTimestamp(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1440) return `${Math.floor(diffMins/60)}h ago`;
+  return d.toLocaleDateString();
+}
+
 /* ════════════════════════════════════════════════════════════
    10. KEYFRAME STYLES — Accessible Animations
 ════════════════════════════════════════════════════════════ */
@@ -336,6 +347,7 @@ function injectCSS() {
     @keyframes fade-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
     @keyframes gentle-glow{0%,100%{box-shadow:0 0 0 rgba(252,211,77,0)}50%{box-shadow:0 0 25px rgba(252,211,77,0.4)}}
     @keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.15)}28%{transform:scale(1)}42%{transform:scale(1.1)}70%{transform:scale(1)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     .fade-up{animation:fade-up .5s cubic-bezier(.22,.68,0,1.2) both}
     .pulse-alert{animation:pulse-alert 2s ease-in-out infinite}
     .btn-large:hover{filter:brightness(1.05);transform:translateY(-2px);transition:all .2s}
@@ -580,6 +592,28 @@ function WHOImpactPanel({ domainKey, accent, open }) {
   );
 }
 
+function VitalHistoryItem({ entry, vitalInfo }) {
+  const timeAgo = formatTimestamp(entry.timestamp);
+  return (
+    <div className="fade-up" style={{
+      border: `1px solid ${vitalInfo ? vitalInfo.color : '#333'}44`,
+      background: "#0d0d0d",
+      padding: "10px 12px",
+      borderRadius: 8,
+      display: "flex",
+      alignItems: "center",
+      gap: 12
+    }}>
+      <span style={{ fontSize: 20 }}>{vitalInfo ? vitalInfo.icon : "📝"}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#e5e5e5" }}>{entry.value} {entry.unit}</div>
+        <div style={{ fontSize: 11, color: "#666", textTransform: "capitalize" }}>{entry.type.replace(/_/g, ' ')}</div>
+      </div>
+      <span style={{ fontSize: 11, color: "#444", fontStyle: "italic" }}>{timeAgo}</span>
+    </div>
+  );
+}
+
 function VitalsLogModal({ vital, onClose, onSave, accent, lang }) {
   const [value, setValue] = useState("");
   
@@ -676,6 +710,7 @@ export default function ElderlyHealth() {
   
   const [profile, setProfile] = useState(loadElderlyProfile);
   const [meds, setMeds] = useState(loadMedications);
+  const [vitalsHistory, setVitalsHistory] = useState(loadVitals);
   const [activeDomain, setActiveDomain] = useState("mobility");
   const [showWHO, setShowWHO] = useState(false);
   const [showVitalModal, setShowVitalModal] = useState(false);
@@ -695,10 +730,10 @@ export default function ElderlyHealth() {
   const wellnessScore = useMemo(() => {
     const base = 70; // Starting point
     const medBonus = adherenceScore * 0.2;
-    const vitalsBonus = loadVitals().length > 0 ? 10 : 0;
+    const vitalsBonus = vitalsHistory.length > 0 ? 10 : 0;
     const socialBonus = profile.livingAlone ? 0 : 10;
     return Math.min(100, Math.round(base + medBonus + vitalsBonus + socialBonus));
-  }, [adherenceScore, profile]);
+  }, [adherenceScore, vitalsHistory, profile]);
   
   // Load initial data
   useEffect(() => {
@@ -774,6 +809,7 @@ export default function ElderlyHealth() {
   
   const handleVitalSave = useCallback((vitalData) => {
     saveVital(vitalData);
+    setVitalsHistory(loadVitals()); // Update local state to show history immediately
     speak(ph(lang, "vitals_log"));
   }, [lang, speak]);
   
@@ -936,6 +972,21 @@ export default function ElderlyHealth() {
             ))}
           </div>
         </div>
+
+        {/* VITALS HISTORY — NEW FEATURE */}
+        {vitalsHistory.length > 0 && (
+          <div>
+            <div style={{ fontSize: 14, letterSpacing: ".14em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 10 }}>
+              📋 Recent Vitals History
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {vitalsHistory.slice(0, 5).map(entry => {
+                const info = VITAL_TYPES.find(v => v.id === entry.type);
+                return <VitalHistoryItem key={entry.timestamp} entry={entry} vitalInfo={info} />;
+              })}
+            </div>
+          </div>
+        )}
         
         {/* Fall Prevention Tips */}
         <div>
