@@ -1,7 +1,7 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Preventive Health Module v5.0                 ║
- * ║  Fixed Build Error: Ensured all JSX tags are properly closed & balanced ║
+ * ║  MAGIC16 × ManifiX AI — Preventive Health Module v5.1                 ║
+ * ║  Fixed & Upgraded: Real JS-driven Breath Phase Engine with Countdown  ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 import {
@@ -252,14 +252,12 @@ function injectCSS() {
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @keyframes pulse-soft{0%,100%{opacity:.08;transform:scale(1)}50%{opacity:.15;transform:scale(1.04)}}
     @keyframes fade-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes breathe-anim{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.5);opacity:1}}
     @keyframes spin{to{transform:rotate(360deg)}}
     .fade-up{animation:fade-up .45s cubic-bezier(.22,.68,0,1.2) both}
     .pulse-soft{animation:pulse-soft 5s ease-in-out infinite}
     .btn-prev:hover{filter:brightness(1.08);transform:translateY(-1px);transition:all .18s}
     .btn-prev:active{transform:translateY(0)}
     .card-prev:focus{outline:2px solid #4ADE80;outline-offset:2px}
-    .breathing-circle{animation:breathe-anim 8s ease-in-out infinite}
     input[type="range"]{height:6px;cursor:pointer}
   `;
   document.head.appendChild(el);
@@ -412,7 +410,12 @@ export default function PreventiveHealth() {
   const [breathingActive, setBreathingActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(!navigator.onLine);
-  
+
+  // Breathing Engine State
+  const [breathPhase, setBreathPhase] = useState("idle");
+  const [breathCount, setBreathCount] = useState(0);
+  const [cyclesCompleted, setCyclesCompleted] = useState(0);
+
   const wellnessScore = useMemo(() => calculateWellnessScore(data.habits, data.water, data.sleepHours, data.stress), [data]);
   const completedHabits = useMemo(() => Object.values(data.habits).filter(h => h.completed).length, [data.habits]);
   
@@ -439,6 +442,49 @@ export default function PreventiveHealth() {
   useEffect(() => {
     if (!loading) savePreventData(data);
   }, [data, loading]);
+
+  // Real Breath Phase Timer Logic
+  useEffect(() => {
+    if (!breathingActive) {
+      setBreathPhase("idle");
+      setBreathCount(0);
+      return;
+    }
+
+    let isCancelled = false;
+    let timeout;
+
+    const runPhase = (phase, duration) => {
+      if (isCancelled) return;
+      setBreathPhase(phase);
+      let count = duration;
+      setBreathCount(count);
+      
+      const tick = () => {
+        if (isCancelled) return;
+        count--;
+        if (count < 0) {
+          if (phase === "inhale") runPhase("hold", 4);
+          else if (phase === "hold") runPhase("exhale", 6);
+          else if (phase === "exhale") {
+            setCyclesCompleted(prev => prev + 1);
+            runPhase("inhale", 4);
+          }
+          return;
+        }
+        setBreathCount(count);
+        timeout = setTimeout(tick, 1000);
+      };
+      timeout = setTimeout(tick, 1000);
+    };
+
+    runPhase("inhale", 4);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [breathingActive]);
   
   const toggleHabit = useCallback((id) => {
     setData(prev => {
@@ -548,17 +594,34 @@ export default function PreventiveHealth() {
             </div>
           </div>
 
-          {/* Breathing & Recovery */}
+          {/* Breathing & Recovery — REAL PHASE TIMER */}
           <div style={{ marginBottom: 8 }}>
             <LargeButton onClick={startBreathing} color={PREV_THEME.infoColor} icon="🌬️" ariaLabel="Start breathing exercise">
-              {breathingActive ? "🧘 Breathe in Progress…" : "Start Breathing Exercise"}
+              {breathingActive ? "🧘 Stop Breathing Exercise" : "Start Breathing Exercise"}
             </LargeButton>
             {breathingActive && (
               <div className="fade-up" style={{ textAlign: "center", padding: "20px 0" }}>
-                <div className="breathing-circle" style={{ width: 120, height: 120, borderRadius: "50%", background: `radial-gradient(circle, ${A}33, ${A}08)`, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${A}66` }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: A }}>Breathe</span>
+                <div style={{ 
+                  width: 120, height: 120, borderRadius: "50%", 
+                  background: `radial-gradient(circle, ${A}33, ${A}08)`, 
+                  margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", 
+                  border: `2px solid ${A}66`,
+                  transform: breathPhase === "exhale" ? "scale(1)" : "scale(1.35)",
+                  transition: `transform ${breathPhase === "inhale" ? 4 : breathPhase === "hold" ? 0 : 6}s ease-in-out`
+                }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: A, textTransform: "uppercase", letterSpacing: ".1em" }}>
+                    {breathCount > 0 ? breathCount : ""}
+                  </span>
                 </div>
-                <div style={{ fontSize: 12, color: "#8a8680" }}>Inhale 4s · Hold 4s · Exhale 6s</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#f0ede6", marginBottom: 4, textTransform: "capitalize" }}>
+                  {breathPhase}
+                </div>
+                <div style={{ fontSize: 12, color: "#8a8680" }}>
+                  {cyclesCompleted} cycle{cyclesCompleted !== 1 ? "s" : ""} completed
+                </div>
+                <div style={{ fontSize: 10, color: "#4a4a4a", marginTop: 4 }}>
+                  Inhale 4s · Hold 4s · Exhale 6s
+                </div>
               </div>
             )}
           </div>
