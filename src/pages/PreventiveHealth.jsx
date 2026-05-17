@@ -900,7 +900,7 @@ return (
         </LargeButton>
         {breathingActive && (
           <div className="fade-up" style={{ textAlign: "center", padding: "20px 0" }}>
-            <div className="breathing-circle" style={{ width: 120, height: 120, borderRadius: "50%", background: `radial-gradient(circle, ${A}33, ${A}08)`, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${A}66` }}>
+            <div className="breathing-circle" style={{ width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, " + A + "33, " + A + "08)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + A + "66" }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: A }}>Breathe</span>
             </div>
             <div style={{ fontSize: 12, color: "#8a8680" }}>Inhale 4s · Hold 4s · Exhale 6s</div>
@@ -917,7 +917,7 @@ return (
           onClick={() => setShowWHO(v => !v)}
           style={{
             width: "100%", padding: "12px 16px", fontSize: 13, letterSpacing: ".12em", textTransform: "uppercase",
-            background: "transparent", border: `2px solid ${A}33`, color: A, borderRadius: 10, cursor: "pointer",
+            background: "transparent", border: "2px solid " + A + "33", color: A, borderRadius: 10, cursor: "pointer",
             fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center"
           }}
         >
