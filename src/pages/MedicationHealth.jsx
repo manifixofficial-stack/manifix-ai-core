@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Medication Health Module v5.0                 ║
+ * ║  MAGIC16 × ManifiX AI — Medication Health Module v5.1                 ║
  * ║                                                                          ║
  * ║  MEDICATION MODULE FEATURES:                                            ║
  * ║  • Smart Reminders with Voice Alerts (20 Languages)                    ║
@@ -153,7 +153,6 @@ const MED_PHRASES = {
     sync:       "家人已通知：{name}于{time}服用了药物。",
     done:       "今天依从性优秀。您的坚持造就更健康的身体。",
   },
-  // ... (abbreviated - all 20 languages follow same clear, reassuring pattern)
 };
 
 function ph(lang, key, vars = {}) {
@@ -183,7 +182,7 @@ const DEFAULT_MEDS = [
     pillsRemaining: 42,
     instructions: "Take with meals to reduce stomach upset",
     interactions: ["Contrast dye", "Alcohol (limit)"],
-    taken: [], // Array of timestamps when taken
+    taken: [], // Array of ISO timestamps
     color: "#6EE7B7",
   },
   {
@@ -231,7 +230,7 @@ const DEFAULT_MEDS = [
     condition: "Hypertension",
     startDate: "2026-01-20",
     refillDate: "2026-06-20",
-    pillsRemaining: 8, // Low stock alert
+    pillsRemaining: 8,
     instructions: "Take on empty stomach, same time daily",
     interactions: ["Potassium supplements", "NSAIDs (use caution)"],
     taken: [],
@@ -258,7 +257,6 @@ const INTERACTION_DB = {
     moderate: ["Potassium supplements, Salt substitutes (risk of hyperkalemia)"],
     mild: ["NSAIDs like Ibuprofen (may reduce BP control)"],
   },
-  // Add more as needed
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -296,6 +294,23 @@ function saveAdherenceEntry(entry) {
   localStorage.setItem("manifix_adherence_history", JSON.stringify(history.slice(0, 90)));
 }
 
+// FIX: Robust time parsing instead of brittle string matching
+function isTakenTodayAtTime(takenArray, today, scheduledTime) {
+  const [schH, schM] = scheduledTime.split(":").map(Number);
+  const schMinutes = schH * 60 + schM;
+  
+  return takenArray?.some(t => {
+    const dateStr = typeof t === "string" ? t : t.takenAt || t.timestamp;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (!d.toISOString().startsWith(today)) return false;
+    
+    const takeMinutes = d.getHours() * 60 + d.getMinutes();
+    // Allow 2-hour window around scheduled time for adherence calculation
+    return Math.abs(takeMinutes - schMinutes) <= 120;
+  }) || false;
+}
+
 function calculateAdherenceScore(medications) {
   const today = new Date().toISOString().split("T")[0];
   let totalDoses = 0;
@@ -304,8 +319,7 @@ function calculateAdherenceScore(medications) {
   medications.forEach(med => {
     med.times.forEach(time => {
       totalDoses++;
-      const takenToday = med.taken?.some(t => t.startsWith(today) && t.includes(time));
-      if (takenToday) takenDoses++;
+      if (isTakenTodayAtTime(med.taken, today, time)) takenDoses++;
     });
   });
   
@@ -313,17 +327,14 @@ function calculateAdherenceScore(medications) {
 }
 
 function getStreak(medications) {
-  // Simplified: count consecutive days with 100% adherence
   const history = loadAdherenceHistory();
   let streak = 0;
   const today = new Date().toISOString().split("T")[0];
   
-  // Check today first
   const todayScore = calculateAdherenceScore(medications);
   if (todayScore < 100) return 0;
   streak = 1;
   
-  // Check previous days from history
   for (let i = 0; i < history.length && i < 30; i++) {
     if (history[i].score === 100) {
       streak++;
@@ -343,7 +354,6 @@ function checkInteractions(medications) {
     if (!interactions) return;
     
     medNames.slice(i + 1).forEach(med2 => {
-      // Check if med2 is in any interaction list for med1
       [...interactions.severe, ...interactions.moderate, ...interactions.mild].forEach(inter => {
         if (inter.toLowerCase().includes(med2.toLowerCase())) {
           warnings.push({
@@ -383,26 +393,19 @@ function createMedSpeaker(lang) {
   };
 }
 
-function formatTime(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}:${m.toString().padStart(2, '0')}`;
-}
-
 function isDue(med) {
   const now = new Date();
-  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   const today = now.toISOString().split("T")[0];
   
   return med.times.some(time => {
-    // Due if within 30-min window of scheduled time AND not yet taken today
     const [h, m] = time.split(":").map(Number);
     const scheduled = new Date();
-    scheduled.setHours(h, m, 0);
+    scheduled.setHours(h, m, 0, 0);
     const windowStart = new Date(scheduled.getTime() - 30 * 60 * 1000);
     const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
     
-    const alreadyTaken = med.taken?.some(t => t.startsWith(today) && t.includes(time));
+    // FIX: Use robust time parser instead of brittle string includes
+    const alreadyTaken = isTakenTodayAtTime(med.taken, today, time);
     return now >= windowStart && now <= windowEnd && !alreadyTaken;
   });
 }
@@ -432,6 +435,7 @@ function injectCSS() {
     @keyframes fade-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes gentle-glow{0%,100%{box-shadow:0 0 0 rgba(110,231,183,0)}50%{box-shadow:0 0 22px rgba(110,231,183,0.35)}}
     @keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.12)}28%{transform:scale(1)}42%{transform:scale(1.08)}70%{transform:scale(1)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
     .fade-up{animation:fade-up .45s cubic-bezier(.22,.68,0,1.2) both}
     .pulse-reminder{animation:pulse-reminder 2.5s ease-in-out infinite}
     .btn-med:hover{filter:brightness(1.08);transform:translateY(-1px);transition:all .18s}
@@ -490,7 +494,12 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
   const lowStock = isLowStock(med);
   const daysLeft = daysUntilRefill(med);
   const today = now.toISOString().split("T")[0];
-  const takenToday = med.taken?.filter(t => t.startsWith(today)).length || 0;
+  
+  const takenToday = med.taken?.filter(t => {
+    const dateStr = typeof t === "string" ? t : t.takenAt || t.timestamp;
+    return dateStr && new Date(dateStr).toISOString().startsWith(today);
+  }).length || 0;
+  
   const totalToday = med.times.length;
   const progress = totalToday > 0 ? Math.round((takenToday / totalToday) * 100) : 0;
   
@@ -508,7 +517,6 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
       marginBottom: 10,
       transition: "all .2s"
     }}>
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{
@@ -521,7 +529,7 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
             <div style={{ fontSize: 13, color: "#8a8680" }}>{med.dosage} · {med.generic}</div>
           </div>
         </div>
-        {due && !med.taken?.some(t => t.startsWith(today)) && (
+        {due && progress < 100 && (
           <div className="pulse-reminder" style={{ 
             fontSize: 11, color: accent, fontWeight: 600, 
             background: `${accent}22`, padding: "4px 8px", borderRadius: 6 
@@ -531,10 +539,9 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
         )}
       </div>
       
-      {/* Schedule */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
         {med.times.map(time => {
-          const taken = med.taken?.some(t => t.startsWith(today) && t.includes(time));
+          const taken = isTakenTodayAtTime(med.taken, today, time);
           return (
             <div key={time} style={{
               fontSize: 12, padding: "4px 8px", borderRadius: 6,
@@ -549,7 +556,6 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
         })}
       </div>
       
-      {/* Progress Bar */}
       <div style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#6a6a6a", marginBottom: 4 }}>
           <span>Today's doses</span>
@@ -564,7 +570,6 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
         </div>
       </div>
       
-      {/* Alerts */}
       {(lowStock || daysLeft <= 7) && (
         <div style={{
           fontSize: 11, color: MED_THEME.warningColor,
@@ -575,7 +580,6 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
         </div>
       )}
       
-      {/* Instructions */}
       <div style={{
         fontSize: 12, color: "#8a8680",
         borderLeft: `2px solid ${med.color}66`, paddingLeft: 10, marginBottom: 12
@@ -583,7 +587,6 @@ function MedicationCard({ med, onToggle, onEdit, onDelete, accent, lang, speak }
         💡 {med.instructions}
       </div>
       
-      {/* Actions */}
       <div style={{ display: "flex", gap: 8 }}>
         <button
           onClick={handleTake}
@@ -712,9 +715,7 @@ function AddEditModal({ med, onClose, onSave, accent, lang }) {
     interactions: [], color: MED_THEME.accent, taken: [],
   });
   
-  const handleChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-  };
+  const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
   
   const handleTimeChange = (index, value) => {
     const newTimes = [...form.times];
@@ -725,8 +726,7 @@ function AddEditModal({ med, onClose, onSave, accent, lang }) {
   const addTime = () => setForm(prev => ({ ...prev, times: [...prev.times, ""] }));
   const removeTime = (index) => {
     if (form.times.length > 1) {
-      const newTimes = form.times.filter((_, i) => i !== index);
-      setForm(prev => ({ ...prev, times: newTimes }));
+      setForm(prev => ({ ...prev, times: prev.times.filter((_, i) => i !== index) }));
     }
   };
   
@@ -742,190 +742,79 @@ function AddEditModal({ med, onClose, onSave, accent, lang }) {
   };
   
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 100, padding: 20
-    }}>
-      <div style={{
-        background: "#030d0c", border: `3px solid ${accent}`,
-        padding: 20, width: "min(480px, 100%)", borderRadius: 16,
-        maxHeight: "90vh", overflowY: "auto"
-      }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+      <div style={{ background: "#030d0c", border: `3px solid ${accent}`, padding: 20, width: "min(480px, 100%)", borderRadius: 16, maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#f0ede6" }}>
-            {med ? "Edit Medication" : "Add Medication"}
-          </span>
-          <button onClick={onClose} style={{
-            fontSize: 20, background: "none", border: "none", color: "#666",
-            cursor: "pointer", padding: 4
-          }}>✕</button>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#f0ede6" }}>{med ? "Edit Medication" : "Add Medication"}</span>
+          <button onClick={onClose} style={{ fontSize: 20, background: "none", border: "none", color: "#666", cursor: "pointer", padding: 4 }}>✕</button>
         </div>
-        
         <div style={{ display: "grid", gap: 12 }}>
           <div>
             <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Medication Name *</label>
-            <input type="text" value={form.name} onChange={(e) => handleChange("name", e.target.value)}
-              placeholder="e.g., Metformin" style={{
-                width: "100%", padding: "10px 12px", fontSize: 14,
-                background: "#1a1a1a", border: `2px solid #333`,
-                color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-              }}
-            />
+            <input type="text" value={form.name} onChange={(e) => handleChange("name", e.target.value)} placeholder="e.g., Metformin" style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
           </div>
-          
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Generic Name</label>
-              <input type="text" value={form.generic} onChange={(e) => handleChange("generic", e.target.value)}
-                placeholder="e.g., Metformin HCl" style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              />
+              <input type="text" value={form.generic} onChange={(e) => handleChange("generic", e.target.value)} placeholder="e.g., Metformin HCl" style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
             </div>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Dosage *</label>
-              <input type="text" value={form.dosage} onChange={(e) => handleChange("dosage", e.target.value)}
-                placeholder="e.g., 500mg" style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              />
+              <input type="text" value={form.dosage} onChange={(e) => handleChange("dosage", e.target.value)} placeholder="e.g., 500mg" style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
             </div>
           </div>
-          
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Category</label>
-              <select value={form.category} onChange={(e) => handleChange("category", e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              >
-                {["Prescription", "Supplement", "OTC", "Herbal"].map(c => (
-                  <option key={c} value={c} style={{ background: "#0a0a0a" }}>{c}</option>
-                ))}
+              <select value={form.category} onChange={(e) => handleChange("category", e.target.value)} style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }}>
+                {["Prescription", "Supplement", "OTC", "Herbal"].map(c => <option key={c} value={c} style={{ background: "#0a0a0a" }}>{c}</option>)}
               </select>
             </div>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Condition</label>
-              <input type="text" value={form.condition} onChange={(e) => handleChange("condition", e.target.value)}
-                placeholder="e.g., Type 2 Diabetes" style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              />
+              <input type="text" value={form.condition} onChange={(e) => handleChange("condition", e.target.value)} placeholder="e.g., Type 2 Diabetes" style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
             </div>
           </div>
-          
           <div>
             <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Schedule Times *</label>
             {form.times.map((time, i) => (
               <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                <input type="time" value={time} onChange={(e) => handleTimeChange(i, e.target.value)}
-                  style={{
-                    flex: 1, padding: "8px 10px", fontSize: 14,
-                    background: "#1a1a1a", border: `2px solid #333`,
-                    color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                  }}
-                />
+                <input type="time" value={time} onChange={(e) => handleTimeChange(i, e.target.value)} style={{ flex: 1, padding: "8px 10px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
                 {form.times.length > 1 && (
-                  <button onClick={() => removeTime(i)} style={{
-                    padding: "8px 12px", fontSize: 14,
-                    background: "#1a0a0a", border: "2px solid #3a1a1a",
-                    color: "#f87171", borderRadius: 8, cursor: "pointer"
-                  }}>✕</button>
+                  <button onClick={() => removeTime(i)} style={{ padding: "8px 12px", fontSize: 14, background: "#1a0a0a", border: "2px solid #3a1a1a", color: "#f87171", borderRadius: 8, cursor: "pointer" }}>✕</button>
                 )}
               </div>
             ))}
-            <button onClick={addTime} style={{
-              fontSize: 12, color: accent, background: "none", border: "none",
-              cursor: "pointer", padding: "4px 0", fontFamily: "inherit"
-            }}>+ Add another time</button>
+            <button onClick={addTime} style={{ fontSize: 12, color: accent, background: "none", border: "none", cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>+ Add another time</button>
           </div>
-          
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Start Date</label>
-              <input type="date" value={form.startDate} onChange={(e) => handleChange("startDate", e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              />
+              <input type="date" value={form.startDate} onChange={(e) => handleChange("startDate", e.target.value)} style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
             </div>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Refill Date</label>
-              <input type="date" value={form.refillDate} onChange={(e) => handleChange("refillDate", e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              />
+              <input type="date" value={form.refillDate} onChange={(e) => handleChange("refillDate", e.target.value)} style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
             </div>
           </div>
-          
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Pills Remaining</label>
-              <input type="number" value={form.pillsRemaining} onChange={(e) => handleChange("pillsRemaining", parseInt(e.target.value) || 0)}
-                min="0" style={{
-                  width: "100%", padding: "10px 12px", fontSize: 14,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  color: "#f0ede6", borderRadius: 8, fontFamily: "inherit"
-                }}
-              />
+              <input type="number" value={form.pillsRemaining} onChange={(e) => handleChange("pillsRemaining", parseInt(e.target.value) || 0)} min="0" style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit" }} />
             </div>
             <div>
               <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Color</label>
-              <input type="color" value={form.color} onChange={(e) => handleChange("color", e.target.value)}
-                style={{
-                  width: "100%", height: "40px", padding: 2,
-                  background: "#1a1a1a", border: `2px solid #333`,
-                  borderRadius: 8, cursor: "pointer"
-                }}
-              />
+              <input type="color" value={form.color} onChange={(e) => handleChange("color", e.target.value)} style={{ width: "100%", height: "40px", padding: 2, background: "#1a1a1a", border: "2px solid #333", borderRadius: 8, cursor: "pointer" }} />
             </div>
           </div>
-          
           <div>
             <label style={{ fontSize: 12, color: "#8a8680", display: "block", marginBottom: 4 }}>Instructions</label>
-            <textarea value={form.instructions} onChange={(e) => handleChange("instructions", e.target.value)}
-              placeholder="e.g., Take with food, avoid alcohol" rows={3} style={{
-                width: "100%", padding: "10px 12px", fontSize: 14,
-                background: "#1a1a1a", border: `2px solid #333`,
-                color: "#f0ede6", borderRadius: 8, fontFamily: "inherit", resize: "vertical"
-              }}
-            />
+            <textarea value={form.instructions} onChange={(e) => handleChange("instructions", e.target.value)} placeholder="e.g., Take with food, avoid alcohol" rows={3} style={{ width: "100%", padding: "10px 12px", fontSize: 14, background: "#1a1a1a", border: "2px solid #333", color: "#f0ede6", borderRadius: 8, fontFamily: "inherit", resize: "vertical" }} />
           </div>
         </div>
-        
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-          <button onClick={onClose} style={{
-            flex: 1, padding: "12px", fontSize: 14, fontWeight: 600,
-            background: "#1a1a1a", border: "2px solid #333",
-            color: "#8a8680", borderRadius: 10, cursor: "pointer",
-            fontFamily: "inherit"
-          }}>
-            Cancel
-          </button>
-          <button onClick={handleSave} disabled={!form.name || !form.dosage || form.times.some(t => !t)} style={{
-            flex: 1, padding: "12px", fontSize: 14, fontWeight: 600,
-            background: accent, border: "2px solid #000",
-            color: "#030d0c", borderRadius: 10,
-            cursor: (!form.name || !form.dosage || form.times.some(t => !t)) ? "not-allowed" : "pointer",
-            fontFamily: "inherit", opacity: (!form.name || !form.dosage || form.times.some(t => !t)) ? 0.6 : 1
-          }}>
-            {med ? "Update" : "Add"} Medication
-          </button>
+          <button onClick={onClose} style={{ flex: 1, padding: "12px", fontSize: 14, fontWeight: 600, background: "#1a1a1a", border: "2px solid #333", color: "#8a8680", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={handleSave} disabled={!form.name || !form.dosage || form.times.some(t => !t)} style={{ flex: 1, padding: "12px", fontSize: 14, fontWeight: 600, background: accent, border: "2px solid #000", color: "#030d0c", borderRadius: 10, cursor: (!form.name || !form.dosage || form.times.some(t => !t)) ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: (!form.name || !form.dosage || form.times.some(t => !t)) ? 0.6 : 1 }}>{med ? "Update" : "Add"} Medication</button>
         </div>
       </div>
     </div>
@@ -956,13 +845,11 @@ export default function MedicationHealth() {
   const dueMeds = useMemo(() => medications.filter(m => isDue(m)), [medications]);
   const lowStockMeds = useMemo(() => medications.filter(m => isLowStock(m)), [medications]);
   
-  // Load initial data
   useEffect(() => {
     injectCSS();
     const timer = setTimeout(() => {
       setLoading(false);
       speak(ph(lang, "welcome"));
-      // Check for due meds and remind
       if (dueMeds.length > 0) {
         dueMeds.forEach(med => {
           speak(ph(lang, "remind", { med: med.name, instruction: med.instructions.split(" ")[0] || "water" }), true);
@@ -972,7 +859,6 @@ export default function MedicationHealth() {
     return () => clearTimeout(timer);
   }, [lang, speak, dueMeds]);
   
-  // Offline listener
   useEffect(() => {
     const on = () => setOffline(false);
     const off = () => setOffline(true);
@@ -984,12 +870,8 @@ export default function MedicationHealth() {
     };
   }, []);
   
-  // Save medications
-  useEffect(() => {
-    saveMedications(medications);
-  }, [medications]);
+  useEffect(() => { saveMedications(medications); }, [medications]);
   
-  // Save adherence history daily
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
     const alreadySaved = adherenceHistory.some(h => h.date === today);
@@ -998,30 +880,21 @@ export default function MedicationHealth() {
     }
   }, [adherenceScore, medications.length, adherenceHistory]);
   
-  // Check for refills daily
   useEffect(() => {
     lowStockMeds.forEach(med => {
-      if (Math.random() > 0.7) { // Simulate periodic reminder
-        speak(ph(lang, "refill", { med: med.name }), true);
-      }
+      if (Math.random() > 0.7) speak(ph(lang, "refill", { med: med.name }), true);
     });
   }, [lowStockMeds, lang, speak]);
   
-  // Handle medication toggle (mark as taken)
   const handleToggleTaken = useCallback((medId, timestamp) => {
     setMedications(prev => prev.map(med => {
       if (med.id !== medId) return med;
-      const alreadyTaken = med.taken?.includes(timestamp);
-      return {
-        ...med,
-        taken: alreadyTaken 
-          ? med.taken.filter(t => t !== timestamp)
-          : [...(med.taken || []), timestamp],
-      };
+      // FIX: Ensure timestamp is pushed consistently as ISO string
+      const newTaken = [...(med.taken || []), timestamp];
+      return { ...med, taken: newTaken };
     }));
   }, []);
   
-  // Handle add/edit medication
   const handleSaveMed = useCallback((med) => {
     if (editingMed) {
       setMedications(prev => prev.map(m => m.id === med.id ? med : m));
@@ -1032,29 +905,22 @@ export default function MedicationHealth() {
     setShowAddModal(false);
   }, [editingMed]);
   
-  // Handle delete medication
   const handleDeleteMed = useCallback((medId) => {
     if (window.confirm("Delete this medication? This cannot be undone.")) {
       setMedications(prev => prev.filter(m => m.id !== medId));
     }
   }, []);
   
-  // Generate doctor report (simulated PDF)
   const generateReport = useCallback(() => {
     const report = {
       patient: "User",
       generated: new Date().toLocaleString(),
-      medications: medications.map(m => ({
-        name: m.name, dosage: m.dosage, frequency: m.frequency,
-        adherence: m.taken?.length || 0, condition: m.condition,
-      })),
+      medications: medications.map(m => ({ name: m.name, dosage: m.dosage, frequency: m.frequency, adherence: m.taken?.length || 0, condition: m.condition })),
       adherenceScore,
       streak,
       interactions: interactions.map(i => `${i.med1} + ${i.med2}: ${i.message}`),
       notes: "Report generated via ManifiX Medication Module",
     };
-    
-    // Simulate PDF download
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1062,15 +928,12 @@ export default function MedicationHealth() {
     a.download = `medication-report-${new Date().toISOString().split("T")[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    
     speak(ph(lang, "report"));
     setShowReport(false);
   }, [medications, adherenceScore, streak, interactions, lang, speak]);
   
-  // Navigation
   const goBack = useCallback(() => navigate("/app/dashboard"), [navigate]);
   
-  // Theme shortcuts
   const A = MED_THEME.accent;
   const BG = MED_THEME.bg;
   const B = MED_THEME.border;
@@ -1088,23 +951,17 @@ export default function MedicationHealth() {
   return (
     <div style={{ minHeight: "100dvh", background: BG, color: "#f0ede6", fontFamily: "'JetBrains Mono', 'Courier New', monospace", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", position: "relative" }}>
       
-      {/* Background grid */}
       <div style={{ position: "fixed", inset: 0, pointerEvents: "none", backgroundImage: `linear-gradient(${MED_THEME.grid} 1px, transparent 1px), linear-gradient(90deg, ${MED_THEME.grid} 1px, transparent 1px)`, backgroundSize: "44px 44px" }}/>
-      
-      {/* Ambient glow */}
       <div style={{ position: "fixed", top: "28%", left: "50%", transform: "translateX(-50%)", width: 400, height: 200, background: `radial-gradient(ellipse, ${A}0d 0%, transparent 70%)`, animation: "gentle-glow 5s ease-in-out infinite", pointerEvents: "none" }}/>
       
-      {/* Offline badge */}
       {offline && (
         <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 99, fontSize: 12, letterSpacing: ".12em", background: "#0a1a18", border: `2px solid ${A}`, color: A, padding: "6px 16px", textTransform: "uppercase", borderRadius: 8 }}>
           ⚡ Offline — All features work
         </div>
       )}
       
-      {/* Main container */}
       <div style={{ position: "relative", zIndex: 2, width: "min(480px, 98vw)", display: "flex", flexDirection: "column", gap: 14, paddingTop: 20, paddingBottom: 48 }}>
         
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 12, borderBottom: "2px solid #1a1a1a" }}>
           <div>
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: "-.01em", lineHeight: 1, color: "#f0ede6" }}>
@@ -1118,17 +975,8 @@ export default function MedicationHealth() {
           </div>
         </div>
         
-        {/* Adherence Score Card */}
-        <div className="fade-up" style={{
-          border: `2px solid ${A}44`,
-          background: `${A}08`,
-          padding: "16px 18px",
-          borderRadius: 12,
-          textAlign: "center"
-        }}>
-          <div style={{ fontSize: 12, letterSpacing: ".16em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 8 }}>
-            Today's Adherence
-          </div>
+        <div className="fade-up" style={{ border: `2px solid ${A}44`, background: `${A}08`, padding: "16px 18px", borderRadius: 12, textAlign: "center" }}>
+          <div style={{ fontSize: 12, letterSpacing: ".16em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 8 }}>Today's Adherence</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 44, fontWeight: 800, color: A }}>{adherenceScore}%</div>
             <div style={{ textAlign: "left" }}>
@@ -1140,61 +988,35 @@ export default function MedicationHealth() {
           </div>
         </div>
         
-        {/* Due Medications Alert */}
         {dueMeds.length > 0 && (
-          <div className="pulse-reminder" style={{
-            border: `2px solid ${A}`,
-            background: `${A}15`,
-            padding: "14px 16px",
-            borderRadius: 10,
-            marginBottom: 8
-          }}>
+          <div className="pulse-reminder" style={{ border: `2px solid ${A}`, background: `${A}15`, padding: "14px 16px", borderRadius: 10, marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <span style={{ fontSize: 24 }}>⏰</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "#f0ede6" }}>
-                {dueMeds.length} medication{dueMeds.length > 1 ? "s" : ""} due now
-              </span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#f0ede6" }}>{dueMeds.length} medication{dueMeds.length > 1 ? "s" : ""} due now</span>
             </div>
-            <div style={{ fontSize: 13, color: "#cfcfcf" }}>
-              {dueMeds.map(m => m.name).join(", ")}
-            </div>
+            <div style={{ fontSize: 13, color: "#cfcfcf" }}>{dueMeds.map(m => m.name).join(", ")}</div>
           </div>
         )}
         
-        {/* Low Stock Alerts */}
         {lowStockMeds.length > 0 && (
-          <div style={{
-            border: `2px solid ${MED_THEME.warningColor}`,
-            background: "#1a150a",
-            padding: "12px 14px",
-            borderRadius: 10,
-            marginBottom: 8
-          }}>
+          <div style={{ border: `2px solid ${MED_THEME.warningColor}`, background: "#1a150a", padding: "12px 14px", borderRadius: 10, marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 18 }}>⚠</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: MED_THEME.warningColor }}>
-                Refill Alert
-              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: MED_THEME.warningColor }}>Refill Alert</span>
             </div>
-            <div style={{ fontSize: 12, color: "#cfcfcf" }}>
-              {lowStockMeds.map(m => `${m.name} (${m.pillsRemaining} left)`).join(", ")}
-            </div>
+            <div style={{ fontSize: 12, color: "#cfcfcf" }}>{lowStockMeds.map(m => `${m.name} (${m.pillsRemaining} left)`).join(", ")}</div>
           </div>
         )}
         
-        {/* Drug Interaction Warnings */}
         {interactions.length > 0 && (
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 13, letterSpacing: ".14em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 8 }}>
-              ⚠ Interaction Alerts
-            </div>
+            <div style={{ fontSize: 13, letterSpacing: ".14em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 8 }}>⚠ Interaction Alerts</div>
             {interactions.map((warning, i) => (
               <InteractionWarning key={i} warning={warning} accent={A} />
             ))}
           </div>
         )}
         
-        {/* Medications List */}
         <div>
           <div style={{ fontSize: 14, letterSpacing: ".14em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>💊 Your Medications</span>
@@ -1213,130 +1035,51 @@ export default function MedicationHealth() {
             />
           ))}
           {medications.length === 0 && (
-            <div style={{ textAlign: "center", padding: "20px", color: "#6a6a6a" }}>
-              No medications added yet. Tap below to start tracking.
-            </div>
+            <div style={{ textAlign: "center", padding: "20px", color: "#6a6a6a" }}>No medications added yet. Tap below to start tracking.</div>
           )}
         </div>
         
-        {/* Action Buttons */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <LargeButton 
-            onClick={() => { setEditingMed(null); setShowAddModal(true); }} 
-            color={A}
-            icon="+"
-            ariaLabel="Add new medication"
-          >
-            Add Medication
-          </LargeButton>
-          <LargeButton 
-            onClick={() => setShowReport(true)} 
-            variant="secondary"
-            icon="📄"
-            ariaLabel="Generate doctor report"
-          >
-            Doctor Report
-          </LargeButton>
+          <LargeButton onClick={() => { setEditingMed(null); setShowAddModal(true); }} color={A} icon="+" ariaLabel="Add new medication">Add Medication</LargeButton>
+          <LargeButton onClick={() => setShowReport(true)} variant="secondary" icon="📄" ariaLabel="Generate doctor report">Doctor Report</LargeButton>
         </div>
         
-        {/* Family Sync Section */}
         <div style={{ border: `2px solid ${MED_THEME.infoColor}44`, background: `${MED_THEME.infoColor}08`, padding: "14px 16px", borderRadius: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <span style={{ fontSize: 20 }}>👨‍👩‍👧‍👦</span>
             <span style={{ fontSize: 14, fontWeight: 700, color: "#f0ede6" }}>Family Care Sync</span>
           </div>
-          <div style={{ fontSize: 12, color: "#8a8680", marginBottom: 10 }}>
-            Share adherence updates with your caregiver. They'll be notified when you take (or miss) doses.
-          </div>
-          <LargeButton 
-            onClick={() => {
-              speak(ph(lang, "sync", { name: "Caregiver", time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) }));
-              // In production: trigger real notification to caregiver
-            }} 
-            color={MED_THEME.infoColor}
-            ariaLabel="Notify family of medication taken"
-          >
-            Send Update to Family
-          </LargeButton>
+          <div style={{ fontSize: 12, color: "#8a8680", marginBottom: 10 }}>Share adherence updates with your caregiver. They'll be notified when you take (or miss) doses.</div>
+          <LargeButton onClick={() => speak(ph(lang, "sync", { name: "Caregiver", time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) }))} color={MED_THEME.infoColor} ariaLabel="Notify family of medication taken">Send Update to Family</LargeButton>
         </div>
         
-        {/* WHO Impact Toggle */}
-        <button
-          onClick={() => setShowWHO(v => !v)}
-          style={{
-            width: "100%", padding: "12px 16px", fontSize: 13,
-            letterSpacing: ".12em", textTransform: "uppercase",
-            background: "transparent", border: `2px solid ${A}33`,
-            color: A, borderRadius: 10, cursor: "pointer",
-            fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center"
-          }}
-        >
+        <button onClick={() => setShowWHO(v => !v)} style={{ width: "100%", padding: "12px 16px", fontSize: 13, letterSpacing: ".12em", textTransform: "uppercase", background: "transparent", border: `2px solid ${A}33`, color: A, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>{showWHO ? "▾" : "▸"} WHO Medication Guidelines</span>
           <span style={{ color: "#4a4a4a", fontSize: 11 }}>{MEDICATION_DOMAINS[activeDomain].who_code}</span>
         </button>
         <WHOImpactPanel domainKey={activeDomain} accent={A} open={showWHO} />
         
-        {/* Footer */}
         <div style={{ textAlign: "center", fontSize: 11, letterSpacing: ".12em", color: "#1a1a1a", textTransform: "uppercase", paddingTop: 8 }}>
           Voice: {lang} · WHO SDG 3.8 · {offline ? "Offline-first" : "Cloud-synced"} · Adherence Tracking
         </div>
-        
       </div>
       
-      {/* Add/Edit Modal */}
       {showAddModal && (
-        <AddEditModal 
-          med={editingMed}
-          onClose={() => { setShowAddModal(false); setEditingMed(null); }}
-          onSave={handleSaveMed}
-          accent={A}
-          lang={lang}
-        />
+        <AddEditModal med={editingMed} onClose={() => { setShowAddModal(false); setEditingMed(null); }} onSave={handleSaveMed} accent={A} lang={lang} />
       )}
       
-      {/* Report Modal */}
       {showReport && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 100, padding: 20
-        }}>
-          <div style={{
-            background: "#030d0c", border: `3px solid ${A}`,
-            padding: 20, width: "min(400px, 100%)", borderRadius: 16
-          }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
+          <div style={{ background: "#030d0c", border: `3px solid ${A}`, padding: 20, width: "min(400px, 100%)", borderRadius: 16 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: "#f0ede6", marginBottom: 12 }}>📋 Medication Report</div>
-            <div style={{ fontSize: 13, color: "#8a8680", marginBottom: 16 }}>
-              Generate a summary of your medications, adherence, and interactions to share with your doctor.
-            </div>
+            <div style={{ fontSize: 13, color: "#8a8680", marginBottom: 16 }}>Generate a summary of your medications, adherence, and interactions to share with your doctor.</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setShowReport(false)}
-                style={{
-                  flex: 1, padding: "12px", fontSize: 14, fontWeight: 600,
-                  background: "#1a1a1a", border: "2px solid #333",
-                  color: "#8a8680", borderRadius: 10, cursor: "pointer",
-                  fontFamily: "inherit"
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={generateReport}
-                style={{
-                  flex: 1, padding: "12px", fontSize: 14, fontWeight: 600,
-                  background: A, border: "2px solid #000",
-                  color: "#030d0c", borderRadius: 10,
-                  cursor: "pointer", fontFamily: "inherit"
-                }}
-              >
-                Generate & Download
-              </button>
+              <button onClick={() => setShowReport(false)} style={{ flex: 1, padding: "12px", fontSize: 14, fontWeight: 600, background: "#1a1a1a", border: "2px solid #333", color: "#8a8680", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={generateReport} style={{ flex: 1, padding: "12px", fontSize: 14, fontWeight: 600, background: A, border: "2px solid #000", color: "#030d0c", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Generate & Download</button>
             </div>
           </div>
         </div>
       )}
-      
     </div>
   );
 }
