@@ -606,60 +606,223 @@ export default function PreventiveHealth() {
   const BG = PREV_THEME.bg;
   const B = PREV_THEME.border;
   
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100dvh", background: BG, color: "#f0ede6", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace" }}>
-        <div style={{ fontSize: 52, marginBottom: 20, animation: "pulse-soft 3s ease-in-out infinite" }}>🛡️</div>
-        <div style={{ fontSize: 15, letterSpacing: ".12em", color: A, textTransform: "uppercase", marginBottom: 16 }}>Loading Preventive Care…</div>
-        <div style={{ width: 30, height: 30, border: `3px solid ${B}`, borderTopColor: A, borderRadius: "50%", animation: "spin 1s linear infinite" }}/>
-      </div>
-    );
-  }
-  
+if (loading) {
   return (
-    <div style={{ minHeight: "100dvh", background: BG, color: "#f0ede6", fontFamily: "'JetBrains Mono', 'Courier New', monospace", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", position: "relative" }}>
-      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", backgroundImage: `linear-gradient(${PREV_THEME.grid} 1px, transparent 1px), linear-gradient(90deg, ${PREV_THEME.grid} 1px, transparent 1px)`, backgroundSize: "44px 44px" }}/>
-      <div style={{ position: "fixed", top: "28%", left: "50%", transform: "translateX(-50%)", width: 400, height: 200, background: `radial-gradient(ellipse, ${A}0d 0%, transparent 70%)`, animation: "pulse-soft 5s ease-in-out infinite", pointerEvents: "none" }}/>
-      
-      {offline && (
-        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 99, fontSize: 12, letterSpacing: ".12em", background: "#0a1a0f", border: `2px solid ${A}`, color: A, padding: "6px 16px", textTransform: "uppercase", borderRadius: 8 }}>
-          ⚡ Offline — All features work
+    <div
+      style={{
+        minHeight: "100dvh",
+        background: BG,
+        color: "#f0ede6",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "'JetBrains Mono', monospace",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 52,
+          marginBottom: 20,
+          animation: "pulse-soft 3s ease-in-out infinite",
+        }}
+      >
+        🛡️
+      </div>
+
+      <div
+        style={{
+          fontSize: 15,
+          letterSpacing: ".12em",
+          color: A,
+          textTransform: "uppercase",
+          marginBottom: 16,
+        }}
+      >
+        Loading Preventive Care…
+      </div>
+
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          border: "3px solid " + B,
+          borderTopColor: A,
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite",
+        }}
+      />
+    </div>
+  );
+}
+
+return (
+  <div
+    style={{
+      minHeight: "100dvh",
+      background: BG,
+      color: "#f0ede6",
+      fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      overflow: "hidden",
+      position: "relative",
+    }}
+  >
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        pointerEvents: "none",
+        backgroundImage:
+          "linear-gradient(" +
+          PREV_THEME.grid +
+          " 1px, transparent 1px), linear-gradient(90deg, " +
+          PREV_THEME.grid +
+          " 1px, transparent 1px)",
+        backgroundSize: "44px 44px",
+      }}
+    />
+
+    <div
+      style={{
+        position: "fixed",
+        top: "28%",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 400,
+        height: 200,
+        background:
+          "radial-gradient(ellipse, " +
+          A +
+          "0d 0%, transparent 70%)",
+        animation: "pulse-soft 5s ease-in-out infinite",
+        pointerEvents: "none",
+      }}
+    />
+
+    {offline && (
+      <div
+        style={{
+          position: "fixed",
+          top: 12,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 99,
+          fontSize: 12,
+          letterSpacing: ".12em",
+          background: "#0a1a0f",
+          border: "2px solid " + A,
+          color: A,
+          padding: "6px 16px",
+          textTransform: "uppercase",
+          borderRadius: 8,
+        }}
+      >
+        ⚡ Offline — All features work
+      </div>
+    )}
+
+    <div
+      style={{
+        position: "relative",
+        zIndex: 2,
+        width: "min(480px, 98vw)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        paddingTop: 20,
+        paddingBottom: 48,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          paddingBottom: 12,
+          borderBottom: "2px solid #1a1a1a",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontSize: 30,
+              fontWeight: 800,
+              letterSpacing: "-.01em",
+              lineHeight: 1,
+              color: "#f0ede6",
+            }}
+          >
+            ManifiX <span style={{ color: A }}>Prevent</span>
+          </div>
+
+          <div
+            style={{
+              fontSize: 13,
+              letterSpacing: ".14em",
+              color: A,
+              textTransform: "uppercase",
+              marginTop: 4,
+              opacity: 0.8,
+            }}
+          >
+            {PREV_THEME.tagline}
+          </div>
         </div>
-      )}
-      
-      <div style={{ position: "relative", zIndex: 2, width: "min(480px, 98vw)", display: "flex", flexDirection: "column", gap: 14, paddingTop: 20, paddingBottom: 48 }}>
-        
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 12, borderBottom: "2px solid #1a1a1a" }}>
-          <div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: "-.01em", lineHeight: 1, color: "#f0ede6" }}>
-              ManifiX <span style={{ color: A }}>Prevent</span>
-            </div>
-            <div style={{ fontSize: 13, letterSpacing: ".14em", color: A, textTransform: "uppercase", marginTop: 4, opacity: .8 }}>{PREV_THEME.tagline}</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-            <button onClick={goBack} style={{ fontSize: 14, letterSpacing: ".1em", color: "#4a4a4a", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, textTransform: "uppercase" }}>← Dashboard</button>
-            <div style={{ fontSize: 13, letterSpacing: ".12em", color: "#2a2a2a", textTransform: "uppercase" }}>{lang}</div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 8,
+          }}
+        >
+          <button
+            onClick={goBack}
+            style={{
+              fontSize: 14,
+              letterSpacing: ".1em",
+              color: "#4a4a4a",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              padding: 0,
+              textTransform: "uppercase",
+            }}
+          >
+            ← Dashboard
+          </button>
+
+          <div
+            style={{
+              fontSize: 13,
+              letterSpacing: ".12em",
+              color: "#2a2a2a",
+              textTransform: "uppercase",
+            }}
+          >
+            {lang}
           </div>
         </div>
-        
-        {/* Wellness Score & Roadmap */}
-        <div className="fade-up" style={{
-          border: `2px solid ${A}44`, background: `${A}08`, padding: "16px 18px", borderRadius: 12, textAlign: "center"
-        }}>
-          <div style={{ fontSize: 12, letterSpacing: ".16em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 6 }}>
-            🗺️ 90-Day Prevention Roadmap · Day {data.roadmapDay}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 44, fontWeight: 800, color: A }}>{wellnessScore}%</div>
-            <div style={{ textAlign: "left", fontSize: 13, color: "#8a8680" }}>
-              Wellness Score<br/>
-              <span style={{ color: wellnessScore >= 80 ? "#22c55e" : wellnessScore >= 60 ? A : PREV_THEME.alertColor, fontWeight: 600 }}>
-                {wellnessScore >= 80 ? "Excellent Protection" : wellnessScore >= 60 ? "Building Defense" : "Needs Focus"}
-              </span>
-            </div>
-          </div>
-        </div>
+      </div>
+
+      {/* Wellness Score */}
+      <div
+        className="fade-up"
+        style={{
+          border: "2px solid " + A + "44",
+          background: A + "08",
+          padding: "16px 18px",
+          borderRadius: 12,
+          textAlign: "center",
+        }}
+      >
         
         {/* Quick Trackers */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
