@@ -631,8 +631,8 @@ export default function Stress() {
       {/* ═══════════════ HEADER ═══════════════ */}
       <div style={{borderBottom:`1px solid ${BOR}`,padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:BG,zIndex:20}}>
         <div>
-          <div style={{fontFamily:HEAD,fontSize:28,letterSpacing:".04em",lineHeight:1}}>😓 STRESS & BURNOUT</div>
-          <div style={{fontSize:8,letterSpacing:".2em",color:"#252525",textTransform:"uppercase",marginTop:2}}>AI Stress Management · WHO ICD-11 Burnout Protocol</div>
+          <div style={{fontFamily:HEAD,fontSize:28,letterSpacing:".04em",lineHeight:1}}>STRESS & BURNOUT</div>
+          <div style={{fontSize:8,letterSpacing:".2em",color:"#252525",textTransform:"uppercase",marginTop:2}}>MANIFIX Stress Management · WHO ICD-11 Burnout Protocol</div>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <div style={{textAlign:"right"}}>
