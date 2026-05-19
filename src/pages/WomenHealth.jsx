@@ -15,6 +15,10 @@
  * ║                                                                          ║
  * ║  COLOR SYSTEM: ManifiX GOLD & BLACK                                     ║
  * ║  Gold: #D4A017  Deep: #B8860B  Bright: #FFD700  Black: #000000         ║
+ * ║                                                                          ║
+ * ║  CHANGE LOG v7.0 → v7.1:                                               ║
+ * ║  • Removed sidebar profile footer (avatar, Wellness Pro label,          ║
+ * ║    ManifiX Premium text, Settings icon)                                 ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -82,12 +86,12 @@ const DEF_CARE = [
   { id: 6, name: "Warm Bath",          duration: "20 min", done: false, cat: "Relaxation"  },
 ];
 const DEF_PROGS = [
-  { id: 1, name: "Hormone Balance",   duration: "14 days",  progress: 65, cat: "Popular"   },
-  { id: 2, name: "Cycle Wellness",    duration: "Daily",    progress: 80, cat: "Tracking"  },
-  { id: 3, name: "Stress & Mood",     duration: "7 days",   progress: 40, cat: "Mind Care" },
-  { id: 4, name: "Energy Recovery",   duration: "10 days",  progress: 25, cat: "Boost"     },
-  { id: 5, name: "Sleep Optimization",duration: "7 days",   progress: 50, cat: "Rest"      },
-  { id: 6, name: "Nutrition Balance", duration: "14 days",  progress: 30, cat: "Diet"      },
+  { id: 1, name: "Hormone Balance",    duration: "14 days",  progress: 65, cat: "Popular"   },
+  { id: 2, name: "Cycle Wellness",     duration: "Daily",    progress: 80, cat: "Tracking"  },
+  { id: 3, name: "Stress & Mood",      duration: "7 days",   progress: 40, cat: "Mind Care" },
+  { id: 4, name: "Energy Recovery",    duration: "10 days",  progress: 25, cat: "Boost"     },
+  { id: 5, name: "Sleep Optimization", duration: "7 days",   progress: 50, cat: "Rest"      },
+  { id: 6, name: "Nutrition Balance",  duration: "14 days",  progress: 30, cat: "Diet"      },
 ];
 const DEF_JOURNAL = [
   { id: 1, date: "Today",     title: "Feeling centered",  content: "Great morning routine. Meditation helped me start with clarity.", mood: "😊" },
@@ -146,6 +150,8 @@ function injectCSS() {
     @keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.1)}28%{transform:scale(1)}}
 
     .wh-app{display:flex;min-height:100dvh;background:${BK};font-family:'JetBrains Mono',monospace;color:${TX};overflow:hidden}
+
+    /* ── SIDEBAR ── */
     .wh-sidebar{
       width:258px;background:${S1};border-right:1px solid ${BDR};
       padding:20px 0;position:fixed;height:100dvh;z-index:50;
@@ -171,15 +177,14 @@ function injectCSS() {
     .wh-nav-btn:hover{background:${BGW};color:${G}}
     .wh-nav-btn.active{background:rgba(212,160,23,0.12);color:${G};border-left:2px solid ${G}}
     .wh-nav-btn svg{flex-shrink:0}
-    .wh-sidebar-foot{padding:14px 12px;border-top:1px solid ${TD}}
-    .wh-profile{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:10px;background:${BGW}}
-    .wh-avatar{width:34px;height:34px;border-radius:50%;background:${G};display:flex;align-items:center;justify-content:center;color:${BK};font-weight:900;font-size:.75rem;font-family:'Syne',sans-serif;flex-shrink:0}
 
+    /* ── MAIN ── */
     .wh-main{flex:1;margin-left:258px;padding:28px 32px;overflow-y:auto;max-height:100dvh}
     .wh-topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid ${TD}}
     .wh-page-title{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:900;color:${TX}}
     .wh-page-sub{font-size:.72rem;color:${TM};margin-top:3px;letter-spacing:.1em;text-transform:uppercase}
 
+    /* ── CARDS ── */
     .wh-card{
       background:${S3};border:1px solid ${BDR};border-radius:16px;
       padding:20px;transition:border-color .2s;
@@ -189,9 +194,11 @@ function injectCSS() {
     .wh-card-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:${BGW};color:${G}}
     .wh-stat-big{font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:900;color:${G};line-height:1}
 
+    /* ── PROGRESS BARS ── */
     .wh-bar-track{height:6px;background:${TD};border-radius:999px;overflow:hidden;margin-top:10px}
     .wh-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,${GB},${G},${GBR});transition:width .5s}
 
+    /* ── BUTTONS ── */
     .btn-gold{
       background:linear-gradient(135deg,${GB},${G});color:${BK};border:none;
       padding:10px 20px;border-radius:10px;font-family:'Syne',sans-serif;
@@ -214,6 +221,7 @@ function injectCSS() {
     }
     .btn-icon:hover{background:${BGW};color:${G};border-color:${G}}
 
+    /* ── FORM ELEMENTS ── */
     .wh-input{
       width:100%;padding:10px 13px;border-radius:10px;border:1px solid ${TD};
       background:${S2};color:${TX};font-size:.85rem;font-family:'JetBrains Mono',monospace;
@@ -229,9 +237,11 @@ function injectCSS() {
     .wh-select option{background:${S1};color:${TX}}
     .wh-label{font-size:.68rem;color:${TM};letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:5px}
 
+    /* ── MODAL ── */
     .wh-modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
     .wh-modal-box{width:min(420px,100%);max-height:90vh;overflow-y:auto}
 
+    /* ── MOOD CHIPS ── */
     .mood-chip{
       display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;
       border:1px solid ${TD};background:${S2};cursor:pointer;transition:all .16s;
@@ -240,6 +250,7 @@ function injectCSS() {
     .mood-chip:hover{border-color:${G};color:${G}}
     .mood-chip.active{border-color:${G};background:${BGW};color:${G}}
 
+    /* ── SUPPLEMENT ROWS ── */
     .supp-row{
       display:flex;align-items:center;gap:12px;padding:13px;border-radius:12px;
       background:${S2};border:1px solid ${TD};cursor:pointer;transition:all .2s;
@@ -252,6 +263,7 @@ function injectCSS() {
     }
     .check-circle.done{background:${G};border-color:${G};color:${BK}}
 
+    /* ── SELF CARE ROWS ── */
     .care-row{
       display:flex;align-items:center;gap:12px;padding:13px;border-radius:12px;
       background:${S2};border:1px solid ${TD};cursor:pointer;transition:all .2s;
@@ -259,21 +271,25 @@ function injectCSS() {
     .care-row:hover{background:${BGW}}
     .care-row.done{background:rgba(212,160,23,0.08);border-color:${G}}
 
+    /* ── PROGRAM CARDS ── */
     .prog-card{
       padding:18px;border-radius:14px;background:${S2};border:1px solid ${TD};
       transition:all .22s;cursor:pointer;
     }
     .prog-card:hover{border-color:${G}}
 
+    /* ── SYMPTOM ROWS ── */
     .sym-row{
       display:flex;align-items:center;gap:12px;padding:11px 14px;
       border-radius:11px;background:${S2};border:1px solid ${TD};
     }
 
+    /* ── JOURNAL CARDS ── */
     .jrnl-card{
       padding:14px;border-radius:13px;background:${S2};border:1px solid ${TD};
     }
 
+    /* ── WATER DROPS ── */
     .water-drop{
       width:36px;height:36px;border-radius:50%;border:2px solid ${TD};
       display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .18s;color:${TM};
@@ -281,6 +297,7 @@ function injectCSS() {
     .water-drop.filled{background:${BGW};border-color:${G};color:${G}}
     .water-drop:hover{transform:scale(1.1)}
 
+    /* ── UTILITY ── */
     .gold-rule{height:1px;background:linear-gradient(90deg,transparent,${G}66,${GBR}88,${G}66,transparent)}
     .gold-badge{
       font-size:.65rem;padding:3px 9px;border-radius:999px;
@@ -293,6 +310,7 @@ function injectCSS() {
     .insight-label{font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:${G};font-weight:700;margin-bottom:4px}
     .insight-text{font-size:.8rem;color:${TX};line-height:1.6}
 
+    /* ── NOTIFICATIONS ── */
     .notif-drop{
       position:absolute;top:48px;right:0;width:300px;background:${S1};
       border:1px solid ${BDR};border-radius:14px;padding:14px;
@@ -300,6 +318,7 @@ function injectCSS() {
     }
     .notif-row{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:9px;background:${S2};margin-bottom:6px}
 
+    /* ── RESPONSIVE ── */
     @media(max-width:900px){
       .wh-sidebar{transform:translateX(-100%)}
       .wh-sidebar.open{transform:translateX(0)!important}
@@ -314,6 +333,7 @@ function injectCSS() {
    SHARED MICRO-COMPONENTS
 ══════════════════════════════════════════════════════════ */
 function GoldRule() { return <div className="gold-rule" style={{ margin: "14px 0" }} />; }
+
 function CardHead({ title, right }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -322,6 +342,7 @@ function CardHead({ title, right }) {
     </div>
   );
 }
+
 function Bar({ pct, color }) {
   return (
     <div className="wh-bar-track">
@@ -329,6 +350,7 @@ function Bar({ pct, color }) {
     </div>
   );
 }
+
 function StatRow({ label, value, color }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", borderRadius: 9, background: S2 }}>
@@ -337,12 +359,18 @@ function StatRow({ label, value, color }) {
     </div>
   );
 }
+
 function ModalWrap({ show, onClose, title, children }) {
   if (!show) return null;
   return (
     <AnimatePresence>
       <motion.div className="wh-modal-wrap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-        <motion.div className="wh-card wh-modal-box" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} transition={{ duration: .2 }} onClick={e => e.stopPropagation()}>
+        <motion.div
+          className="wh-card wh-modal-box"
+          initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
+          transition={{ duration: .2 }}
+          onClick={e => e.stopPropagation()}
+        >
           <div style={{ height: 3, background: `linear-gradient(90deg,${GB},${GBR},${GB})`, borderRadius: "2px 2px 0 0", margin: "-20px -20px 18px" }} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <span style={{ fontFamily: "'Syne',sans-serif", fontSize: "1.05rem", fontWeight: 800, color: G }}>{title}</span>
@@ -401,12 +429,16 @@ function CyclePage({ cycleDay, setCycleDay, cycleLength, setCycleLength, cycleSt
         {/* Phase progress pills */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 22 }}>
           {[
-            { label: "Menstrual",  range: "1–5"  },
-            { label: "Follicular", range: "6–13" },
-            { label: "Ovulation",  range: "14–16"},
-            { label: "Luteal",     range: "17+"  },
+            { label: "Menstrual",  range: "1–5"   },
+            { label: "Follicular", range: "6–13"  },
+            { label: "Ovulation",  range: "14–16" },
+            { label: "Luteal",     range: "17+"   },
           ].map((p, i) => {
-            const active = (i === 0 && cycleDay <= 5) || (i === 1 && cycleDay >= 6 && cycleDay <= 13) || (i === 2 && cycleDay >= 14 && cycleDay <= 16) || (i === 3 && cycleDay >= 17);
+            const active =
+              (i === 0 && cycleDay <= 5) ||
+              (i === 1 && cycleDay >= 6  && cycleDay <= 13) ||
+              (i === 2 && cycleDay >= 14 && cycleDay <= 16) ||
+              (i === 3 && cycleDay >= 17);
             return (
               <div key={i} style={{ padding: "9px 6px", borderRadius: 9, background: active ? `${G}18` : S2, border: `1px solid ${active ? G : TD}` }}>
                 <div style={{ fontSize: ".68rem", color: active ? G : TM, fontWeight: active ? 700 : 400, letterSpacing: ".06em" }}>{p.label}</div>
@@ -473,14 +505,19 @@ function MoodPage({ mood, setMood, energy, setEnergy, streak, setStreak, moodHis
 
   const save = () => {
     setMoodHistory(prev => [{ id: Date.now(), date: new Date().toLocaleDateString(), ...form }, ...prev]);
-    setMood(form.mood); setEnergy(form.energy); setStreak(s => s + 1);
-    setShowModal(false); setForm({ mood: "Balanced", energy: 70, note: "" });
+    setMood(form.mood);
+    setEnergy(form.energy);
+    setStreak(s => s + 1);
+    setShowModal(false);
+    setForm({ mood: "Balanced", energy: 70, note: "" });
   };
-  const avgEnergy = moodHistory.length ? Math.round(moodHistory.reduce((a, m) => a + m.energy, 0) / moodHistory.length) : energy;
+
+  const avgEnergy = moodHistory.length
+    ? Math.round(moodHistory.reduce((a, m) => a + m.energy, 0) / moodHistory.length)
+    : energy;
 
   return (
     <motion.div key="mood" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: .22 }}>
-      {/* Current mood card */}
       <div className="wh-card" style={{ marginBottom: 20 }}>
         <CardHead title="How are you feeling today?" right={<span className="gold-badge">🔥 {streak} day streak</span>} />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
@@ -500,7 +537,6 @@ function MoodPage({ mood, setMood, energy, setEnergy, streak, setStreak, moodHis
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        {/* History */}
         <div className="wh-card">
           <CardHead title="Mood History" right={<span className="gold-badge">{moodHistory.length} entries</span>} />
           {moodHistory.length === 0 && (
@@ -524,15 +560,14 @@ function MoodPage({ mood, setMood, energy, setEnergy, streak, setStreak, moodHis
           </div>
         </div>
 
-        {/* Patterns */}
         <div className="wh-card">
           <CardHead title="Mood Patterns" />
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <StatRow label="Current Mood"   value={mood} />
-            <StatRow label="Avg Energy"     value={`${avgEnergy}%`} />
-            <StatRow label="Best State"     value="Energetic" />
-            <StatRow label="Streak"         value={`${streak} days`} />
-            <StatRow label="Entries Total"  value={moodHistory.length} />
+            <StatRow label="Current Mood"  value={mood} />
+            <StatRow label="Avg Energy"    value={`${avgEnergy}%`} />
+            <StatRow label="Best State"    value="Energetic" />
+            <StatRow label="Streak"        value={`${streak} days`} />
+            <StatRow label="Entries Total" value={moodHistory.length} />
           </div>
           <GoldRule />
           <div style={{ fontSize: ".78rem", color: TM, lineHeight: 1.6 }}>
@@ -589,7 +624,8 @@ function SymptomsPage({ symptoms, setSymptoms }) {
   const add = () => {
     if (!form.name.trim()) return;
     setSymptoms(prev => [{ id: Date.now(), date: new Date().toLocaleDateString(), logged: true, ...form }, ...prev]);
-    setForm({ name: "", severity: "mild" }); setShowModal(false);
+    setForm({ name: "", severity: "mild" });
+    setShowModal(false);
   };
   const del = id => setSymptoms(prev => prev.filter(s => s.id !== id));
 
@@ -600,7 +636,6 @@ function SymptomsPage({ symptoms, setSymptoms }) {
           right={<button className="btn-gold btn-sm" onClick={() => setShowModal(true)}><Plus size={12} style={{ marginRight: 4 }} />Log Symptom</button>}
         />
 
-        {/* Summary row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 18 }}>
           {["severe","moderate","mild","low"].map(sev => (
             <div key={sev} style={{ textAlign: "center", padding: "10px 6px", borderRadius: 10, background: S2, border: `1px solid ${SEV_COLORS[sev]}33` }}>
@@ -642,7 +677,9 @@ function SymptomsPage({ symptoms, setSymptoms }) {
             <label className="wh-label">Severity</label>
             <div style={{ display: "flex", gap: 8 }}>
               {["low","mild","moderate","severe"].map(s => (
-                <button key={s} className={`btn-sm ${form.severity === s ? "btn-gold" : "btn-outline"}`} onClick={() => setForm(f => ({ ...f, severity: s }))} style={{ textTransform: "capitalize", flex: 1 }}>{s}</button>
+                <button key={s} className={`btn-sm ${form.severity === s ? "btn-gold" : "btn-outline"}`}
+                  onClick={() => setForm(f => ({ ...f, severity: s }))}
+                  style={{ textTransform: "capitalize", flex: 1 }}>{s}</button>
               ))}
             </div>
           </div>
@@ -661,23 +698,19 @@ function SymptomsPage({ symptoms, setSymptoms }) {
 ══════════════════════════════════════════════════════════ */
 function HormonesPage({ hormones, setHormones, cycleDay }) {
   const phase = getCyclePhase(cycleDay);
-
   const adjust = (name, delta) => setHormones(prev => prev.map(h => h.name === name ? { ...h, value: Math.min(100, Math.max(0, h.value + delta)) } : h));
 
   const tips = {
-    Estrogen:      "Flaxseeds, soy, leafy greens support healthy estrogen metabolism.",
-    Progesterone:  "Magnesium & Vitamin B6 support progesterone. Avoid excess caffeine.",
-    Cortisol:      "Deep breathing, adaptogens, and 7-8h sleep reduce cortisol.",
-    Serotonin:     "Sunlight, exercise, and tryptophan-rich foods boost serotonin.",
+    Estrogen:     "Flaxseeds, soy, leafy greens support healthy estrogen metabolism.",
+    Progesterone: "Magnesium & Vitamin B6 support progesterone. Avoid excess caffeine.",
+    Cortisol:     "Deep breathing, adaptogens, and 7-8h sleep reduce cortisol.",
+    Serotonin:    "Sunlight, exercise, and tryptophan-rich foods boost serotonin.",
   };
 
   return (
     <motion.div key="hormones" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: .22 }}>
       <div className="wh-card" style={{ marginBottom: 20 }}>
-        <CardHead title="Hormone Balance Tracker"
-          right={<span className="gold-badge">{phase.name} Phase</span>}
-        />
-
+        <CardHead title="Hormone Balance Tracker" right={<span className="gold-badge">{phase.name} Phase</span>} />
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {hormones.map(h => (
             <div key={h.name}>
@@ -719,7 +752,9 @@ function HormonesPage({ hormones, setHormones, cycleDay }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {hormones.map(h => (
-              <StatRow key={h.name} label={h.name} value={h.value >= 70 ? "Optimal" : h.value >= 40 ? "Moderate" : "Low"} color={h.value >= 70 ? "#22c55e" : h.value >= 40 ? G : "#ef4444"} />
+              <StatRow key={h.name} label={h.name}
+                value={h.value >= 70 ? "Optimal" : h.value >= 40 ? "Moderate" : "Low"}
+                color={h.value >= 70 ? "#22c55e" : h.value >= 40 ? G : "#ef4444"} />
             ))}
           </div>
         </div>
@@ -740,21 +775,21 @@ function SupplementsPage({ supplements, setSupplements }) {
   const add = () => {
     if (!form.name.trim()) return;
     setSupplements(prev => [...prev, { id: Date.now(), ...form, taken: false }]);
-    setForm({ name: "", dosage: "", time: "Morning" }); setShowModal(false);
+    setForm({ name: "", dosage: "", time: "Morning" });
+    setShowModal(false);
   };
 
-  const taken  = supplements.filter(s => s.taken).length;
-  const total  = supplements.length;
-  const pct    = total > 0 ? Math.round((taken / total) * 100) : 0;
+  const taken = supplements.filter(s => s.taken).length;
+  const total = supplements.length;
+  const pct   = total > 0 ? Math.round((taken / total) * 100) : 0;
 
   return (
     <motion.div key="supplements" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: .22 }}>
-      {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
         {[
-          { label: "Taken Today",  value: taken,       sub: `of ${total}` },
-          { label: "Remaining",    value: total-taken, sub: "pending doses" },
-          { label: "Adherence",    value: `${pct}%`,   sub: "today" },
+          { label: "Taken Today", value: taken,       sub: `of ${total}` },
+          { label: "Remaining",   value: total-taken, sub: "pending doses" },
+          { label: "Adherence",   value: `${pct}%`,   sub: "today" },
         ].map((s, i) => (
           <div key={i} className="wh-card" style={{ textAlign: "center" }}>
             <div className="wh-card-title" style={{ marginBottom: 8 }}>{s.label}</div>
@@ -769,11 +804,9 @@ function SupplementsPage({ supplements, setSupplements }) {
         <CardHead title="Today's Supplements"
           right={<button className="btn-gold btn-sm" onClick={() => setShowModal(true)}><Plus size={12} style={{ marginRight: 4 }} />Add</button>}
         />
-
         {supplements.length === 0 && (
           <div style={{ textAlign: "center", padding: "32px 0", color: TM, fontSize: ".82rem" }}>No supplements added. Tap Add to begin.</div>
         )}
-
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {supplements.map(s => (
             <div key={s.id} className={`supp-row ${s.taken ? "done" : ""}`} onClick={() => toggle(s.id)}>
@@ -825,7 +858,6 @@ function SelfCarePage({ selfCare, setSelfCare, water, setWater, sleep, setSleep 
 
   return (
     <motion.div key="selfcare" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: .22 }}>
-      {/* Checklist */}
       <div className="wh-card" style={{ marginBottom: 20 }}>
         <CardHead title="Daily Self-Care Routine" right={<span className="gold-badge">{done}/{selfCare.length} done</span>} />
         <Bar pct={(done / selfCare.length) * 100} />
@@ -844,7 +876,6 @@ function SelfCarePage({ selfCare, setSelfCare, water, setWater, sleep, setSleep 
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        {/* Water */}
         <div className="wh-card">
           <CardHead title="Water Intake" right={<div className="wh-card-icon"><Droplets size={16} /></div>} />
           <div style={{ display: "flex", gap: 7, justifyContent: "center", flexWrap: "wrap", margin: "16px 0" }}>
@@ -862,7 +893,6 @@ function SelfCarePage({ selfCare, setSelfCare, water, setWater, sleep, setSleep 
           </div>
         </div>
 
-        {/* Sleep */}
         <div className="wh-card">
           <CardHead title="Sleep Tracker" right={<div className="wh-card-icon"><Moon size={16} /></div>} />
           <div style={{ textAlign: "center", padding: "16px 0" }}>
@@ -887,7 +917,7 @@ function SelfCarePage({ selfCare, setSelfCare, water, setWater, sleep, setSleep 
    PAGE: PROGRAMS
 ══════════════════════════════════════════════════════════ */
 function ProgramsPage({ programs, setPrograms }) {
-  const cont = id => setPrograms(prev => prev.map(p => p.id === id ? { ...p, progress: Math.min(100, p.progress + 10) } : p));
+  const cont  = id => setPrograms(prev => prev.map(p => p.id === id ? { ...p, progress: Math.min(100, p.progress + 10) } : p));
   const reset = id => setPrograms(prev => prev.map(p => p.id === id ? { ...p, progress: 0 } : p));
 
   return (
@@ -931,7 +961,8 @@ function JournalPage({ journal, setJournal }) {
   const add = () => {
     if (!form.title.trim()) return;
     setJournal(prev => [{ id: Date.now(), date: new Date().toLocaleDateString(), ...form }, ...prev]);
-    setForm({ title: "", content: "", mood: "😊" }); setShowModal(false);
+    setForm({ title: "", content: "", mood: "😊" });
+    setShowModal(false);
   };
   const del = id => setJournal(prev => prev.filter(j => j.id !== id));
 
@@ -941,7 +972,6 @@ function JournalPage({ journal, setJournal }) {
         <CardHead title="Health Journal"
           right={<button className="btn-gold btn-sm" onClick={() => setShowModal(true)}><Plus size={12} style={{ marginRight: 4 }} />New Entry</button>}
         />
-
         {journal.length === 0 && (
           <div style={{ textAlign: "center", padding: "40px 0", color: TM }}>
             <BookOpen size={36} style={{ color: TD, marginBottom: 12 }} />
@@ -949,7 +979,6 @@ function JournalPage({ journal, setJournal }) {
             <div style={{ fontSize: ".78rem", marginTop: 5 }}>Start writing your health journey</div>
           </div>
         )}
-
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {journal.map(entry => (
             <div key={entry.id} className="jrnl-card">
@@ -977,7 +1006,10 @@ function JournalPage({ journal, setJournal }) {
             <label className="wh-label">Mood</label>
             <div style={{ display: "flex", gap: 8 }}>
               {["😊","😄","😐","😟","😢","😴"].map(m => (
-                <div key={m} onClick={() => setForm(f => ({ ...f, mood: m }))} style={{ width: 38, height: 38, borderRadius: "50%", border: `2px solid ${form.mood === m ? G : TD}`, background: form.mood === m ? BGW : S2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", cursor: "pointer", transition: "all .15s" }}>{m}</div>
+                <div key={m} onClick={() => setForm(f => ({ ...f, mood: m }))}
+                  style={{ width: 38, height: 38, borderRadius: "50%", border: `2px solid ${form.mood === m ? G : TD}`, background: form.mood === m ? BGW : S2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", cursor: "pointer", transition: "all .15s" }}>
+                  {m}
+                </div>
               ))}
             </div>
           </div>
@@ -1002,23 +1034,22 @@ function JournalPage({ journal, setJournal }) {
 function InsightsPage({ cycleDay, cycleLength, mood, energy, water, sleep, healthScore, supplements, selfCare, moodHistory, affIdx }) {
   const phase = getCyclePhase(cycleDay);
   const suppPct = supplements.length ? Math.round((supplements.filter(s => s.taken).length / supplements.length) * 100) : 0;
-  const carePct = selfCare.length  ? Math.round((selfCare.filter(a => a.done).length  / selfCare.length)  * 100) : 0;
+  const carePct = selfCare.length   ? Math.round((selfCare.filter(a => a.done).length   / selfCare.length)   * 100) : 0;
   const WATER_GOAL = 8;
   const aff = AFFIRMATIONS[affIdx % AFFIRMATIONS.length];
 
   const scores = [
-    { label: "Cycle Health",       pct: 85 },
-    { label: "Mood & Energy",      pct: energy },
-    { label: "Hydration",          pct: Math.round((water / WATER_GOAL) * 100) },
-    { label: "Sleep Quality",      pct: Math.round((sleep / 8) * 100) },
-    { label: "Supplement Adherence", pct: suppPct },
-    { label: "Self-Care Routine",  pct: carePct },
+    { label: "Cycle Health",          pct: 85 },
+    { label: "Mood & Energy",         pct: energy },
+    { label: "Hydration",             pct: Math.round((water / WATER_GOAL) * 100) },
+    { label: "Sleep Quality",         pct: Math.round((sleep / 8) * 100) },
+    { label: "Supplement Adherence",  pct: suppPct },
+    { label: "Self-Care Routine",     pct: carePct },
   ];
   const overallScore = Math.round(scores.reduce((a, s) => a + Math.min(s.pct, 100), 0) / scores.length);
 
   return (
     <motion.div key="insights" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: .22 }}>
-      {/* Score ring */}
       <div className="wh-card" style={{ textAlign: "center", marginBottom: 20, padding: "30px 24px" }}>
         <div style={{ position: "relative", display: "inline-block", marginBottom: 18 }}>
           <svg width={130} height={130}>
@@ -1040,7 +1071,6 @@ function InsightsPage({ cycleDay, cycleLength, mood, energy, water, sleep, healt
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        {/* Score breakdown */}
         <div className="wh-card">
           <CardHead title="Score Breakdown" />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1056,7 +1086,6 @@ function InsightsPage({ cycleDay, cycleLength, mood, energy, water, sleep, healt
           </div>
         </div>
 
-        {/* Recommendations */}
         <div className="wh-card">
           <CardHead title="Recommendations" />
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1119,10 +1148,10 @@ export default function WomenHealth() {
   const [symptoms, setSymptoms] = useState(() => ls.get("wh_symptoms", []));
   // Hormones
   const [hormones, setHormones] = useState(() => ls.get("wh_hormones", [
-    { name: "Estrogen",      value: 65 },
-    { name: "Progesterone",  value: 70 },
-    { name: "Cortisol",      value: 45 },
-    { name: "Serotonin",     value: 80 },
+    { name: "Estrogen",     value: 65 },
+    { name: "Progesterone", value: 70 },
+    { name: "Cortisol",     value: 45 },
+    { name: "Serotonin",    value: 80 },
   ]));
   // Supplements
   const [supplements, setSupplements] = useState(() => ls.get("wh_supplements", DEF_SUPPS));
@@ -1162,10 +1191,10 @@ export default function WomenHealth() {
   const notifications = useMemo(() => {
     const n = [];
     const pend = supplements.filter(s => !s.taken).length;
-    if (pend > 0)       n.push({ id: 1, type: "warning", msg: `${pend} supplements pending today` });
-    if (water < 6)      n.push({ id: 2, type: "info",    msg: `Drink ${8 - water} more glasses of water` });
-    if (energy < 50)    n.push({ id: 3, type: "alert",   msg: "Low energy — consider rest and iron-rich foods" });
-    if (!selfCare.some(a => a.done)) n.push({ id: 4, type: "info", msg: "Start your daily self-care routine" });
+    if (pend > 0)                         n.push({ id: 1, type: "warning", msg: `${pend} supplements pending today` });
+    if (water < 6)                        n.push({ id: 2, type: "info",    msg: `Drink ${8 - water} more glasses of water` });
+    if (energy < 50)                      n.push({ id: 3, type: "alert",   msg: "Low energy — consider rest and iron-rich foods" });
+    if (!selfCare.some(a => a.done))      n.push({ id: 4, type: "info",    msg: "Start your daily self-care routine" });
     return n;
   }, [supplements, water, energy, selfCare]);
 
@@ -1173,12 +1202,6 @@ export default function WomenHealth() {
 
   return (
     <div className="wh-app">
-      {/* Sidebar overlay (mobile) */}
-      {sidebar && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 40, display: "none" }}
-          className="wh-overlay-mobile" onClick={() => setSidebar(false)} />
-      )}
-
       {/* ── SIDEBAR ── */}
       <aside className={`wh-sidebar ${sidebar ? "" : "closed"}`}>
         {/* Logo */}
@@ -1198,17 +1221,13 @@ export default function WomenHealth() {
           ))}
         </nav>
 
-        {/* Profile */}
-        <div className="wh-sidebar-foot">
-          <div className="wh-profile">
-            <div className="wh-avatar">MX</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: ".82rem", fontWeight: 700, color: TX }}>Wellness Pro</div>
-              <div style={{ fontSize: ".68rem", color: TM, marginTop: 1 }}>ManifiX Premium</div>
-            </div>
-            <Settings size={14} style={{ color: TM, cursor: "pointer" }} />
-          </div>
-        </div>
+        {/*
+          ╔════════════════════════════════════════════════╗
+          ║  PROFILE FOOTER REMOVED — per v7.1 update     ║
+          ║  (avatar · "Wellness Pro" · "ManifiX Premium" ║
+          ║   · Settings icon all deleted here)           ║
+          ╚════════════════════════════════════════════════╝
+        */}
       </aside>
 
       {/* ── MAIN ── */}
@@ -1225,9 +1244,8 @@ export default function WomenHealth() {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Quick stats chips */}
             <span className="gold-badge">🔥 {streak}d</span>
-            <span className="gold-badge">💊 {supplements.filter(s=>s.taken).length}/{supplements.length}</span>
+            <span className="gold-badge">💊 {supplements.filter(s => s.taken).length}/{supplements.length}</span>
             {/* Notifications */}
             <div style={{ position: "relative" }}>
               <button className="btn-icon" onClick={() => setShowNotif(v => !v)}>
@@ -1250,7 +1268,9 @@ export default function WomenHealth() {
                         <div style={{ fontSize: ".78rem", color: TX, lineHeight: 1.5 }}>{n.msg}</div>
                       </div>
                     ))}
-                    {notifications.length === 0 && <div style={{ textAlign: "center", padding: "14px 0", color: TM, fontSize: ".8rem" }}>All clear 🌸</div>}
+                    {notifications.length === 0 && (
+                      <div style={{ textAlign: "center", padding: "14px 0", color: TM, fontSize: ".8rem" }}>All clear 🌸</div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1261,10 +1281,19 @@ export default function WomenHealth() {
         {/* ── PAGE CONTENT ── */}
         <AnimatePresence mode="wait">
           {tab === "cycle" && (
-            <CyclePage cycleDay={cycleDay} setCycleDay={setCycleDay} cycleLength={cycleLength} setCycleLength={setCycleLength} cycleStartDate={cycleStartDate} setCycleStartDate={setCycleStartDate} />
+            <CyclePage
+              cycleDay={cycleDay} setCycleDay={setCycleDay}
+              cycleLength={cycleLength} setCycleLength={setCycleLength}
+              cycleStartDate={cycleStartDate} setCycleStartDate={setCycleStartDate}
+            />
           )}
           {tab === "mood" && (
-            <MoodPage mood={mood} setMood={setMood} energy={energy} setEnergy={setEnergy} streak={streak} setStreak={setStreak} moodHistory={moodHistory} setMoodHistory={setMoodHistory} />
+            <MoodPage
+              mood={mood} setMood={setMood}
+              energy={energy} setEnergy={setEnergy}
+              streak={streak} setStreak={setStreak}
+              moodHistory={moodHistory} setMoodHistory={setMoodHistory}
+            />
           )}
           {tab === "symptoms" && (
             <SymptomsPage symptoms={symptoms} setSymptoms={setSymptoms} />
@@ -1276,7 +1305,11 @@ export default function WomenHealth() {
             <SupplementsPage supplements={supplements} setSupplements={setSupplements} />
           )}
           {tab === "selfcare" && (
-            <SelfCarePage selfCare={selfCare} setSelfCare={setSelfCare} water={water} setWater={setWater} sleep={sleep} setSleep={setSleep} />
+            <SelfCarePage
+              selfCare={selfCare} setSelfCare={setSelfCare}
+              water={water} setWater={setWater}
+              sleep={sleep} setSleep={setSleep}
+            />
           )}
           {tab === "programs" && (
             <ProgramsPage programs={programs} setPrograms={setPrograms} />
@@ -1285,7 +1318,14 @@ export default function WomenHealth() {
             <JournalPage journal={journal} setJournal={setJournal} />
           )}
           {tab === "insights" && (
-            <InsightsPage cycleDay={cycleDay} cycleLength={cycleLength} mood={mood} energy={energy} water={water} sleep={sleep} healthScore={85} supplements={supplements} selfCare={selfCare} moodHistory={moodHistory} affIdx={affIdx} />
+            <InsightsPage
+              cycleDay={cycleDay} cycleLength={cycleLength}
+              mood={mood} energy={energy}
+              water={water} sleep={sleep}
+              healthScore={85}
+              supplements={supplements} selfCare={selfCare}
+              moodHistory={moodHistory} affIdx={affIdx}
+            />
           )}
         </AnimatePresence>
       </main>
