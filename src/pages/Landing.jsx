@@ -257,9 +257,9 @@ export default function Landing() {
   }, []);
 
   const testimonials = [
-    { name: "Shyam R.", role: "Product Designer", text: "The UI is pure 2026. The most intuitive AI discipline system I've ever used. My productivity tripled in 3 weeks.", stars: 5 },
-    { name: "Priya M.", role: "Wellness Advocate", text: "Magic16 saved my focus completely. The AI conversation adapts to me every single day. Nothing else comes close.", stars: 5 },
-    { name: "Nikhil T.", role: "Startup Founder", text: "A must-have for anyone serious about their daily discipline. The leaderboard alone keeps me coming back every morning.", stars: 5 },
+    { name: "Shyam R.", role: "User", text: "The UI is pure 2026. The most intuitive AI discipline system I've ever used. My productivity tripled in 3 weeks.", stars: 5 },
+    { name: "Priya M.", role: "User", text: "Magic16 saved my focus completely. The AI conversation adapts to me every single day. Nothing else comes close.", stars: 5 },
+    { name: "Nikhil T.", role: "User", text: "A must-have for anyone serious about their daily discipline. The leaderboard alone keeps me coming back every morning.", stars: 5 },
   ];
 
   const techCards = [
