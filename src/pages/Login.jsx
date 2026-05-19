@@ -1,131 +1,144 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import authService from "../services/auth.service";
 
 /* ─────────────────────────────────────────────
-   PALETTE
+   STYLE INJECTION
 ───────────────────────────────────────────── */
-const ACC = "#D4AF37";
-const ACCDIM = "#B8941F";
-const BG = "#030303";
-const BG2 = "#0a0806";
-const BORDER = "#1a1508";
-const GRID = "rgba(212,175,55,0.015)";
-const TEXT_MAIN = "#F5E6C8";
-const TEXT_DIM = "#5a4a20";
-const TEXT_MUTED = "#3a2e14";
+function injectStyles() {
+  if (document.getElementById("login-styles")) return;
+  const s = document.createElement("style");
+  s.id = "login-styles";
+  s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-const MANIFIX_LOGO_URL = "https://image.qwenlm.ai/public_source/80c2e724-ea58-449b-9ee2-a36c1abcb1f5/180238fae-0a6c-4c71-8a28-27e853aba7a2.png";
+    @keyframes lg-scan {
+      from { top: -4px; }
+      to   { top: 100%; }
+    }
+    @keyframes lg-grid {
+      0%,100% { opacity:.04; }
+      50%     { opacity:.08; }
+    }
+    @keyframes lg-breathe {
+      0%,100% { opacity:.12; transform:translateX(-50%) scale(1); }
+      50%     { opacity:.22; transform:translateX(-50%) scale(1.08); }
+    }
+    @keyframes lg-fade-up {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes lg-shimmer {
+      from { background-position:-200% center; }
+      to   { background-position:200% center; }
+    }
+    @keyframes lg-blink {
+      0%,100% { opacity:1; }
+      50%     { opacity:0; }
+    }
+    @keyframes lg-spin {
+      to { transform:rotate(360deg); }
+    }
+    @keyframes lg-glitch1 {
+      0%,100% { clip-path:inset(0 0 95% 0); transform:translateX(0); }
+      20%     { clip-path:inset(30% 0 50% 0); transform:translateX(-3px); }
+      40%     { clip-path:inset(60% 0 10% 0); transform:translateX(3px); }
+      80%     { clip-path:inset(80% 0 5% 0); transform:translateX(-2px); }
+    }
+    @keyframes lg-glitch2 {
+      0%,100% { clip-path:inset(50% 0 30% 0); opacity:0; }
+      25%     { clip-path:inset(20% 0 60% 0); transform:translateX(5px); opacity:1; }
+      75%     { clip-path:inset(70% 0 10% 0); transform:translateX(-5px); opacity:1; }
+    }
+
+    .lg-fade-up  { animation: lg-fade-up 0.5s ease both; }
+    .lg-shimmer  {
+      background: linear-gradient(90deg,#c8a84b,#ffe08a,#ffc83c,#ffe08a,#c8a84b);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: lg-shimmer 3s linear infinite;
+    }
+    .lg-glitch { position:relative; }
+    .lg-glitch::before {
+      content: attr(data-text);
+      position: absolute; inset:0;
+      font-family:inherit; font-size:inherit;
+      letter-spacing:inherit; color:#ff3c3c;
+      animation: lg-glitch1 3s infinite;
+    }
+    .lg-glitch::after {
+      content: attr(data-text);
+      position: absolute; inset:0;
+      font-family:inherit; font-size:inherit;
+      letter-spacing:inherit; color:#c8a84b;
+      animation: lg-glitch2 3s infinite;
+    }
+
+    .lg-input {
+      width:100%; padding:13px 14px;
+      background:#0e0e0e;
+      border:1px solid #1e1e1e;
+      color:#e8e4d9;
+      font-family:'DM Mono',monospace;
+      font-size:13px; letter-spacing:.08em;
+      outline:none; transition:border-color .2s;
+      caret-color:#ffc83c;
+      border-radius:0;
+    }
+    .lg-input::placeholder { color:#2a2a2a; }
+    .lg-input:focus { border-color:#ffc83c; }
+    .lg-input.error { border-color:#ff3c3c; }
+    .lg-input:-webkit-autofill {
+      -webkit-box-shadow:0 0 0 100px #0e0e0e inset !important;
+      -webkit-text-fill-color:#e8e4d9 !important;
+    }
+
+    .lg-btn-primary {
+      width:100%; padding:15px 0;
+      background:#ffc83c; color:#080808;
+      border:none; cursor:pointer;
+      font-family:'DM Mono',monospace;
+      font-size:12px; font-weight:700;
+      letter-spacing:.22em; text-transform:uppercase;
+      transition:background .15s, transform .1s;
+    }
+    .lg-btn-primary:hover:not(:disabled) { background:#ffe08a; }
+    .lg-btn-primary:active:not(:disabled) { transform:scale(.99); }
+    .lg-btn-primary:disabled {
+      background:#111; color:#2a2a2a;
+      border:1px solid #1a1a1a; cursor:not-allowed;
+    }
+
+    .lg-btn-google {
+      width:100%; padding:13px 0;
+      background:transparent;
+      border:1px solid #1e1e1e; color:#555;
+      font-family:'DM Mono',monospace;
+      font-size:11px; font-weight:500;
+      letter-spacing:.15em; text-transform:uppercase;
+      cursor:pointer; display:flex;
+      align-items:center; justify-content:center; gap:10px;
+      transition:border-color .2s, color .2s;
+    }
+    .lg-btn-google:hover { border-color:#2e2e2e; color:#888; }
+
+    .lg-check {
+      accent-color:#ffc83c;
+      cursor:pointer;
+      width:14px; height:14px;
+    }
+  `;
+  document.head.appendChild(s);
+}
 
 /* ─────────────────────────────────────────────
-   CSS INJECTION
-───────────────────────────────────────────── */
-function injectCSS() {
-  if (document.getElementById("loginpremiumcss")) return;
-  const el = document.createElement("style");
-  el.id = "loginpremiumcss";
-  el.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;700&family=Playfair+Display:wght@400;700;900&display=swap');
-    @keyframes lg-pulse{0%,100%{opacity:.03;transform:scale(1)}50%{opacity:.10;transform:scale(1.08)}}
-    @keyframes lg-grid{0%,100%{opacity:.02}50%{opacity:.06}}
-    @keyframes lg-scan{from{top:-2px}to{top:100%}}
-    @keyframes lg-logoGlow{0%,100%{filter:drop-shadow(0 0 8px rgba(212,175,55,0.3))}50%{filter:drop-shadow(0 0 24px rgba(212,175,55,0.6)) drop-shadow(0 0 48px rgba(212,175,55,0.15))}}
-    @keyframes lg-rotateGlow{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-    @keyframes lg-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-    @keyframes lg-breathe{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.06);opacity:.7}}
-    @keyframes lg-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-    @keyframes lg-fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes lg-spin{to{transform:rotate(360deg)}}
-    @keyframes lg-dash{to{stroke-dashoffset:0}}
-    @keyframes lg-particleDrift{0%{transform:translateY(0) translateX(0)}100%{transform:translateY(-100vh) translateX(20px)}}
-    @keyframes lg-glowPulse{0%,100%{box-shadow:0 0 20px rgba(212,175,55,0.15)}50%{box-shadow:0 0 40px rgba(212,175,55,0.3),0 0 60px rgba(212,175,55,0.1)}}
-    .lg-fade-up{animation:lg-fadeUp .6s cubic-bezier(.22,.68,0,1.2) both}
-    .lg-shimmer-text{background:linear-gradient(90deg,#D4AF37,#F5E6C8,#D4AF37,#F5E6C8);background-size:200% auto;animation:lg-shimmer 3s linear infinite;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-    *{box-sizing:border-box;margin:0;padding:0}
-    ::selection{background:rgba(212,175,55,0.3);color:#F5E6C8}
-    ::-webkit-scrollbar{width:3px}
-    ::-webkit-scrollbar-track{background:transparent}
-    ::-webkit-scrollbar-thumb{background:${BORDER};border-radius:2px}
-    .glass{backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
-    .gold-btn{transition:all .25s cubic-bezier(.22,.68,0,1.2);position:relative;overflow:hidden}
-    .gold-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(212,175,55,0.2)}
-    .gold-btn:active{transform:translateY(0) scale(0.98)}
-    .google-btn{transition:all .3s cubic-bezier(.22,.68,0,1.2)}
-    .google-btn:hover{background:rgba(212,175,55,0.08)!important;border-color:rgba(212,175,55,0.25)!important;transform:translateY(-2px);box-shadow:0 8px 32px rgba(212,175,55,0.1)}
-    .google-btn:active{transform:translateY(0) scale(0.98)}
-  `;
-  document.head.appendChild(el);
-}
-
-/* ────────────────────────────────────────────
-   PARTICLE CANVAS
-───────────────────────────────────────────── */
-function ParticleCanvas() {
-  const canvasRef = useRef(null);
-  const particles = useRef([]);
-  const animRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-    resize();
-    window.addEventListener("resize", resize);
-
-    particles.current = Array.from({ length: 35 }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      r: Math.random() * 1.5 + 0.3,
-      dx: (Math.random() - 0.5) * 0.2,
-      dy: (Math.random() - 0.5) * 0.15 - 0.1,
-      opacity: Math.random() * 0.4 + 0.05,
-      pulse: Math.random() * Math.PI * 2,
-    }));
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.current.forEach((p) => {
-        p.x += p.dx; p.y += p.dy; p.pulse += 0.015;
-        if (p.x < 0 || p.x > canvas.width) p.dx *= -1;
-        if (p.y < 0) p.y = canvas.height;
-        const op = p.opacity * (0.5 + 0.5 * Math.sin(p.pulse));
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(212,175,55,${op})`; ctx.fill();
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(212,175,55,${op * 0.12})`; ctx.fill();
-      });
-      // Connection lines
-      for (let i = 0; i < particles.current.length; i++) {
-        for (let j = i + 1; j < particles.current.length; j++) {
-          const dx = particles.current[i].x - particles.current[j].x;
-          const dy = particles.current[i].y - particles.current[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 120) {
-            ctx.beginPath();
-            ctx.moveTo(particles.current[i].x, particles.current[i].y);
-            ctx.lineTo(particles.current[j].x, particles.current[j].y);
-            ctx.strokeStyle = `rgba(212,175,55,${0.03 * (1 - dist / 120)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
-      animRef.current = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => { window.removeEventListener("resize", resize); cancelAnimationFrame(animRef.current); };
-  }, []);
-
-  return <canvas ref={canvasRef} style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0 }} />;
-}
-
-/* ────────────────────────────────────────────
-   GOOGLE ICON
+   GOOGLE ICON (inline SVG — no dependency)
 ───────────────────────────────────────────── */
 const GoogleIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 48 48" style={{ flexShrink:0 }}>
+  <svg width="16" height="16" viewBox="0 0 48 48">
     <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
     <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.5 16 19 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"/>
     <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.4 35.5 26.8 36 24 36c-5.2 0-9.5-2.9-11.3-7l-6.5 5C9.8 39.6 16.4 44 24 44z"/>
@@ -133,401 +146,479 @@ const GoogleIcon = () => (
   </svg>
 );
 
-/* ────────────────────────────────────────────
-   TRUST BADGE
+/* ─────────────────────────────────────────────
+   EYE ICONS
 ───────────────────────────────────────────── */
-const TrustBadge = ({ icon, label }) => (
-  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-    <span style={{ fontSize:10, color:ACC, opacity:0.5 }}>{icon}</span>
-    <span style={{ fontSize:7, letterSpacing:".14em", color:TEXT_MUTED, textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace" }}>{label}</span>
-  </div>
+const EyeOpen = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+const EyeClosed = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
 );
 
-/* ════════════════════════════════════════════
+/* ─────────────────────────────────────────────
+   FIELD COMPONENT
+───────────────────────────────────────────── */
+function Field({ id, label, type, value, onChange, onKeyDown,
+  placeholder, error, disabled, showToggle, showPassword, onToggle }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontSize: 8, letterSpacing: ".22em",
+        color: "#2e2e2e", textTransform: "uppercase",
+        marginBottom: 6, display: "block",
+        fontFamily: "'DM Mono',monospace",
+      }}>{label}</div>
+      <div style={{ position: "relative" }}>
+        <input
+          id={id}
+          className={`lg-input${error ? " error" : ""}`}
+          type={showToggle ? (showPassword ? "text" : "password") : type}
+          value={value}
+          placeholder={placeholder}
+          disabled={disabled}
+          autoComplete={type === "password" ? "current-password" : "email"}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          aria-invalid={!!error}
+        />
+        {showToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            style={{
+              position: "absolute", right: 12, top: "50%",
+              transform: "translateY(-50%)",
+              background: "none", border: "none",
+              cursor: "pointer", color: "#333",
+              display: "flex", alignItems: "center",
+              transition: "color .2s", padding: 0,
+            }}
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOpen /> : <EyeClosed />}
+          </button>
+        )}
+      </div>
+      {error && (
+        <div style={{
+          fontSize: 10, letterSpacing: ".1em",
+          color: "#ff5c5c", marginTop: 5,
+          fontFamily: "'DM Mono',monospace",
+          textTransform: "uppercase",
+        }}>{error}</div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    MAIN COMPONENT
-════════════════════════════════════════════ */
-export default function LoginPremium() {
+───────────────────────────────────────────── */
+export default function Login() {
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [logoLoaded, setLogoLoaded] = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [remember,     setRemember]     = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [success,      setSuccess]      = useState("");
+  const [fieldErrors,  setFieldErrors]  = useState({ email:"", password:"" });
+
+  const emailRef = useRef(null);
 
   useEffect(() => {
-    injectCSS();
+    injectStyles();
+    emailRef.current?.focus();
   }, []);
 
-  const handleGoogle = useCallback(async () => {
-    setError("");
+  const isValidEmail = (v) => /\S+@\S+\.\S+/.test(v);
+
+  const validate = () => {
+    const e = { email:"", password:"" };
+    if (!email.trim())          e.email    = "Email required";
+    else if (!isValidEmail(email)) e.email = "Enter valid email";
+    if (!password)              e.password = "Password required";
+    else if (password.length < 6) e.password = "Min 6 characters";
+    setFieldErrors(e);
+    return !e.email && !e.password;
+  };
+
+  const handleLogin = useCallback(async () => {
+    setError(""); setSuccess("");
+    if (!validate()) return;
     setLoading(true);
     try {
-      if (authService?.loginWithGoogle) {
-        await authService.loginWithGoogle();
-      } else {
-        // Fallback: simulate redirect or show message
-        setError("Google authentication service not configured.");
-      }
+      await authService.login(email.trim().toLowerCase(), password, remember);
+      setSuccess("Access granted. Entering system...");
+      setTimeout(() => navigate("/app/dashboard"), 1000);
     } catch (err) {
-      setError(err?.message || "Google authentication failed. Please try again.");
+      setError(
+        err?.response?.status === 401
+          ? "Incorrect credentials. Try again."
+          : err?.message || "Authentication failed. Retry."
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [email, password, remember, navigate]);
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") handleLogin();
+  };
+
+  const clearField = (f) =>
+    setFieldErrors((p) => ({ ...p, [f]:"" }));
+
+  const handleGoogle = async () => {
+    try {
+      await authService.loginWithGoogle?.();
+    } catch {
+      setError("Google authentication failed.");
+    }
+  };
+
+  /* ── RENDER ── */
   return (
     <div style={{
-      minHeight:"100dvh", background:BG,
-      fontFamily:"'JetBrains Mono','Courier New',monospace",
-      color:TEXT_MAIN, display:"flex", alignItems:"center",
-      justifyContent:"center", position:"relative", overflow:"hidden",
+      minHeight: "100dvh",
+      background: "#080808",
+      fontFamily: "'DM Mono','Courier New',monospace",
+      color: "#e8e4d9",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      overflow: "hidden",
+      padding: "24px 16px",
     }}>
 
-      {/* Particle background */}
-      <ParticleCanvas />
-
-      {/* Grid overlay */}
+      {/* bg grid */}
       <div style={{
-        position:"fixed", inset:0, pointerEvents:"none", zIndex:0,
-        backgroundImage:`linear-gradient(${GRID} 1px,transparent 1px),linear-gradient(90deg,${GRID} 1px,transparent 1px)`,
-        backgroundSize:"48px 48px", animation:"lg-grid 6s ease-in-out infinite",
+        position: "fixed", inset: 0,
+        backgroundImage:
+          "linear-gradient(rgba(255,200,60,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,200,60,.04) 1px,transparent 1px)",
+        backgroundSize: "40px 40px",
+        animation: "lg-grid 4s ease-in-out infinite",
+        pointerEvents: "none",
       }} />
 
-      {/* Ambient glow */}
+      {/* ambient glow */}
       <div style={{
-        position:"fixed", top:"25%", left:"50%", transform:"translateX(-50%)",
-        width:600, height:350,
-        background:`radial-gradient(ellipse,${ACC}06 0%,transparent 70%)`,
-        animation:"lg-pulse 6s ease-in-out infinite", pointerEvents:"none",
-      }} />
-      <div style={{
-        position:"fixed", bottom:"10%", right:"15%",
-        width:300, height:200,
-        background:`radial-gradient(ellipse,${ACC}04 0%,transparent 70%)`,
-        animation:"lg-pulse 8s ease-in-out infinite 2s", pointerEvents:"none",
+        position: "fixed",
+        top: "30%", left: "50%",
+        width: 500, height: 300,
+        background: "radial-gradient(ellipse,rgba(200,168,75,.1) 0%,transparent 70%)",
+        animation: "lg-breathe 5s ease-in-out infinite",
+        pointerEvents: "none",
       }} />
 
-      {/* Scan line */}
+      {/* scan line */}
       <div style={{
-        position:"fixed", left:0, right:0, height:1,
-        background:`linear-gradient(90deg,transparent,${ACC}08,${ACC}12,${ACC}08,transparent)`,
-        animation:"lg-scan 4s linear infinite", pointerEvents:"none", zIndex:0,
+        position: "fixed", left:0, right:0, height:2,
+        background: "linear-gradient(90deg,transparent,rgba(255,200,60,.06),rgba(255,200,60,.12),rgba(255,200,60,.06),transparent)",
+        animation: "lg-scan 3.5s linear infinite",
+        pointerEvents: "none", zIndex:0,
       }} />
 
-      {/* Corner marks */}
-      {[{top:20,left:20,borderTopWidth:2,borderLeftWidth:2},{top:20,right:20,borderTopWidth:2,borderRightWidth:2},{bottom:20,left:20,borderBottomWidth:2,borderLeftWidth:2},{bottom:20,right:20,borderBottomWidth:2,borderRightWidth:2}].map((pos,i)=>(
-        <div key={i} style={{ position:"fixed", width:28, height:28, borderColor:`${ACC}15`, borderStyle:"solid", borderWidth:0, pointerEvents:"none", zIndex:50, ...pos }} />
+      {/* corner marks */}
+      {[
+        { top:16,left:16,   borderTopWidth:2, borderLeftWidth:2   },
+        { top:16,right:16,  borderTopWidth:2, borderRightWidth:2  },
+        { bottom:16,left:16,  borderBottomWidth:2, borderLeftWidth:2   },
+        { bottom:16,right:16, borderBottomWidth:2, borderRightWidth:2  },
+      ].map((pos,i) => (
+        <div key={i} style={{
+          position:"fixed", width:18, height:18,
+          borderColor:"#1e1e1e", borderStyle:"solid", borderWidth:0,
+          ...pos,
+        }} />
       ))}
 
-      {/* Loading overlay */}
-      <AnimatePresence>
-        {loading && (
-          <motion.div
-            initial={{ opacity:0 }}
-            animate={{ opacity:1 }}
-            exit={{ opacity:0 }}
-            style={{ position:"fixed", inset:0, background:"rgba(3,3,3,0.9)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, flexDirection:"column", gap:20, backdropFilter:"blur(8px)" }}
-          >
-            <motion.div
-              animate={{ rotate:360 }}
-              transition={{ duration:1, repeat:Infinity, ease:"linear" }}
-              style={{
-                width:40, height:40,
-                border:"2px solid rgba(212,175,55,0.1)",
-                borderTopColor:ACC,
-                borderRadius:"50%",
-              }}
-            />
-            <div style={{ fontSize:9, letterSpacing:".3em", color:ACC, textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace" }}>
-              Authenticating
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── MAIN CARD ── */}
-      <motion.div
-        initial={{ opacity:0, y:30 }}
-        animate={{ opacity:1, y:0 }}
-        transition={{ duration:0.7, ease:[.22,.68,0,1.2] }}
-        className="glass"
-        style={{
-          position:"relative", zIndex:10,
-          width:"min(440px,94vw)",
-          background:"linear-gradient(135deg,rgba(10,8,6,0.95),rgba(8,6,5,0.85))",
-          border:"1px solid rgba(212,175,55,0.1)",
-          borderRadius:20,
-          padding:"48px 40px 40px",
-          backdropFilter:"blur(24px)",
-          WebkitBackdropFilter:"blur(24px)",
-          boxShadow:`0 20px 60px rgba(0,0,0,0.4),0 0 40px rgba(212,175,55,0.03)`,
-        }}
-      >
-        {/* Inner glow */}
+      {/* loading overlay */}
+      {loading && (
         <div style={{
-          position:"absolute", top:0, left:"50%", transform:"translateX(-50%)",
-          width:"80%", height:1,
-          background:`linear-gradient(90deg,transparent,${ACC}20,transparent)`,
+          position:"fixed", inset:0,
+          background:"rgba(8,8,8,.85)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          zIndex:100, flexDirection:"column", gap:16,
+        }}>
+          <div style={{
+            width:24, height:24,
+            border:"2px solid #1e1e1e",
+            borderTopColor:"#ffc83c",
+            borderRadius:"50%",
+            animation:"lg-spin .7s linear infinite",
+          }} />
+          <div style={{
+            fontSize:10, letterSpacing:".25em",
+            color:"#333", textTransform:"uppercase",
+          }}>Authenticating...</div>
+        </div>
+      )}
+
+      {/* ── CARD ── */}
+      <div className="lg-fade-up" style={{
+        position: "relative", zIndex:1,
+        width: "min(400px,96vw)",
+        border: "1px solid #1a1a1a",
+        background: "#0b0b0b",
+        padding: "36px 32px",
+      }}>
+
+        {/* inner scan */}
+        <div style={{
+          position:"absolute", left:0, right:0, height:"25%",
+          background:"linear-gradient(180deg,transparent,rgba(200,168,75,.03),transparent)",
+          animation:"lg-scan 3s ease-in-out infinite",
+          pointerEvents:"none", top:0,
         }} />
 
-        {/* ── LOGO SECTION ── */}
-        <div style={{ textAlign:"center", marginBottom:40 }}>
+        {/* ── LOGO — pure text, no image needed ── */}
+        <div style={{ textAlign:"center", marginBottom:32 }}>
 
-          {/* Status indicator */}
-          <motion.div
-            initial={{ opacity:0, scale:0.8 }}
-            animate={{ opacity:1, scale:1 }}
-            transition={{ delay:0.2, duration:0.5 }}
+          {/* system status dot */}
+          <div style={{
+            display:"inline-flex", alignItems:"center", gap:6,
+            border:"1px solid #1e1e1e", padding:"4px 12px",
+            marginBottom:20,
+          }}>
+            <span style={{
+              width:6, height:6, borderRadius:"50%",
+              background:"#ffc83c",
+              animation:"lg-blink 1.2s ease-in-out infinite",
+              display:"inline-block",
+            }} />
+            <span style={{
+              fontSize:8, letterSpacing:".25em",
+              color:"#3a3a3a", textTransform:"uppercase",
+            }}>System online</span>
+          </div>
+
+          {/* main logo — Bebas Neue, no image */}
+          <div
+            className="lg-glitch"
+            data-text="MANIFIX"
             style={{
-              display:"inline-flex", alignItems:"center", gap:8,
-              border:"1px solid rgba(212,175,55,0.1)",
-              padding:"6px 16px", borderRadius:20,
-              marginBottom:28,
-              background:"rgba(212,175,55,0.03)",
+              fontFamily:"'Bebas Neue',sans-serif",
+              fontSize:64, letterSpacing:".08em",
+              lineHeight:1, color:"#e8e4d9",
+              marginBottom:4,
             }}
           >
-            <motion.div
-              animate={{ opacity:[0.4,1,0.4] }}
-              transition={{ duration:2, repeat:Infinity, ease:"easeInOut" }}
-              style={{ width:6, height:6, borderRadius:"50%", background:ACC, boxShadow:`0 0 6px ${ACC}40` }}
-            />
-            <span style={{ fontSize:7, letterSpacing:".28em", color:`${ACC}50`, textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace", fontWeight:500 }}>
-              System Active
-            </span>
-          </motion.div>
+            MANIFIX
+          </div>
 
-          {/* ManifiX Logo */}
-          <motion.div
-            initial={{ opacity:0, scale:0.7 }}
-            animate={{ opacity:1, scale:1 }}
-            transition={{ delay:0.4, duration:0.8, ease:[.22,.68,0,1.2] }}
-            style={{ position:"relative", display:"inline-block", marginBottom:20 }}
-          >
-            <motion.div
-              animate={{ scale:[1,1.02,1] }}
-              transition={{ duration:4, repeat:Infinity, ease:"easeInOut" }}
-              style={{
-                width:100, height:100, borderRadius:"50%",
-                overflow:"hidden",
-                border:`2px solid ${ACC}25`,
-                background:"radial-gradient(circle,rgba(212,175,55,0.05),rgba(3,3,3,0.9))",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                animation:"lg-logoGlow 4s ease-in-out infinite",
-              }}
-            >
-              <motion.img
-                src={MANIFIX_LOGO_URL}
-                alt="ManifiX"
-                onLoad={() => setLogoLoaded(true)}
-                style={{ width:72, height:72, objectFit:"contain", filter:"brightness(1.1) saturate(1.2)" }}
-              />
-              {/* Fallback text if image fails */}
-              {!logoLoaded && (
-                <div style={{
-                  fontFamily:"'Syne',sans-serif", fontSize:28,
-                  fontWeight:800, color:ACC, letterSpacing:".05em",
-                }}>M</div>
-              )}
-            </motion.div>
-            {/* Rotating ring */}
-            <div style={{
-              position:"absolute", inset:-8, borderRadius:"50%",
-              border:`1px solid ${ACC}08`,
-              animation:"lg-rotateGlow 15s linear infinite",
-            }} />
-            <div style={{
-              position:"absolute", inset:-16, borderRadius:"50%",
-              border:`1px dashed ${ACC}06`,
-              animation:"lg-rotateGlow 25s linear infinite reverse",
-            }} />
-          </motion.div>
+          {/* AI badge */}
+          <div style={{
+            fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:18, letterSpacing:".3em",
+            marginBottom:8,
+          }} className="lg-shimmer">
+            AI
+          </div>
 
-          {/* Brand name */}
-          <motion.div
-            initial={{ opacity:0, y:10 }}
-            animate={{ opacity:1, y:0 }}
-            transition={{ delay:0.6 }}
-          >
-            <div style={{
-              fontFamily:"'Syne',sans-serif", fontSize:36,
-              fontWeight:800, letterSpacing:"-.02em", lineHeight:1, marginBottom:4,
-            }}>
-              <span className="lg-shimmer-text">MANIFIX</span>
-            </div>
-            <div style={{
-              fontFamily:"'Playfair Display',serif", fontSize:14,
-              fontStyle:"italic", letterSpacing:".15em", color:`${ACC}50`,
-              marginBottom:8,
-            }}>
-              Wellness Platform
-            </div>
-            <div style={{
-              fontSize:8, letterSpacing:".3em", color:TEXT_MUTED,
-              textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace",
-            }}>
-              Intelligence Meets Intention
-            </div>
-          </motion.div>
+          <div style={{
+            fontSize:9, letterSpacing:".22em",
+            color:"#2a2a2a", textTransform:"uppercase",
+          }}>
+            Intelligence meets intention
+          </div>
         </div>
 
-        {/* ── SECTION HEADER ── */}
-        <motion.div
-          initial={{ opacity:0, x:-10 }}
-          animate={{ opacity:1, x:0 }}
-          transition={{ delay:0.8 }}
-          style={{
-            display:"flex", alignItems:"center", gap:10, marginBottom:32,
-            padding:"12px 16px",
-            borderLeft:`2px solid ${ACC}30`,
-            background:"rgba(212,175,55,0.02)",
-            borderRadius:"0 8px 8px 0",
-          }}
-        >
-          <div style={{ width:2, height:14, background:ACC, borderRadius:1, boxShadow:`0 0 6px ${ACC}40` }} />
-          <span style={{
-            fontSize:8, letterSpacing:".28em", color:`${ACC}50`,
-            textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
+        {/* ── HEADING ── */}
+        <div style={{
+          fontSize:9, letterSpacing:".22em",
+          color:"#2e2e2e", textTransform:"uppercase",
+          marginBottom:20, borderLeft:"2px solid #1e1e1e",
+          paddingLeft:10,
+        }}>
+          Neural access portal
+        </div>
+
+        {/* ── ERROR ── */}
+        {error && (
+          <div style={{
+            border:"1px solid #2a1010", background:"#0a0808",
+            padding:"10px 12px", marginBottom:14,
+            fontSize:10, letterSpacing:".1em",
+            color:"#ff5c5c", textTransform:"uppercase",
+            display:"flex", alignItems:"center", gap:8,
           }}>
-            Welcome Back · Sign In
-          </span>
-        </motion.div>
+            <span>⚠</span> {error}
+          </div>
+        )}
 
-        {/* ── ERROR MESSAGE ── */}
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity:0, height:0 }}
-              animate={{ opacity:1, height:"auto" }}
-              exit={{ opacity:0, height:0 }}
-              transition={{ duration:0.3 }}
-              style={{
-                border:"1px solid rgba(248,113,113,0.15)",
-                background:"rgba(248,113,113,0.05)",
-                padding:"12px 16px", marginBottom:24, borderRadius:10,
-                fontSize:9, letterSpacing:".1em", color:"#F87171",
-                display:"flex", alignItems:"center", gap:10,
-                fontFamily:"'JetBrains Mono',monospace",
-              }}
-            >
-              <span style={{ fontSize:14 }}>⚠</span> {error}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── SUCCESS ── */}
+        {success && (
+          <div style={{
+            border:"1px solid #1e4d1e", background:"#0a140a",
+            padding:"10px 12px", marginBottom:14,
+            fontSize:10, letterSpacing:".1em",
+            color:"#4ade80", textTransform:"uppercase",
+            display:"flex", alignItems:"center", gap:8,
+          }}>
+            <span>✓</span> {success}
+          </div>
+        )}
 
-        {/* ── GOOGLE BUTTON ── */}
-        <motion.div
-          initial={{ opacity:0, y:20 }}
-          animate={{ opacity:1, y:0 }}
-          transition={{ delay:0.9 }}
-        >
-          <motion.button
-            className="google-btn gold-btn"
-            whileTap={{ scale:0.97 }}
-            onClick={handleGoogle}
-            disabled={loading}
+        {/* ── EMAIL ── */}
+        <Field
+          id="login-email"
+          label="Email address"
+          type="email"
+          value={email}
+          placeholder="you@example.com"
+          error={fieldErrors.email}
+          disabled={loading}
+          onChange={(e) => { setEmail(e.target.value); clearField("email"); }}
+          onKeyDown={handleKeyDown}
+        />
+
+        {/* ── PASSWORD ── */}
+        <Field
+          id="login-password"
+          label="Password"
+          type="password"
+          value={password}
+          placeholder="••••••••"
+          error={fieldErrors.password}
+          disabled={loading}
+          showToggle
+          showPassword={showPassword}
+          onToggle={() => setShowPassword(p => !p)}
+          onChange={(e) => { setPassword(e.target.value); clearField("password"); }}
+          onKeyDown={handleKeyDown}
+        />
+
+        {/* ── REMEMBER + FORGOT ── */}
+        <div style={{
+          display:"flex", justifyContent:"space-between",
+          alignItems:"center", marginBottom:20,
+        }}>
+          <label style={{
+            display:"flex", alignItems:"center", gap:8,
+            cursor:"pointer", fontSize:10,
+            letterSpacing:".12em", color:"#2a2a2a",
+            textTransform:"uppercase",
+          }}>
+            <input
+              type="checkbox"
+              className="lg-check"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+            />
+            Remember me
+          </label>
+          <button
+            type="button"
+            onClick={() => navigate("/forgot-password")}
             style={{
-              width:"100%", padding:"18px 24px",
-              background:"rgba(212,175,55,0.04)",
-              border:`1.5px solid rgba(212,175,55,0.15)`,
-              borderRadius:14, cursor:loading?"wait":"pointer",
-              display:"flex", alignItems:"center", justifyContent:"center", gap:14,
-              color:ACC, fontSize:13, fontWeight:600,
-              fontFamily:"'Syne',sans-serif", letterSpacing:".06em",
-              boxShadow:"0 4px 20px rgba(212,175,55,0.05)",
+              fontSize:10, letterSpacing:".12em",
+              color:"#ffc83c", background:"none",
+              border:"none", cursor:"pointer",
+              fontFamily:"inherit", textTransform:"uppercase",
+              padding:0,
             }}
           >
-            <GoogleIcon />
-            <span>Continue with Google</span>
-          </motion.button>
-        </motion.div>
+            Forgot password?
+          </button>
+        </div>
 
-        {/* ── SECURITY NOTE ── */}
-        <motion.div
-          initial={{ opacity:0 }}
-          animate={{ opacity:1 }}
-          transition={{ delay:1 }}
-          style={{
-            display:"flex", justifyContent:"center", gap:6, alignItems:"center",
-            marginTop:16, marginBottom:32,
-          }}
+        {/* ── PRIMARY CTA ── */}
+        <button
+          type="button"
+          className="lg-btn-primary"
+          onClick={handleLogin}
+          disabled={loading}
+          style={{ marginBottom:12 }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={ACC} strokeWidth="1.5" opacity="0.4">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <span style={{
-            fontSize:7, letterSpacing:".16em", color:TEXT_MUTED,
-            textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace",
-          }}>
-            Secure · 256-bit encrypted connection
-          </span>
-        </motion.div>
+          {loading ? "Authenticating..." : "Enter System →"}
+        </button>
 
         {/* ── DIVIDER ── */}
-        <motion.div
-          initial={{ opacity:0 }}
-          animate={{ opacity:1 }}
-          transition={{ delay:1.1 }}
-          style={{ display:"flex", alignItems:"center", gap:16, marginBottom:28 }}
-        >
-          <div style={{ flex:1, height:1, background:`linear-gradient(90deg,transparent,${ACC}10,transparent)` }} />
-          <span style={{ fontSize:7, letterSpacing:".25em", color:TEXT_MUTED, textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace" }}>Trusted by thousands</span>
-          <div style={{ flex:1, height:1, background:`linear-gradient(90deg,transparent,${ACC}10,transparent)` }} />
-        </motion.div>
+        <div style={{
+          display:"flex", alignItems:"center", gap:12,
+          margin:"16px 0",
+        }}>
+          <div style={{ flex:1, height:1, background:"#141414" }} />
+          <span style={{
+            fontSize:8, letterSpacing:".2em",
+            color:"#1e1e1e", textTransform:"uppercase",
+          }}>or</span>
+          <div style={{ flex:1, height:1, background:"#141414" }} />
+        </div>
 
-        {/* ── TRUST BADGES ── */}
-        <motion.div
-          initial={{ opacity:0, y:10 }}
-          animate={{ opacity:1, y:0 }}
-          transition={{ delay:1.2 }}
-          style={{
-            display:"flex", justifyContent:"center", gap:24, flexWrap:"wrap", marginBottom:28,
-          }}
+        {/* ── GOOGLE ── */}
+        <button
+          type="button"
+          className="lg-btn-google"
+          onClick={handleGoogle}
+          disabled={loading}
+          style={{ marginBottom:24 }}
         >
-          <TrustBadge icon="🔒" label="256-bit Encrypted" />
-          <TrustBadge icon="🛡" label="Zero Data Sold" />
-          <TrustBadge icon="✓" label="SOC 2 Certified" />
-        </motion.div>
+          <GoogleIcon />
+          Continue with Google
+        </button>
 
-        {/* ─ SIGNUP LINK ── */}
-        <motion.div
-          initial={{ opacity:0 }}
-          animate={{ opacity:1 }}
-          transition={{ delay:1.3 }}
-          style={{ textAlign:"center", marginBottom:20 }}
-        >
-          <span style={{ fontSize:9, letterSpacing:".14em", color:TEXT_MUTED, fontFamily:"'JetBrains Mono',monospace" }}>
-            New to ManifiX?{" "}
-          </span>
-          <motion.button
-            whileHover={{ color:ACC }}
-            onClick={() => navigate("/signup")}
-            style={{
-              background:"none", border:"none", cursor:"pointer",
-              fontSize:9, letterSpacing:".14em", color:`${ACC}60`,
-              fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
-              padding:0, transition:"color .2s",
-            }}
-          >
-            Create your free account →
-          </motion.button>
-        </motion.div>
+        {/* ── TRUST LINE ── */}
+        <div style={{
+          border:"1px solid #111", background:"#0c0c0c",
+          padding:"8px 12px", marginBottom:20,
+          display:"flex", justifyContent:"space-between",
+          alignItems:"center",
+        }}>
+          {["256-bit encrypted","Zero data sold","SOC 2"].map((t,i) => (
+            <span key={i} style={{
+              fontSize:8, letterSpacing:".12em",
+              color:"#222", textTransform:"uppercase",
+            }}>✓ {t}</span>
+          ))}
+        </div>
 
         {/* ── FOOTER ── */}
-        <motion.div
-          initial={{ opacity:0 }}
-          animate={{ opacity:1 }}
-          transition={{ delay:1.4 }}
-          style={{
-            textAlign:"center", paddingTop:20,
-            borderTop:`1px solid rgba(212,175,55,0.04)`,
-          }}
-        >
-          <div style={{ fontSize:7, letterSpacing:".25em", color:"#1a1408", textTransform:"uppercase", fontFamily:"'JetBrains Mono',monospace" }}>
-            ManifiX AI · {new Date().getFullYear()} · All Rights Reserved
-          </div>
-        </motion.div>
+        <div style={{
+          textAlign:"center", fontSize:10,
+          letterSpacing:".12em", color:"#2a2a2a",
+          textTransform:"uppercase",
+        }}>
+          No account?{" "}
+          <button
+            type="button"
+            onClick={() => navigate("/signup")}
+            style={{
+              color:"#ffc83c", background:"none",
+              border:"none", cursor:"pointer",
+              fontFamily:"inherit", fontSize:10,
+              letterSpacing:".12em", textTransform:"uppercase",
+              padding:0,
+            }}
+          >
+            Create one free →
+          </button>
+        </div>
 
-      </motion.div>
+        {/* ── FOOTER BRAND ── */}
+        <div style={{
+          textAlign:"center", marginTop:20,
+          fontSize:8, letterSpacing:".22em",
+          color:"#141414", textTransform:"uppercase",
+        }}>
+          ManifiX AI · Magic16 · {new Date().getFullYear()}
+        </div>
+
+      </div>
     </div>
   );
 }
