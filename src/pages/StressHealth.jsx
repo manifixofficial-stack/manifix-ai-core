@@ -1,16 +1,7 @@
 /**
  * ManifiX AI — Stress & Burnout Health Module
- * UPGRADED: framer-motion + recharts native
- * Black #080808 + Gold #ffc83c + Bebas Neue + DM Mono
- * Features: HRV Live, SOS, Meditation Timer, Cortisol Estimator,
- * AI Journal, Mood Tracker, Breath Coach, Trigger Correlation,
- * Coping Strategies, Burnout Index, Recovery Score, Daily Forecast,
- * Streak System, Achievements, Wearable HRV Sim, Export, Settings
- *
- * package.json deps required:
- *   "framer-motion": "^11.x",
- *   "recharts": "^2.x",
- *   "react-router-dom": "^6.x"
+ * FIX: recharts `Bar` renamed to `RBar` to resolve symbol conflict with
+ *      the custom `Bar` progress-bar component defined in this file.
  */
 
 import {
@@ -20,7 +11,8 @@ import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motio
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, BarChart, Bar,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis,
+  BarChart, Bar as RBar,   // ← renamed to RBar to avoid clash with custom Bar below
 } from "recharts";
 
 /* ═══════════════ TOKENS ═══════════════ */
@@ -101,7 +93,7 @@ const MOOD_VALS = {
 };
 const MOOD_COLS = {
   Peaceful:GREEN,Calm:TEAL,Energized:ORANGE,Focused:BLUE,Grateful:PURPLE,
-  Tired:"#888",Restless:GOLD,Anxious:ORANGE,
+  Tired:"#888",Restless:G,Anxious:ORANGE,
   "Burned Out":RED,Overwhelmed:RED,
 };
 
@@ -204,6 +196,7 @@ const GhostBtn = ({children, onClick, color="#333", style={}}) => (
   }}>{children}</button>
 );
 
+/* Custom progress bar — named Bar (no conflict; recharts Bar is now imported as RBar) */
 function Bar({pct, color=G, height=4, animated=true}) {
   return (
     <div style={{height,background:"#111",borderRadius:height,overflow:"hidden",marginTop:6}}>
@@ -272,7 +265,6 @@ function BreathCircle({active, onToggle, color=G}) {
   return (
     <div style={{textAlign:"center",padding:"14px 0"}}>
       <div style={{height:170,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-        {/* outer ring */}
         <motion.div
           animate={{width:sz+40,height:sz+40,opacity:active?0.25:0}}
           transition={{duration:dur,ease:"easeInOut"}}
@@ -312,7 +304,6 @@ function BreathCircle({active, onToggle, color=G}) {
 function SosOverlay({onClose}) {
   const [phase, setPhase] = useState("Inhale");
   const [count, setCount] = useState(4);
-  const [step, setStep] = useState(0);
   const ref = useRef(null);
   const SEQ = [{l:"Inhale",s:4},{l:"Hold",s:4},{l:"Exhale",s:6},{l:"Rest",s:2}];
 
@@ -399,7 +390,6 @@ function BurnoutRadar({score, hrvLast, moods, journal}) {
 function ProgramOverlay({prog, time, step, running, onPause, onResume, onStop}) {
   const pct = (time / (prog.duration * 60)) * 100;
   const stepDur = (prog.duration * 60) / prog.steps.length;
-  const stepPct = ((time % stepDur) / stepDur) * 100;
 
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
@@ -548,8 +538,7 @@ export default function Stress() {
   const [forecast, setForecast] = useState(null);
   const [showSettings, setShowS] = useState(false);
   const [newAch, setNewAch] = useState(null);
-  const [showBurnout, setShowBurnout] = useState(false);
-  const [breathMode, setBreathMode] = useState("4-4-6-2"); // 4-7-8, box, resonance
+  const [breathMode, setBreathMode] = useState("4-4-6-2");
 
   const progRef = useRef(null);
   const medRef = useRef(null);
@@ -558,13 +547,11 @@ export default function Stress() {
 
   useEffect(() => { injectCSS(); }, []);
 
-  /* Tip rotation */
   useEffect(() => {
     const id = setInterval(() => setTipIdx(i => (i+1)%DAILY_TIPS.length), 5000);
     return () => clearInterval(id);
   }, []);
 
-  /* HRV simulation with variance */
   useEffect(() => {
     const collect = () => {
       const base = 55 - stressScore * 0.25;
@@ -580,7 +567,6 @@ export default function Stress() {
     return () => clearInterval(hrvRef.current);
   }, [stressScore]);
 
-  /* Daily forecast */
   useEffect(() => {
     const h = new Date().getHours(), d = new Date().getDay();
     const weekday = d >= 1 && d <= 5;
@@ -596,7 +582,6 @@ export default function Stress() {
     });
   }, []);
 
-  /* Achievements check */
   useEffect(() => {
     const toCheck = [
       {id:"first_log", cond: moods.length >= 1},
@@ -615,7 +600,6 @@ export default function Stress() {
     });
   }, [moods, streak, sessCount, journal, medCount]);
 
-  /* Derived */
   const moodChartData = useMemo(() =>
     moods.slice(-10).map((m,i) => ({day:`D${i+1}`,value:MOOD_VALS[m.mood]||5,mood:m.mood})), [moods]);
 
@@ -641,7 +625,6 @@ export default function Stress() {
   const burnoutColor = burnoutRisk==="High"?RED:burnoutRisk==="Moderate"?ORANGE:GREEN;
   const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
-  /* Program controls */
   const startProgram = useCallback(prog => {
     setAP(prog); setProgT(0); setProgS(0); setProgR(true);
     const stepDur = (prog.duration*60)/prog.steps.length;
@@ -653,8 +636,7 @@ export default function Stress() {
         if (cs >= prog.steps.length) {
           clearInterval(progRef.current); setProgR(false);
           setGoals(g=>g.map(x=>x.id===3?{...x,done:true}:x));
-          setSessCount(c=>c+1);
-          setCortisol(v=>Math.max(5,v-1.5));
+          setSessCount(c=>c+1); setCortisol(v=>Math.max(5,v-1.5));
           return n;
         }
         setProgS(cs); return n;
@@ -662,9 +644,7 @@ export default function Stress() {
     }, 1000);
   }, [setGoals, setSessCount]);
 
-  const stopProgram = useCallback(() => {
-    clearInterval(progRef.current); setProgR(false); setAP(null);
-  }, []);
+  const stopProgram = useCallback(() => { clearInterval(progRef.current); setProgR(false); setAP(null); }, []);
   const pauseProgram = useCallback(() => { clearInterval(progRef.current); setProgR(false); }, []);
   const resumeProgram = useCallback(() => {
     if (!activeProgram) return; setProgR(true);
@@ -678,7 +658,6 @@ export default function Stress() {
     }, 1000);
   }, [activeProgram]);
 
-  /* Mood log */
   const logMood = useCallback(mood => {
     setSelMood(mood);
     setMoods(p => [...p, {id:Date.now(), mood, timestamp:new Date().toISOString()}]);
@@ -686,7 +665,6 @@ export default function Stress() {
     setGoals(g=>g.map(x=>x.id===2?{...x,done:true}:x));
   }, [setMoods, setGoals, setStreak]);
 
-  /* Journal save */
   const saveJournal = useCallback(() => {
     if (!jForm.mood || !jForm.trigger.length) return;
     setJournal(p=>[...p,{id:Date.now(),date:new Date().toISOString(),...jForm}]);
@@ -695,7 +673,6 @@ export default function Stress() {
     setCortisol(v=>Math.max(5,v-1));
   }, [jForm, setJournal, setGoals]);
 
-  /* Meditation */
   const startMed = useCallback(sess => {
     setMedA(sess); setMedT(0); setMedR(true);
     clearInterval(medRef.current);
@@ -712,9 +689,9 @@ export default function Stress() {
       });
     }, 1000);
   }, [setGoals, setMedCount]);
+
   const stopMed = useCallback(() => { clearInterval(medRef.current); setMedR(false); setMedA(null); setMedT(0); }, []);
 
-  /* Quiz calc */
   const calcStress = useCallback(() => {
     let total = 0;
     QUIZ.forEach(q => {
@@ -726,7 +703,6 @@ export default function Stress() {
     setTimeout(()=>setShowQuiz(false), 2000);
   }, [quizA]);
 
-  /* Export */
   const exportData = useCallback(() => {
     const d = {moods,journal,activeTriggers,goals,streak,hrvData,sessCount,medCount,exportedAt:new Date().toISOString()};
     const a = document.createElement("a");
@@ -747,7 +723,6 @@ export default function Stress() {
   const completedGoals = goals.filter(g=>g.done).length;
   const goalPct = Math.round((completedGoals/goals.length)*100);
 
-  /* ── RENDER ── */
   return (
     <div style={{minHeight:"100dvh",background:BG,color:"#ddd8cc",fontFamily:FONT,position:"relative",overflowX:"hidden"}}>
 
@@ -785,9 +760,8 @@ export default function Stress() {
         {medActive && <MedOverlay med={medActive} time={medTime} running={medRunning}
           onToggle={()=>{
             setMedR(!medRunning);
-            if (!medRunning) {
-              medRef.current = setInterval(()=>setMedT(p=>p+1),1000);
-            } else clearInterval(medRef.current);
+            if (!medRunning) { medRef.current = setInterval(()=>setMedT(p=>p+1),1000); }
+            else clearInterval(medRef.current);
           }}
           onStop={stopMed}/>}
       </AnimatePresence>
@@ -1094,8 +1068,7 @@ export default function Stress() {
                         ].map(({label,icon,action,color}) => (
                           <button key={label} className="mx-btn" onClick={action}
                             style={{padding:"12px 8px",background:"#0e0e0e",border:`1px solid ${BOR}`,
-                              display:"flex",flexDirection:"column",alignItems:"center",gap:5,
-                              transition:"all .15s"}}>
+                              display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
                             <span style={{fontSize:22}}>{icon}</span>
                             <span style={{fontSize:8,letterSpacing:".12em",color:"#222",textTransform:"uppercase"}}>{label}</span>
                           </button>
@@ -1140,7 +1113,6 @@ export default function Stress() {
             {tab==="programs" && (
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9",letterSpacing:".02em"}}>RECOVERY PROGRAMS</div>
-
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   {PROGRAMS.map(prog => (
                     <Card key={prog.id} style={{position:"relative",overflow:"hidden"}}>
@@ -1287,23 +1259,22 @@ export default function Stress() {
                   <Card>
                     <Label>Trigger Correlation</Label>
                     {triggerCorr.length > 0 ? (
-                      <>
-                        <div style={{height:150}}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={triggerCorr} layout="vertical">
-                              <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e" horizontal={false}/>
-                              <XAxis type="number" stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
-                              <YAxis type="category" dataKey="name" width={80} stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
-                              <Tooltip content={<MxTooltip/>}/>
-                              <Bar dataKey="value" name="Freq" radius={[0,2,2,0]}>
-                                {triggerCorr.map((_,i)=>(
-                                  <Cell key={i} fill={[G,ORANGE,BLUE,PURPLE,GREEN,TEAL][i%6]}/>
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </>
+                      <div style={{height:150}}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          {/* RBar = recharts Bar — renamed to avoid conflict with custom Bar component */}
+                          <BarChart data={triggerCorr} layout="vertical">
+                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e" horizontal={false}/>
+                            <XAxis type="number" stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
+                            <YAxis type="category" dataKey="name" width={80} stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
+                            <Tooltip content={<MxTooltip/>}/>
+                            <RBar dataKey="value" name="Freq" radius={[0,2,2,0]}>
+                              {triggerCorr.map((_,i)=>(
+                                <Cell key={i} fill={[G,ORANGE,BLUE,PURPLE,GREEN,TEAL][i%6]}/>
+                              ))}
+                            </RBar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     ) : <div style={{padding:"40px 0",textAlign:"center",fontSize:8,letterSpacing:".14em",color:"#1a1a1a",textTransform:"uppercase"}}>Add journal entries to correlate</div>}
                   </Card>
                 </div>
@@ -1414,7 +1385,6 @@ export default function Stress() {
                 <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>STRESS RELIEF TOOLS</div>
 
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  {/* Breath coach */}
                   <Card>
                     <Label>Breath Coach</Label>
                     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
@@ -1437,7 +1407,6 @@ export default function Stress() {
                     </div>
                   </Card>
 
-                  {/* Coping strategies */}
                   <Card>
                     <Label>Coping Strategies</Label>
                     <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
@@ -1486,7 +1455,6 @@ export default function Stress() {
                   </Card>
                 </div>
 
-                {/* Cortisol + Recovery */}
                 <Card>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
                     <div>
@@ -1528,7 +1496,6 @@ export default function Stress() {
                   </div>
                 </Card>
 
-                {/* Emergency toolkit */}
                 <Card>
                   <Label>Emergency Techniques</Label>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
@@ -1558,7 +1525,6 @@ export default function Stress() {
                 <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>BURNOUT INSIGHTS</div>
 
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  {/* Burnout Radar */}
                   <Card>
                     <Label>Burnout Dimensions Radar</Label>
                     <div style={{fontSize:9,color:"#1a1a1a",marginBottom:4,lineHeight:1.6}}>
@@ -1571,7 +1537,6 @@ export default function Stress() {
                     </div>
                   </Card>
 
-                  {/* Weekly stress trend */}
                   <Card>
                     <Label>Stress Index History</Label>
                     <div style={{fontSize:9,color:"#1a1a1a",marginBottom:8}}>Based on mood, triggers & HRV</div>
@@ -1597,7 +1562,6 @@ export default function Stress() {
                   </Card>
                 </div>
 
-                {/* Trigger heatmap-style */}
                 <Card>
                   <Label>Trigger Weight Analysis</Label>
                   <div style={{fontSize:9,color:"#1a1a1a",marginBottom:12,lineHeight:1.6}}>
@@ -1628,7 +1592,6 @@ export default function Stress() {
                   </div>
                 </Card>
 
-                {/* Stats summary */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
                   {[
                     {label:"Total Sessions",value:sessCount,color:TEAL,icon:"🏃"},
@@ -1644,7 +1607,6 @@ export default function Stress() {
                   ))}
                 </div>
 
-                {/* Stress assessment CTA */}
                 <Card style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
                   <div>
                     <div style={{fontFamily:HEAD,fontSize:18,color:"#e8e4d9"}}>FULL STRESS ASSESSMENT</div>
