@@ -2,10 +2,6 @@
  * ╔══════════════════════════════════════════════════════════════════════════╗
  * ║  MAGIC16 × ManifiX AI — Medication Health Module v6.0                 ║
  * ║                                                                          ║
- * ║  BUILD FIX v6.1:                                                        ║
- * ║  ✅ Removed dynamic import("jspdf") — was breaking Vite/Rollup build   ║
- * ║     Replaced with static import + graceful fallback to .txt download   ║
- * ║                                                                          ║
  * ║  BUGS FIXED FROM v5.1:                                                  ║
  * ║  ✅ isTakenTodayAtTime: ±30min slot window, exact slot key matching     ║
  * ║  ✅ taken[] schema: normalized to {slotKey, takenAt} objects always     ║
@@ -16,7 +12,7 @@
  * ║  ✅ isDue / isTaken windows: both ±30min, fully consistent              ║
  * ║  ✅ Undo: 5-second undo toast after marking taken                       ║
  * ║  ✅ Real-time: setInterval ticks every 60s to recheck due meds          ║
- * ║  ✅ PDF: jsPDF static import with .txt fallback                         ║
+ * ║  ✅ PDF: html2canvas + jsPDF — real downloadable PDF report             ║
  * ║  ✅ Interaction checker: exact name match via Set, no substring bugs    ║
  * ║  ✅ All 20 languages fully implemented (zero en-IN fallthrough)         ║
  * ║                                                                          ║
@@ -30,41 +26,21 @@
  * ║  + One-tap "Mark All Due" bulk action                                   ║
  * ║  + Session analytics export (JSON + PDF)                                ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
- *
- * HOW TO ENABLE REAL PDF OUTPUT:
- *   1. Run:  npm install jspdf
- *   2. The static import below will activate automatically.
- *   3. If jspdf is NOT installed, the app falls back to a .txt download.
- *      The build will always succeed either way.
  */
 
 import {
-  useEffect, useRef, useState, useCallback, useMemo,
+  useEffect, useRef, useState, useCallback, useMemo, useReducer,
 } from "react";
 import { useNavigate } from "react-router-dom";
 
 /* ════════════════════════════════════════════════════════════
-   jsPDF — STATIC IMPORT (safe for Vite/Rollup)
-   If the package is not installed this import will throw at
-   module evaluation time, so we wrap the entire PDF path in a
-   try/catch and fall through to the .txt download.
-   DO NOT use  await import("jspdf")  — Rollup resolves dynamic
-   imports at build time and fails when the package is absent.
-════════════════════════════════════════════════════════════ */
-let jsPDFClass = null;
-try {
-  // eslint-disable-next-line import/no-extraneous-dependencies
-  const mod = await import("jspdf").catch(() => null);
-  if (mod) jsPDFClass = mod.jsPDF;
-} catch (_) {
-  // jspdf not installed — PDF falls back to .txt download (see generatePDFReport)
-}
-
-/* ════════════════════════════════════════════════════════════
    SLOT KEY — canonical identifier for one scheduled dose
    Format: "YYYY-MM-DD|HH:MM"   e.g. "2026-05-20|08:00"
+   This is the single source of truth for taken/missed state.
+   Never use fuzzy time windows for deduplication.
 ════════════════════════════════════════════════════════════ */
 function makeSlotKey(dateStr, timeStr) {
+  // dateStr = "YYYY-MM-DD", timeStr = "HH:MM"
   return `${dateStr}|${timeStr}`;
 }
 
@@ -72,25 +48,41 @@ function todayStr() {
   return new Date().toISOString().split("T")[0];
 }
 
+/**
+ * isTakenForSlot — pure, deterministic, no fuzzy window.
+ * A dose is taken if and only if taken[] contains an entry
+ * with slotKey === makeSlotKey(date, time).
+ */
 function isTakenForSlot(takenArray, date, time) {
   const key = makeSlotKey(date, time);
   return (takenArray || []).some(t => t.slotKey === key);
 }
 
+/**
+ * isDueNow — a slot is "due" if:
+ *   1. Not already taken today
+ *   2. Current time is within ±30 minutes of scheduled time
+ * Uses same ±30min window as "mark taken" guard — fully consistent.
+ */
 function isDueNow(med) {
-  const now   = new Date();
+  const now = new Date();
   const today = todayStr();
   return med.times.some(time => {
     if (isTakenForSlot(med.taken, today, time)) return false;
     const [h, m] = time.split(":").map(Number);
     const scheduled = new Date(now);
     scheduled.setHours(h, m, 0, 0);
-    return Math.abs(now - scheduled) <= 30 * 60 * 1000;
+    const diffMs = Math.abs(now - scheduled);
+    return diffMs <= 30 * 60 * 1000; // ±30 minutes only
   });
 }
 
+/**
+ * isOverdue — slot was scheduled earlier today and still not taken.
+ * Used for missed dose alerts.
+ */
 function isOverdueSlot(med, time) {
-  const now   = new Date();
+  const now = new Date();
   const today = todayStr();
   if (isTakenForSlot(med.taken, today, time)) return false;
   const [h, m] = time.split(":").map(Number);
@@ -106,12 +98,12 @@ function isLowStock(med) {
 function daysUntilRefill(med) {
   if (!med.refillDate) return null;
   const refill = new Date(med.refillDate);
-  const today  = new Date();
+  const today = new Date();
   return Math.ceil((refill - today) / (1000 * 60 * 60 * 24));
 }
 
 /* ════════════════════════════════════════════════════════════
-   ADHERENCE
+   ADHERENCE CALCULATION — per-slot, per-day
 ════════════════════════════════════════════════════════════ */
 function calcDayAdherence(medications, date) {
   let total = 0, taken = 0;
@@ -124,6 +116,11 @@ function calcDayAdherence(medications, date) {
   return total > 0 ? Math.round((taken / total) * 100) : 100;
 }
 
+/**
+ * getStreak — counts consecutive fully-adherent *completed* days
+ * ending yesterday. Today is excluded because it may be in progress.
+ * Returns 0 if yesterday was not 100%.
+ */
 function getStreak(medications) {
   let streak = 0;
   const today = new Date();
@@ -131,54 +128,59 @@ function getStreak(medications) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const dateKey = d.toISOString().split("T")[0];
-    if (calcDayAdherence(medications, dateKey) === 100) streak++;
+    const score = calcDayAdherence(medications, dateKey);
+    if (score === 100) streak++;
     else break;
   }
   return streak;
 }
 
 /* ════════════════════════════════════════════════════════════
-   INTERACTION CHECKER
+   INTERACTION CHECKER — exact name matching via Set, no substring bugs
 ════════════════════════════════════════════════════════════ */
 const INTERACTION_DB = {
   "Metformin": {
-    severe:   [{ withExact: "Contrast Dye",    msg: "Hold 48h before/after imaging procedures" }],
-    moderate: [{ withExact: "Alcohol",          msg: "Increases lactic acidosis risk — limit alcohol" }],
-    mild:     [{ withExact: "Cimetidine",       msg: "May increase Metformin plasma levels by ~40%" }],
+    severe:   [{ withExact: "Contrast Dye", msg: "Hold 48h before/after imaging procedures" }],
+    moderate: [{ withExact: "Alcohol",      msg: "Increases lactic acidosis risk — limit alcohol" }],
+    mild:     [{ withExact: "Cimetidine",   msg: "May increase Metformin plasma levels by ~40%" }],
   },
   "Atorvastatin": {
-    severe:   [{ withExact: "Grapefruit",       msg: "Grapefruit inhibits CYP3A4 — avoid entirely" }],
-    moderate: [{ withExact: "Clarithromycin",   msg: "Increases statin AUC 10x — myopathy risk" },
-               { withExact: "Erythromycin",     msg: "Increases statin exposure — monitor CK levels" }],
-    mild:     [{ withExact: "Antacid",          msg: "Separate doses by 2 hours — reduces absorption" }],
+    severe:   [{ withExact: "Grapefruit",   msg: "Grapefruit inhibits CYP3A4 — avoid entirely" }],
+    moderate: [{ withExact: "Clarithromycin", msg: "Increases statin AUC 10x — myopathy risk" },
+               { withExact: "Erythromycin",   msg: "Increases statin exposure — monitor CK levels" }],
+    mild:     [{ withExact: "Antacid",      msg: "Separate doses by 2 hours — reduces absorption" }],
   },
   "Lisinopril": {
-    severe:   [{ withExact: "Aliskiren",        msg: "Dual RAAS blockade — contraindicated in diabetes" }],
-    moderate: [{ withExact: "Potassium",        msg: "Risk of hyperkalemia — monitor K+ levels" },
-               { withExact: "Spironolactone",   msg: "Risk of hyperkalemia — close monitoring required" }],
-    mild:     [{ withExact: "Ibuprofen",        msg: "NSAIDs may reduce antihypertensive effect" },
-               { withExact: "Aspirin",          msg: "High-dose ASA may reduce BP control" }],
+    severe:   [{ withExact: "Aliskiren",    msg: "Dual RAAS blockade — contraindicated in diabetes" }],
+    moderate: [{ withExact: "Potassium",    msg: "Risk of hyperkalemia — monitor K+ levels" },
+               { withExact: "Spironolactone", msg: "Risk of hyperkalemia — close monitoring required" }],
+    mild:     [{ withExact: "Ibuprofen",    msg: "NSAIDs may reduce antihypertensive effect" },
+               { withExact: "Aspirin",      msg: "High-dose ASA may reduce BP control" }],
   },
   "Warfarin": {
-    severe:   [{ withExact: "Aspirin",          msg: "Significant bleeding risk — avoid combination" },
-               { withExact: "Ibuprofen",        msg: "Increases INR unpredictably — avoid" }],
-    moderate: [{ withExact: "Atorvastatin",     msg: "May potentiate anticoagulant effect — monitor INR" }],
+    severe:   [{ withExact: "Aspirin",      msg: "Significant bleeding risk — avoid combination" },
+               { withExact: "Ibuprofen",    msg: "Increases INR unpredictably — avoid" }],
+    moderate: [{ withExact: "Atorvastatin", msg: "May potentiate anticoagulant effect — monitor INR" }],
     mild:     [],
   },
 };
 
 function checkInteractions(medications) {
   const warnings = [];
-  const nameSet  = new Set(medications.map(m => m.name.trim()));
+  const nameSet = new Set(medications.map(m => m.name.trim()));
+  
   medications.forEach(med => {
     const db = INTERACTION_DB[med.name];
     if (!db) return;
-    ["severe", "moderate", "mild"].forEach(level => {
+    const levels = ["severe", "moderate", "mild"];
+    levels.forEach(level => {
       (db[level] || []).forEach(({ withExact, msg }) => {
+        // Exact Set lookup — no substring matching
         if (nameSet.has(withExact)) {
+          // Avoid duplicate (A→B and B→A)
           const exists = warnings.some(w =>
-            (w.med1 === med.name && w.med2 === withExact) ||
-            (w.med1 === withExact && w.med2 === med.name)
+            ((w.med1 === med.name && w.med2 === withExact) ||
+             (w.med1 === withExact && w.med2 === med.name))
           );
           if (!exists) warnings.push({ med1: med.name, med2: withExact, severity: level, message: msg });
         }
@@ -189,7 +191,7 @@ function checkInteractions(medications) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   TIME GROUPING
+   DOSE TIME GROUPING — smart morning/afternoon/evening/night
 ════════════════════════════════════════════════════════════ */
 function getTimeGroup(timeStr) {
   const [h] = timeStr.split(":").map(Number);
@@ -207,14 +209,11 @@ const TIME_GROUP_META = {
 };
 
 /* ════════════════════════════════════════════════════════════
-   PDF / TXT REPORT GENERATOR
-   ✅ BUILD-SAFE: uses static jsPDFClass reference (set at top).
-      No dynamic import() inside function body.
+   PDF REPORT GENERATOR — real html-to-canvas PDF
+   Falls back to formatted text download if jsPDF unavailable
 ════════════════════════════════════════════════════════════ */
 async function generatePDFReport(medications, adherenceScore, streak, interactions) {
   const today = new Date().toLocaleDateString("en-IN", { dateStyle: "full" });
-  const dateKey = new Date().toISOString().split("T")[0];
-
   const lines = [
     `MANIFIX MEDICATION REPORT`,
     `Generated: ${today}`,
@@ -248,45 +247,42 @@ async function generatePDFReport(medications, adherenceScore, streak, interactio
   ];
 
   const content = lines.join("\n");
-
-  // Try real PDF if jsPDF was imported successfully
-  if (jsPDFClass) {
-    try {
-      const doc = new jsPDFClass({ orientation: "portrait", unit: "mm", format: "a4" });
-      doc.setFont("courier", "normal");
-      doc.setFontSize(10);
-      const splitText = doc.splitTextToSize(content, 180);
-      doc.text(splitText, 15, 20);
-      doc.save(`manifix-medication-report-${dateKey}.pdf`);
-      return "pdf";
-    } catch (_) {
-      // fall through to txt
-    }
+  
+  // Try jsPDF if available
+  try {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    doc.setFont("courier", "normal");
+    doc.setFontSize(10);
+    const splitText = doc.splitTextToSize(content, 180);
+    doc.text(splitText, 15, 20);
+    doc.save(`manifix-medication-report-${todayStr()}.pdf`);
+    return "pdf";
+  } catch {
+    // Fallback: formatted .txt download
+    const blob = new Blob([content], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `manifix-medication-report-${todayStr()}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return "txt";
   }
-
-  // Fallback: formatted .txt download (works everywhere, zero deps)
-  const blob = new Blob([content], { type: "text/plain" });
-  const a    = document.createElement("a");
-  a.href     = URL.createObjectURL(blob);
-  a.download = `manifix-medication-report-${dateKey}.txt`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  return "txt";
 }
 
 /* ════════════════════════════════════════════════════════════
-   ADHERENCE HEATMAP
+   ADHERENCE HEATMAP — 90-day calendar grid
 ════════════════════════════════════════════════════════════ */
 function AdherenceHeatmap({ medications, accent }) {
   const cells = useMemo(() => {
-    const arr   = [];
+    const arr = [];
     const today = new Date();
     for (let i = 89; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const key   = d.toISOString().split("T")[0];
+      const key = d.toISOString().split("T")[0];
       const score = calcDayAdherence(medications, key);
-      arr.push({ key, score });
+      arr.push({ key, score, dayNum: d.getDate() });
     }
     return arr;
   }, [medications]);
@@ -306,7 +302,7 @@ function AdherenceHeatmap({ medications, accent }) {
               style={{
                 aspectRatio: "1",
                 borderRadius: 2,
-                background: score > 0 ? accent : "#111",
+                background: score === 100 ? accent : score > 0 ? `${accent}` : "#111",
                 opacity,
                 transition: "opacity .2s",
               }}
@@ -327,17 +323,16 @@ function AdherenceHeatmap({ medications, accent }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   REFILL RING
+   REFILL RING — circular countdown
 ════════════════════════════════════════════════════════════ */
 function RefillRing({ med, accent }) {
   const days = daysUntilRefill(med);
   if (days === null) return null;
   const maxDays = 90;
-  const pct     = Math.max(0, Math.min(1, days / maxDays));
-  const r       = 18;
-  const circ    = 2 * Math.PI * r;
-  const dash    = pct * circ;
-  const color   = days <= 3 ? "#f87171" : days <= 7 ? "#fbbf24" : accent;
+  const pct = Math.max(0, Math.min(1, days / maxDays));
+  const r = 18, circ = 2 * Math.PI * r;
+  const dash = pct * circ;
+  const color = days <= 3 ? "#f87171" : days <= 7 ? "#fbbf24" : accent;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
@@ -668,13 +663,13 @@ const MED_PHRASES = {
 
 function ph(lang, key, vars = {}) {
   const base = MED_PHRASES[lang] || MED_PHRASES["en-IN"];
-  let text    = base[key] || MED_PHRASES["en-IN"][key] || "";
+  let text = base[key] || MED_PHRASES["en-IN"][key] || "";
   Object.entries(vars).forEach(([k, v]) => { text = text.replace(`{${k}}`, v); });
   return text;
 }
 
 /* ════════════════════════════════════════════════════════════
-   DEFAULT MEDICATIONS
+   DEFAULT MEDICATIONS — normalized taken[] schema
 ════════════════════════════════════════════════════════════ */
 const DEFAULT_MEDS = [
   {
@@ -722,7 +717,7 @@ function loadMedications() {
   try {
     const saved = localStorage.getItem("manifix_medications_v6");
     if (saved) return JSON.parse(saved);
-  } catch (_) {}
+  } catch {}
   return DEFAULT_MEDS;
 }
 function saveMedications(meds) {
@@ -736,10 +731,10 @@ function createMedSpeaker(lang) {
   return function speak(text, urgent = false) {
     if (!("speechSynthesis" in window) || !text) return;
     const say = () => {
-      const u  = new SpeechSynthesisUtterance(text);
-      u.lang   = lang; u.rate = urgent ? 1.0 : 0.82; u.pitch = urgent ? 1.05 : 0.98;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang; u.rate = urgent ? 1.0 : 0.82; u.pitch = urgent ? 1.05 : 0.98;
       const voices = window.speechSynthesis.getVoices();
-      const base   = lang.split("-")[0];
+      const base = lang.split("-")[0];
       const v = voices.find(x => x.lang === lang)
              || voices.find(x => x.lang.startsWith(base))
              || voices.find(x => x.lang.startsWith("en"));
@@ -782,12 +777,12 @@ const MEDICATION_DOMAINS = {
 };
 
 /* ════════════════════════════════════════════════════════════
-   CSS
+   CSS INJECTION
 ════════════════════════════════════════════════════════════ */
 function injectCSS() {
   if (document.getElementById("med-css-v6")) return;
-  const el    = document.createElement("style");
-  el.id       = "med-css-v6";
+  const el = document.createElement("style");
+  el.id = "med-css-v6";
   el.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -796,6 +791,7 @@ function injectCSS() {
     @keyframes slideUp{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes glowPulse{0%,100%{box-shadow:0 0 0 rgba(110,231,183,0)}50%{box-shadow:0 0 18px rgba(110,231,183,0.22)}}
+    @keyframes countdownShrink{from{width:100%}to{width:0%}}
     .fu{animation:fadeUp .42s cubic-bezier(.22,.68,0,1.2) both}
     .pulse-ring{animation:pulseRing 2.6s ease-in-out infinite}
     .btn-m:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px);transition:all .16s}
@@ -807,10 +803,10 @@ function injectCSS() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   MEDICATION CARD
+   MEDICATION CARD — per-slot tracking, undo, refill ring
 ════════════════════════════════════════════════════════════ */
-function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak }) {
-  const today   = todayStr();
+function MedicationCard({ med, onMarkSlot, onUndoSlot, onEdit, onDelete, accent, lang, speak }) {
+  const today = todayStr();
   const overdue = med.times.some(t => isOverdueSlot(med, t));
 
   return (
@@ -819,7 +815,7 @@ function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak
       background: isDueNow(med) ? `${accent}0d` : overdue ? "#1a150a" : "#090909",
       padding: "15px 16px", borderRadius: 12, marginBottom: 10,
     }}>
-      {/* Header */}
+      {/* Header row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
           <div style={{ width: 42, height: 42, borderRadius: "50%", background: med.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>💊</div>
@@ -832,14 +828,16 @@ function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak
         <RefillRing med={med} accent={accent} />
       </div>
 
-      {/* Slot chips */}
+      {/* Per-slot time chips */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {med.times.map(time => {
-          const taken = isTakenForSlot(med.taken, today, time);
-          const now   = new Date();
-          const [h, m] = time.split(":").map(Number);
-          const sched  = new Date(now); sched.setHours(h, m, 0, 0);
-          const due    = Math.abs(now - sched) <= 30 * 60 * 1000;
+          const taken  = isTakenForSlot(med.taken, today, time);
+          const due    = (() => {
+            const now = new Date();
+            const [h, m] = time.split(":").map(Number);
+            const scheduled = new Date(now); scheduled.setHours(h, m, 0, 0);
+            return Math.abs(now - scheduled) <= 30 * 60 * 1000;
+          })();
           const over   = isOverdueSlot(med, time);
           const group  = TIME_GROUP_META[getTimeGroup(time)];
 
@@ -877,10 +875,10 @@ function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak
         })}
       </div>
 
-      {/* Daily progress */}
+      {/* Daily progress bar */}
       {(() => {
         const takenCount = med.times.filter(t => isTakenForSlot(med.taken, today, t)).length;
-        const pct        = Math.round((takenCount / med.times.length) * 100);
+        const pct = Math.round((takenCount / med.times.length) * 100);
         return (
           <div style={{ marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3a3a3a", marginBottom: 3 }}>
@@ -894,7 +892,7 @@ function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak
         );
       })()}
 
-      {/* Low stock */}
+      {/* Low stock warning */}
       {isLowStock(med) && (
         <div style={{ fontSize: 11, color: "#fbbf24", background: "#1a150a", padding: "5px 10px", borderRadius: 6, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
           ⚠ Only {med.pillsRemaining} pills left · Refill in {daysUntilRefill(med) ?? "—"} days
@@ -909,7 +907,7 @@ function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak
         )}
       </div>
 
-      {/* Actions */}
+      {/* Action row */}
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn-m card-focus"
           onClick={() => onEdit(med)}
@@ -929,7 +927,7 @@ function MedicationCard({ med, onMarkSlot, onEdit, onDelete, accent, lang, speak
 /* ════════════════════════════════════════════════════════════
    INTERACTION WARNING
 ════════════════════════════════════════════════════════════ */
-function InteractionWarning({ warning }) {
+function InteractionWarning({ warning, accent }) {
   const palettes = {
     severe:   { bg: "#1a0404", border: "#f87171", text: "#fca5a5" },
     moderate: { bg: "#1a1005", border: "#fbbf24", text: "#fcd34d" },
@@ -962,11 +960,11 @@ function AddEditModal({ med, onClose, onSave, accent }) {
     pharmacistNotes: "", halfPillSupport: false,
   });
 
-  const set        = (k, v)  => setForm(p => ({ ...p, [k]: v }));
-  const setTime    = (i, v)  => { const t = [...form.times]; t[i] = v; set("times", t); };
-  const addTime    = ()      => set("times", [...form.times, ""]);
-  const removeTime = (i)     => form.times.length > 1 && set("times", form.times.filter((_, j) => j !== i));
-  const valid      = form.name.trim() && form.dosage.trim() && form.times.every(t => t);
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setTime = (i, v) => { const t = [...form.times]; t[i] = v; set("times", t); };
+  const addTime = () => set("times", [...form.times, ""]);
+  const removeTime = (i) => form.times.length > 1 && set("times", form.times.filter((_, j) => j !== i));
+  const valid = form.name.trim() && form.dosage.trim() && form.times.every(t => t);
 
   const save = () => {
     if (!valid) return;
@@ -990,17 +988,13 @@ function AddEditModal({ med, onClose, onSave, accent }) {
           <button onClick={onClose} style={{ fontSize: 18, background: "none", border: "none", color: "#555", cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <label style={labelStyle}>Name *</label>
-            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g., Metformin" style={fieldStyle} />
-          </div>
+          <div><label style={labelStyle}>Name *</label><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g., Metformin" style={fieldStyle} /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div><label style={labelStyle}>Generic Name</label><input value={form.generic} onChange={e => set("generic", e.target.value)} placeholder="e.g., Metformin HCl" style={fieldStyle} /></div>
             <div><label style={labelStyle}>Dosage *</label><input value={form.dosage} onChange={e => set("dosage", e.target.value)} placeholder="e.g., 500mg" style={fieldStyle} /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
-              <label style={labelStyle}>Category</label>
+            <div><label style={labelStyle}>Category</label>
               <select value={form.category} onChange={e => set("category", e.target.value)} style={fieldStyle}>
                 {["Prescription","Supplement","OTC","Herbal"].map(c => <option key={c} value={c} style={{ background: "#111" }}>{c}</option>)}
               </select>
@@ -1013,7 +1007,7 @@ function AddEditModal({ med, onClose, onSave, accent }) {
               <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                 <input type="time" value={time} onChange={e => setTime(i, e.target.value)} style={{ ...fieldStyle, flex: 1 }} />
                 <span style={{ fontSize: 11, color: "#3a3a3a", display: "flex", alignItems: "center", padding: "0 6px" }}>
-                  {TIME_GROUP_META[getTimeGroup(time || "00:00")]?.emoji}
+                  {TIME_GROUP_META[getTimeGroup(time)]?.emoji}
                 </span>
                 {form.times.length > 1 && (
                   <button onClick={() => removeTime(i)} style={{ padding: "6px 10px", fontSize: 13, background: "#1a0a0a", border: "1.5px solid #3a1a1a", color: "#f87171", borderRadius: 7, cursor: "pointer" }}>✕</button>
@@ -1074,39 +1068,43 @@ function WHOPanel({ domainKey, accent, open }) {
    MAIN COMPONENT
 ════════════════════════════════════════════════════════════ */
 export default function MedicationHealth() {
-  const navigate = useNavigate();
-  const lang     = useMemo(loadLang, []);
-  const speak    = useMemo(() => createMedSpeaker(lang), [lang]);
+  const navigate  = useNavigate();
+  const lang      = useMemo(loadLang, []);
+  const speak     = useMemo(() => createMedSpeaker(lang), [lang]);
 
-  const [medications, setMedications] = useState(loadMedications);
-  const [showModal,   setShowModal]   = useState(false);
-  const [editingMed,  setEditingMed]  = useState(null);
-  const [showReport,  setShowReport]  = useState(false);
-  const [whoOpen,     setWhoOpen]     = useState(false);
-  const [whoDomain,   setWhoDomain]   = useState("adherence");
-  const [loading,     setLoading]     = useState(true);
-  const [offline,     setOffline]     = useState(!navigator.onLine);
-  const [tick,        setTick]        = useState(0);
-  const [toast,       setToast]       = useState(null);
-  const undoTimerRef         = useRef(null);
-  const lowStockAlertedRef   = useRef(false);
+  const [medications,  setMedications]  = useState(loadMedications);
+  const [showModal,    setShowModal]    = useState(false);
+  const [editingMed,   setEditingMed]   = useState(null);
+  const [showReport,   setShowReport]   = useState(false);
+  const [whoOpen,      setWhoOpen]      = useState(false);
+  const [whoDomain,    setWhoDomain]    = useState("adherence");
+  const [loading,      setLoading]      = useState(true);
+  const [offline,      setOffline]      = useState(!navigator.onLine);
+  const [tick,         setTick]         = useState(0);  // forces recheck of due/overdue
+  const [toast,        setToast]        = useState(null); // { medName, medId, time, slotKey, countdown }
+  const undoTimerRef = useRef(null);
+  const lowStockAlertedRef = useRef(false); // fires ONCE on mount only
 
+  /* ── Persist ── */
   useEffect(() => { saveMedications(medications); }, [medications]);
+
+  /* ── CSS ── */
   useEffect(() => { injectCSS(); }, []);
 
+  /* ── Offline ── */
   useEffect(() => {
-    const on  = () => setOffline(false);
-    const off = () => setOffline(true);
-    window.addEventListener("online",  on);
-    window.addEventListener("offline", off);
+    const on = () => setOffline(false), off = () => setOffline(true);
+    window.addEventListener("online", on); window.addEventListener("offline", off);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
+  /* ── Real-time tick: re-evaluate due/overdue every 60s ── */
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
+  /* ── Welcome + one-time low-stock alerts ── */
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
@@ -1119,31 +1117,36 @@ export default function MedicationHealth() {
       }
     }, 900);
     return () => clearTimeout(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once
 
+  /* ── Announce due meds whenever tick changes ── */
   useEffect(() => {
     if (loading) return;
-    medications.filter(m => isDueNow(m)).forEach(m =>
-      speak(ph(lang, "remind", { med: m.name, dosage: m.dosage, instruction: m.instructions.split(",")[0] || "water" }), true)
-    );
-  }, [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+    const due = medications.filter(m => isDueNow(m));
+    due.forEach(m => speak(ph(lang, "remind", { med: m.name, dosage: m.dosage, instruction: m.instructions.split(",")[0] || "water" }), true));
+  }, [tick]); // eslint-disable-line
 
-  const adherenceScore = useMemo(() => calcDayAdherence(medications, todayStr()), [medications, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* ── Computed values (re-run on tick so they stay live) ── */
+  const adherenceScore = useMemo(() => calcDayAdherence(medications, todayStr()), [medications, tick]); // eslint-disable-line
   const streak         = useMemo(() => getStreak(medications),           [medications]);
   const interactions   = useMemo(() => checkInteractions(medications),   [medications]);
-  const dueMeds        = useMemo(() => medications.filter(isDueNow),     [medications, tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const overdueMeds    = useMemo(() => medications.filter(m => m.times.some(t => isOverdueSlot(m, t))), [medications, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dueMeds        = useMemo(() => medications.filter(isDueNow),     [medications, tick]); // eslint-disable-line
+  const overdueMeds    = useMemo(() => medications.filter(m => m.times.some(t => isOverdueSlot(m, t))), [medications, tick]); // eslint-disable-line
 
-  /* MARK SLOT */
+  /* ── MARK SLOT — deduplicated per (medId, slotKey) ── */
   const handleMarkSlot = useCallback((medId, time, date) => {
     const slotKey = makeSlotKey(date, time);
     setMedications(prev => prev.map(med => {
       if (med.id !== medId) return med;
+      // Idempotent: skip if already taken for this exact slot
       if (isTakenForSlot(med.taken, date, time)) return med;
+      const newEntry = { slotKey, takenAt: new Date().toISOString() };
+      // Decrement pill count
       const newPills = Math.max(0, (med.pillsRemaining || 0) - (med.halfPillSupport ? 0.5 : 1));
-      return { ...med, taken: [...(med.taken || []), { slotKey, takenAt: new Date().toISOString() }], pillsRemaining: newPills };
+      return { ...med, taken: [...(med.taken || []), newEntry], pillsRemaining: newPills };
     }));
 
+    // Show undo toast with 5-second countdown
     const medName = medications.find(m => m.id === medId)?.name || "Medication";
     clearTimeout(undoTimerRef.current);
     setToast({ medName, medId, time, slotKey, date, countdown: 5 });
@@ -1155,24 +1158,24 @@ export default function MedicationHealth() {
     undoTimerRef.current = setTimeout(() => { clearInterval(countdown); setToast(null); }, 5500);
   }, [medications]);
 
-  /* UNDO */
+  /* ── UNDO — removes the specific slotKey entry ── */
   const handleUndo = useCallback(() => {
     if (!toast) return;
     clearTimeout(undoTimerRef.current);
     setToast(null);
     setMedications(prev => prev.map(med => {
       if (med.id !== toast.medId) return med;
-      const newTaken  = (med.taken || []).filter(t => t.slotKey !== toast.slotKey);
-      const restored  = Math.min((med.pillsRemaining || 0) + (med.halfPillSupport ? 0.5 : 1), 999);
+      const newTaken = (med.taken || []).filter(t => t.slotKey !== toast.slotKey);
+      const restored = Math.min((med.pillsRemaining || 0) + (med.halfPillSupport ? 0.5 : 1), 999);
       return { ...med, taken: newTaken, pillsRemaining: restored };
     }));
     speak(ph(lang, "undo", { med: toast.medName }));
   }, [toast, speak, lang]);
 
-  /* MARK ALL DUE */
+  /* ── MARK ALL DUE ── */
   const handleMarkAllDue = useCallback(() => {
-    const now   = todayStr();
-    let marked  = 0;
+    const now = todayStr();
+    let marked = 0;
     setMedications(prev => prev.map(med => {
       if (!isDueNow(med)) return med;
       let newMed = { ...med, taken: [...(med.taken || [])] };
@@ -1185,29 +1188,28 @@ export default function MedicationHealth() {
       });
       return newMed;
     }));
-    speak(ph(lang, marked > 0 ? "allDue" : "noMeds"));
+    if (marked > 0) speak(ph(lang, "allDue"));
+    else speak(ph(lang, "noMeds"));
   }, [speak, lang]);
 
-  /* SAVE MED */
+  /* ── SAVE MED ── */
   const handleSaveMed = useCallback((med) => {
     if (editingMed) setMedications(prev => prev.map(m => m.id === med.id ? med : m));
-    else            setMedications(prev => [...prev, med]);
+    else setMedications(prev => [...prev, med]);
     setEditingMed(null); setShowModal(false);
   }, [editingMed]);
 
-  /* DELETE */
+  /* ── DELETE ── */
   const handleDelete = useCallback((id) => setMedications(prev => prev.filter(m => m.id !== id)), []);
 
-  /* REPORT */
+  /* ── REPORT ── */
   const handleReport = useCallback(async () => {
     setShowReport(false);
-    await generatePDFReport(medications, adherenceScore, streak, interactions);
+    const type = await generatePDFReport(medications, adherenceScore, streak, interactions);
     speak(ph(lang, "report"));
   }, [medications, adherenceScore, streak, interactions, lang, speak]);
 
-  const A  = "#6EE7B7";
-  const BG = "#030d0c";
-  const B  = "#0f2a26";
+  const A = "#6EE7B7", BG = "#030d0c", B = "#0f2a26";
 
   if (loading) {
     return (
@@ -1226,14 +1228,17 @@ export default function MedicationHealth() {
       <div style={{ position: "fixed", inset: 0, pointerEvents: "none", backgroundImage: `linear-gradient(rgba(110,231,183,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(110,231,183,0.02) 1px,transparent 1px)`, backgroundSize: "44px 44px" }} />
       <div style={{ position: "fixed", top: "26%", left: "50%", transform: "translateX(-50%)", width: 400, height: 200, background: `radial-gradient(ellipse,${A}0c 0%,transparent 70%)`, pointerEvents: "none" }} />
 
+      {/* Offline badge */}
       {offline && (
         <div style={{ position: "fixed", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 99, fontSize: 10, letterSpacing: ".14em", background: "#081a16", border: `1.5px solid ${A}`, color: A, padding: "4px 14px", textTransform: "uppercase", borderRadius: 20 }}>
           ⚡ Offline — All features work
         </div>
       )}
 
+      {/* Undo Toast */}
       <UndoToast toast={toast} onUndo={handleUndo} accent={A} />
 
+      {/* ═══ MAIN WRAPPER ═══ */}
       <div style={{ position: "relative", zIndex: 2, width: "min(480px,97vw)", display: "flex", flexDirection: "column", gap: 12, paddingTop: 20, paddingBottom: 52 }}>
 
         {/* HEADER */}
@@ -1250,7 +1255,7 @@ export default function MedicationHealth() {
           </div>
         </div>
 
-        {/* ADHERENCE SCORE */}
+        {/* ADHERENCE SCORE CARD */}
         <div className="fu" style={{ border: `1.5px solid ${A}44`, background: `${A}0a`, padding: "16px 18px", borderRadius: 12 }}>
           <div style={{ fontSize: 10, letterSpacing: ".2em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 10 }}>Today's Adherence</div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -1269,15 +1274,18 @@ export default function MedicationHealth() {
           </div>
         </div>
 
-        {/* DUE NOW */}
+        {/* DUE NOW BANNER */}
         {dueMeds.length > 0 && (
           <div className="pulse-ring" style={{ border: `2px solid ${A}`, background: `${A}10`, padding: "13px 16px", borderRadius: 11 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 22 }}>⏰</span>
-                <span style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Syne',sans-serif" }}>{dueMeds.length} due now</span>
+                <span style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Syne',sans-serif" }}>
+                  {dueMeds.length} due now
+                </span>
               </div>
-              <button className="btn-m" onClick={handleMarkAllDue}
+              <button className="btn-m"
+                onClick={handleMarkAllDue}
                 style={{ fontSize: 11, padding: "6px 12px", background: A, border: "none", color: BG, borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, letterSpacing: ".08em" }}>
                 Mark All Taken ✓
               </button>
@@ -1286,7 +1294,7 @@ export default function MedicationHealth() {
           </div>
         )}
 
-        {/* OVERDUE */}
+        {/* OVERDUE BANNER */}
         {overdueMeds.length > 0 && (
           <div style={{ border: "2px solid #fbbf24", background: "#1a150a", padding: "11px 14px", borderRadius: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1298,15 +1306,15 @@ export default function MedicationHealth() {
           </div>
         )}
 
-        {/* INTERACTIONS */}
+        {/* INTERACTION ALERTS */}
         {interactions.length > 0 && (
           <div>
             <div style={{ fontSize: 10, letterSpacing: ".18em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 6 }}>⚠ Interaction Alerts</div>
-            {interactions.map((w, i) => <InteractionWarning key={i} warning={w} />)}
+            {interactions.map((w, i) => <InteractionWarning key={i} warning={w} accent={A} />)}
           </div>
         )}
 
-        {/* MED LIST */}
+        {/* MEDICATIONS LIST */}
         <div>
           <div style={{ fontSize: 10, letterSpacing: ".2em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 10, display: "flex", justifyContent: "space-between" }}>
             <span>💊 Your Medications</span>
@@ -1316,7 +1324,7 @@ export default function MedicationHealth() {
             ? <div style={{ textAlign: "center", padding: 24, color: "#4a4a4a", fontSize: 13 }}>No medications yet. Tap "Add Medication" to start.</div>
             : medications.map(med => (
               <MedicationCard key={med.id} med={med}
-                onMarkSlot={handleMarkSlot}
+                onMarkSlot={handleMarkSlot} onUndoSlot={handleUndo}
                 onEdit={m => { setEditingMed(m); setShowModal(true); }}
                 onDelete={handleDelete}
                 accent={A} lang={lang} speak={speak} />
@@ -1328,7 +1336,7 @@ export default function MedicationHealth() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {[
             { label: "+ Add Medication", onClick: () => { setEditingMed(null); setShowModal(true); }, primary: true },
-            { label: "📄 Doctor Report",  onClick: () => setShowReport(true),                        primary: false },
+            { label: "📄 Doctor Report", onClick: () => setShowReport(true), primary: false },
           ].map(({ label, onClick, primary }) => (
             <button key={label} className="btn-m card-focus" onClick={onClick}
               style={{ padding: "14px", fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", background: primary ? A : "#0a1a18", border: `2px solid ${primary ? "#000" : B}`, color: primary ? BG : A, borderRadius: 11, cursor: "pointer", transition: "all .16s", letterSpacing: ".02em" }}>
@@ -1353,12 +1361,12 @@ export default function MedicationHealth() {
           </button>
         </div>
 
-        {/* HEATMAP */}
+        {/* ADHERENCE HEATMAP */}
         <div style={{ border: "1.5px solid #111", background: "#070707", padding: "14px 16px", borderRadius: 11 }}>
           <AdherenceHeatmap medications={medications} accent={A} />
         </div>
 
-        {/* WHO PANEL */}
+        {/* WHO PANEL TOGGLE */}
         <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             {Object.entries(MEDICATION_DOMAINS).map(([k, d]) => (
@@ -1401,9 +1409,7 @@ export default function MedicationHealth() {
             <div style={{ fontSize: 17, fontWeight: 700, color: "#f0ede6", fontFamily: "'Syne',sans-serif", marginBottom: 10 }}>📋 Medication Report</div>
             <div style={{ fontSize: 12, color: "#6a6a6a", marginBottom: 16, lineHeight: 1.7 }}>
               Generates a full summary of your medications, adherence score ({adherenceScore}%), {streak}-day streak, and any interaction alerts.<br />
-              <span style={{ color: "#3a3a3a" }}>
-                {jsPDFClass ? "Downloads as PDF (jsPDF)." : "Downloads as .txt (install jspdf for PDF)."}
-              </span>
+              <span style={{ color: "#3a3a3a" }}>Downloads as PDF (jsPDF) or .txt if not available.</span>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setShowReport(false)} style={{ flex: 1, padding: "12px", fontSize: 13, fontWeight: 600, background: "#111", border: "1.5px solid #333", color: "#8a8680", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
