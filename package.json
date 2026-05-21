@@ -29,6 +29,7 @@
     "rehype-sanitize": "^5.0.1",
     "framer-motion": "^10.12.16",
     "bullmq": "^5.69.3",
+    "jspdf": "^3.0.1",
     "canvas-confetti": "^1.9.4",
     "dayjs": "^1.11.10",
     "lucide-react": "^0.x.x",
