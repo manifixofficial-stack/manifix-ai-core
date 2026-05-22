@@ -35,7 +35,7 @@ import MentalHealth     from "./pages/MentalHealth";
 import SleepHealth      from "./pages/SleepHealth";
 import NutritionHealth  from "./pages/NutritionHealth";
 import StressHealth     from "./pages/StressHealth";
-import ChronicHealth    from "./pages/ChronicHealth";
+import ChronicHealth    from "./pages/ChronicDisease";   // ← FIXED: was ChronicHealth
 import WomenHealth      from "./pages/WomenHealth";
 import ElderlyHealth    from "./pages/ElderlyHealth";
 import MedicationHealth from "./pages/MedicationHealth";
@@ -50,11 +50,7 @@ import NotFound from "./pages/NotFound";
 ───────────────────────────────────────────── */
 function ScrollToTop() {
   const { pathname } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 }
 
@@ -78,12 +74,8 @@ export default function AppRouter() {
         setHasStarted(true);
       }
     };
-
     window.addEventListener("storage", handleStorage);
-
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-    };
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   const appElement = (
@@ -105,51 +97,30 @@ export default function AppRouter() {
         {/* ───────────────── LANDING ───────────────── */}
         <Route
           path="/"
-          element={
-            user
-              ? <Navigate to="/app/dashboard" replace />
-              : <Landing />
-          }
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Landing />}
         />
 
         {/* ───────────────── HOME ───────────────── */}
         <Route
           path="/home"
-          element={
-            user
-              ? <Navigate to="/app/dashboard" replace />
-              : <Home />
-          }
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Home />}
         />
 
         {/* ───────────────── LEGAL ───────────────── */}
-        <Route path="/privacy" element={<Privacy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/privacy"         element={<Privacy />} />
+        <Route path="/terms"           element={<Terms />} />
+        <Route path="/reset-password"  element={<ResetPassword />} />
 
         {/* ───────────────── AUTH ───────────────── */}
         <Route
           path="/login"
-          element={
-            user
-              ? <Navigate to="/app/dashboard" replace />
-              : <Login />
-          }
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Login />}
         />
-
         <Route
           path="/signup"
-          element={
-            user
-              ? <Navigate to="/app/dashboard" replace />
-              : <Signup />
-          }
+          element={user ? <Navigate to="/app/dashboard" replace /> : <Signup />}
         />
-
-        <Route
-          path="/forgot-password"
-          element={<ForgotPassword />}
-        />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ───────────────── ONBOARDING ───────────────── */}
         <Route
@@ -169,82 +140,29 @@ export default function AppRouter() {
         <Route path="/app" element={appElement}>
 
           {/* Default */}
-          <Route
-            index
-            element={<Navigate to="dashboard" replace />}
-          />
+          <Route index element={<Navigate to="dashboard" replace />} />
 
-          {/* Core */}
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="magic16" element={<Magic16 />} />
-          <Route path="result" element={<Result />} />
+          {/* ── Core ── */}
+          <Route path="dashboard"  element={<Dashboard />} />
+          <Route path="magic16"    element={<Magic16 />} />
+          <Route path="result"     element={<Result />} />
           <Route path="leaderboard" element={<Leaderboard />} />
-          <Route path="recruit" element={<Recruit />} />
-          <Route path="gpt" element={<Gpt />} />
+          <Route path="recruit"    element={<Recruit />} />
+          <Route path="gpt"        element={<Gpt />} />
           <Route path="membership" element={<Billing />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path="settings"   element={<Settings />} />
 
-          {/* ───────────────── HEALTH ECOSYSTEM ───────────────── */}
-
-          {/* Mental */}
-          <Route
-            path="mental"
-            element={<MentalHealth />}
-          />
-
-          {/* Sleep */}
-          <Route
-            path="sleep"
-            element={<SleepHealth />}
-          />
-
-          {/* Nutrition */}
-          <Route
-            path="nutrition"
-            element={<NutritionHealth />}
-          />
-
-          {/* Stress */}
-          <Route
-            path="stress"
-            element={<StressHealth />}
-          />
-
-          {/* Chronic */}
-          <Route
-            path="chronic"
-            element={<ChronicHealth />}
-          />
-
-          {/* Women */}
-          <Route
-            path="women"
-            element={<WomenHealth />}
-          />
-
-          {/* Elderly */}
-          <Route
-            path="elderly"
-            element={<ElderlyHealth />}
-          />
-
-          {/* Medication */}
-          <Route
-            path="medication"
-            element={<MedicationHealth />}
-          />
-
-          {/* Children */}
-          <Route
-            path="children"
-            element={<ChildrenHealth />}
-          />
-
-          {/* Preventive */}
-          <Route
-            path="preventive"
-            element={<PreventiveHealth />}
-          />
+          {/* ── Health Ecosystem ── */}
+          <Route path="mental"     element={<MentalHealth />} />
+          <Route path="sleep"      element={<SleepHealth />} />
+          <Route path="nutrition"  element={<NutritionHealth />} />
+          <Route path="stress"     element={<StressHealth />} />
+          <Route path="chronic"    element={<ChronicHealth />} />   {/* /app/chronic */}
+          <Route path="women"      element={<WomenHealth />} />
+          <Route path="elderly"    element={<ElderlyHealth />} />
+          <Route path="medication" element={<MedicationHealth />} />
+          <Route path="children"   element={<ChildrenHealth />} />
+          <Route path="preventive" element={<PreventiveHealth />} />
 
         </Route>
 
