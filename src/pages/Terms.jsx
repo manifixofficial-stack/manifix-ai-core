@@ -422,9 +422,9 @@ export default function Terms() {
             </Para>
             <div style={{ marginTop: "20px" }}>
               {[
-                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where control means ownership of 50% or more of the shares or voting securities."],
+                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where \"control\" means ownership of 50% or more of the shares or voting securities."],
                 ["Country", "Andhra Pradesh, India"],
-                ["Company", "ManifixAI Private Limited,India. Also referred to as We, Us, or Our."],
+                ["Company", "ManifixAI Private Limited,Andhra Pradesh 530008, India. Also referred to as \"We\", \"Us\", or \"Our\"."],
                 ["Device", "Any device that can access the Service — computer, mobile phone, or digital tablet."],
                 ["Service", "The ManifiX AI website accessible from www.manifixai.com."],
                 ["Terms and Conditions", "These Terms and Conditions, including any documents expressly incorporated by reference, forming the entire agreement between You and the Company regarding the Service."],
@@ -497,7 +497,7 @@ export default function Terms() {
               does not endorse or assume responsibility for any Third-Party Social Media Service.
             </Para>
             <Para mt={14}>
-              Your use of any Third-Party Social Media Service is governed by that service's own terms and
+              Your use of any Third-Party Social Media Service is governed by that service&apos;s own terms and
               privacy policies. The Company is not responsible for any damage or loss arising from your
               access to or use of any Third-Party Social Media Service.
             </Para>
@@ -528,7 +528,7 @@ export default function Terms() {
               Notwithstanding any damages that you might incur, the entire liability of the Company and any
               of its suppliers under any provision of these Terms and your exclusive remedy for all of the
               foregoing shall be limited to the amount actually paid by you through the Service or{" "}
-              <strong style={{ color: G.text }}>100 USD</strong> if you haven't purchased anything through the Service.
+              <strong style={{ color: G.text }}>100 USD</strong> if you haven&apos;t purchased anything through the Service.
             </Para>
             <Para mt={14}>
               To the maximum extent permitted by applicable law, in no event shall the Company or its
@@ -545,16 +545,16 @@ export default function Terms() {
             <Para mt={14}>
               Some states do not allow the exclusion of implied warranties or limitation of liability for
               incidental or consequential damages, which means some of the above limitations may not apply.
-              In these states, each party's liability will be limited to the greatest extent permitted by law.
+              In these states, each party&apos;s liability will be limited to the greatest extent permitted by law.
             </Para>
           </section>
 
           {/* 07 · Disclaimer */}
           <section id="disclaimer" className="terms-section">
             <SectionLabel num="07" text='"AS IS" Disclaimer' />
-            <H2>"AS IS" and "AS AVAILABLE" Disclaimer</H2>
+            <H2>&quot;AS IS&quot; and &quot;AS AVAILABLE&quot; Disclaimer</H2>
             <Para>
-              The Service is provided to you "AS IS" and "AS AVAILABLE" and with all faults and defects
+              The Service is provided to you &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; and with all faults and defects
               without warranty of any kind. To the maximum extent permitted under applicable law, the Company
               expressly disclaims all warranties, whether express, implied, statutory, or otherwise, including:
             </Para>
@@ -615,7 +615,7 @@ export default function Terms() {
               You represent and warrant that:
             </Para>
             <BulletList items={[
-              "You are not located in a country that is subject to the United States government embargo, or that has been designated by the United States government as a "terrorist supporting" country.",
+              "You are not located in a country that is subject to the United States government embargo, or that has been designated by the United States government as a \"terrorist supporting\" country.",
               "You are not listed on any United States government list of prohibited or restricted parties.",
             ]} />
           </section>
@@ -635,7 +635,7 @@ export default function Terms() {
             <SubHead>Waiver</SubHead>
             <Para>
               Except as provided herein, the failure to exercise a right or to require performance of an
-              obligation under these Terms shall not affect a party's ability to exercise such right or
+              obligation under these Terms shall not affect a party&apos;s ability to exercise such right or
               require such performance at any time thereafter. Nor shall the waiver of a breach constitute a
               waiver of any subsequent breach.
             </Para>
@@ -658,7 +658,7 @@ export default function Terms() {
             <Para>
               We reserve the right, at our sole discretion, to modify or replace these Terms at any time.
               If a revision is material, we will make reasonable efforts to provide at least{" "}
-              <strong style={{ color: G.text }}>30 days' notice</strong> prior to any new terms taking effect.
+              <strong style={{ color: G.text }}>30 days&apos; notice</strong> prior to any new terms taking effect.
               What constitutes a material change will be determined at our sole discretion.
             </Para>
             <Para mt={14}>
