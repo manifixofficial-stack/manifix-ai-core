@@ -1,520 +1,820 @@
-// src/pages/Privacy.jsx
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
 
+// ── Design Tokens ──────────────────────────────────────────────────────────────
 const G = {
-  gold:      "#D4AF37",
-  goldLight: "#F0D060",
-  goldDim:   "rgba(212,175,55,0.12)",
-  goldGlow:  "rgba(212,175,55,0.30)",
-  bg:        "#08080F",
-  surface:   "#0D0D18",
-  surface2:  "#111120",
-  border:    "rgba(212,175,55,0.13)",
-  borderHover:"rgba(212,175,55,0.32)",
-  text:      "#EEEEF4",
-  muted:     "rgba(238,238,244,0.50)",
-  dim:       "rgba(238,238,244,0.22)",
-  font:      "'Rajdhani', sans-serif",
-  body:      "'DM Sans', sans-serif",
-  mono:      "'JetBrains Mono', monospace",
+  gold:      "#C9A84C",
+  goldLight: "#E8C97A",
+  goldDim:   "rgba(201,168,76,0.10)",
+  goldGlow:  "rgba(201,168,76,0.25)",
+  bg:        "#07070E",
+  surface:   "#0C0C18",
+  surface2:  "#101020",
+  border:    "rgba(201,168,76,0.12)",
+  borderMid: "rgba(201,168,76,0.22)",
+  text:      "#EAEAF2",
+  muted:     "rgba(234,234,242,0.52)",
+  dim:       "rgba(234,234,242,0.20)",
+  font:      "'Cormorant Garamond', serif",
+  body:      "'Plus Jakarta Sans', sans-serif",
+  mono:      "'IBM Plex Mono', monospace",
 };
 
 const SECTIONS = [
-  { id: "overview",    label: "Overview" },
-  { id: "scope",       label: "Scope" },
-  { id: "definitions", label: "Definitions" },
-  { id: "data",        label: "Data Collected" },
-  { id: "usage",       label: "How We Use It" },
-  { id: "sharing",     label: "Sharing" },
-  { id: "security",    label: "Security" },
-  { id: "ai",          label: "AI Transparency" },
-  { id: "features",    label: "Features" },
-  { id: "rights",      label: "Your Rights" },
-  { id: "cookies",     label: "Cookies" },
-  { id: "payments",    label: "Payments" },
-  { id: "children",    label: "Children" },
-  { id: "updates",     label: "Policy Updates" },
-  { id: "contact",     label: "Contact" },
+  { id: "overview",     label: "Overview",            num: "01" },
+  { id: "definitions",  label: "Definitions",         num: "02" },
+  { id: "data",         label: "Data Collected",      num: "03" },
+  { id: "usage",        label: "How We Use It",       num: "04" },
+  { id: "sharing",      label: "Sharing",             num: "05" },
+  { id: "retention",    label: "Data Retention",      num: "06" },
+  { id: "transfer",     label: "Data Transfer",       num: "07" },
+  { id: "deletion",     label: "Delete Your Data",    num: "08" },
+  { id: "disclosure",   label: "Disclosure",          num: "09" },
+  { id: "security",     label: "Security",            num: "10" },
+  { id: "cookies",      label: "Cookies",             num: "11" },
+  { id: "children",     label: "Children's Privacy",  num: "12" },
+  { id: "links",        label: "Third-Party Links",   num: "13" },
+  { id: "updates",      label: "Policy Updates",      num: "14" },
+  { id: "contact",      label: "Contact",             num: "15" },
 ];
 
-const GLOBAL = `
-  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body { background: ${G.bg}; color: ${G.text}; font-family: ${G.body}; }
-  ::-webkit-scrollbar { width: 4px; }
+
+  ::-webkit-scrollbar { width: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: ${G.border}; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: ${G.border}; border-radius: 3px; }
+
   @keyframes shimmer {
-    0%   { background-position: -200% center; }
-    100% { background-position:  200% center; }
+    0%   { background-position: -300% center; }
+    100% { background-position:  300% center; }
   }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   .gold-shimmer {
-    background: linear-gradient(90deg, ${G.gold}, ${G.goldLight}, #B8860B, ${G.gold});
-    background-size: 200% auto;
+    background: linear-gradient(90deg, ${G.gold}, ${G.goldLight}, #A07828, ${G.goldLight}, ${G.gold});
+    background-size: 300% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: shimmer 3s linear infinite;
+    animation: shimmer 4s linear infinite;
   }
+
   .priv-nav-link {
-    display: block;
-    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
     font-family: ${G.mono};
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
     color: ${G.muted};
     text-decoration: none;
     border-left: 2px solid transparent;
-    transition: all 0.2s;
-    border-radius: 0 4px 4px 0;
+    transition: all 0.2s ease;
+    border-radius: 0 5px 5px 0;
   }
-  .priv-nav-link:hover, .priv-nav-link.active {
+  .priv-nav-link:hover {
+    color: ${G.goldLight};
+    border-left-color: ${G.gold};
+    background: ${G.goldDim};
+  }
+  .priv-nav-link.active {
     color: ${G.gold};
     border-left-color: ${G.gold};
     background: ${G.goldDim};
   }
+  .priv-nav-link .num {
+    font-size: 9px;
+    opacity: 0.45;
+    min-width: 18px;
+  }
+
   .priv-section {
-    padding: 40px 0;
+    padding: 48px 0;
     border-bottom: 1px solid ${G.border};
+    animation: fadeUp 0.5s ease both;
   }
   .priv-section:last-child { border-bottom: none; }
-  .priv-list li {
+
+  .data-row {
+    display: flex;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.035);
+    font-size: 14.5px;
+    color: ${G.muted};
+    line-height: 1.7;
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-label {
+    font-family: ${G.mono};
+    font-size: 10px;
+    color: ${G.gold};
+    min-width: 140px;
+    padding-top: 3px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .bullet-item {
     display: flex;
     gap: 12px;
     padding: 10px 0;
-    font-size: 15px;
+    font-size: 14.5px;
     color: ${G.muted};
-    line-height: 1.65;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    line-height: 1.7;
+    border-bottom: 1px solid rgba(255,255,255,0.035);
   }
-  .priv-list li:last-child { border-bottom: none; }
-  @media (max-width: 900px) {
+  .bullet-item:last-child { border-bottom: none; }
+  .bullet-dot {
+    color: ${G.gold};
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 12px;
+  }
+
+  @media (max-width: 920px) {
     .priv-layout { flex-direction: column !important; }
-    .priv-sidebar { position: static !important; width: 100% !important; display: flex !important; flex-wrap: wrap !important; gap: 4px !important; padding: 16px !important; }
-    .priv-sidebar a { border-left: none !important; border: 1px solid ${G.border} !important; border-radius: 6px !important; padding: 6px 12px !important; }
+    .priv-sidebar {
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 4px !important;
+      padding: 16px 20px !important;
+      border-right: none !important;
+      border-bottom: 1px solid ${G.border} !important;
+    }
+    .priv-sidebar .priv-nav-link {
+      border: 1px solid ${G.border} !important;
+      border-left: 2px solid transparent !important;
+      border-radius: 6px !important;
+      padding: 5px 12px !important;
+    }
+    .priv-sidebar .priv-nav-link.active {
+      border-color: ${G.goldGlow} !important;
+      border-left-color: ${G.gold} !important;
+    }
+    .priv-main { padding: 32px 20px 60px !important; }
   }
 `;
 
-// ── Inline SVG Logo ────────────────────────────────────────────────────────────
-const ManifixLogo = ({ size = 32 }) => (
+// ── Logo ───────────────────────────────────────────────────────────────────────
+const ManifixLogo = ({ size = 30 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-    <rect width="32" height="32" rx="8" fill="url(#pvLG)" />
-    <path d="M5 25V9L11.5 9L16 17.5L20.5 9L27 9V25H22.5V15.5L16 25.5L9.5 15.5V25Z" fill="#fff"/>
-    <circle cx="26" cy="8" r="3.5" fill={G.gold}/>
+    <rect width="32" height="32" rx="7" fill="url(#pvLG)" />
+    <path d="M5 25V9L11.5 9L16 17.5L20.5 9L27 9V25H22.5V15.5L16 25.5L9.5 15.5V25Z" fill="#fff" />
+    <circle cx="26" cy="8" r="3" fill={G.gold} />
     <defs>
       <linearGradient id="pvLG" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#1a1a2e"/>
-        <stop offset="100%" stopColor="#0f0f18"/>
+        <stop offset="0%" stopColor="#1a1a30" />
+        <stop offset="100%" stopColor="#0a0a16" />
       </linearGradient>
     </defs>
   </svg>
 );
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function SectionLabel({ num, text }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+      <span style={{ fontFamily: G.mono, fontSize: "9px", color: G.gold, letterSpacing: "0.2em", opacity: 0.6 }}>{num}</span>
+      <span style={{ fontFamily: G.mono, fontSize: "10px", color: G.gold, letterSpacing: "0.16em", textTransform: "uppercase" }}>{text}</span>
+    </div>
+  );
+}
+
+function InfoCard({ children }) {
+  return (
+    <div style={{
+      marginTop: "16px", padding: "16px 20px",
+      background: "rgba(201,168,76,0.05)",
+      border: `1px solid ${G.borderMid}`,
+      borderLeft: `3px solid ${G.gold}`,
+      borderRadius: "0 10px 10px 0",
+      fontSize: "13.5px", color: "rgba(234,234,242,0.65)", lineHeight: 1.7,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function SubHead({ children }) {
+  return (
+    <h3 style={{
+      fontFamily: G.font, fontSize: "17px", fontWeight: 600,
+      color: G.goldLight, marginTop: "24px", marginBottom: "10px",
+      letterSpacing: "0.02em",
+    }}>
+      {children}
+    </h3>
+  );
+}
+
+function Para({ children, mt = 0 }) {
+  return (
+    <p style={{
+      fontSize: "15px", color: G.muted, lineHeight: 1.8,
+      marginTop: mt ? `${mt}px` : undefined,
+    }}>
+      {children}
+    </p>
+  );
+}
+
+function BulletList({ items }) {
+  return (
+    <ul style={{ listStyle: "none", marginTop: "12px" }}>
+      {items.map((item, i) => (
+        <li key={i} className="bullet-item">
+          <span className="bullet-dot">◆</span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function Privacy() {
   const [active, setActive] = useState("overview");
 
   useEffect(() => {
-    const id = "manifix-privacy-styles";
+    const id = "manifix-priv-css";
     if (!document.getElementById(id)) {
       const el = document.createElement("style");
-      el.id = id; el.textContent = GLOBAL;
+      el.id = id; el.textContent = GLOBAL_CSS;
       document.head.appendChild(el);
     }
   }, []);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id); });
-      },
-      { rootMargin: "-30% 0px -60% 0px" }
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id); }),
+      { rootMargin: "-25% 0px -60% 0px" }
     );
-    SECTIONS.forEach(s => {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
+    SECTIONS.forEach(s => { const el = document.getElementById(s.id); if (el) obs.observe(el); });
+    return () => obs.disconnect();
   }, []);
 
   return (
-    <div style={{ background: G.bg, minHeight: "100vh", overflowX: "hidden" }}>
+    <div style={{ background: G.bg, minHeight: "100vh" }}>
+
+      {/* ── GLOBAL STYLES ── */}
 
       {/* ── TOP NAV ── */}
       <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
+        position: "sticky", top: 0, zIndex: 200,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 32px", height: "60px",
-        background: "rgba(8,8,15,0.92)",
-        backdropFilter: "blur(16px)",
+        padding: "0 32px", height: "58px",
+        background: "rgba(7,7,14,0.94)",
+        backdropFilter: "blur(18px)",
         borderBottom: `1px solid ${G.border}`,
       }}>
-        <Link to="/" style={{ display: "flex", alignItems: "center", gap: "10px", textDecoration: "none" }}>
-          <ManifixLogo size={28} />
-          <span style={{ fontFamily: G.font, fontWeight: 700, fontSize: "16px", color: G.gold, letterSpacing: "0.14em" }}>
+        <a href="/" style={{ display: "flex", alignItems: "center", gap: "10px", textDecoration: "none" }}>
+          <ManifixLogo size={26} />
+          <span style={{ fontFamily: G.font, fontWeight: 700, fontSize: "18px", color: G.gold, letterSpacing: "0.12em" }}>
             MANIFIX AI
           </span>
-        </Link>
-        <div style={{ display: "flex", gap: "20px" }}>
-          <Link to="/terms" style={{ fontFamily: G.mono, fontSize: "11px", color: G.muted, textDecoration: "none", letterSpacing: "0.08em" }}>
+        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: "22px" }}>
+          <a href="/terms" style={{ fontFamily: G.mono, fontSize: "10px", color: G.muted, textDecoration: "none", letterSpacing: "0.09em" }}>
             Terms
-          </Link>
-          <Link to="/login" style={{
-            fontFamily: G.mono, fontSize: "11px", color: G.gold,
-            textDecoration: "none", letterSpacing: "0.08em",
-            padding: "6px 16px", border: `1px solid rgba(212,175,55,0.35)`,
+          </a>
+          <a href="/login" style={{
+            fontFamily: G.mono, fontSize: "10px", color: G.gold,
+            textDecoration: "none", letterSpacing: "0.09em",
+            padding: "6px 18px",
+            border: `1px solid rgba(201,168,76,0.30)`,
             borderRadius: "6px",
+            background: "rgba(201,168,76,0.05)",
           }}>
-            Login
-          </Link>
+            Login →
+          </a>
         </div>
       </nav>
 
-      {/* ── HERO HEADER ── */}
-      <div style={{
-        padding: "60px 32px 40px",
+      {/* ── HERO ── */}
+      <header style={{
+        padding: "64px 32px 48px",
         borderBottom: `1px solid ${G.border}`,
-        background: `linear-gradient(180deg, rgba(212,175,55,0.04) 0%, transparent 100%)`,
+        background: `linear-gradient(180deg, rgba(201,168,76,0.05) 0%, transparent 100%)`,
         textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
       }}>
+        {/* Decorative line */}
+        <div style={{
+          position: "absolute", bottom: 0, left: "15%", right: "15%", height: "1px",
+          background: `linear-gradient(90deg, transparent, ${G.gold}, transparent)`,
+        }} />
+
         <div style={{
           display: "inline-flex", alignItems: "center", gap: "8px",
-          padding: "5px 16px",
+          padding: "5px 18px", borderRadius: "20px",
           background: G.goldDim, border: `1px solid ${G.border}`,
-          borderRadius: "20px", marginBottom: "20px",
-          fontFamily: G.mono, fontSize: "10px", color: G.gold, letterSpacing: "0.12em",
+          fontFamily: G.mono, fontSize: "9px", color: G.gold,
+          letterSpacing: "0.18em", marginBottom: "22px",
         }}>
-          🔒 LAST UPDATED · JANUARY 2025
+          🔒 LAST UPDATED · MAY 21, 2026
         </div>
+
         <h1 style={{
           fontFamily: G.font, fontWeight: 700,
-          fontSize: "clamp(32px, 5vw, 52px)",
-          color: G.text, letterSpacing: "-0.01em", marginBottom: "12px",
+          fontSize: "clamp(38px, 6vw, 62px)",
+          color: G.text, letterSpacing: "-0.01em", marginBottom: "14px",
+          lineHeight: 1.1,
         }}>
           Privacy <span className="gold-shimmer">Policy</span>
         </h1>
-        <p style={{ fontSize: "15px", color: G.muted, maxWidth: "500px", margin: "0 auto" }}>
-          ManifiX AI is committed to transparency. Here's exactly how we handle your data.
+
+        <p style={{
+          fontSize: "15.5px", color: G.muted,
+          maxWidth: "520px", margin: "0 auto 24px",
+          lineHeight: 1.7,
+        }}>
+          ManifiX AI is committed to transparency. This policy describes exactly how
+          we collect, use, and protect your personal data.
         </p>
 
-        {/* highlight pill */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: "10px",
-          marginTop: "24px", padding: "12px 24px",
-          background: "rgba(212,175,55,0.06)",
-          border: `1px solid rgba(212,175,55,0.25)`,
-          borderRadius: "12px",
-          fontFamily: G.mono, fontSize: "12px", color: G.gold, letterSpacing: "0.08em",
+          padding: "12px 24px",
+          background: "rgba(201,168,76,0.07)",
+          border: `1px solid rgba(201,168,76,0.28)`,
+          borderRadius: "10px",
+          fontFamily: G.mono, fontSize: "11px", color: G.gold, letterSpacing: "0.09em",
         }}>
-          🛡️ We NEVER sell your personal data · Ever.
+          🛡️&nbsp;&nbsp;We NEVER sell your personal data · Ever.
         </div>
-      </div>
+      </header>
 
       {/* ── LAYOUT ── */}
-      <div className="priv-layout" style={{ display: "flex", maxWidth: "1200px", margin: "0 auto", padding: "0 24px" }}>
+      <div className="priv-layout" style={{ display: "flex", maxWidth: "1220px", margin: "0 auto", padding: "0 24px" }}>
 
-        {/* Sidebar */}
+        {/* ── SIDEBAR ── */}
         <aside className="priv-sidebar" style={{
-          width: "220px", flexShrink: 0,
-          position: "sticky", top: "60px",
-          height: "calc(100vh - 60px)", overflowY: "auto",
-          padding: "32px 0",
+          width: "230px", flexShrink: 0,
+          position: "sticky", top: "58px",
+          height: "calc(100vh - 58px)", overflowY: "auto",
+          padding: "28px 0",
           borderRight: `1px solid ${G.border}`,
         }}>
-          <div style={{ fontFamily: G.mono, fontSize: "9px", color: G.dim, letterSpacing: "0.18em", padding: "0 14px 12px", textTransform: "uppercase" }}>
-            Contents
+          <div style={{
+            fontFamily: G.mono, fontSize: "8.5px", color: G.dim,
+            letterSpacing: "0.22em", padding: "0 14px 14px",
+            textTransform: "uppercase",
+          }}>
+            Table of Contents
           </div>
           {SECTIONS.map(s => (
-            <a key={s.id} href={`#${s.id}`} className={`priv-nav-link${active === s.id ? " active" : ""}`}>
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              className={`priv-nav-link${active === s.id ? " active" : ""}`}
+            >
+              <span className="num">{s.num}</span>
               {s.label}
             </a>
           ))}
         </aside>
 
-        {/* Main Content */}
-        <main style={{ flex: 1, padding: "40px 0 80px 48px", maxWidth: "780px" }}>
+        {/* ── MAIN ── */}
+        <main className="priv-main" style={{ flex: 1, padding: "44px 0 80px 52px", maxWidth: "800px" }}>
 
-          {/* Overview */}
+          {/* 01 · Overview */}
           <section id="overview" className="priv-section">
-            <SectionLabel text="01 · Overview" />
-            <h2 style={h2Style}>What is ManifiX?</h2>
-            <p style={pStyle}>
-              ManifiX is an AI-powered discipline, productivity, and wellness platform designed to help users
-              think clearly, work efficiently, and maintain elite-level daily habits. The platform combines
-              intelligent conversational AI with structured wellness tools that support daily growth,
-              learning, and mental clarity.
-            </p>
-            <p style={{ ...pStyle, marginTop: "14px" }}>
-              This Privacy Policy explains how ManifiX collects, uses, stores, and protects personal
-              information when users access our website, applications, and related services. Our goal is
-              full transparency — you deserve to know exactly how your information is handled.
-            </p>
+            <SectionLabel num="01" text="Overview" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px", letterSpacing: "0.01em" }}>
+              Introduction
+            </h2>
+            <Para>
+              This Privacy Policy describes the policies and procedures of <strong style={{ color: G.text }}>ManifixAI Private Limited</strong> on
+              the collection, use, and disclosure of your information when you use our Service, and tells you about your
+              privacy rights and how the law protects you.
+            </Para>
+            <Para mt={14}>
+              We use your Personal Data to provide and improve the Service. By using the Service, you agree to the collection
+              and use of information in accordance with this Privacy Policy.
+            </Para>
+            <InfoCard>
+              <strong>Company:</strong> ManifixAI Private Limited, Indira Nagar, Kancharapalem, Near Urvasi Junction,
+              Visakhapatnam, Andhra Pradesh – 530008, India.<br /><br />
+              <strong>Website:</strong> <a href="http://www.manifixai.com" style={{ color: G.gold }}>www.manifixai.com</a>
+            </InfoCard>
           </section>
 
-          {/* Scope */}
-          <section id="scope" className="priv-section">
-            <SectionLabel text="02 · Scope" />
-            <h2 style={h2Style}>Who This Applies To</h2>
-            <p style={pStyle}>
-              This Privacy Policy applies to all ManifiX products and services including our website,
-              mobile applications, APIs, and integrations. It covers visitors, registered users,
-              subscribers, and any individuals interacting with ManifiX services.
-            </p>
-            <InfoCard text="By accessing or using ManifiX, you agree to the practices described in this Privacy Policy." />
-          </section>
-
-          {/* Definitions */}
+          {/* 02 · Definitions */}
           <section id="definitions" className="priv-section">
-            <SectionLabel text="03 · Definitions" />
-            <h2 style={h2Style}>Key Terms</h2>
-            <ul className="priv-list" style={{ listStyle: "none", marginTop: "16px" }}>
+            <SectionLabel num="02" text="Definitions" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Interpretation &amp; Definitions
+            </h2>
+            <Para>
+              Words with initial capital letters have meanings defined below. The following definitions apply regardless of
+              whether they appear in singular or plural form.
+            </Para>
+            <div style={{ marginTop: "20px" }}>
               {[
-                ["Personal Data", "Information that identifies or can be associated with an individual, such as name or email address."],
-                ["Processing", "Any action performed on personal data including collection, storage, modification, analysis, or deletion."],
-                ["Controller", "ManifiX determines how and why personal data is processed."],
-                ["Processor", "Trusted third-party providers that process data on behalf of ManifiX such as hosting platforms or authentication services."],
-              ].map(([term, def]) => (
-                <li key={term}>
-                  <span style={{ color: G.gold, fontFamily: G.mono, fontSize: "11px", minWidth: "110px", paddingTop: "2px" }}>{term}</span>
-                  <span>{def}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Data Collected */}
-          <section id="data" className="priv-section">
-            <SectionLabel text="04 · Data Collected" />
-            <h2 style={h2Style}>What We Collect</h2>
-            <p style={pStyle}>We may collect the following types of information:</p>
-            <ul className="priv-list" style={{ listStyle: "none", marginTop: "16px" }}>
-              {[
-                ["Account Info", "Name, email address, and authentication credentials."],
-                ["User Content", "Messages, prompts, or feedback submitted while using ManifiX features."],
-                ["Wellness Inputs", "Selected routines or feature usage preferences."],
-                ["Technical Data", "Browser type, device info, operating system, and IP address."],
-                ["Usage Data", "Interaction patterns, feature statistics, and platform performance metrics."],
-                ["Payment Metadata", "Subscription data only. Sensitive card information is never stored by ManifiX."],
+                ["Account", "A unique account created for You to access our Service or parts of our Service."],
+                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where "control" means ownership of 50% or more of the shares or voting securities."],
+                ["Company", "ManifixAI Private Limited, Indira Nagar, Kancharapalem, Near Urvasi Junction, Visakhapatnam, Andhra Pradesh 530008, India."],
+                ["Cookies", "Small files placed on your device by a website, containing details of your browsing history and other information."],
+                ["Country", "Andhra Pradesh, India"],
+                ["Device", "Any device that can access the Service — computer, mobile phone, or digital tablet."],
+                ["Personal Data", "Any information that relates to an identified or identifiable individual. We use "Personal Data" and "Personal Information" interchangeably unless a law uses a specific term."],
+                ["Service", "The ManifiX AI website accessible from www.manifixai.com."],
+                ["Service Provider", "Any natural or legal person who processes data on behalf of the Company to facilitate or improve the Service."],
+                ["Usage Data", "Data collected automatically from the use of the Service or its infrastructure (e.g., duration of a page visit)."],
+                ["You", "The individual accessing or using the Service, or the legal entity on whose behalf such individual is acting."],
               ].map(([label, desc]) => (
-                <li key={label}>
-                  <span style={{ color: G.gold, fontFamily: G.mono, fontSize: "11px", minWidth: "130px", paddingTop: "2px" }}>{label}</span>
+                <div key={label} className="data-row">
+                  <span className="data-label">{label}</span>
                   <span>{desc}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Usage */}
-          <section id="usage" className="priv-section">
-            <SectionLabel text="05 · Usage" />
-            <h2 style={h2Style}>How We Use Your Information</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "20px" }}>
-              {[
-                "Provide and maintain ManifiX services",
-                "Enable secure authentication",
-                "Deliver AI-powered coaching",
-                "Improve wellness tools",
-                "Respond to user support requests",
-                "Detect fraud and security risks",
-                "Analyze platform performance",
-                "Personalize user experience",
-              ].map((item, i) => (
-                <div key={i} style={{
-                  display: "flex", alignItems: "flex-start", gap: "10px",
-                  padding: "12px 14px",
-                  background: G.surface,
-                  border: `1px solid ${G.border}`,
-                  borderRadius: "8px",
-                  fontSize: "13px", color: G.muted, lineHeight: 1.5,
-                }}>
-                  <span style={{ color: G.gold, flexShrink: 0, marginTop: "1px" }}>✓</span>
-                  {item}
                 </div>
               ))}
             </div>
           </section>
 
-          {/* Sharing */}
-          <section id="sharing" className="priv-section">
-            <SectionLabel text="06 · Sharing" />
-            <h2 style={h2Style}>When We Share Information</h2>
-            <p style={pStyle}>
-              ManifiX does not sell or rent personal data. Information may only be shared with trusted
-              service providers when necessary to deliver platform services.
-            </p>
-            <ul className="priv-list" style={{ listStyle: "none", marginTop: "16px" }}>
-              {[
-                "Cloud hosting infrastructure providers",
-                "Authentication and account management platforms",
-                "Analytics tools used to improve service performance",
-                "Payment processors handling subscription transactions",
-              ].map((item, i) => (
-                <li key={i}>
-                  <span style={{ color: G.gold }}>→</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            <InfoCard text="All third-party providers are required to maintain strict data security and confidentiality standards." />
+          {/* 03 · Data Collected */}
+          <section id="data" className="priv-section">
+            <SectionLabel num="03" text="Data Collected" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Types of Data We Collect
+            </h2>
+
+            <SubHead>Personal Data</SubHead>
+            <Para>
+              While using our Service, we may ask you to provide certain personally identifiable information that can be used
+              to contact or identify you. This may include, but is not limited to:
+            </Para>
+            <BulletList items={[
+              "Email address",
+              "First name and last name",
+              "Phone number",
+              "Address, State, Province, ZIP/Postal code, City",
+            ]} />
+
+            <SubHead>Usage Data</SubHead>
+            <Para>
+              Usage Data is collected automatically when using the Service. It may include your device's IP address, browser
+              type and version, the pages you visit, the time and date of your visit, time spent on pages, unique device
+              identifiers, and other diagnostic data.
+            </Para>
+            <Para mt={12}>
+              When you access the Service via a mobile device, we may also collect the type of mobile device, mobile device
+              unique ID, IP address of your mobile device, mobile operating system, and mobile browser type.
+            </Para>
           </section>
 
-          {/* Security */}
-          <section id="security" className="priv-section">
-            <SectionLabel text="07 · Security" />
-            <h2 style={h2Style}>Storage, Security & Retention</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px" }}>
+          {/* 04 · Usage */}
+          <section id="usage" className="priv-section">
+            <SectionLabel num="04" text="How We Use It" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Use of Your Personal Data
+            </h2>
+            <Para>The Company may use your Personal Data for the following purposes:</Para>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "18px" }}>
               {[
-                ["🔐", "Encrypted HTTPS data transmission"],
-                ["☁️", "Secure cloud infrastructure"],
-                ["🎛️", "Role-based access control systems"],
-                ["👁️", "Security monitoring for suspicious activity"],
-                ["⏱️", "Data retention limited to operational necessity"],
-              ].map(([icon, text]) => (
-                <div key={text} style={{
-                  display: "flex", alignItems: "center", gap: "14px",
-                  padding: "14px 18px",
+                ["🖥️", "Provide & maintain our Service, including monitoring usage"],
+                ["👤", "Manage your Account and registration as a user"],
+                ["📝", "Performance of a contract for products or services you've purchased"],
+                ["📬", "Contact you via email, SMS, or push notifications for updates and security alerts"],
+                ["📣", "Send news, special offers, and information about similar goods and services (opt-out available)"],
+                ["🎫", "Manage your requests and support inquiries"],
+                ["🔀", "Business transfers such as mergers, acquisitions, or asset sales"],
+                ["📊", "Data analysis, usage trend identification, and service improvement"],
+              ].map(([icon, text], i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "flex-start", gap: "10px",
+                  padding: "13px 15px",
                   background: G.surface,
                   border: `1px solid ${G.border}`,
-                  borderRadius: "10px",
-                  fontSize: "14px", color: G.muted,
+                  borderRadius: "9px",
+                  fontSize: "13px", color: G.muted, lineHeight: 1.6,
                 }}>
-                  <span style={{ fontSize: "18px" }}>{icon}</span>
+                  <span style={{ fontSize: "16px", flexShrink: 0 }}>{icon}</span>
                   {text}
                 </div>
               ))}
             </div>
           </section>
 
-          {/* AI Transparency */}
-          <section id="ai" className="priv-section">
-            <SectionLabel text="08 · AI Transparency" />
-            <h2 style={h2Style}>About Our AI Systems</h2>
-            <p style={pStyle}>
-              ManifiX includes AI-powered systems that generate responses based on user prompts and inputs.
-              AI responses are generated automatically and may not always be perfectly accurate.
-            </p>
-            <InfoCard text="AI-generated responses are informational assistance — not professional medical, legal, or financial advice. Always evaluate outputs critically." />
-          </section>
-
-          {/* Features */}
-          <section id="features" className="priv-section">
-            <SectionLabel text="09 · Features" />
-            <h2 style={h2Style}>ManifiX Platform Features</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "20px" }}>
+          {/* 05 · Sharing */}
+          <section id="sharing" className="priv-section">
+            <SectionLabel num="05" text="Sharing" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              When We Share Your Information
+            </h2>
+            <Para>
+              We may share your Personal Data in the following situations:
+            </Para>
+            <div style={{ marginTop: "16px" }}>
               {[
-                { icon: "🤖", title: "AI Conversation Assistant", desc: "An intelligent assistant that helps users ask questions, generate ideas, explore topics, and receive helpful responses through natural language interaction." },
-                { icon: "⚡", title: "Magic16 Wellness System", desc: "A structured 16-minute daily protocol: 8 minutes of guided yoga + 8 minutes of meditation. Proven to improve focus, reduce fatigue, and build elite consistency." },
-              ].map(f => (
-                <div key={f.title} style={{
-                  padding: "20px", borderRadius: "12px",
-                  background: G.surface, border: `1px solid ${G.border}`,
-                }}>
-                  <div style={{ fontSize: "24px", marginBottom: "8px" }}>{f.icon}</div>
-                  <h3 style={{ fontFamily: G.font, fontSize: "16px", fontWeight: 700, color: G.text, marginBottom: "8px" }}>{f.title}</h3>
-                  <p style={{ fontSize: "14px", color: G.muted, lineHeight: 1.65 }}>{f.desc}</p>
+                ["With Service Providers", "To monitor and analyze use of our Service, and to contact you."],
+                ["Business Transfers", "In connection with any merger, sale of Company assets, financing, or acquisition of all or a portion of our business."],
+                ["With Affiliates", "We may share data with our affiliates, who are required to honor this Privacy Policy. Affiliates include our parent company, subsidiaries, and joint venture partners."],
+                ["With Business Partners", "To offer you certain products, services, or promotions."],
+                ["With Other Users", "When you share Personal Data in any public area of our Service, it may be viewed by all users and publicly distributed."],
+                ["With Your Consent", "We may disclose your Personal Data for any other purpose with your explicit consent."],
+              ].map(([label, desc]) => (
+                <div key={label} className="data-row">
+                  <span className="data-label">{label}</span>
+                  <span>{desc}</span>
                 </div>
               ))}
             </div>
+            <InfoCard>
+              ManifiX does <strong>not sell or rent</strong> your personal data to third parties for their own marketing purposes.
+            </InfoCard>
           </section>
 
-          {/* Rights */}
-          <section id="rights" className="priv-section">
-            <SectionLabel text="10 · Your Rights" />
-            <h2 style={h2Style}>User Rights & Controls</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "16px" }}>
+          {/* 06 · Retention */}
+          <section id="retention" className="priv-section">
+            <SectionLabel num="06" text="Data Retention" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Retention of Your Personal Data
+            </h2>
+            <Para>
+              The Company will retain your Personal Data only for as long as necessary for the purposes described in this
+              Privacy Policy, and to comply with legal obligations, resolve disputes, and enforce our agreements.
+            </Para>
+            <Para mt={12}>
+              Where possible, we apply shorter retention periods and/or reduce identifiability by deleting, aggregating, or
+              anonymizing data.
+            </Para>
+
+            <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "8px" }}>
               {[
-                ["📋", "Access", "Request a copy of your stored personal data"],
-                ["✏️", "Correct", "Fix any inaccurate information"],
-                ["🗑️", "Delete", "Request deletion of your account data"],
-                ["📦", "Portability", "Export your data in a readable format"],
-              ].map(([icon, title, desc]) => (
-                <div key={title} style={{
-                  padding: "16px", borderRadius: "10px",
+                ["Account Information", "Duration of account relationship + up to 24 months after account closure."],
+                ["Support Tickets & Correspondence", "Up to 24 months from ticket closure."],
+                ["Chat Transcripts", "Up to 24 months for quality assurance and staff training."],
+                ["Website Analytics & Server Logs", "Up to 24 months from date of collection."],
+              ].map(([label, period]) => (
+                <div key={label} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                  padding: "14px 18px", gap: "20px",
                   background: G.surface, border: `1px solid ${G.border}`,
-                  textAlign: "center",
+                  borderRadius: "9px",
                 }}>
-                  <div style={{ fontSize: "22px", marginBottom: "6px" }}>{icon}</div>
-                  <div style={{ fontFamily: G.font, fontSize: "14px", fontWeight: 700, color: G.gold, marginBottom: "4px" }}>{title}</div>
-                  <div style={{ fontSize: "12px", color: G.muted, lineHeight: 1.5 }}>{desc}</div>
+                  <span style={{ fontSize: "13.5px", color: G.text, fontWeight: 500 }}>{label}</span>
+                  <span style={{ fontFamily: G.mono, fontSize: "11px", color: G.gold, whiteSpace: "nowrap" }}>{period}</span>
                 </div>
               ))}
             </div>
-            <p style={{ ...pStyle, marginTop: "16px" }}>Submit requests via our support contact below.</p>
+
+            <SubHead>When Retention Periods Expire</SubHead>
+            <BulletList items={[
+              "Deletion — Personal Data is removed from our systems and no longer actively processed.",
+              "Backup retention — Residual copies may remain in encrypted backups for a limited period and are not restored except for security, disaster recovery, or legal compliance.",
+              "Anonymization — In some cases, Personal Data is converted into anonymous statistical data that cannot be linked back to you. This anonymized data may be retained indefinitely for research and analytics.",
+            ]} />
           </section>
 
-          {/* Cookies */}
+          {/* 07 · Transfer */}
+          <section id="transfer" className="priv-section">
+            <SectionLabel num="07" text="Data Transfer" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Transfer of Your Personal Data
+            </h2>
+            <Para>
+              Your information, including Personal Data, is processed at the Company's operating offices and in any other
+              places where the parties involved in the processing are located. This means your information may be transferred
+              to — and maintained on — computers located outside of your state, province, country, or other governmental
+              jurisdiction where data protection laws may differ.
+            </Para>
+            <Para mt={14}>
+              Where required by applicable law, we will ensure that international transfers of your Personal Data are subject
+              to appropriate safeguards. The Company will take all steps reasonably necessary to ensure your data is treated
+              securely, and no transfer of your Personal Data will take place to an organization or country unless adequate
+              security controls are in place.
+            </Para>
+          </section>
+
+          {/* 08 · Deletion */}
+          <section id="deletion" className="priv-section">
+            <SectionLabel num="08" text="Delete Your Data" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Delete Your Personal Data
+            </h2>
+            <Para>
+              You have the right to delete or request that we assist in deleting the Personal Data we have collected about you.
+            </Para>
+            <Para mt={12}>
+              You may update, amend, or delete your information at any time by signing in to your Account and visiting the
+              account settings section. You may also contact us directly to request access to, correction of, or deletion of
+              any Personal Data you have provided.
+            </Para>
+            <InfoCard>
+              Please note that we may need to retain certain information where we have a legal obligation or lawful basis to do so.
+            </InfoCard>
+          </section>
+
+          {/* 09 · Disclosure */}
+          <section id="disclosure" className="priv-section">
+            <SectionLabel num="09" text="Disclosure" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Disclosure of Your Personal Data
+            </h2>
+
+            <SubHead>Business Transactions</SubHead>
+            <Para>
+              If the Company is involved in a merger, acquisition, or asset sale, your Personal Data may be transferred.
+              We will provide notice before your Personal Data is transferred and becomes subject to a different Privacy Policy.
+            </Para>
+
+            <SubHead>Law Enforcement</SubHead>
+            <Para>
+              Under certain circumstances, the Company may be required to disclose your Personal Data if required to do so by
+              law or in response to valid requests by public authorities (e.g., a court or government agency).
+            </Para>
+
+            <SubHead>Other Legal Requirements</SubHead>
+            <Para>The Company may disclose your Personal Data in the good faith belief that such action is necessary to:</Para>
+            <BulletList items={[
+              "Comply with a legal obligation",
+              "Protect and defend the rights or property of the Company",
+              "Prevent or investigate possible wrongdoing in connection with the Service",
+              "Protect the personal safety of users of the Service or the public",
+              "Protect against legal liability",
+            ]} />
+          </section>
+
+          {/* 10 · Security */}
+          <section id="security" className="priv-section">
+            <SectionLabel num="10" text="Security" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Security of Your Personal Data
+            </h2>
+            <Para>
+              The security of your Personal Data is important to us. We use commercially reasonable means to protect your
+              Personal Data, including encrypted HTTPS transmission, secure cloud infrastructure, role-based access controls,
+              and security monitoring for suspicious activity.
+            </Para>
+            <InfoCard>
+              However, no method of transmission over the Internet or method of electronic storage is 100% secure.
+              While we strive to protect your Personal Data, we cannot guarantee its absolute security.
+            </InfoCard>
+          </section>
+
+          {/* 11 · Cookies */}
           <section id="cookies" className="priv-section">
-            <SectionLabel text="11 · Cookies" />
-            <h2 style={h2Style}>Cookies & Tracking</h2>
-            <p style={pStyle}>
-              ManifiX uses cookies and similar technologies to maintain login sessions, improve performance,
-              and analyze how users interact with the platform. Users may control cookies through browser settings.
-            </p>
+            <SectionLabel num="11" text="Cookies" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Tracking Technologies &amp; Cookies
+            </h2>
+            <Para>
+              We use Cookies and similar tracking technologies (beacons, tags, scripts) to track activity on our Service and
+              store certain information. Cookies can be "Persistent" (remain when you go offline) or "Session" (deleted when
+              you close your browser).
+            </Para>
+
+            <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {[
+                {
+                  type: "Necessary / Essential Cookies",
+                  kind: "Session Cookies · Administered by Us",
+                  desc: "Essential to provide services available through the Website and to authenticate users. Cannot be disabled without affecting service functionality.",
+                },
+                {
+                  type: "Cookie Policy / Notice Acceptance",
+                  kind: "Persistent Cookies · Administered by Us",
+                  desc: "Identify if users have accepted the use of cookies on the Website.",
+                },
+                {
+                  type: "Functionality Cookies",
+                  kind: "Persistent Cookies · Administered by Us",
+                  desc: "Allow us to remember your choices (e.g., login details, language preference) for a more personalised experience.",
+                },
+              ].map(c => (
+                <div key={c.type} style={{
+                  padding: "16px 20px",
+                  background: G.surface,
+                  border: `1px solid ${G.border}`,
+                  borderRadius: "10px",
+                }}>
+                  <div style={{ fontFamily: G.font, fontSize: "15px", fontWeight: 600, color: G.text, marginBottom: "4px" }}>{c.type}</div>
+                  <div style={{ fontFamily: G.mono, fontSize: "10px", color: G.gold, letterSpacing: "0.07em", marginBottom: "8px" }}>{c.kind}</div>
+                  <div style={{ fontSize: "13.5px", color: G.muted, lineHeight: 1.65 }}>{c.desc}</div>
+                </div>
+              ))}
+            </div>
+
+            <Para mt={16}>
+              Where required by law, we use non-essential cookies only with your consent. You can withdraw or change your
+              consent at any time through your browser/device settings. You can instruct your browser to refuse all cookies,
+              though some parts of the Service may not function properly as a result.
+            </Para>
           </section>
 
-          {/* Payments */}
-          <section id="payments" className="priv-section">
-            <SectionLabel text="12 · Payments" />
-            <h2 style={h2Style}>Billing & Payments</h2>
-            <p style={pStyle}>
-              Subscription payments are processed through Razorpay, a trusted third-party payment provider.
-              ManifiX does not store sensitive financial information such as credit card numbers. All transactions
-              are encrypted and compliant with payment security standards.
-            </p>
-          </section>
-
-          {/* Children */}
+          {/* 12 · Children */}
           <section id="children" className="priv-section">
-            <SectionLabel text="13 · Children" />
-            <h2 style={h2Style}>Family Safety</h2>
-            <p style={pStyle}>
-              ManifiX services are intended for users aged 13 and above. We prioritize responsible design
-              practices and privacy protections for all users, especially younger members of our community.
-            </p>
+            <SectionLabel num="12" text="Children's Privacy" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Children's Privacy
+            </h2>
+            <Para>
+              Our Service does not address anyone under the age of 16. We do not knowingly collect personally identifiable
+              information from anyone under the age of 16.
+            </Para>
+            <Para mt={12}>
+              If you are a parent or guardian and you are aware that your child has provided us with Personal Data, please
+              contact us. If we become aware that we have collected Personal Data from anyone under the age of 16 without
+              verification of parental consent, we take steps to remove that information from our servers.
+            </Para>
+            <InfoCard>
+              If we need to rely on consent as a legal basis for processing your information and your country requires consent
+              from a parent, we may require your parent's consent before we collect and use that information.
+            </InfoCard>
           </section>
 
-          {/* Updates */}
+          {/* 13 · Links */}
+          <section id="links" className="priv-section">
+            <SectionLabel num="13" text="Third-Party Links" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Links to Other Websites
+            </h2>
+            <Para>
+              Our Service may contain links to other websites that are not operated by us. If you click on a third-party
+              link, you will be directed to that third party's site. We strongly advise you to review the Privacy Policy of
+              every site you visit.
+            </Para>
+            <Para mt={12}>
+              We have no control over and assume no responsibility for the content, privacy policies, or practices of any
+              third-party sites or services.
+            </Para>
+          </section>
+
+          {/* 14 · Updates */}
           <section id="updates" className="priv-section">
-            <SectionLabel text="14 · Updates" />
-            <h2 style={h2Style}>Policy Changes</h2>
-            <p style={pStyle}>
-              We may update this Privacy Policy periodically. When significant updates occur, users will
-              be notified through the platform or email. Continued use of ManifiX after changes constitutes
-              acceptance of the updated policy.
-            </p>
+            <SectionLabel num="14" text="Policy Updates" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Changes to This Privacy Policy
+            </h2>
+            <Para>
+              We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new
+              Privacy Policy on this page, and will let you know via email and/or a prominent notice on our Service prior to
+              the change becoming effective. The "Last updated" date at the top of this page will also be updated.
+            </Para>
+            <Para mt={12}>
+              You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are
+              effective when they are posted on this page.
+            </Para>
           </section>
 
-          {/* Contact */}
+          {/* 15 · Contact */}
           <section id="contact" className="priv-section">
-            <SectionLabel text="15 · Contact" />
-            <h2 style={h2Style}>Get in Touch</h2>
+            <SectionLabel num="15" text="Contact" />
+            <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+              Contact Us
+            </h2>
+            <Para>
+              If you have any questions about this Privacy Policy or wish to exercise your data rights, please contact us:
+            </Para>
+
             <div style={{
-              marginTop: "20px", padding: "28px",
+              marginTop: "22px", padding: "28px 30px",
               background: G.surface,
-              border: `1px solid rgba(212,175,55,0.25)`,
+              border: `1px solid ${G.borderMid}`,
               borderRadius: "14px",
               position: "relative", overflow: "hidden",
             }}>
               <div style={{
-                position: "absolute", top: 0, left: "10%", right: "10%", height: "1px",
+                position: "absolute", top: 0, left: "8%", right: "8%", height: "1px",
                 background: `linear-gradient(90deg, transparent, ${G.gold}, transparent)`,
               }} />
-              <div style={{ fontFamily: G.font, fontSize: "18px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
+
+              <div style={{
+                fontFamily: G.font, fontSize: "20px", fontWeight: 700,
+                color: G.text, marginBottom: "20px", letterSpacing: "0.03em",
+              }}>
                 ManifiX AI · Data Protection
               </div>
+
               {[
-                ["Email", "manifixofficial@gmail.com"],
-                ["Website", "https://manifixai.com"],
-                ["© Copyright", "2025 ManifiX AI. All rights reserved."],
+                ["Company",  "ManifixAI Private Limited"],
+                ["Address",  "India"],
+                ["Email",    "manifixofficial@gmail.com"],
+                ["Website",  "www.manifixai.com"],
+                ["Country",  "India"],
+                ["© Copyright", "2025–2026 ManifiX AI. All rights reserved."],
               ].map(([label, val]) => (
                 <div key={label} style={{
-                  display: "flex", gap: "16px", padding: "10px 0",
-                  borderBottom: `1px solid rgba(255,255,255,0.05)`,
-                  fontSize: "14px",
+                  display: "flex", gap: "18px", padding: "11px 0",
+                  borderBottom: `1px solid rgba(255,255,255,0.042)`,
                 }}>
-                  <span style={{ fontFamily: G.mono, fontSize: "11px", color: G.gold, minWidth: "90px", paddingTop: "2px" }}>{label}</span>
-                  <span style={{ color: G.muted }}>{val}</span>
+                  <span style={{ fontFamily: G.mono, fontSize: "10px", color: G.gold, minWidth: "96px", paddingTop: "2px", letterSpacing: "0.07em", textTransform: "uppercase" }}>
+                    {label}
+                  </span>
+                  <span style={{ fontSize: "14px", color: G.muted, lineHeight: 1.6 }}>{val}</span>
                 </div>
               ))}
             </div>
@@ -522,41 +822,33 @@ export default function Privacy() {
 
         </main>
       </div>
-    </div>
-  );
-}
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-const h2Style = {
-  fontFamily: "'Rajdhani', sans-serif",
-  fontSize: "24px", fontWeight: 700,
-  color: "#EEEEF4", marginBottom: "14px", letterSpacing: "0.01em",
-};
-const pStyle = { fontSize: "15px", color: "rgba(238,238,244,0.50)", lineHeight: 1.75 };
+      {/* ── FOOTER ── */}
+      <footer style={{
+        borderTop: `1px solid ${G.border}`,
+        padding: "24px 32px",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        flexWrap: "wrap", gap: "12px",
+        background: "rgba(7,7,14,0.7)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <ManifixLogo size={22} />
+          <span style={{ fontFamily: G.font, fontSize: "15px", color: G.muted, letterSpacing: "0.08em" }}>
+            MANIFIX AI
+          </span>
+        </div>
+        <div style={{ fontFamily: G.mono, fontSize: "10px", color: G.dim, letterSpacing: "0.08em" }}>
+          © 2025–2026 ManifixAI Private Limited · All rights reserved · Visakhapatnam, India
+        </div>
+        <div style={{ display: "flex", gap: "18px" }}>
+          {[["Privacy Policy", "#overview"], ["Terms of Service", "/terms"], ["Contact", "#contact"]].map(([label, href]) => (
+            <a key={label} href={href} style={{ fontFamily: G.mono, fontSize: "10px", color: G.muted, textDecoration: "none", letterSpacing: "0.06em" }}>
+              {label}
+            </a>
+          ))}
+        </div>
+      </footer>
 
-function SectionLabel({ text }) {
-  return (
-    <div style={{
-      fontFamily: "'JetBrains Mono', monospace", fontSize: "10px",
-      color: "#D4AF37", letterSpacing: "0.16em",
-      marginBottom: "10px", textTransform: "uppercase",
-    }}>
-      {text}
-    </div>
-  );
-}
-
-function InfoCard({ text }) {
-  return (
-    <div style={{
-      marginTop: "16px", padding: "14px 18px",
-      background: "rgba(212,175,55,0.06)",
-      border: "1px solid rgba(212,175,55,0.22)",
-      borderRadius: "10px",
-      borderLeft: "3px solid #D4AF37",
-      fontSize: "13px", color: "rgba(238,238,244,0.65)", lineHeight: 1.65,
-    }}>
-      {text}
     </div>
   );
 }
