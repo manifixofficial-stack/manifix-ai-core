@@ -422,9 +422,9 @@ export default function Terms() {
             </Para>
             <div style={{ marginTop: "20px" }}>
               {[
-                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where "control" means ownership of 50% or more of the shares or voting securities."],
+                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where control means ownership of 50% or more of the shares or voting securities."],
                 ["Country", "Andhra Pradesh, India"],
-                ["Company", "ManifixAI Private Limited, Kancharapalem, Near Urvasi Junction, Visakhapatnam, Andhra Pradesh 530008, India. Also referred to as "We", "Us", or "Our"."],
+                ["Company", "ManifixAI Private Limited,India. Also referred to as We, Us, or Our."],
                 ["Device", "Any device that can access the Service — computer, mobile phone, or digital tablet."],
                 ["Service", "The ManifiX AI website accessible from www.manifixai.com."],
                 ["Terms and Conditions", "These Terms and Conditions, including any documents expressly incorporated by reference, forming the entire agreement between You and the Company regarding the Service."],
