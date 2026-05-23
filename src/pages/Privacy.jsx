@@ -268,8 +268,6 @@ export default function Privacy() {
   return (
     <div style={{ background: G.bg, minHeight: "100vh" }}>
 
-      {/* ── GLOBAL STYLES ── */}
-
       {/* ── TOP NAV ── */}
       <nav style={{
         position: "sticky", top: 0, zIndex: 200,
@@ -311,7 +309,6 @@ export default function Privacy() {
         position: "relative",
         overflow: "hidden",
       }}>
-        {/* Decorative line */}
         <div style={{
           position: "absolute", bottom: 0, left: "15%", right: "15%", height: "1px",
           background: `linear-gradient(90deg, transparent, ${G.gold}, transparent)`,
@@ -425,12 +422,12 @@ export default function Privacy() {
             <div style={{ marginTop: "20px" }}>
               {[
                 ["Account", "A unique account created for You to access our Service or parts of our Service."],
-                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where "control" means ownership of 50% or more of the shares or voting securities."],
-                ["Company", "ManifixAI Private Limited, Indira Nagar, Kancharapalem, Near Urvasi Junction, Visakhapatnam, Andhra Pradesh 530008, India."],
+                ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where \"control\" means ownership of 50% or more of the shares or voting securities."],
+                ["Company", "ManifixAI Private Limited,Andhra Pradesh, India."],
                 ["Cookies", "Small files placed on your device by a website, containing details of your browsing history and other information."],
                 ["Country", "Andhra Pradesh, India"],
                 ["Device", "Any device that can access the Service — computer, mobile phone, or digital tablet."],
-                ["Personal Data", "Any information that relates to an identified or identifiable individual. We use "Personal Data" and "Personal Information" interchangeably unless a law uses a specific term."],
+                ["Personal Data", "Any information that relates to an identified or identifiable individual. We use \"Personal Data\" and \"Personal Information\" interchangeably unless a law uses a specific term."],
                 ["Service", "The ManifiX AI website accessible from www.manifixai.com."],
                 ["Service Provider", "Any natural or legal person who processes data on behalf of the Company to facilitate or improve the Service."],
                 ["Usage Data", "Data collected automatically from the use of the Service or its infrastructure (e.g., duration of a page visit)."],
@@ -465,7 +462,7 @@ export default function Privacy() {
 
             <SubHead>Usage Data</SubHead>
             <Para>
-              Usage Data is collected automatically when using the Service. It may include your device's IP address, browser
+              Usage Data is collected automatically when using the Service. It may include your device&apos;s IP address, browser
               type and version, the pages you visit, the time and date of your visit, time spent on pages, unique device
               identifiers, and other diagnostic data.
             </Para>
@@ -586,7 +583,7 @@ export default function Privacy() {
               Transfer of Your Personal Data
             </h2>
             <Para>
-              Your information, including Personal Data, is processed at the Company's operating offices and in any other
+              Your information, including Personal Data, is processed at the Company&apos;s operating offices and in any other
               places where the parties involved in the processing are located. This means your information may be transferred
               to — and maintained on — computers located outside of your state, province, country, or other governmental
               jurisdiction where data protection laws may differ.
@@ -673,7 +670,7 @@ export default function Privacy() {
             </h2>
             <Para>
               We use Cookies and similar tracking technologies (beacons, tags, scripts) to track activity on our Service and
-              store certain information. Cookies can be "Persistent" (remain when you go offline) or "Session" (deleted when
+              store certain information. Cookies can be &quot;Persistent&quot; (remain when you go offline) or &quot;Session&quot; (deleted when
               you close your browser).
             </Para>
 
@@ -719,7 +716,7 @@ export default function Privacy() {
           <section id="children" className="priv-section">
             <SectionLabel num="12" text="Children's Privacy" />
             <h2 style={{ fontFamily: G.font, fontSize: "28px", fontWeight: 700, color: G.text, marginBottom: "16px" }}>
-              Children's Privacy
+              Children&apos;s Privacy
             </h2>
             <Para>
               Our Service does not address anyone under the age of 16. We do not knowingly collect personally identifiable
@@ -732,7 +729,7 @@ export default function Privacy() {
             </Para>
             <InfoCard>
               If we need to rely on consent as a legal basis for processing your information and your country requires consent
-              from a parent, we may require your parent's consent before we collect and use that information.
+              from a parent, we may require your parent&apos;s consent before we collect and use that information.
             </InfoCard>
           </section>
 
@@ -744,7 +741,7 @@ export default function Privacy() {
             </h2>
             <Para>
               Our Service may contain links to other websites that are not operated by us. If you click on a third-party
-              link, you will be directed to that third party's site. We strongly advise you to review the Privacy Policy of
+              link, you will be directed to that third party&apos;s site. We strongly advise you to review the Privacy Policy of
               every site you visit.
             </Para>
             <Para mt={12}>
@@ -762,7 +759,7 @@ export default function Privacy() {
             <Para>
               We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new
               Privacy Policy on this page, and will let you know via email and/or a prominent notice on our Service prior to
-              the change becoming effective. The "Last updated" date at the top of this page will also be updated.
+              the change becoming effective. The &quot;Last updated&quot; date at the top of this page will also be updated.
             </Para>
             <Para mt={12}>
               You are advised to review this Privacy Policy periodically for any changes. Changes to this Privacy Policy are
