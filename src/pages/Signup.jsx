@@ -61,6 +61,10 @@ const CSS = `
     from { left: -80%; }
     to   { left: 130%; }
   }
+  @keyframes su-logoGlow {
+    0%,100% { filter: drop-shadow(0 0 8px rgba(201,168,76,0.45)) drop-shadow(0 0 20px rgba(201,168,76,0.18)); }
+    50%      { filter: drop-shadow(0 0 16px rgba(201,168,76,0.75)) drop-shadow(0 0 40px rgba(201,168,76,0.30)); }
+  }
 
   .su-gold-text {
     background: linear-gradient(90deg, ${G.goldDark}, ${G.gold}, ${G.goldLight}, ${G.goldLight}, ${G.gold}, ${G.goldDark});
@@ -77,6 +81,13 @@ const CSS = `
       linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
     background-size: 56px 56px;
     animation: su-gridPulse 7s ease-in-out infinite;
+  }
+
+  .su-logo-img {
+    object-fit: contain;
+    display: block;
+    animation: su-logoGlow 3.5s ease-in-out infinite;
+    border-radius: 14px;
   }
 
   .su-input {
@@ -175,40 +186,45 @@ const CSS = `
   }
 `;
 
-// ── Real Logo ────────────────────────────────────────────────────────────────
-const ManifixLogo = ({ size = 56 }) => (
-  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-    <img
-      src="/assets/logo.png"
-      alt="ManifiX AI"
-      width={size}
-      height={size}
-      style={{ objectFit: "contain", display: "block" }}
-      onError={e => {
-        e.currentTarget.style.display = "none";
-        e.currentTarget.nextSibling.style.display = "flex";
-      }}
-    />
-    {/* SVG fallback */}
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ display: "none" }}>
+// ── Real Manifix Logo — /public/assets/logo.png ──────────────────────────────
+const ManifixLogo = ({ size = 62 }) => {
+  const [imgError, setImgError] = useState(false);
+
+  if (!imgError) {
+    return (
+      <img
+        src="/assets/logo.png"
+        alt="ManifiX AI"
+        width={size}
+        height={size}
+        className="su-logo-img"
+        style={{ width: size, height: size }}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  // SVG fallback if image fails to load
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       <defs>
-        <linearGradient id="suBg2" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+        <linearGradient id="suBgFb" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#1A1A30"/>
           <stop offset="100%" stopColor="#07070E"/>
         </linearGradient>
-        <linearGradient id="suGold2" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+        <linearGradient id="suGoldFb" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#C9A84C"/>
           <stop offset="100%" stopColor="#F0CC6A"/>
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx="14" fill="url(#suBg2)"/>
-      <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="url(#suGold2)" strokeOpacity="0.4" strokeWidth="1"/>
+      <rect width="64" height="64" rx="14" fill="url(#suBgFb)"/>
+      <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="url(#suGoldFb)" strokeOpacity="0.4" strokeWidth="1"/>
       <path d="M10 50V16L23 16L32 35L41 16L54 16V50H45V29L32 51L19 29V50Z" fill="white"/>
-      <circle cx="52" cy="14" r="5.5" fill="url(#suGold2)"/>
-      <rect x="10" y="53" width="44" height="2" rx="1" fill="url(#suGold2)" opacity="0.55"/>
+      <circle cx="52" cy="14" r="5.5" fill="url(#suGoldFb)"/>
+      <rect x="10" y="53" width="44" height="2" rx="1" fill="url(#suGoldFb)" opacity="0.55"/>
     </svg>
-  </span>
-);
+  );
+};
 
 // ── Google Icon ─────────────────────────────────────────────────────────────
 const GoogleIcon = () => (
@@ -262,8 +278,8 @@ export default function Signup() {
   const pwStrength = (() => {
     if (password.length === 0) return null;
     if (password.length < 6) return { label: "Too Short", color: "#FF6B6B", w: "25%" };
-    if (password.length < 8) return { label: "Weak", color: "#FB923C", w: "50%" };
-    if (password.length < 12) return { label: "Good", color: G.gold, w: "75%" };
+    if (password.length < 8) return { label: "Weak",      color: "#FB923C", w: "50%" };
+    if (password.length < 12) return { label: "Good",     color: G.gold,    w: "75%" };
     return { label: "Strong", color: "#4ADE80", w: "100%" };
   })();
 
@@ -331,12 +347,16 @@ export default function Signup() {
       }} />
 
       {/* Decorative corner frames */}
-      <div style={{ position: "fixed", top: "24px", left: "24px", width: "50px", height: "50px", borderTop: `1px solid ${G.border}`, borderLeft: `1px solid ${G.border}`, zIndex: 1 }} />
-      <div style={{ position: "fixed", top: "24px", right: "24px", width: "50px", height: "50px", borderTop: `1px solid ${G.border}`, borderRight: `1px solid ${G.border}`, zIndex: 1 }} />
-      <div style={{ position: "fixed", bottom: "24px", left: "24px", width: "50px", height: "50px", borderBottom: `1px solid ${G.border}`, borderLeft: `1px solid ${G.border}`, zIndex: 1 }} />
-      <div style={{ position: "fixed", bottom: "24px", right: "24px", width: "50px", height: "50px", borderBottom: `1px solid ${G.border}`, borderRight: `1px solid ${G.border}`, zIndex: 1 }} />
+      {[
+        { top: "24px",    left: "24px",  borderTop: `1px solid ${G.border}`, borderLeft:  `1px solid ${G.border}` },
+        { top: "24px",    right: "24px", borderTop: `1px solid ${G.border}`, borderRight: `1px solid ${G.border}` },
+        { bottom: "24px", left: "24px",  borderBottom: `1px solid ${G.border}`, borderLeft:  `1px solid ${G.border}` },
+        { bottom: "24px", right: "24px", borderBottom: `1px solid ${G.border}`, borderRight: `1px solid ${G.border}` },
+      ].map((s, i) => (
+        <div key={i} style={{ position: "fixed", width: "50px", height: "50px", zIndex: 1, ...s }} />
+      ))}
 
-      {/* Card */}
+      {/* ── CARD ── */}
       <motion.div
         initial={{ opacity: 0, y: 32 }}
         animate={{ opacity: 1, y: 0 }}
@@ -365,13 +385,29 @@ export default function Signup() {
 
         {/* ── BRAND HEADER ── */}
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          {/* Real logo with glowing ring container */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            style={{ display: "flex", justifyContent: "center", marginBottom: "16px", animation: "su-float 6s ease-in-out infinite" }}
+            style={{
+              display: "flex", justifyContent: "center",
+              marginBottom: "18px",
+              animation: "su-float 6s ease-in-out infinite",
+            }}
           >
-            <ManifixLogo size={62} />
+            {/* Gold ring wrapper */}
+            <div style={{
+              width: "82px", height: "82px",
+              borderRadius: "20px",
+              background: "rgba(201,168,76,0.06)",
+              border: `1.5px solid rgba(201,168,76,0.30)`,
+              boxShadow: `0 0 0 6px rgba(201,168,76,0.05), 0 8px 32px rgba(201,168,76,0.20)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "10px",
+            }}>
+              <ManifixLogo size={62} />
+            </div>
           </motion.div>
 
           <h1 style={{
@@ -456,8 +492,7 @@ export default function Signup() {
               <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", overflow: "hidden" }}>
                 <div style={{
                   height: "100%", width: pwStrength.w,
-                  background: pwStrength.color,
-                  borderRadius: "2px",
+                  background: pwStrength.color, borderRadius: "2px",
                   transition: "width 0.3s ease, background 0.3s ease",
                   boxShadow: `0 0 8px ${pwStrength.color}55`,
                 }} />
@@ -500,9 +535,9 @@ export default function Signup() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
             {[
-              "Magic16 Protocol","SleepGold Engine",
+              "Magic16 Protocol",    "SleepGold Engine",
               "AI Conversation Coach","Women's Health AI",
-              "Mental Health AI","Burnout Shield",
+              "Mental Health AI",    "Burnout Shield",
               "Nutrition Intelligence","Global Leaderboard",
             ].map(f => (
               <div key={f} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
@@ -520,7 +555,7 @@ export default function Signup() {
           letterSpacing: "0.04em",
         }}>
           By signing up you agree to our{" "}
-          <Link to="/terms" style={{ color: G.gold, textDecoration: "none" }}>Terms</Link>
+          <Link to="/terms"   style={{ color: G.gold, textDecoration: "none" }}>Terms</Link>
           {" & "}
           <Link to="/privacy" style={{ color: G.gold, textDecoration: "none" }}>Privacy Policy</Link>
         </p>
