@@ -6,153 +6,211 @@ import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 
 const G = {
-  gold:     "#D4AF37",
-  goldDark: "#B8860B",
-  goldDim:  "rgba(212,175,55,0.12)",
-  goldGlow: "rgba(212,175,55,0.35)",
-  bg:       "#08080F",
-  surface:  "#0D0D18",
-  surface2: "#111120",
-  border:   "rgba(212,175,55,0.18)",
-  text:     "#EEEEF4",
-  muted:    "rgba(238,238,244,0.45)",
-  dim:      "rgba(238,238,244,0.22)",
-  error:    "rgba(248,113,113,0.85)",
-  font:     "'Rajdhani', sans-serif",
+  gold:     "#C9A84C",
+  goldLight:"#F0CC6A",
+  goldDark: "#A07828",
+  goldDim:  "rgba(201,168,76,0.11)",
+  goldGlow: "rgba(201,168,76,0.30)",
+  bg:       "#05050A",
+  surface:  "#09090F",
+  surface2: "#0D0D18",
+  border:   "rgba(201,168,76,0.16)",
+  text:     "#ECEEF8",
+  muted:    "rgba(236,238,248,0.50)",
+  dim:      "rgba(236,238,248,0.22)",
+  error:    "rgba(255,107,107,0.90)",
+  font:     "'Bebas Neue', sans-serif",
   body:     "'DM Sans', sans-serif",
-  mono:     "'JetBrains Mono', monospace",
+  mono:     "'IBM Plex Mono', monospace",
 };
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@1,700&family=DM+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: ${G.bg}; font-family: ${G.body}; }
 
   @keyframes su-shimmer {
-    0%   { background-position: -200% center; }
-    100% { background-position:  200% center; }
+    0%   { background-position: -400% center; }
+    100% { background-position:  400% center; }
   }
   @keyframes su-pulse {
-    0%,100% { box-shadow: 0 0 0 0 ${G.goldGlow}; }
-    60%      { box-shadow: 0 0 0 12px rgba(212,175,55,0); }
+    0%,100% { box-shadow: 0 6px 30px rgba(201,168,76,0.38); }
+    50%      { box-shadow: 0 6px 44px rgba(201,168,76,0.62); }
   }
   @keyframes su-orb1 {
     0%,100% { transform: translate(0,0) scale(1); }
-    50%      { transform: translate(30px,-20px) scale(1.1); }
+    50%      { transform: translate(40px,-28px) scale(1.1); }
   }
   @keyframes su-orb2 {
     0%,100% { transform: translate(0,0) scale(1); }
-    50%      { transform: translate(-20px,30px) scale(0.95); }
+    50%      { transform: translate(-28px, 36px) scale(0.94); }
+  }
+  @keyframes su-float {
+    0%,100% { transform: translateY(0px); }
+    50%      { transform: translateY(-6px); }
+  }
+  @keyframes su-gridPulse {
+    0%,100% { opacity: 0.022; }
+    50%      { opacity: 0.05; }
+  }
+  @keyframes su-borderGlow {
+    0%,100% { border-color: rgba(201,168,76,0.16); }
+    50%      { border-color: rgba(201,168,76,0.38); }
+  }
+  @keyframes su-shine {
+    from { left: -80%; }
+    to   { left: 130%; }
   }
 
   .su-gold-text {
-    background: linear-gradient(90deg, ${G.gold}, #F0D060, ${G.goldDark}, ${G.gold});
-    background-size: 200% auto;
+    background: linear-gradient(90deg, ${G.goldDark}, ${G.gold}, ${G.goldLight}, ${G.goldLight}, ${G.gold}, ${G.goldDark});
+    background-size: 400% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    animation: su-shimmer 3s linear infinite;
+    animation: su-shimmer 6s linear infinite;
+  }
+
+  .su-grid-bg {
+    background-image:
+      linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
+    background-size: 56px 56px;
+    animation: su-gridPulse 7s ease-in-out infinite;
   }
 
   .su-input {
     width: 100%;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid ${G.border};
-    border-radius: 10px;
-    padding: 14px 16px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(201,168,76,0.16);
+    border-radius: 6px;
+    padding: 15px 18px;
     font-size: 14px;
     font-family: ${G.body};
     color: ${G.text};
     outline: none;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.22s, background 0.22s, box-shadow 0.22s;
     letter-spacing: 0.02em;
   }
-  .su-input::placeholder { color: ${G.muted}; }
+  .su-input::placeholder { color: ${G.dim}; }
   .su-input:focus {
-    border-color: rgba(212,175,55,0.55);
-    background: rgba(212,175,55,0.04);
+    border-color: rgba(201,168,76,0.50);
+    background: rgba(201,168,76,0.04);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
   }
-  .su-input:disabled { opacity: 0.5; cursor: not-allowed; }
+  .su-input:disabled { opacity: 0.45; cursor: not-allowed; }
 
   .su-btn-gold {
     width: 100%;
-    padding: 15px;
-    background: linear-gradient(135deg, ${G.gold} 0%, ${G.goldDark} 100%);
-    color: #000;
+    padding: 16px;
+    background: linear-gradient(135deg, ${G.gold} 0%, ${G.goldDark} 50%, ${G.gold} 100%);
+    background-size: 200% auto;
+    color: #05050A;
     font-family: ${G.font};
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.12em;
+    font-size: 18px;
+    letter-spacing: 0.14em;
     border: none;
-    border-radius: 10px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: opacity 0.2s, transform 0.15s;
-    animation: su-pulse 2.5s ease-in-out infinite;
+    transition: transform 0.2s, box-shadow 0.2s, background-position 0.4s;
+    animation: su-pulse 3s ease-in-out infinite;
+    position: relative; overflow: hidden;
   }
-  .su-btn-gold:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-  .su-btn-gold:disabled { opacity: 0.5; cursor: not-allowed; animation: none; }
+  .su-btn-gold::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -80%; width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.20), transparent);
+    transform: skewX(-18deg);
+  }
+  .su-btn-gold:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background-position: right center;
+  }
+  .su-btn-gold:hover:not(:disabled)::after {
+    animation: su-shine 0.55s ease forwards;
+  }
+  .su-btn-gold:disabled { opacity: 0.45; cursor: not-allowed; animation: none; }
 
   .su-btn-google {
     width: 100%;
-    padding: 13px;
-    background: rgba(255,255,255,0.04);
+    padding: 14px;
+    background: rgba(255,255,255,0.035);
     color: ${G.text};
-    font-family: ${G.font};
+    font-family: ${G.body};
     font-weight: 600;
     font-size: 14px;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
     border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 10px;
+    border-radius: 6px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.22s ease;
   }
   .su-btn-google:hover:not(:disabled) {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(255,255,255,0.22);
-    transform: translateY(-1px);
+    background: rgba(255,255,255,0.07);
+    border-color: rgba(255,255,255,0.20);
+    transform: translateY(-2px);
   }
-  .su-btn-google:disabled { opacity: 0.5; cursor: not-allowed; }
+  .su-btn-google:disabled { opacity: 0.45; cursor: not-allowed; }
 
   .su-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    display: flex; align-items: center; gap: 14px;
     color: ${G.dim};
-    font-family: ${G.mono};
-    font-size: 10px;
-    letter-spacing: 0.14em;
+    font-family: ${G.mono}; font-size: 9px; letter-spacing: 0.18em;
   }
   .su-divider::before, .su-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: ${G.border};
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(201,168,76,0.2), transparent);
+  }
+
+  .su-feature-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 4px;
+    background: rgba(201,168,76,0.05);
+    border: 1px solid rgba(201,168,76,0.14);
+    font-family: ${G.mono}; font-size: 10px;
+    color: ${G.muted}; letter-spacing: 0.08em;
+    white-space: nowrap;
   }
 `;
 
-// ── Inline SVG logo (gold geometric — matches new brand) ──────────────────────
-const ManifixLogo = ({ size = 52 }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="64" height="64" rx="14" fill="url(#suBg)" />
-    <path
-      d="M10 50V16L23 16L32 35L41 16L54 16V50H45V29L32 51L19 29V50Z"
-      fill="white"
+// ── Real Logo ────────────────────────────────────────────────────────────────
+const ManifixLogo = ({ size = 56 }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+    <img
+      src="/assets/logo.png"
+      alt="ManifiX AI"
+      width={size}
+      height={size}
+      style={{ objectFit: "contain", display: "block" }}
+      onError={e => {
+        e.currentTarget.style.display = "none";
+        e.currentTarget.nextSibling.style.display = "flex";
+      }}
     />
-    <circle cx="52" cy="14" r="6" fill={G.gold} />
-    <defs>
-      <linearGradient id="suBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#1a1a2e" />
-        <stop offset="100%" stopColor="#0a0a14" />
-      </linearGradient>
-    </defs>
-  </svg>
+    {/* SVG fallback */}
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" style={{ display: "none" }}>
+      <defs>
+        <linearGradient id="suBg2" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#1A1A30"/>
+          <stop offset="100%" stopColor="#07070E"/>
+        </linearGradient>
+        <linearGradient id="suGold2" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#C9A84C"/>
+          <stop offset="100%" stopColor="#F0CC6A"/>
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="14" fill="url(#suBg2)"/>
+      <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="url(#suGold2)" strokeOpacity="0.4" strokeWidth="1"/>
+      <path d="M10 50V16L23 16L32 35L41 16L54 16V50H45V29L32 51L19 29V50Z" fill="white"/>
+      <circle cx="52" cy="14" r="5.5" fill="url(#suGold2)"/>
+      <rect x="10" y="53" width="44" height="2" rx="1" fill="url(#suGold2)" opacity="0.55"/>
+    </svg>
+  </span>
 );
 
-// ── Google SVG icon ───────────────────────────────────────────────────────────
+// ── Google Icon ─────────────────────────────────────────────────────────────
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
@@ -162,30 +220,37 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ── Eye icons ─────────────────────────────────────────────────────────────────
+// ── Eye icons ───────────────────────────────────────────────────────────────
 const EyeOn = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
   </svg>
 );
 const EyeOff = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
     <line x1="1" y1="1" x2="23" y2="23"/>
   </svg>
 );
 
+// ── Check icon ──────────────────────────────────────────────────────────────
+const Check = () => (
+  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+    <path d="M2 6l3 3 5-5" stroke="#C9A84C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
 export default function Signup() {
   const navigate = useNavigate();
-  const [email, setEmail]         = useState("");
-  const [password, setPassword]   = useState("");
-  const [showPw, setShowPw]       = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [gLoading, setGLoading]   = useState(false);
-  const [error, setError]         = useState("");
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw]     = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [gLoading, setGLoading] = useState(false);
+  const [error, setError]       = useState("");
 
   useEffect(() => {
-    const id = "manifix-signup-styles";
+    const id = "manifix-signup-v2";
     if (!document.getElementById(id)) {
       const el = document.createElement("style");
       el.id = id; el.textContent = CSS;
@@ -193,7 +258,15 @@ export default function Signup() {
     }
   }, []);
 
-  // ── Email signup ────────────────────────────────────────────────────────────
+  // Password strength
+  const pwStrength = (() => {
+    if (password.length === 0) return null;
+    if (password.length < 6) return { label: "Too Short", color: "#FF6B6B", w: "25%" };
+    if (password.length < 8) return { label: "Weak", color: "#FB923C", w: "50%" };
+    if (password.length < 12) return { label: "Good", color: G.gold, w: "75%" };
+    return { label: "Strong", color: "#4ADE80", w: "100%" };
+  })();
+
   const handleEmailSignup = async () => {
     setError("");
     if (!email.includes("@")) return setError("Enter a valid email address.");
@@ -210,21 +283,18 @@ export default function Signup() {
     }
   };
 
-  // ── Google signup ────────────────────────────────────────────────────────────
   const handleGoogleSignup = async () => {
     setError("");
     setGLoading(true);
     try {
-      // Works with Firebase signInWithPopup or redirect — depends on your authService
       const user = await authService.signInWithGoogle();
       if (!user) throw new Error("Google sign-in cancelled");
       navigate("/onboarding", { replace: true });
     } catch (err) {
-      // Common errors
       if (err?.code === "auth/popup-closed-by-user") {
         setError("Google sign-in was closed. Please try again.");
       } else if (err?.code === "auth/unauthorized-domain") {
-        setError("This domain is not authorised in Firebase. Add it in Firebase Console → Authentication → Settings → Authorised Domains.");
+        setError("This domain is not authorised. Add it in Firebase Console → Authentication → Authorised Domains.");
       } else {
         setError(err?.message || "Google sign-in failed. Please try again.");
       }
@@ -240,85 +310,109 @@ export default function Signup() {
       minHeight: "100vh", background: G.bg,
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: "24px", position: "relative", overflow: "hidden",
-      fontFamily: G.body,
     }}>
-      <Helmet><title>Join ManifiX AI | Begin Your Evolution</title></Helmet>
+      <Helmet><title>Join ManifiX AI — Begin Your Evolution</title></Helmet>
+
+      {/* Grid bg */}
+      <div className="su-grid-bg" style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }} />
 
       {/* Ambient orbs */}
       <div style={{
-        position: "fixed", width: "600px", height: "600px", borderRadius: "50%",
-        top: "-200px", left: "-200px", pointerEvents: "none",
-        background: "radial-gradient(circle, rgba(212,175,55,0.06) 0%, transparent 65%)",
-        filter: "blur(40px)", animation: "su-orb1 12s ease-in-out infinite",
+        position: "fixed", width: "700px", height: "700px", borderRadius: "50%",
+        top: "-220px", left: "-220px", pointerEvents: "none", zIndex: 0,
+        background: "radial-gradient(circle, rgba(201,168,76,0.055) 0%, transparent 65%)",
+        filter: "blur(70px)", animation: "su-orb1 16s ease-in-out infinite",
       }} />
       <div style={{
-        position: "fixed", width: "500px", height: "500px", borderRadius: "50%",
-        bottom: "-150px", right: "-150px", pointerEvents: "none",
-        background: "radial-gradient(circle, rgba(124,58,237,0.07) 0%, transparent 65%)",
-        filter: "blur(40px)", animation: "su-orb2 14s ease-in-out infinite",
+        position: "fixed", width: "550px", height: "550px", borderRadius: "50%",
+        bottom: "-160px", right: "-160px", pointerEvents: "none", zIndex: 0,
+        background: "radial-gradient(circle, rgba(99,102,241,0.055) 0%, transparent 65%)",
+        filter: "blur(70px)", animation: "su-orb2 20s ease-in-out infinite",
       }} />
 
+      {/* Decorative corner frames */}
+      <div style={{ position: "fixed", top: "24px", left: "24px", width: "50px", height: "50px", borderTop: `1px solid ${G.border}`, borderLeft: `1px solid ${G.border}`, zIndex: 1 }} />
+      <div style={{ position: "fixed", top: "24px", right: "24px", width: "50px", height: "50px", borderTop: `1px solid ${G.border}`, borderRight: `1px solid ${G.border}`, zIndex: 1 }} />
+      <div style={{ position: "fixed", bottom: "24px", left: "24px", width: "50px", height: "50px", borderBottom: `1px solid ${G.border}`, borderLeft: `1px solid ${G.border}`, zIndex: 1 }} />
+      <div style={{ position: "fixed", bottom: "24px", right: "24px", width: "50px", height: "50px", borderBottom: `1px solid ${G.border}`, borderRight: `1px solid ${G.border}`, zIndex: 1 }} />
+
+      {/* Card */}
       <motion.div
-        initial={{ opacity: 0, y: 28 }}
+        initial={{ opacity: 0, y: 32 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          width: "100%", maxWidth: "420px",
+          width: "100%", maxWidth: "440px",
           background: G.surface,
           border: `1px solid ${G.border}`,
-          borderRadius: "20px",
-          padding: "40px 36px",
-          position: "relative", overflow: "hidden",
-          boxShadow: `0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(212,175,55,0.08)`,
+          borderRadius: "10px",
+          padding: "44px 40px",
+          position: "relative", overflow: "hidden", zIndex: 10,
+          boxShadow: `0 40px 100px rgba(0,0,0,0.70), 0 0 0 1px rgba(201,168,76,0.07), 0 0 80px rgba(201,168,76,0.05)`,
+          animation: "su-borderGlow 5s ease-in-out infinite",
         }}
       >
-        {/* Top glow line */}
+        {/* Top shimmer line */}
         <div style={{
-          position: "absolute", top: 0, left: "15%", right: "15%", height: "1px",
+          position: "absolute", top: 0, left: "10%", right: "10%", height: "1px",
           background: `linear-gradient(90deg, transparent, ${G.gold}, transparent)`,
         }} />
+        {/* Bottom line */}
+        <div style={{
+          position: "absolute", bottom: 0, left: "30%", right: "30%", height: "1px",
+          background: `linear-gradient(90deg, transparent, rgba(201,168,76,0.3), transparent)`,
+        }} />
 
-        {/* Brand */}
-        <div style={{ textAlign: "center", marginBottom: "28px" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "14px" }}>
-            <ManifixLogo size={56} />
-          </div>
+        {/* ── BRAND HEADER ── */}
+        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            style={{ display: "flex", justifyContent: "center", marginBottom: "16px", animation: "su-float 6s ease-in-out infinite" }}
+          >
+            <ManifixLogo size={62} />
+          </motion.div>
+
           <h1 style={{
-            fontFamily: G.font, fontWeight: 700, fontSize: "26px",
-            letterSpacing: "0.18em", marginBottom: "4px",
+            fontFamily: G.font, fontSize: "28px",
+            letterSpacing: "0.22em", marginBottom: "5px", lineHeight: 1,
           }} className="su-gold-text">
             MANIFIX AI
           </h1>
           <p style={{
-            fontFamily: G.mono, fontSize: "10px", color: G.dim,
-            letterSpacing: "0.18em", textTransform: "uppercase",
+            fontFamily: "'Playfair Display', serif", fontStyle: "italic",
+            fontSize: "13px", color: G.muted, letterSpacing: "0.04em",
           }}>
-            Initiate 16-Day Protocol
+            Begin Your 16-Minute Evolution
           </p>
         </div>
 
-        {/* Google Button */}
-        <button
-          className="su-btn-google"
-          onClick={handleGoogleSignup}
-          disabled={isLoading}
-        >
+        {/* ── FEATURE PILLS ── */}
+        <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", marginBottom: "28px" }}>
+          {[["⚡","Magic16"], ["🌍","Global Rank"], ["🤖","AI Coach"]].map(([icon, label]) => (
+            <div key={label} className="su-feature-pill">
+              <span>{icon}</span>
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── GOOGLE ── */}
+        <button className="su-btn-google" onClick={handleGoogleSignup} disabled={isLoading}>
           {gLoading ? (
-            <span style={{ fontFamily: G.mono, fontSize: "12px", color: G.muted }}>Connecting...</span>
+            <span style={{ fontFamily: G.mono, fontSize: "12px", color: G.muted, letterSpacing: "0.08em" }}>
+              Connecting to Google...
+            </span>
           ) : (
-            <>
-              <GoogleIcon />
-              <span>Continue with Google</span>
-            </>
+            <><GoogleIcon /><span style={{ fontFamily: G.body, fontWeight: 600 }}>Continue with Google</span></>
           )}
         </button>
 
-        {/* Divider */}
-        <div className="su-divider" style={{ margin: "20px 0" }}>
-          OR REGISTER VIA EMAIL
-        </div>
+        {/* ── DIVIDER ── */}
+        <div className="su-divider" style={{ margin: "22px 0" }}>OR REGISTER WITH EMAIL</div>
 
-        {/* Email + Password */}
+        {/* ── FORM ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
           <input
             className="su-input"
@@ -329,6 +423,7 @@ export default function Signup() {
             disabled={isLoading}
             onKeyDown={e => e.key === "Enter" && handleEmailSignup()}
           />
+
           <div style={{ position: "relative" }}>
             <input
               className="su-input"
@@ -337,49 +432,92 @@ export default function Signup() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               disabled={isLoading}
-              style={{ paddingRight: "44px" }}
+              style={{ paddingRight: "46px" }}
               onKeyDown={e => e.key === "Enter" && handleEmailSignup()}
             />
             <button
               type="button"
               onClick={() => setShowPw(v => !v)}
               style={{
-                position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)",
+                position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)",
                 background: "none", border: "none", cursor: "pointer",
-                color: G.muted, display: "flex", alignItems: "center",
+                color: G.dim, display: "flex", alignItems: "center", transition: "color 0.2s",
               }}
+              onMouseEnter={e => e.currentTarget.style.color = G.gold}
+              onMouseLeave={e => e.currentTarget.style.color = G.dim}
             >
               {showPw ? <EyeOff /> : <EyeOn />}
             </button>
           </div>
+
+          {/* Password strength bar */}
+          {pwStrength && (
+            <div>
+              <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", width: pwStrength.w,
+                  background: pwStrength.color,
+                  borderRadius: "2px",
+                  transition: "width 0.3s ease, background 0.3s ease",
+                  boxShadow: `0 0 8px ${pwStrength.color}55`,
+                }} />
+              </div>
+              <div style={{ fontFamily: G.mono, fontSize: "9px", color: pwStrength.color, marginTop: "5px", letterSpacing: "0.12em" }}>
+                {pwStrength.label}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Error */}
+        {/* ── ERROR ── */}
         {error && (
-          <div style={{
-            marginBottom: "14px", padding: "10px 14px",
-            background: "rgba(248,113,113,0.08)",
-            border: "1px solid rgba(248,113,113,0.25)",
-            borderRadius: "8px", borderLeft: "3px solid #f87171",
-            fontSize: "13px", color: G.error, lineHeight: 1.5,
-          }}>
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              marginBottom: "14px", padding: "12px 16px",
+              background: "rgba(255,107,107,0.07)",
+              border: "1px solid rgba(255,107,107,0.22)",
+              borderLeft: "3px solid #FF6B6B",
+              borderRadius: "0 6px 6px 0",
+              fontSize: "13px", color: G.error, lineHeight: 1.55,
+              fontFamily: G.body,
+            }}
+          >
             {error}
-          </div>
+          </motion.div>
         )}
 
-        {/* Submit */}
-        <button
-          className="su-btn-gold"
-          onClick={handleEmailSignup}
-          disabled={isLoading}
-        >
+        {/* ── SUBMIT ── */}
+        <button className="su-btn-gold" onClick={handleEmailSignup} disabled={isLoading}>
           {loading ? "CONFIGURING..." : "BEGIN EVOLUTION →"}
         </button>
 
-        {/* Terms note */}
+        {/* ── WHAT YOU GET ── */}
+        <div style={{ marginTop: "20px", padding: "14px 16px", borderRadius: "6px", background: G.goldDim, border: `1px solid rgba(201,168,76,0.16)` }}>
+          <div style={{ fontFamily: G.mono, fontSize: "9px", color: G.gold, letterSpacing: "0.18em", marginBottom: "10px" }}>
+            INCLUDED IN YOUR MEMBERSHIP
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+            {[
+              "Magic16 Protocol","SleepGold Engine",
+              "AI Conversation Coach","Women's Health AI",
+              "Mental Health AI","Burnout Shield",
+              "Nutrition Intelligence","Global Leaderboard",
+            ].map(f => (
+              <div key={f} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                <Check />
+                <span style={{ fontFamily: G.body, fontSize: "11.5px", color: G.muted }}>{f}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── TERMS ── */}
         <p style={{
-          textAlign: "center", marginTop: "14px",
-          fontFamily: G.mono, fontSize: "10px", color: G.dim, lineHeight: 1.6,
+          textAlign: "center", marginTop: "16px",
+          fontFamily: G.mono, fontSize: "10px", color: G.dim, lineHeight: 1.65,
+          letterSpacing: "0.04em",
         }}>
           By signing up you agree to our{" "}
           <Link to="/terms" style={{ color: G.gold, textDecoration: "none" }}>Terms</Link>
@@ -387,11 +525,11 @@ export default function Signup() {
           <Link to="/privacy" style={{ color: G.gold, textDecoration: "none" }}>Privacy Policy</Link>
         </p>
 
-        {/* Divider */}
-        <div style={{ height: "1px", background: G.border, margin: "20px 0" }} />
+        {/* ── DIVIDER ── */}
+        <div style={{ height: "1px", background: `linear-gradient(90deg, transparent, ${G.border}, transparent)`, margin: "20px 0" }} />
 
-        {/* Footer */}
-        <p style={{ textAlign: "center", fontFamily: G.mono, fontSize: "11px", color: G.muted, letterSpacing: "0.06em" }}>
+        {/* ── LOGIN LINK ── */}
+        <p style={{ textAlign: "center", fontFamily: G.mono, fontSize: "11px", color: G.muted, letterSpacing: "0.07em" }}>
           Already enrolled?{" "}
           <Link to="/login" style={{ color: G.gold, textDecoration: "none", fontWeight: 600 }}>
             Access Vault →
