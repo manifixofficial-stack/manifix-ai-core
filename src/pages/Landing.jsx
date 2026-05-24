@@ -378,12 +378,12 @@ const STEPS = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Arjun V.", role: "Engineer · Top 50 Global Rank", text: "SleepGold's binaural engine changed my sleep in week one. Magic16 on top? I'm operating at a level I didn't know existed.", stars: 5 },
-  { name: "Priya M.", role: "Founder · 94-Day Streak", text: "The Women's Health AI is the only wellness system that actually understands cycle-based energy. ManifiX is leagues ahead.", stars: 5 },
-  { name: "Nikhil T.", role: "Athlete · Elite Tier", text: "The AI pose verification caught form issues I'd had for years. The leaderboard is addictive. I've never missed a day.", stars: 5 },
-  { name: "Sana K.", role: "Mother · Pediatric Module", text: "Age-adjusted BMI percentiles gave me actual clinical context for my son's health. This is what parenting apps should be.", stars: 5 },
-  { name: "Rohan D.", role: "Executive · Mental Health Module", text: "Burnout Shield flagged my high-risk week before I felt it. The CBT journaling literally saved my Q2. ManifiX is essential.", stars: 5 },
-  { name: "Meera S.", role: "Nutritionist · Verified Expert", text: "The macro AI and metabolic scoring are clinically impressive. I now recommend ManifiX to every single client I have.", stars: 5 },
+  { name: "Shyam G.", role: "Engineer · Top 50 Global Rank", text: "SleepGold's binaural engine changed my sleep in week one. Magic16 on top? I'm operating at a level I didn't know existed.", stars: 5 },
+  { name: "Priya L.", role: "user · 94-Day Streak", text: "The Women's Health AI is the only wellness system that actually understands cycle-based energy. ManifiX is leagues ahead.", stars: 5 },
+  { name: "Nikhil T.", role: "Engineer · Elite Tier", text: "The AI pose verification caught form issues I'd had for years. The leaderboard is addictive. I've never missed a day.", stars: 5 },
+  { name: "hari K.", role: "user· Pediatric Module", text: "Age-adjusted BMI percentiles gave me actual clinical context for my son's health. This is what parenting apps should be.", stars: 5 },
+  { name: "Ram D.", role: "user · Mental Health Module", text: "Burnout Shield flagged my high-risk week before I felt it. The CBT journaling literally saved my Q2. ManifiX is essential.", stars: 5 },
+  { name: "Hema R.", role: "Nutritionist · Verified Expert", text: "The macro AI and metabolic scoring are clinically impressive. I now recommend ManifiX to every single client I have.", stars: 5 },
 ];
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────────
