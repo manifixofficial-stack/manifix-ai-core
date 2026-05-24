@@ -303,17 +303,9 @@ export default function Signup() {
     setError("");
     setGLoading(true);
     try {
-      const user = await authService.signInWithGoogle();
-      if (!user) throw new Error("Google sign-in cancelled");
-      navigate("/onboarding", { replace: true });
+      await authService.loginWithGoogle(); // ✅ correct method, redirect handled by Supabase
     } catch (err) {
-      if (err?.code === "auth/popup-closed-by-user") {
-        setError("Google sign-in was closed. Please try again.");
-      } else if (err?.code === "auth/unauthorized-domain") {
-        setError("This domain is not authorised. Add it in Firebase Console → Authentication → Authorised Domains.");
-      } else {
-        setError(err?.message || "Google sign-in failed. Please try again.");
-      }
+      setError(err?.message || "Google sign-in failed. Please try again.");
     } finally {
       setGLoading(false);
     }
