@@ -66,19 +66,20 @@ class AuthService {
     }
   }
 
-  // ✅ MARK ONBOARDING COMPLETE
-  async completeOnboarding(userId) {
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ onboarded: true })
-        .eq("id", userId);
-      if (error) throw error;
-      return true;
-    } catch (err) {
-      throw new Error(err.message || "Failed to save onboarding");
-    }
+ async completeOnboarding(userId) {
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .upsert(
+        { id: userId, onboarded: true },
+        { onConflict: "id" }
+      );
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    throw new Error(err.message || "Failed to save onboarding");
   }
+}
 
   // 🚪 SIGN OUT
   async signOut() {
