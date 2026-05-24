@@ -968,15 +968,17 @@ export default function Landing() {
                     <div style={{ fontFamily: G.mono, fontSize: "7.5px", color: G.dim, letterSpacing: "0.26em", marginTop: "2px" }}>HUMAN PERFORMANCE OS</div>
                   </div>
                 </div>
-                <p style={{ fontSize: "12.5px", color: G.dim, lineHeight: 1.7, fontFamily: G.body }}>
-                  ManifixAI Private Limited<br />
-                  Kancharapalem, Near Urvasi Junction<br />
-                  Visakhapatnam, Andhra Pradesh 530008, India
-                </p>
-                <a href="mailto:manifixofficial@gmail.com" style={{ display: "block", fontSize: "12px", color: G.gold, marginTop: "12px", fontFamily: G.mono, letterSpacing: "0.05em", textDecoration: "none", opacity: 0.8 }}>
-                  manifixofficial@gmail.com
-                </a>
-              </div>
+                <p style={{ fontSize:"12.5px", color:"#555", lineHeight:1.7,
+  fontFamily:"'Inter',sans-serif" }}>
+  ManifixAI Private Limited<br />
+  Andhra Pradesh, India
+</p>
+<a href="mailto:manifixofficial@gmail.com"
+  style={{ display:"block", fontSize:"12px", color:"#c9a84c",
+    marginTop:"12px", fontFamily:"'Share Tech Mono',monospace",
+    letterSpacing:".05em", textDecoration:"none", opacity:.8 }}>
+  manifixofficial@gmail.com
+</a>
 
               {/* Links */}
               <div style={{ display: "flex", gap: "56px", flexWrap: "wrap" }}>
