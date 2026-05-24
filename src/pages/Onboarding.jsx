@@ -1,21 +1,9 @@
 /**
  * ManifiX — Onboarding.jsx
  * Production-grade. Billion-dollar execution.
- * 
- * Fixes applied vs audit findings:
- *  - magic16_last_date intentionally NOT set (was already correct; guarded with comment)
- *  - Streak starts at 0 correctly
- *  - All localStorage keys namespaced properly
- *  - No fake AI counters
- *  - Dark-mode CSS var compliant (no hardcoded colors in CSS vars layer)
- *  - Framer-motion guard with graceful fallback if not installed
- *  - Speech synthesis guarded for all browsers
- *  - Identity/goal/intensity validated before submission
- *  - Accessibility: aria-labels, role, keyboard nav on all buttons
- *  - No duplicate step bugs
- *  - Commit text validated case-insensitively then normalized
- *  - No hardcoded mock data
- *  - Package guard comments for dependencies
+ *
+ * Auth integration: calls authService.completeOnboarding(user.id)
+ * at the end of the flow so Dashboard's isOnboarded() check passes.
  */
 
 import React, {
@@ -26,6 +14,7 @@ import React, {
   useMemo,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import authService from "../services/auth.service";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    DEPENDENCY GUARD — framer-motion
@@ -38,7 +27,6 @@ try {
   motion = fm.motion;
   AnimatePresence = fm.AnimatePresence;
 } catch {
-  /* Graceful no-op wrappers so the app never white-screens */
   AnimatePresence = ({ children }) => <>{children}</>;
   const FallbackMotion = React.forwardRef(
     ({ children, style, className, ...rest }, ref) => (
@@ -58,8 +46,6 @@ try {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    STYLE INJECTION
-   Uses CSS custom properties throughout — dark-mode safe.
-   No hardcoded colour values in rendered elements.
 ───────────────────────────────────────────────────────────────────────────── */
 const STYLE_ID = "manifix-ob-styles-v2";
 
@@ -70,12 +56,10 @@ function injectStyles() {
   s.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap');
 
-    /* ── Reset ── */
     #manifix-ob *, #manifix-ob *::before, #manifix-ob *::after {
       box-sizing: border-box; margin: 0; padding: 0;
     }
 
-    /* ── Custom properties ── */
     #manifix-ob {
       --ob-bg:           #060608;
       --ob-surface:      #0d0d10;
@@ -96,7 +80,6 @@ function injectStyles() {
       --ob-transition:   200ms cubic-bezier(.4,0,.2,1);
     }
 
-    /* ── Keyframes ── */
     @keyframes ob2-scan {
       0%   { transform: translateY(-100%); opacity: 0; }
       8%   { opacity: 1; }
@@ -128,14 +111,6 @@ function injectStyles() {
       93%         { clip-path: inset(10% 0 78% 0); transform: translateX(4px);  color: var(--ob-gold); }
       96%         { clip-path: inset(70% 0 8%  0); transform: translateX(-2px); }
     }
-    @keyframes ob2-counter {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: none; }
-    }
-    @keyframes ob2-reveal-line {
-      from { width: 0; }
-      to   { width: 100%; }
-    }
     @keyframes ob2-fade-up {
       from { opacity: 0; transform: translateY(12px); }
       to   { opacity: 1; transform: none; }
@@ -144,153 +119,83 @@ function injectStyles() {
       to { transform: rotate(360deg); }
     }
 
-    /* ── Utility classes ── */
-    .ob2-blink { animation: ob2-blink 1.1s step-end infinite; }
-    .ob2-shake { animation: ob2-shake .45s ease; }
-    .ob2-pulse-btn { animation: ob2-pulse 2s ease-in-out infinite; }
-    .ob2-glitch-h  { animation: ob2-glitch-h 4s infinite; }
+    .ob2-blink      { animation: ob2-blink 1.1s step-end infinite; }
+    .ob2-shake      { animation: ob2-shake .45s ease; }
+    .ob2-pulse-btn  { animation: ob2-pulse 2s ease-in-out infinite; }
+    .ob2-glitch-h   { animation: ob2-glitch-h 4s infinite; }
 
-    /* ── Option buttons ── */
     .ob2-opt {
-      position: relative;
-      width: 100%;
-      padding: 13px 16px;
-      background: var(--ob-surface);
-      border: 1px solid var(--ob-border);
-      color: var(--ob-text-muted);
-      font-family: var(--ob-mono);
-      font-size: 11px;
-      letter-spacing: .18em;
-      text-transform: uppercase;
-      cursor: pointer;
-      text-align: left;
+      position: relative; width: 100%; padding: 13px 16px;
+      background: var(--ob-surface); border: 1px solid var(--ob-border);
+      color: var(--ob-text-muted); font-family: var(--ob-mono);
+      font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+      cursor: pointer; text-align: left;
       transition: border-color var(--ob-transition), color var(--ob-transition),
                   background var(--ob-transition), transform var(--ob-transition);
-      outline: none;
-      border-radius: var(--ob-radius);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      user-select: none;
+      outline: none; border-radius: var(--ob-radius);
+      display: flex; align-items: center; gap: 10px; user-select: none;
     }
     .ob2-opt:hover:not(:disabled) {
-      border-color: var(--ob-border-hi);
-      color: rgba(240,236,227,.55);
+      border-color: var(--ob-border-hi); color: rgba(240,236,227,.55);
       background: var(--ob-surface-2);
     }
     .ob2-opt:active:not(:disabled) { transform: scale(0.99); }
     .ob2-opt:focus-visible { outline: 2px solid var(--ob-gold); outline-offset: 2px; }
-    .ob2-opt.sel-gold {
-      border-color: var(--ob-gold);
-      color: var(--ob-gold);
-      background: var(--ob-gold-dim);
-    }
-    .ob2-opt.sel-red {
-      border-color: var(--ob-red);
-      color: var(--ob-red);
-      background: var(--ob-red-dim);
-    }
+    .ob2-opt.sel-gold { border-color: var(--ob-gold); color: var(--ob-gold); background: var(--ob-gold-dim); }
+    .ob2-opt.sel-red  { border-color: var(--ob-red);  color: var(--ob-red);  background: var(--ob-red-dim);  }
     .ob2-opt .ob2-opt-check {
-      margin-left: auto;
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      border: 1px solid var(--ob-border);
-      flex-shrink: 0;
+      margin-left: auto; width: 14px; height: 14px; border-radius: 50%;
+      border: 1px solid var(--ob-border); flex-shrink: 0;
       transition: background var(--ob-transition), border-color var(--ob-transition);
     }
-    .ob2-opt.sel-gold .ob2-opt-check {
-      background: var(--ob-gold);
-      border-color: var(--ob-gold);
-    }
-    .ob2-opt.sel-red .ob2-opt-check {
-      background: var(--ob-red);
-      border-color: var(--ob-red);
-    }
+    .ob2-opt.sel-gold .ob2-opt-check { background: var(--ob-gold); border-color: var(--ob-gold); }
+    .ob2-opt.sel-red  .ob2-opt-check { background: var(--ob-red);  border-color: var(--ob-red);  }
 
-    /* ── Input ── */
-    .ob2-commit-wrap {
-      position: relative;
-    }
+    .ob2-commit-wrap { position: relative; }
     .ob2-commit-label {
-      font-family: var(--ob-mono);
-      font-size: 9px;
-      letter-spacing: .22em;
-      color: var(--ob-text-faint);
-      text-transform: uppercase;
-      padding: 9px 14px;
-      background: var(--ob-surface);
-      border: 1px solid var(--ob-border);
-      border-bottom: none;
+      font-family: var(--ob-mono); font-size: 9px; letter-spacing: .22em;
+      color: var(--ob-text-faint); text-transform: uppercase;
+      padding: 9px 14px; background: var(--ob-surface);
+      border: 1px solid var(--ob-border); border-bottom: none;
       border-radius: var(--ob-radius) var(--ob-radius) 0 0;
     }
     .ob2-commit-input {
-      width: 100%;
-      background: var(--ob-surface);
+      width: 100%; background: var(--ob-surface);
       border: 1px solid var(--ob-border);
       border-radius: 0 0 var(--ob-radius) var(--ob-radius);
-      color: var(--ob-text-primary);
-      font-family: var(--ob-mono);
-      font-size: 13px;
-      font-weight: 500;
-      letter-spacing: .18em;
-      padding: 14px 16px;
-      outline: none;
-      caret-color: var(--ob-gold);
+      color: var(--ob-text-primary); font-family: var(--ob-mono);
+      font-size: 13px; font-weight: 500; letter-spacing: .18em;
+      padding: 14px 16px; outline: none; caret-color: var(--ob-gold);
       transition: border-color var(--ob-transition);
     }
     .ob2-commit-input::placeholder { color: var(--ob-text-faint); letter-spacing: .1em; }
     .ob2-commit-input:focus { border-color: var(--ob-gold-dim); }
     .ob2-commit-input.valid { border-color: var(--ob-gold); color: var(--ob-gold); }
-    .ob2-commit-input.error {
-      border-color: var(--ob-red);
-      animation: ob2-shake .45s ease;
-    }
+    .ob2-commit-input.error { border-color: var(--ob-red); animation: ob2-shake .45s ease; }
 
-    /* ── Progress dots ── */
     .ob2-dot {
-      height: 3px;
-      background: var(--ob-text-faint);
-      border-radius: 9px;
-      transition: background .35s, flex var(--ob-transition);
-      flex: 1;
+      height: 3px; background: var(--ob-text-faint); border-radius: 9px;
+      transition: background .35s, flex var(--ob-transition); flex: 1;
     }
     .ob2-dot.active { background: var(--ob-gold); flex: 2; }
     .ob2-dot.done   { background: rgba(228,184,74,.35); }
 
-    /* ── Next button ── */
     .ob2-btn-next {
-      width: 100%;
-      margin-top: 14px;
-      padding: 14px 0;
-      font-family: var(--ob-mono);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-      cursor: pointer;
-      border: none;
-      border-radius: var(--ob-radius);
+      width: 100%; margin-top: 14px; padding: 14px 0;
+      font-family: var(--ob-mono); font-size: 11px; font-weight: 700;
+      letter-spacing: .22em; text-transform: uppercase;
+      cursor: pointer; border: none; border-radius: var(--ob-radius);
       transition: background var(--ob-transition), color var(--ob-transition),
                   transform var(--ob-transition), opacity var(--ob-transition);
-      outline: none;
-      position: relative;
-      overflow: hidden;
+      outline: none; position: relative; overflow: hidden;
     }
-    .ob2-btn-next:not(:disabled) {
-      background: var(--ob-gold);
-      color: #080608;
-    }
+    .ob2-btn-next:not(:disabled) { background: var(--ob-gold); color: #080608; }
     .ob2-btn-next:not(:disabled):hover { opacity: .88; }
     .ob2-btn-next:not(:disabled):active { transform: scale(0.985); }
-    .ob2-btn-next:not(:disabled):focus-visible {
-      outline: 2px solid var(--ob-gold);
-      outline-offset: 3px;
-    }
+    .ob2-btn-next:not(:disabled):focus-visible { outline: 2px solid var(--ob-gold); outline-offset: 3px; }
     .ob2-btn-next:disabled {
-      background: var(--ob-surface-2);
-      color: var(--ob-text-faint);
-      cursor: not-allowed;
-      border: 1px solid var(--ob-border);
+      background: var(--ob-surface-2); color: var(--ob-text-faint);
+      cursor: not-allowed; border: 1px solid var(--ob-border);
     }
     .ob2-btn-next-warn {
       background: var(--ob-red-dim) !important;
@@ -299,16 +204,23 @@ function injectStyles() {
     }
     .ob2-btn-next-warn:hover { opacity: .82 !important; }
 
-    /* ── Spinner ── */
     .ob2-spinner {
-      display: inline-block;
-      width: 12px; height: 12px;
-      border: 1.5px solid rgba(8,6,8,.3);
-      border-top-color: #080608;
-      border-radius: 50%;
-      animation: ob2-spin .7s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
+      display: inline-block; width: 12px; height: 12px;
+      border: 1.5px solid rgba(8,6,8,.3); border-top-color: #080608;
+      border-radius: 50%; animation: ob2-spin .7s linear infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+
+    /* ── Auth error banner ── */
+    .ob2-auth-error {
+      margin-top: 10px; padding: 9px 13px;
+      background: var(--ob-red-dim);
+      border: 1px solid rgba(242,83,83,.22);
+      border-radius: var(--ob-radius);
+      font-family: var(--ob-mono);
+      font-size: 9px; letter-spacing: .14em;
+      color: var(--ob-red); line-height: 1.7;
+      animation: ob2-fade-up .25s ease both;
     }
   `;
   document.head.appendChild(s);
@@ -327,30 +239,15 @@ const GOALS = [
 ];
 
 const INTENSITIES = [
-  {
-    val: "Standard",
-    desc: "16 min / day. Measured rhythm.",
-    sel: "sel-gold",
-    badge: null,
-  },
-  {
-    val: "High",
-    desc: "Harder. Faster. No breaks.",
-    sel: "sel-gold",
-    badge: "POPULAR",
-  },
-  {
-    val: "NO EXCUSES",
-    desc: "Maximum difficulty. Full accountability.",
-    sel: "sel-red",
-    badge: "EXTREME",
-  },
+  { val: "Standard",    desc: "16 min / day. Measured rhythm.",          sel: "sel-gold", badge: null      },
+  { val: "High",        desc: "Harder. Faster. No breaks.",              sel: "sel-gold", badge: "POPULAR" },
+  { val: "NO EXCUSES",  desc: "Maximum difficulty. Full accountability.", sel: "sel-red",  badge: "EXTREME" },
 ];
 
 const IDENTITIES = [
-  { val: "I don't quit.",           sub: "Commitment over motivation."   },
-  { val: "I finish what I start.",  sub: "Execution over intention."      },
-  { val: "I am in the top 1%.",     sub: "Standards non-negotiable."      },
+  { val: "I don't quit.",           sub: "Commitment over motivation." },
+  { val: "I finish what I start.",  sub: "Execution over intention."   },
+  { val: "I am in the top 1%.",     sub: "Standards non-negotiable."   },
 ];
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -370,7 +267,6 @@ const PAGE_VARIANTS = {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SAFE SPEECH SYNTHESIS
-   Guards: availability, cancel before speak, rate clamping
 ───────────────────────────────────────────────────────────────────────────── */
 function safespeak(text, rate = 0.88) {
   if (typeof window === "undefined") return;
@@ -380,16 +276,12 @@ function safespeak(text, rate = 0.88) {
     msg.rate = Math.min(Math.max(rate, 0.5), 2);
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(msg);
-  } catch {
-    /* speech not critical — swallow */
-  }
+  } catch { /* not critical */ }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SUB-COMPONENTS
 ───────────────────────────────────────────────────────────────────────────── */
-
-/** Animated progress bar-style step dots */
 function StepDots({ current, total }) {
   return (
     <div
@@ -409,15 +301,11 @@ function StepDots({ current, total }) {
   );
 }
 
-/** Section micro-label */
 function MicroLabel({ children, color }) {
   return (
     <div style={{
-      fontSize: 9,
-      letterSpacing: ".28em",
-      textTransform: "uppercase",
-      color: color || "var(--ob-text-faint)",
-      marginBottom: 10,
+      fontSize: 9, letterSpacing: ".28em", textTransform: "uppercase",
+      color: color || "var(--ob-text-faint)", marginBottom: 10,
       fontFamily: "var(--ob-mono)",
     }}>
       {children}
@@ -425,14 +313,12 @@ function MicroLabel({ children, color }) {
   );
 }
 
-/** Big display heading */
 function DisplayHeading({ children, color }) {
   return (
     <h2 style={{
       fontFamily: "var(--ob-display)",
       fontSize: "clamp(36px, 9vw, 52px)",
-      fontWeight: 800,
-      letterSpacing: "-.01em",
+      fontWeight: 800, letterSpacing: "-.01em",
       lineHeight: 0.97,
       color: color || "var(--ob-text-primary)",
       marginBottom: 22,
@@ -442,7 +328,6 @@ function DisplayHeading({ children, color }) {
   );
 }
 
-/** Single choice option row */
 function OptionBtn({ val, icon, desc, sub, badge, selected, selClass, onClick }) {
   return (
     <button
@@ -461,13 +346,8 @@ function OptionBtn({ val, icon, desc, sub, badge, selected, selClass, onClick })
         <span style={{ display: "block", fontWeight: selected ? 500 : 400 }}>{val}</span>
         {(desc || sub) && (
           <span style={{
-            display: "block",
-            fontSize: 9,
-            letterSpacing: ".1em",
-            textTransform: "none",
-            fontStyle: "italic",
-            marginTop: 2,
-            opacity: .55,
+            display: "block", fontSize: 9, letterSpacing: ".1em",
+            textTransform: "none", fontStyle: "italic", marginTop: 2, opacity: .55,
           }}>
             {desc || sub}
           </span>
@@ -475,13 +355,9 @@ function OptionBtn({ val, icon, desc, sub, badge, selected, selClass, onClick })
       </span>
       {badge && (
         <span style={{
-          fontSize: 8,
-          letterSpacing: ".14em",
-          padding: "2px 6px",
+          fontSize: 8, letterSpacing: ".14em", padding: "2px 6px",
           border: `1px solid ${selected ? "currentColor" : "var(--ob-border)"}`,
-          borderRadius: 2,
-          opacity: selected ? 1 : .35,
-          whiteSpace: "nowrap",
+          borderRadius: 2, opacity: selected ? 1 : .35, whiteSpace: "nowrap",
         }}>
           {badge}
         </span>
@@ -491,16 +367,11 @@ function OptionBtn({ val, icon, desc, sub, badge, selected, selClass, onClick })
   );
 }
 
-/** Summary row in final lock step */
 function SummaryRow({ label, value, accent }) {
   return (
     <div style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "baseline",
-      fontSize: 10,
-      letterSpacing: ".12em",
-      padding: "5px 0",
+      display: "flex", justifyContent: "space-between", alignItems: "baseline",
+      fontSize: 10, letterSpacing: ".12em", padding: "5px 0",
       borderBottom: "1px solid var(--ob-border)",
     }}>
       <span style={{ color: "var(--ob-text-faint)", textTransform: "uppercase" }}>{label}</span>
@@ -511,24 +382,15 @@ function SummaryRow({ label, value, accent }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   CARD WRAPPER
-───────────────────────────────────────────────────────────────────────────── */
 function Card({ children, warn }) {
   return (
     <div style={{
       background: warn ? "rgba(10,5,5,.97)" : "var(--ob-surface)",
       border: `1px solid ${warn ? "rgba(242,83,83,.18)" : "var(--ob-border)"}`,
-      borderRadius: 4,
-      padding: "28px 24px",
-      position: "relative",
-      overflow: "hidden",
+      borderRadius: 4, padding: "28px 24px", position: "relative", overflow: "hidden",
     }}>
-      {/* top accent line */}
       <div style={{
-        position: "absolute",
-        top: 0, left: 0, right: 0,
-        height: 1,
+        position: "absolute", top: 0, left: 0, right: 0, height: 1,
         background: warn
           ? "linear-gradient(90deg, transparent, rgba(242,83,83,.5), transparent)"
           : "linear-gradient(90deg, transparent, rgba(228,184,74,.25), transparent)",
@@ -544,41 +406,35 @@ function Card({ children, warn }) {
 export default function Onboarding() {
   const navigate = useNavigate();
 
-  /* ── Phase: "intro" → "steps" → navigates away */
-  const [phase, setPhase]     = useState("intro");
-  const [step,  setStep]      = useState(1);
+  const [phase, setPhase]       = useState("intro");
+  const [step,  setStep]        = useState(1);
 
-  /* ── User selections */
-  const [goal,      setGoal]      = useState("");
-  const [intensity, setIntensity] = useState("");
-  const [identity,  setIdentity]  = useState("");
+  const [goal,       setGoal]      = useState("");
+  const [intensity,  setIntensity] = useState("");
+  const [identity,   setIdentity]  = useState("");
 
-  /* ── Final lock */
   const [commitText, setCommitText] = useState("");
   const [inputState, setInputState] = useState("idle"); // idle | error | valid
   const [loading,    setLoading]    = useState(false);
 
-  /* ── Counters for intro screen */
+  /* ✅ Auth error shown in UI if completeOnboarding fails */
+  const [authError,  setAuthError]  = useState("");
+
   const [scanPct, setScanPct] = useState(0);
 
   const spokeRef    = useRef(false);
   const inputRef    = useRef(null);
   const commitTimer = useRef(null);
 
-  /* ── Inject styles once */
   useEffect(() => { injectStyles(); }, []);
 
-  /* ── Intro sequence: scan counter + speech */
+  /* Intro scan sequence */
   useEffect(() => {
     if (phase !== "intro") return;
-
-    /* Speak once */
     if (!spokeRef.current) {
       spokeRef.current = true;
       safespeak("Initializing ManifiX neural protocol.", 0.86);
     }
-
-    /* Animate scan percentage */
     let pct = 0;
     const iv = setInterval(() => {
       pct = Math.min(pct + (Math.random() * 4 + 1.5), 100);
@@ -588,11 +444,10 @@ export default function Onboarding() {
         setTimeout(() => setPhase("steps"), 320);
       }
     }, 28);
-
     return () => { clearInterval(iv); };
   }, [phase]);
 
-  /* ── Auto-focus commit input when step 5 mounts */
+  /* Auto-focus commit input on step 5 */
   useEffect(() => {
     if (step === 5 && inputRef.current) {
       const t = setTimeout(() => inputRef.current?.focus(), 480);
@@ -600,22 +455,28 @@ export default function Onboarding() {
     }
   }, [step]);
 
-  /* ── Commit text validation */
+  /* Commit text live validation */
   useEffect(() => {
-    if (commitText === "") {
-      setInputState("idle");
-    } else if (commitText === "I WILL NOT QUIT") {
-      setInputState("valid");
-    } else {
-      setInputState("idle");
-    }
+    setInputState(
+      commitText === ""             ? "idle"  :
+      commitText === "I WILL NOT QUIT" ? "valid" : "idle"
+    );
   }, [commitText]);
 
-  /* ── Handle final lock */
-  const handleFinalLock = useCallback(() => {
+  /* ────────────────────────────────────────────────────────────────────────
+     ✅ FINAL LOCK — now calls authService.completeOnboarding(user.id)
+     Flow:
+       1. Validate phrase + upstream selections
+       2. Write localStorage (game state only — no lastDate)
+       3. Get current auth user
+       4. Mark onboarding complete in Supabase
+       5. Navigate to dashboard
+  ─────────────────────────────────────────────────────────────────────── */
+  const handleFinalLock = useCallback(async () => {
     if (loading) return;
+    setAuthError("");
 
-    /* Validate exact phrase (case-insensitive, then normalised) */
+    /* Validate exact phrase */
     if (commitText.trim().toUpperCase() !== "I WILL NOT QUIT") {
       setInputState("error");
       clearTimeout(commitTimer.current);
@@ -624,9 +485,8 @@ export default function Onboarding() {
       return;
     }
 
-    /* Validate all upstream selections are present */
+    /* Belt-and-suspenders: all upstream steps must be complete */
     if (!goal || !intensity || !identity) {
-      /* Should not be reachable due to per-step guards, but belt-and-suspenders */
       console.error("[ManifiX] Onboarding submitted with incomplete selections");
       return;
     }
@@ -634,33 +494,50 @@ export default function Onboarding() {
     setLoading(true);
     safespeak("Welcome to the one percent.", 0.80);
 
-    /**
-     * IMPORTANT: magic16_last_date is intentionally NOT written here.
-     * Dashboard reads lastDate to determine if today's session is complete.
-     * A brand-new user must land with mission PENDING (no lastDate = pending).
-     * recordSessionComplete() in the session flow is responsible for setting it.
-     */
-    const now = Date.now();
+    /* ── 1. Write game state to localStorage ── */
     try {
-      localStorage.setItem("magic16_started",         "true");
-      localStorage.setItem("magic16_streak",          "0");       // starts at 0; increments after first completed session
-      localStorage.setItem("magic16_xp",              "0");
-      localStorage.setItem("magic16_level",           "1");
-      localStorage.setItem("magic16_goal",            goal);
-      localStorage.setItem("magic16_intensity",       intensity);
-      localStorage.setItem("magic16_identity",        identity);
-      localStorage.setItem("magic16_onboarded_at",    String(now));
-      localStorage.setItem("magic16_sessions_total",  "0");
-      /* magic16_last_date: intentionally omitted — see note above */
+      localStorage.setItem("magic16_started",        "true");
+      localStorage.setItem("magic16_streak",         "0");
+      localStorage.setItem("magic16_xp",             "0");
+      localStorage.setItem("magic16_level",          "1");
+      localStorage.setItem("magic16_goal",           goal);
+      localStorage.setItem("magic16_intensity",      intensity);
+      localStorage.setItem("magic16_identity",       identity);
+      localStorage.setItem("magic16_onboarded_at",   String(Date.now()));
+      localStorage.setItem("magic16_sessions_total", "0");
+      /*
+       * magic16_last_date intentionally NOT written here.
+       * Dashboard reads lastDate to determine if today's session is done.
+       * New user must arrive with mission PENDING — recordSessionComplete()
+       * sets lastDate after the first completed session.
+       */
     } catch (e) {
-      /* localStorage may be unavailable (private mode / storage full) */
       console.warn("[ManifiX] localStorage write failed:", e.message);
     }
 
-    setTimeout(() => navigate("/app/dashboard", { replace: true }), 1500);
+    /* ── 2. Mark onboarding complete in Supabase via authService ── */
+    try {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        await authService.completeOnboarding(user.id);
+      }
+      /* Navigate — Dashboard's isOnboarded() will now return true */
+      navigate("/app/dashboard", { replace: true });
+    } catch (err) {
+      /*
+       * Supabase call failed (network error, RLS issue, etc).
+       * We do NOT navigate — user stays on step 5 with an error message
+       * so they can retry rather than getting stuck in an onboarding loop.
+       */
+      console.error("[ManifiX] completeOnboarding failed:", err);
+      setAuthError(
+        "Could not sync your profile. Check your connection and try again."
+      );
+      setLoading(false);
+    }
   }, [loading, commitText, goal, intensity, identity, navigate]);
 
-  /* ── Keyboard: Enter advances step where possible */
+  /* Keyboard shortcut: Enter advances step */
   const handleKeyDown = useCallback((e) => {
     if (e.key !== "Enter") return;
     if (phase !== "steps") return;
@@ -671,10 +548,7 @@ export default function Onboarding() {
     if (step === 5)              { handleFinalLock(); }
   }, [phase, step, goal, intensity, identity, handleFinalLock]);
 
-  /* ── Derived: is intensity "extreme"? */
   const isExtreme = intensity === "NO EXCUSES";
-
-  /* ── Shared wrapper check for commit button */
   const canSubmit = useMemo(
     () => commitText === "I WILL NOT QUIT" && !loading,
     [commitText, loading]
@@ -697,67 +571,43 @@ export default function Onboarding() {
         overflow: "hidden",
       }}
     >
-      {/* ── Ambient glow ── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          top: "20%", left: "50%",
-          width: 560, height: 320,
-          background: "radial-gradient(ellipse, rgba(228,184,74,.1) 0%, transparent 68%)",
-          animation: "ob2-breathe 6s ease-in-out infinite",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+      {/* Ambient glow */}
+      <div aria-hidden="true" style={{
+        position: "fixed", top: "20%", left: "50%",
+        width: 560, height: 320,
+        background: "radial-gradient(ellipse, rgba(228,184,74,.1) 0%, transparent 68%)",
+        animation: "ob2-breathe 6s ease-in-out infinite",
+        pointerEvents: "none", zIndex: 0,
+      }} />
 
-      {/* ── Scan line ── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          left: 0, right: 0,
-          height: 80,
-          background: "linear-gradient(180deg, transparent, rgba(228,184,74,.03), transparent)",
-          animation: "ob2-scan 4s ease-in-out infinite",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+      {/* Scan line */}
+      <div aria-hidden="true" style={{
+        position: "fixed", left: 0, right: 0, height: 80,
+        background: "linear-gradient(180deg, transparent, rgba(228,184,74,.03), transparent)",
+        animation: "ob2-scan 4s ease-in-out infinite",
+        pointerEvents: "none", zIndex: 0,
+      }} />
 
-      {/* ── Corner brackets ── */}
+      {/* Corner brackets */}
       {[
-        { top: 18, left: 18,   borderTop: "1px solid var(--ob-border)", borderLeft:  "1px solid var(--ob-border)" },
-        { top: 18, right: 18,  borderTop: "1px solid var(--ob-border)", borderRight: "1px solid var(--ob-border)" },
-        { bottom: 18, left: 18,   borderBottom: "1px solid var(--ob-border)", borderLeft:  "1px solid var(--ob-border)" },
-        { bottom: 18, right: 18,  borderBottom: "1px solid var(--ob-border)", borderRight: "1px solid var(--ob-border)" },
+        { top: 18, left: 18,   borderTop: "1px solid var(--ob-border)", borderLeft:   "1px solid var(--ob-border)" },
+        { top: 18, right: 18,  borderTop: "1px solid var(--ob-border)", borderRight:  "1px solid var(--ob-border)" },
+        { bottom: 18, left: 18,  borderBottom: "1px solid var(--ob-border)", borderLeft:  "1px solid var(--ob-border)" },
+        { bottom: 18, right: 18, borderBottom: "1px solid var(--ob-border)", borderRight: "1px solid var(--ob-border)" },
       ].map((pos, i) => (
-        <div
-          key={i}
-          aria-hidden="true"
-          style={{ position: "fixed", width: 22, height: 22, ...pos }}
-        />
+        <div key={i} aria-hidden="true" style={{ position: "fixed", width: 22, height: 22, ...pos }} />
       ))}
 
-      {/* ── Version tag ── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          bottom: 18, left: 18,
-          fontSize: 8,
-          letterSpacing: ".2em",
-          color: "var(--ob-text-faint)",
-          fontFamily: "var(--ob-mono)",
-          textTransform: "uppercase",
-        }}
-      >
+      {/* Version tag */}
+      <div aria-hidden="true" style={{
+        position: "fixed", bottom: 18, left: 18,
+        fontSize: 8, letterSpacing: ".2em",
+        color: "var(--ob-text-faint)", fontFamily: "var(--ob-mono)",
+        textTransform: "uppercase",
+      }}>
         ManifiX / Protocol v2.0
       </div>
 
-      {/* ════════════════════
-          CONTENT
-      ════════════════════ */}
       <AnimatePresence mode="wait">
 
         {/* ── INTRO PHASE ── */}
@@ -768,74 +618,42 @@ export default function Onboarding() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.35 } }}
             style={{
-              textAlign: "center",
-              position: "relative",
-              zIndex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 20,
+              textAlign: "center", position: "relative", zIndex: 1,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 20,
             }}
           >
-            {/* wordmark */}
             <div style={{
               fontFamily: "var(--ob-display)",
               fontSize: "clamp(48px, 12vw, 80px)",
-              fontWeight: 800,
-              letterSpacing: "-.02em",
-              color: "var(--ob-text-primary)",
-              lineHeight: 1,
-              className: "ob2-glitch-h",
+              fontWeight: 800, letterSpacing: "-.02em",
+              color: "var(--ob-text-primary)", lineHeight: 1,
             }}>
               MANIFIX
             </div>
 
-            {/* scan bar */}
             <div style={{
-              width: "min(280px, 72vw)",
-              height: 2,
-              background: "var(--ob-border)",
-              borderRadius: 9,
-              overflow: "hidden",
+              width: "min(280px, 72vw)", height: 2,
+              background: "var(--ob-border)", borderRadius: 9, overflow: "hidden",
             }}>
               <div style={{
-                height: "100%",
-                width: `${scanPct}%`,
+                height: "100%", width: `${scanPct}%`,
                 background: "var(--ob-gold)",
-                transition: "width .06s linear",
-                borderRadius: 9,
+                transition: "width .06s linear", borderRadius: 9,
               }} />
             </div>
 
-            {/* scan pct */}
             <div style={{
-              fontFamily: "var(--ob-mono)",
-              fontSize: 11,
-              letterSpacing: ".22em",
-              color: "var(--ob-text-muted)",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
+              fontFamily: "var(--ob-mono)", fontSize: 11, letterSpacing: ".22em",
+              color: "var(--ob-text-muted)", display: "flex", alignItems: "center", gap: 10,
             }}>
-              <span
-                className="ob2-blink"
-                style={{ color: "var(--ob-gold)", fontSize: 8 }}
-                aria-hidden="true"
-              >●</span>
+              <span className="ob2-blink" style={{ color: "var(--ob-gold)", fontSize: 8 }} aria-hidden="true">●</span>
               <span>Initializing neural profile — {scanPct}%</span>
             </div>
 
-            {/* module list */}
             <div style={{
-              fontFamily: "var(--ob-mono)",
-              fontSize: 9,
-              letterSpacing: ".18em",
-              color: "var(--ob-text-faint)",
-              textTransform: "uppercase",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              marginTop: 8,
+              fontFamily: "var(--ob-mono)", fontSize: 9, letterSpacing: ".18em",
+              color: "var(--ob-text-faint)", textTransform: "uppercase",
+              display: "flex", flexDirection: "column", gap: 4, marginTop: 8,
               animation: "ob2-fade-up .6s ease .3s both",
             }}>
               {[
@@ -856,52 +674,26 @@ export default function Onboarding() {
 
         {/* ── STEPS PHASE ── */}
         {phase === "steps" && (
-          <div
-            style={{
-              position: "relative",
-              zIndex: 1,
-              width: "min(420px, 94vw)",
-            }}
-          >
+          <div style={{ position: "relative", zIndex: 1, width: "min(420px, 94vw)" }}>
             <AnimatePresence mode="wait">
 
               {/* ════ STEP 1: GOAL ════ */}
               {step === 1 && (
-                <motion.div
-                  key="s1"
-                  variants={PAGE_VARIANTS}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                >
+                <motion.div key="s1" variants={PAGE_VARIANTS} initial="enter" animate="center" exit="exit">
                   <Card>
                     <StepDots current={1} total={TOTAL_STEPS} />
                     <MicroLabel>Step 1 of {TOTAL_STEPS} — Objective</MicroLabel>
                     <DisplayHeading>What drives<br />your loop?</DisplayHeading>
-                    <div
-                      role="radiogroup"
-                      aria-label="Select your objective"
-                      style={{ display: "flex", flexDirection: "column", gap: 7 }}
-                    >
+                    <div role="radiogroup" aria-label="Select your objective"
+                      style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                       {GOALS.map(({ val, icon, desc }) => (
-                        <OptionBtn
-                          key={val}
-                          val={val}
-                          icon={icon}
-                          desc={desc}
-                          selected={goal === val}
-                          selClass="sel-gold"
-                          onClick={() => setGoal(val)}
-                        />
+                        <OptionBtn key={val} val={val} icon={icon} desc={desc}
+                          selected={goal === val} selClass="sel-gold"
+                          onClick={() => setGoal(val)} />
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      className="ob2-btn-next"
-                      disabled={!goal}
-                      onClick={() => setStep(2)}
-                      aria-label="Proceed to intensity selection"
-                    >
+                    <button type="button" className="ob2-btn-next" disabled={!goal}
+                      onClick={() => setStep(2)} aria-label="Proceed to intensity selection">
                       Continue →
                     </button>
                   </Card>
@@ -910,62 +702,38 @@ export default function Onboarding() {
 
               {/* ════ STEP 2: INTENSITY ════ */}
               {step === 2 && (
-                <motion.div
-                  key="s2"
-                  variants={PAGE_VARIANTS}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                >
+                <motion.div key="s2" variants={PAGE_VARIANTS} initial="enter" animate="center" exit="exit">
                   <Card>
                     <StepDots current={2} total={TOTAL_STEPS} />
                     <MicroLabel>Step 2 of {TOTAL_STEPS} — Intensity</MicroLabel>
                     <DisplayHeading>Set your<br />threshold.</DisplayHeading>
-                    <div
-                      role="radiogroup"
-                      aria-label="Select training intensity"
-                      style={{ display: "flex", flexDirection: "column", gap: 7 }}
-                    >
+                    <div role="radiogroup" aria-label="Select training intensity"
+                      style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                       {INTENSITIES.map(({ val, desc, sel, badge }) => (
-                        <OptionBtn
-                          key={val}
-                          val={val}
-                          desc={desc}
-                          badge={badge}
-                          selected={intensity === val}
-                          selClass={sel}
-                          onClick={() => setIntensity(val)}
-                        />
+                        <OptionBtn key={val} val={val} desc={desc} badge={badge}
+                          selected={intensity === val} selClass={sel}
+                          onClick={() => setIntensity(val)} />
                       ))}
                     </div>
 
-                    {/* NO EXCUSES warning chip */}
                     {isExtreme && (
                       <div style={{
-                        marginTop: 10,
-                        padding: "8px 12px",
+                        marginTop: 10, padding: "8px 12px",
                         background: "var(--ob-red-dim)",
-                        border: "1px solid rgba(242,83,83,.2)",
-                        borderRadius: 2,
-                        fontSize: 9,
-                        letterSpacing: ".1em",
-                        color: "var(--ob-red)",
-                        fontFamily: "var(--ob-mono)",
-                        animation: "ob2-fade-up .25s ease both",
-                        lineHeight: 1.6,
+                        border: "1px solid rgba(242,83,83,.2)", borderRadius: 2,
+                        fontSize: 9, letterSpacing: ".1em",
+                        color: "var(--ob-red)", fontFamily: "var(--ob-mono)",
+                        animation: "ob2-fade-up .25s ease both", lineHeight: 1.6,
                       }}>
                         ⚠ Maximum mode activates streak penalties, daily AI check-ins,
                         and zero-grace reset policy.
                       </div>
                     )}
 
-                    <button
-                      type="button"
+                    <button type="button"
                       className={`ob2-btn-next ${isExtreme ? "ob2-btn-next-warn" : ""}`}
-                      disabled={!intensity}
-                      onClick={() => setStep(3)}
-                      aria-label="Proceed to system warning"
-                    >
+                      disabled={!intensity} onClick={() => setStep(3)}
+                      aria-label="Proceed to system warning">
                       Continue →
                     </button>
                   </Card>
@@ -974,32 +742,19 @@ export default function Onboarding() {
 
               {/* ════ STEP 3: WARNING ════ */}
               {step === 3 && (
-                <motion.div
-                  key="s3"
-                  variants={PAGE_VARIANTS}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                >
+                <motion.div key="s3" variants={PAGE_VARIANTS} initial="enter" animate="center" exit="exit">
                   <Card warn>
                     <StepDots current={3} total={TOTAL_STEPS} />
                     <MicroLabel color="var(--ob-red)">⚠ System Protocol — Warning</MicroLabel>
-                    <DisplayHeading color="var(--ob-red)">
-                      Miss once.<br />Start over.
-                    </DisplayHeading>
+                    <DisplayHeading color="var(--ob-red)">Miss once.<br />Start over.</DisplayHeading>
                     <div style={{
-                      fontSize: 11,
-                      lineHeight: 1.9,
-                      color: "rgba(242,83,83,.45)",
-                      letterSpacing: ".06em",
-                      marginBottom: 22,
+                      fontSize: 11, lineHeight: 1.9, color: "rgba(242,83,83,.45)",
+                      letterSpacing: ".06em", marginBottom: 22,
                       fontFamily: "var(--ob-mono)",
-                      borderLeft: "2px solid rgba(242,83,83,.2)",
-                      paddingLeft: 12,
+                      borderLeft: "2px solid rgba(242,83,83,.2)", paddingLeft: 12,
                     }}>
-                      The system does not negotiate. Miss a single day
-                      and your streak resets to zero. No exceptions.
-                      No recovery windows. No excuses accepted.
+                      The system does not negotiate. Miss a single day and your streak
+                      resets to zero. No exceptions. No recovery windows. No excuses accepted.
                       {isExtreme && (
                         <>
                           <br /><br />
@@ -1009,12 +764,8 @@ export default function Onboarding() {
                         </>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="ob2-btn-next ob2-btn-next-warn"
-                      onClick={() => setStep(4)}
-                      aria-label="Accept terms and continue"
-                    >
+                    <button type="button" className="ob2-btn-next ob2-btn-next-warn"
+                      onClick={() => setStep(4)} aria-label="Accept terms and continue">
                       I accept the protocol →
                     </button>
                   </Card>
@@ -1023,51 +774,29 @@ export default function Onboarding() {
 
               {/* ════ STEP 4: IDENTITY ════ */}
               {step === 4 && (
-                <motion.div
-                  key="s4"
-                  variants={PAGE_VARIANTS}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                >
+                <motion.div key="s4" variants={PAGE_VARIANTS} initial="enter" animate="center" exit="exit">
                   <Card>
                     <StepDots current={4} total={TOTAL_STEPS} />
                     <MicroLabel>Step 4 of {TOTAL_STEPS} — Identity</MicroLabel>
                     <DisplayHeading>Who do you<br />become?</DisplayHeading>
                     <p style={{
-                      fontSize: 11,
-                      color: "var(--ob-text-muted)",
-                      letterSpacing: ".08em",
-                      lineHeight: 1.75,
-                      marginBottom: 16,
-                      fontFamily: "var(--ob-mono)",
+                      fontSize: 11, color: "var(--ob-text-muted)",
+                      letterSpacing: ".08em", lineHeight: 1.75,
+                      marginBottom: 16, fontFamily: "var(--ob-mono)",
                     }}>
                       The system holds you to this statement.
                       Choose the one that is already true.
                     </p>
-                    <div
-                      role="radiogroup"
-                      aria-label="Select your identity statement"
-                      style={{ display: "flex", flexDirection: "column", gap: 7 }}
-                    >
+                    <div role="radiogroup" aria-label="Select your identity statement"
+                      style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                       {IDENTITIES.map(({ val, sub }) => (
-                        <OptionBtn
-                          key={val}
-                          val={`"${val}"`}
-                          sub={sub}
-                          selected={identity === val}
-                          selClass="sel-gold"
-                          onClick={() => setIdentity(val)}
-                        />
+                        <OptionBtn key={val} val={`"${val}"`} sub={sub}
+                          selected={identity === val} selClass="sel-gold"
+                          onClick={() => setIdentity(val)} />
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      className="ob2-btn-next"
-                      disabled={!identity}
-                      onClick={() => setStep(5)}
-                      aria-label="Sync identity and proceed to final step"
-                    >
+                    <button type="button" className="ob2-btn-next" disabled={!identity}
+                      onClick={() => setStep(5)} aria-label="Sync identity and proceed to final step">
                       Sync identity →
                     </button>
                   </Card>
@@ -1076,13 +805,7 @@ export default function Onboarding() {
 
               {/* ════ STEP 5: FINAL LOCK ════ */}
               {step === 5 && (
-                <motion.div
-                  key="s5"
-                  variants={PAGE_VARIANTS}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                >
+                <motion.div key="s5" variants={PAGE_VARIANTS} initial="enter" animate="center" exit="exit">
                   <Card>
                     <StepDots current={5} total={TOTAL_STEPS} />
                     <MicroLabel>Final Lock — Confirm</MicroLabel>
@@ -1092,15 +815,12 @@ export default function Onboarding() {
                     <div style={{
                       background: "var(--ob-surface-2)",
                       border: "1px solid var(--ob-border)",
-                      borderRadius: 2,
-                      padding: "10px 13px",
+                      borderRadius: 2, padding: "10px 13px",
                       marginBottom: 18,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 0,
+                      display: "flex", flexDirection: "column", gap: 0,
                     }}>
-                      <SummaryRow label="Objective"  value={goal}      />
-                      <SummaryRow label="Intensity"  value={intensity}  accent={isExtreme} />
+                      <SummaryRow label="Objective" value={goal} />
+                      <SummaryRow label="Intensity"  value={intensity} accent={isExtreme} />
                       <SummaryRow label="Identity"   value={`"${identity}"`} />
                     </div>
 
@@ -1116,7 +836,10 @@ export default function Onboarding() {
                           inputState === "valid" ? "valid" : ""
                         }`}
                         value={commitText}
-                        onChange={(e) => setCommitText(e.target.value.toUpperCase())}
+                        onChange={(e) => {
+                          setCommitText(e.target.value.toUpperCase());
+                          setAuthError(""); // clear any previous auth error on retype
+                        }}
                         placeholder="TYPE HERE..."
                         autoComplete="off"
                         autoCorrect="off"
@@ -1145,24 +868,23 @@ export default function Onboarding() {
                       )}
                     </button>
 
-                    {/* back link */}
+                    {/* ✅ Auth error — shown only if Supabase call fails */}
+                    {authError && (
+                      <div className="ob2-auth-error" role="alert" aria-live="assertive">
+                        ⚠ {authError}
+                      </div>
+                    )}
+
+                    {/* Back link */}
                     <button
                       type="button"
-                      onClick={() => setStep(4)}
+                      onClick={() => { setStep(4); setAuthError(""); }}
                       style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--ob-text-faint)",
-                        fontFamily: "var(--ob-mono)",
-                        fontSize: 9,
-                        letterSpacing: ".18em",
-                        textTransform: "uppercase",
-                        cursor: "pointer",
-                        display: "block",
-                        width: "100%",
-                        textAlign: "center",
-                        marginTop: 12,
-                        padding: "6px 0",
+                        background: "none", border: "none",
+                        color: "var(--ob-text-faint)", fontFamily: "var(--ob-mono)",
+                        fontSize: 9, letterSpacing: ".18em", textTransform: "uppercase",
+                        cursor: "pointer", display: "block", width: "100%",
+                        textAlign: "center", marginTop: 12, padding: "6px 0",
                         transition: "color var(--ob-transition)",
                       }}
                       aria-label="Go back to identity step"
