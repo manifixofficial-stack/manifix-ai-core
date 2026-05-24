@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import authService from "../services/auth.service";
-import { supabase } from "../lib/supabaseClient"; // adjust path if yours differs
 
 /* ─────────────────────────────────────────────
    STORAGE KEYS — single source of truth
@@ -18,15 +16,15 @@ const KEYS = {
   identity:  "magic16_identity",
   intensity: "magic16_intensity",
   totalSess: "magic16_total_sessions",
-  mode:      "magic16_mode",
-  lang:      "magic16_lang",
+  mode:      "magic16_mode",   // ✅ NEW — Addition 1
+  lang:      "magic16_lang",   // ✅ NEW — Addition 2
 };
 
 const XP_PER_LEVEL   = 500;
 const XP_PER_SESSION = 120;
 
 /* ─────────────────────────────────────────────
-   MODE CONFIG
+   ✅ ADDITION 1 — MODE CONFIG
 ───────────────────────────────────────────── */
 const MODES = [
   {
@@ -70,7 +68,7 @@ const MODES = [
 ];
 
 /* ─────────────────────────────────────────────
-   LANGUAGE CONFIG
+   ✅ ADDITION 2 — LANGUAGE CONFIG
 ───────────────────────────────────────────── */
 const LANGUAGES = [
   { code: "en",  flag: "🇬🇧", name: "English"  },
@@ -109,8 +107,8 @@ function loadState() {
   const identity    = localStorage.getItem(KEYS.identity) || "I don't quit.";
   const intensity   = localStorage.getItem(KEYS.intensity)|| "Standard";
   const totalSess   = Number(localStorage.getItem(KEYS.totalSess) || streak);
-  const mode        = localStorage.getItem(KEYS.mode) || "morning";
-  const lang        = localStorage.getItem(KEYS.lang) || "en";
+  const mode        = localStorage.getItem(KEYS.mode) || "morning"; // ✅ NEW
+  const lang        = localStorage.getItem(KEYS.lang) || "en";      // ✅ NEW
 
   let rankSeed = Number(localStorage.getItem(KEYS.rankSeed) || 0);
   if (!rankSeed) {
@@ -163,7 +161,6 @@ function injectStyles() {
     @keyframes db-xp-flow { from{background-position:-200% center} to{background-position:200% center} }
     @keyframes db-ticker  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     @keyframes db-report-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(200,168,75,.3)} 50%{box-shadow:0 0 0 8px rgba(200,168,75,0)} }
-    @keyframes db-auth-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 
     .db-shimmer {
       background: linear-gradient(90deg,#c8a84b,#ffe08a,#ffc83c,#ffe08a,#c8a84b);
@@ -179,7 +176,6 @@ function injectStyles() {
     .db-streak-pop  { animation: db-streak .6s cubic-bezier(.34,1.56,.64,1) both; }
     .db-ticker      { animation: db-ticker .4s ease both; }
     .db-report-pulse { animation: db-report-pulse 2s ease-in-out infinite; }
-    .db-auth-spin   { animation: db-auth-spin 1s linear infinite; }
 
     .db-cta-btn {
       display: block; width: 100%; padding: 18px 0;
@@ -262,21 +258,6 @@ function injectStyles() {
     }
     .db-report-btn:hover { background: #0f0f0a; border-color: #c8a84b55; }
     .db-report-btn:active { transform: scale(.99); }
-
-    /* ── Auth loading screen ── */
-    .db-auth-loader {
-      position: fixed; inset: 0;
-      background: #080808;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 16px; z-index: 300;
-    }
-    .db-auth-loader-ring {
-      width: 32px; height: 32px;
-      border: 2px solid #1a1a1a;
-      border-top-color: #c8a84b;
-      border-radius: 50%;
-    }
   `;
   document.head.appendChild(s);
 }
@@ -308,7 +289,7 @@ const getMilestone = (streak) => {
 };
 
 /* ─────────────────────────────────────────────
-   WEEKLY REPORT COMPONENT
+   ✅ ADDITION 3 — WEEKLY REPORT COMPONENT
 ───────────────────────────────────────────── */
 function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
   const accuracy = Math.min(99, 70 + streak * 2);
@@ -473,34 +454,9 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
 }
 
 /* ─────────────────────────────────────────────
-   AUTH LOADING SCREEN
-───────────────────────────────────────────── */
-function AuthLoader() {
-  return (
-    <div className="db-auth-loader">
-      <div style={{
-        fontFamily: "'Bebas Neue', sans-serif",
-        fontSize: 24, letterSpacing: ".1em",
-      }} className="db-shimmer">MAGIC16</div>
-      <div className="db-auth-loader-ring db-auth-spin" />
-      <div style={{
-        fontSize: 8, letterSpacing: ".22em",
-        color: "#2a2a2a", textTransform: "uppercase",
-      }}>Verifying identity...</div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 export default function Dashboard() {
-  const navigate = useNavigate();
-
-  /* ── Auth state ── */
-  const [authChecked, setAuthChecked] = useState(false);
-
-  /* ── App state ── */
   const [st,          setSt]         = useState(() => loadState());
   const [timer,       setTimer]      = useState({ h: 0, m: 0, s: 0, expired: false });
   const [danger,      setDanger]     = useState(false);
@@ -509,100 +465,11 @@ export default function Dashboard() {
   const [newLevel,    setNewLevel]   = useState(1);
   const [streakPop,   setStreakPop]  = useState(false);
   const [psychIdx,    setPsychIdx]   = useState(0);
-  const [showReport,  setShowReport] = useState(false);
-  const [activeMode,  setActiveMode] = useState(st.mode);
-  const [activeLang,  setActiveLang] = useState(st.lang);
+  const [showReport,  setShowReport] = useState(false);  // ✅ NEW — Addition 3
+  const [activeMode,  setActiveMode] = useState(st.mode); // ✅ NEW — Addition 1
+  const [activeLang,  setActiveLang] = useState(st.lang); // ✅ NEW — Addition 2
 
-  /* ─────────────────────────────────────────────────────────────────
-     AUTH + ONBOARDING GUARD
-
-     Root cause of "dashboard not opening":
-     After Google OAuth redirect, Supabase restores the session
-     asynchronously from the URL hash / stored token.
-     Calling getCurrentUser() immediately returns null — causing a
-     false redirect to /login before the session is ready.
-
-     Fix: use supabase.auth.getSession() (reads stored token, no
-     network, available instantly), then fall back to
-     onAuthStateChange with a 4-second safety timeout.
-  ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    let cancelled = false;
-
-    const runCheck = async (userId) => {
-      try {
-        const onboarded = await authService.isOnboarded(userId);
-        if (cancelled) return;
-        if (!onboarded) {
-          navigate("/onboarding", { replace: true });
-        } else {
-          setAuthChecked(true);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        console.error("[Dashboard] isOnboarded check failed:", err);
-        // isOnboarded errored — show dashboard anyway; safer than
-        // an infinite login loop
-        setAuthChecked(true);
-      }
-    };
-
-    const init = async () => {
-      try {
-        // getSession() reads from localStorage / cookie — no network
-        // call, resolves immediately even right after OAuth redirect
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (cancelled) return;
-
-        if (error) {
-          console.error("[Dashboard] getSession error:", error.message);
-          navigate("/login", { replace: true });
-          return;
-        }
-
-        if (session?.user) {
-          await runCheck(session.user.id);
-          return;
-        }
-
-        // No session yet — wait up to 4 s for the token to land.
-        // This covers the brief post-OAuth window where the session
-        // cookie / hash is still being processed by Supabase.
-        const timeout = setTimeout(() => {
-          if (cancelled) return;
-          console.warn("[Dashboard] No session after 4s — sending to login");
-          navigate("/login", { replace: true });
-        }, 4000);
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, newSession) => {
-            if (cancelled) return;
-            if (newSession?.user) {
-              clearTimeout(timeout);
-              subscription.unsubscribe();
-              await runCheck(newSession.user.id);
-            } else if (event === "SIGNED_OUT") {
-              clearTimeout(timeout);
-              subscription.unsubscribe();
-              if (!cancelled) navigate("/login", { replace: true });
-            }
-          }
-        );
-      } catch (err) {
-        if (cancelled) return;
-        console.error("[Dashboard] Auth init failed:", err);
-        navigate("/login", { replace: true });
-      }
-    };
-
-    init();
-    return () => { cancelled = true; };
-  }, [navigate]);
-
-  /* ── Dashboard bootstrap (runs only after auth clears) ── */
-  useEffect(() => {
-    if (!authChecked) return;
-
     injectStyles();
     setMounted(true);
 
@@ -627,12 +494,9 @@ export default function Dashboard() {
       setPsychIdx((i) => (i + 1) % PSYCH.length);
     }, 8000);
     return () => clearInterval(id);
-  }, [authChecked]);
+  }, []);
 
-  /* ── Countdown timer ── */
   useEffect(() => {
-    if (!authChecked) return;
-
     const tick = () => {
       const now  = new Date();
       const end  = new Date(); end.setHours(23, 59, 59, 999);
@@ -647,9 +511,8 @@ export default function Dashboard() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [authChecked]);
+  }, []);
 
-  /* ── Expose session-complete hook ── */
   useEffect(() => {
     window.__magic16_recordComplete = () => {
       recordSessionComplete();
@@ -658,25 +521,22 @@ export default function Dashboard() {
     return () => { delete window.__magic16_recordComplete; };
   }, []);
 
-  /* ── Save mode on change ── */
+  /* ── ✅ Addition 1: save mode on change ── */
   const handleModeChange = (modeId) => {
     const mode = MODES.find(m => m.id === modeId);
-    if (mode?.comingSoon) return;
+    if (mode?.comingSoon) return; // block coming-soon modes
     setActiveMode(modeId);
     localStorage.setItem(KEYS.mode, modeId);
     setSt(prev => ({ ...prev, mode: modeId }));
   };
 
-  /* ── Save lang on change ── */
+  /* ── ✅ Addition 2: save lang on change ── */
   const handleLangChange = (e) => {
     const lang = e.target.value;
     setActiveLang(lang);
     localStorage.setItem(KEYS.lang, lang);
     setSt(prev => ({ ...prev, lang }));
   };
-
-  /* ── Block render until auth resolved ── */
-  if (!authChecked) return <AuthLoader />;
 
   const { streak, xp, level, missionDone, globalRank,
           goal, identity, intensity, totalSess } = st;
@@ -832,7 +692,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* ══ MODE SELECTOR ══ */}
+        {/* ══ ✅ ADDITION 1 — MODE SELECTOR ══ */}
         <motion.div {...stagger(1)}>
           <div style={{
             fontSize:8, letterSpacing:".22em",
@@ -883,7 +743,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* ══ LANGUAGE PICKER ══ */}
+        {/* ══ ✅ ADDITION 2 — LANGUAGE PICKER ══ */}
         <motion.div {...stagger(2)} style={{ marginBottom:14 }}>
           <div style={{
             display:"flex", alignItems:"center", gap:10,
@@ -1246,7 +1106,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* ══ WEEKLY REPORT BUTTON (streak >= 7) ══ */}
+        {/* ══ ✅ ADDITION 3 — WEEKLY REPORT BUTTON (streak >= 7) ══ */}
         <AnimatePresence>
           {streak >= 7 && (
             <motion.div
