@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import authService from "../services/auth.service";
 
 /* ─────────────────────────────────────────────
    STORAGE KEYS — single source of truth
@@ -16,15 +17,15 @@ const KEYS = {
   identity:  "magic16_identity",
   intensity: "magic16_intensity",
   totalSess: "magic16_total_sessions",
-  mode:      "magic16_mode",   // ✅ NEW — Addition 1
-  lang:      "magic16_lang",   // ✅ NEW — Addition 2
+  mode:      "magic16_mode",
+  lang:      "magic16_lang",
 };
 
 const XP_PER_LEVEL   = 500;
 const XP_PER_SESSION = 120;
 
 /* ─────────────────────────────────────────────
-   ✅ ADDITION 1 — MODE CONFIG
+   MODE CONFIG
 ───────────────────────────────────────────── */
 const MODES = [
   {
@@ -68,7 +69,7 @@ const MODES = [
 ];
 
 /* ─────────────────────────────────────────────
-   ✅ ADDITION 2 — LANGUAGE CONFIG
+   LANGUAGE CONFIG
 ───────────────────────────────────────────── */
 const LANGUAGES = [
   { code: "en",  flag: "🇬🇧", name: "English"  },
@@ -84,7 +85,7 @@ const LANGUAGES = [
 ];
 
 /* ─────────────────────────────────────────────
-   loadState — checks for missed days + new keys
+   loadState
 ───────────────────────────────────────────── */
 function loadState() {
   const today     = new Date().toDateString();
@@ -107,8 +108,8 @@ function loadState() {
   const identity    = localStorage.getItem(KEYS.identity) || "I don't quit.";
   const intensity   = localStorage.getItem(KEYS.intensity)|| "Standard";
   const totalSess   = Number(localStorage.getItem(KEYS.totalSess) || streak);
-  const mode        = localStorage.getItem(KEYS.mode) || "morning"; // ✅ NEW
-  const lang        = localStorage.getItem(KEYS.lang) || "en";      // ✅ NEW
+  const mode        = localStorage.getItem(KEYS.mode) || "morning";
+  const lang        = localStorage.getItem(KEYS.lang) || "en";
 
   let rankSeed = Number(localStorage.getItem(KEYS.rankSeed) || 0);
   if (!rankSeed) {
@@ -208,7 +209,6 @@ function injectStyles() {
     }
     .db-opt-btn:hover { color: #555; border-color: #2a2a2a; }
 
-    /* ── Mode selector ── */
     .db-mode-card {
       border: 1px solid #181818;
       background: #0c0c0c;
@@ -223,7 +223,6 @@ function injectStyles() {
     .db-mode-card:hover { border-color: #2a2a2a; background: #0f0f0f; }
     .db-mode-card.active { background: var(--mode-bg); border-color: var(--mode-border); }
 
-    /* ── Lang picker ── */
     .db-lang-select {
       background: #0c0c0c;
       border: 1px solid #1a1a1a;
@@ -243,7 +242,6 @@ function injectStyles() {
     .db-lang-select:focus { border-color: #c8a84b55; color: #c8a84b; }
     .db-lang-select option { background: #0c0c0c; color: #888; }
 
-    /* ── Weekly report button ── */
     .db-report-btn {
       display: flex; align-items: center; justify-content: space-between;
       width: 100%; padding: 14px 16px;
@@ -289,7 +287,7 @@ const getMilestone = (streak) => {
 };
 
 /* ─────────────────────────────────────────────
-   ✅ ADDITION 3 — WEEKLY REPORT COMPONENT
+   WEEKLY REPORT COMPONENT
 ───────────────────────────────────────────── */
 function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
   const accuracy = Math.min(99, 70 + streak * 2);
@@ -321,7 +319,6 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
       >
-        {/* header */}
         <div style={{
           display: "flex", justifyContent: "space-between",
           alignItems: "flex-start", marginBottom: 20,
@@ -347,7 +344,6 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
           }}>✕ Close</button>
         </div>
 
-        {/* stats grid */}
         <div style={{
           display: "grid", gridTemplateColumns: "1fr 1fr",
           gap: 8, marginBottom: 16,
@@ -377,7 +373,6 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
           ))}
         </div>
 
-        {/* streak bar */}
         <div style={{
           border: "1px solid #181818", background: "#0c0c0c",
           padding: "12px 14px", marginBottom: 16,
@@ -413,7 +408,6 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
           </div>
         </div>
 
-        {/* insight */}
         <div style={{
           border: "1px solid #1e2a1e", background: "#0a0e0a",
           padding: "12px 14px", marginBottom: 16,
@@ -433,7 +427,6 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
           </div>
         </div>
 
-        {/* share */}
         <button
           className="db-cta-btn"
           onClick={() => {
@@ -457,6 +450,9 @@ function WeeklyReport({ streak, xp, level, totalSess, globalRank, onClose }) {
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 export default function Dashboard() {
+  const navigate = useNavigate();
+
+  const [authChecked, setAuthChecked] = useState(false); // ✅ prevents flash before auth check
   const [st,          setSt]         = useState(() => loadState());
   const [timer,       setTimer]      = useState({ h: 0, m: 0, s: 0, expired: false });
   const [danger,      setDanger]     = useState(false);
@@ -465,11 +461,36 @@ export default function Dashboard() {
   const [newLevel,    setNewLevel]   = useState(1);
   const [streakPop,   setStreakPop]  = useState(false);
   const [psychIdx,    setPsychIdx]   = useState(0);
-  const [showReport,  setShowReport] = useState(false);  // ✅ NEW — Addition 3
-  const [activeMode,  setActiveMode] = useState(st.mode); // ✅ NEW — Addition 1
-  const [activeLang,  setActiveLang] = useState(st.lang); // ✅ NEW — Addition 2
+  const [showReport,  setShowReport] = useState(false);
+  const [activeMode,  setActiveMode] = useState(st.mode);
+  const [activeLang,  setActiveLang] = useState(st.lang);
+
+  // ✅ ONBOARDING CHECK — runs first before anything renders
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      const user = await authService.getCurrentUser();
+
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const onboarded = await authService.isOnboarded(user.id);
+
+      if (!onboarded) {
+        navigate("/onboarding", { replace: true }); // new users (Google signup) go here
+        return;
+      }
+
+      setAuthChecked(true); // ✅ only show dashboard if onboarded
+    };
+
+    checkOnboarding();
+  }, [navigate]);
 
   useEffect(() => {
+    if (!authChecked) return; // ✅ don't run until auth is confirmed
+
     injectStyles();
     setMounted(true);
 
@@ -494,7 +515,7 @@ export default function Dashboard() {
       setPsychIdx((i) => (i + 1) % PSYCH.length);
     }, 8000);
     return () => clearInterval(id);
-  }, []);
+  }, [authChecked]);
 
   useEffect(() => {
     const tick = () => {
@@ -521,22 +542,39 @@ export default function Dashboard() {
     return () => { delete window.__magic16_recordComplete; };
   }, []);
 
-  /* ── ✅ Addition 1: save mode on change ── */
   const handleModeChange = (modeId) => {
     const mode = MODES.find(m => m.id === modeId);
-    if (mode?.comingSoon) return; // block coming-soon modes
+    if (mode?.comingSoon) return;
     setActiveMode(modeId);
     localStorage.setItem(KEYS.mode, modeId);
     setSt(prev => ({ ...prev, mode: modeId }));
   };
 
-  /* ── ✅ Addition 2: save lang on change ── */
   const handleLangChange = (e) => {
     const lang = e.target.value;
     setActiveLang(lang);
     localStorage.setItem(KEYS.lang, lang);
     setSt(prev => ({ ...prev, lang }));
   };
+
+  // ✅ Show nothing while auth check is in progress
+  if (!authChecked) {
+    return (
+      <div style={{
+        minHeight: "100dvh", background: "#080808",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div style={{
+          width: 24, height: 24,
+          border: "2px solid #1e1e1e",
+          borderTopColor: "#ffc83c",
+          borderRadius: "50%",
+          animation: "spin .7s linear infinite",
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   const { streak, xp, level, missionDone, globalRank,
           goal, identity, intensity, totalSess } = st;
@@ -692,7 +730,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* ══ ✅ ADDITION 1 — MODE SELECTOR ══ */}
+        {/* ══ MODE SELECTOR ══ */}
         <motion.div {...stagger(1)}>
           <div style={{
             fontSize:8, letterSpacing:".22em",
@@ -743,7 +781,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* ══ ✅ ADDITION 2 — LANGUAGE PICKER ══ */}
+        {/* ══ LANGUAGE PICKER ══ */}
         <motion.div {...stagger(2)} style={{ marginBottom:14 }}>
           <div style={{
             display:"flex", alignItems:"center", gap:10,
@@ -1106,7 +1144,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* ══ ✅ ADDITION 3 — WEEKLY REPORT BUTTON (streak >= 7) ══ */}
+        {/* ══ WEEKLY REPORT BUTTON (streak >= 7) ══ */}
         <AnimatePresence>
           {streak >= 7 && (
             <motion.div
