@@ -979,7 +979,7 @@ export default function Landing() {
     letterSpacing:".05em", textDecoration:"none", opacity:.8 }}>
   manifixofficial@gmail.com
 </a>
-
+</div>
               {/* Links */}
               <div style={{ display: "flex", gap: "56px", flexWrap: "wrap" }}>
                 <div>
