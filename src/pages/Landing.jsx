@@ -227,7 +227,7 @@ const GLOBAL_CSS = `
 // ─── REAL LOGO ────────────────────────────────────────────────────────────────
 const ManifixLogo = ({ size = 36, className = "" }) => (
   <img
-    src="/assets/logo.png"
+    src="/assets/logo.svg"
     alt="ManifiX AI Logo"
     width={size}
     height={size}
