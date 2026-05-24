@@ -43,19 +43,20 @@ class AuthService {
   // ===========================================
   // 🔑 SIGN IN (EMAIL + PASSWORD)
   // ===========================================
-  async login(email, password) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      return data?.user || null;
-    } catch (err) {
-      throw new Error(err.message || "Login failed");
-    }
+ async loginWithGoogleSignup() {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: "https://www.manifixai.com/onboarding", // ✅ goes to onboarding
+      },
+    });
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    throw new Error(err.message || "Google sign-up failed");
   }
+}
 
   // ===========================================
   // 🔑 SIGN IN WITH GOOGLE (OAUTH)
