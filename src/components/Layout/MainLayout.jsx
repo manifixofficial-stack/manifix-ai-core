@@ -1,5 +1,5 @@
 /**
- * ManifiX — MainLayout.jsx  (Production v3)
+ * ManifiX — MainLayout.jsx  (Production v4)
  * ─────────────────────────────────────────
  * ✔ True responsive: desktop sidebar + mobile bottom-nav
  * ✔ useMediaQuery hook — no window.innerWidth in render
@@ -8,6 +8,7 @@
  * ✔ Slide-in drawer (mobile)
  * ✔ Chat FAB with panel (mobile)
  * ✔ All nav routes match AppRouter.jsx
+ * ✔ Feedback page added to nav (ACCOUNT section)
  * ✔ No MobileLayout.jsx dependency — unified file
  */
 
@@ -21,7 +22,7 @@ import {
   UserCircle, ChevronLeft, ChevronRight,
   HeartPulse, Moon, Apple, Wind, Baby,
   ShieldPlus, User, Pill, Activity,
-  MessageCircle,
+  MessageCircle, MessageSquarePlus,
 } from "lucide-react";
 
 /* ══════════════════════════════════════════════
@@ -103,6 +104,10 @@ const CSS = `
     0%,100%{ transform:translate(0,0) scale(1); }
     50%    { transform:translate(18px,-14px) scale(1.06); }
   }
+  @keyframes mxl-feedback-glow {
+    0%,100%{ box-shadow: 0 0 0 0 rgba(212,175,55,0); }
+    50%    { box-shadow: 0 0 12px 2px rgba(212,175,55,0.18); }
+  }
 
   /* Gold shimmer text */
   .mxl-gold {
@@ -135,6 +140,42 @@ const CSS = `
     background: linear-gradient(90deg,rgba(212,175,55,0.14) 0%,transparent 100%);
     border-color: rgba(212,175,55,0.25);
     box-shadow: inset 3px 0 0 ${T.gold};
+  }
+
+  /* Feedback nav special highlight */
+  .mxl-nav-feedback {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px;
+    color: ${T.muted}; text-decoration: none;
+    font-size: 12px; font-weight: 600; letter-spacing: .07em;
+    text-transform: uppercase; font-family: ${T.font};
+    transition: all .18s ease;
+    border: 1px solid rgba(212,175,55,0.10);
+    position: relative; overflow: hidden;
+    white-space: nowrap;
+    background: rgba(212,175,55,0.04);
+    animation: mxl-feedback-glow 3.5s ease-in-out infinite;
+  }
+  .mxl-nav-feedback:hover {
+    color: ${T.goldLight};
+    background: rgba(212,175,55,0.12);
+    border-color: rgba(212,175,55,0.30);
+    animation: none;
+  }
+  .mxl-nav-feedback.active {
+    color: ${T.gold};
+    background: linear-gradient(90deg,rgba(212,175,55,0.14) 0%,transparent 100%);
+    border-color: rgba(212,175,55,0.25);
+    box-shadow: inset 3px 0 0 ${T.gold};
+    animation: none;
+  }
+  .mxl-nav-feedback .mxl-feedback-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: ${T.gold};
+    box-shadow: 0 0 6px rgba(212,175,55,0.9);
+    animation: mxl-blink 2s step-end infinite;
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   /* Nav item — mobile bottom */
@@ -200,7 +241,7 @@ const CSS = `
 `;
 
 function injectCSS() {
-  const id = "manifix-main-layout-v3";
+  const id = "manifix-main-layout-v4";
   if (document.getElementById(id)) return;
   const el = document.createElement("style");
   el.id = id; el.textContent = CSS;
@@ -278,8 +319,9 @@ const NAV_GROUPS = [
   {
     section: "ACCOUNT",
     items: [
-      { name: "Membership", path: "/app/membership", Icon: Zap        },
-      { name: "Settings",   path: "/app/settings",   Icon: Settings   },
+      { name: "Membership", path: "/app/membership", Icon: Zap                },
+      { name: "Settings",   path: "/app/settings",   Icon: Settings           },
+      { name: "Feedback",   path: "/app/feedback",   Icon: MessageSquarePlus, special: "feedback" },
     ],
   },
 ];
@@ -316,13 +358,46 @@ const Logo = ({ size = 32 }) => {
 };
 
 /* ══════════════════════════════════════════════
+   NAV ITEM — handles normal + feedback special
+══════════════════════════════════════════════ */
+function NavItem({ name, path, Icon, special, collapsed, onClick }) {
+  if (special === "feedback") {
+    return (
+      <NavLink
+        to={path}
+        className={({ isActive: a }) => `mxl-nav-feedback${a ? " active" : ""}`}
+        title={collapsed ? name : undefined}
+        style={collapsed ? { justifyContent:"center", padding:"9px 0" } : {}}
+        onClick={onClick}
+      >
+        <Icon size={16} style={{ flexShrink:0 }} />
+        {!collapsed && (
+          <>
+            <span>{name}</span>
+            <span className="mxl-feedback-dot" />
+          </>
+        )}
+      </NavLink>
+    );
+  }
+  return (
+    <NavLink
+      to={path}
+      className={({ isActive: a }) => `mxl-nav${a ? " active" : ""}`}
+      title={collapsed ? name : undefined}
+      style={collapsed ? { justifyContent:"center", padding:"9px 0" } : {}}
+      onClick={onClick}
+    >
+      <Icon size={16} style={{ flexShrink:0 }} />
+      {!collapsed && <span>{name}</span>}
+    </NavLink>
+  );
+}
+
+/* ══════════════════════════════════════════════
    DESKTOP SIDEBAR
 ══════════════════════════════════════════════ */
 function Sidebar({ collapsed, streak }) {
-  const location = useLocation();
-  const isActive = (p) =>
-    location.pathname === p || location.pathname.startsWith(p + "/");
-
   return (
     <aside style={{
       width: collapsed ? T.SIDEBAR_COL : T.SIDEBAR,
@@ -397,15 +472,15 @@ function Sidebar({ collapsed, streak }) {
               <div style={{ height:1, background:T.border, margin:"7px 4px" }} />
             ) : null}
 
-            {group.items.map(({ name, path, Icon }) => (
-              <NavLink key={path} to={path}
-                className={({ isActive: a }) => `mxl-nav${a ? " active" : ""}`}
-                title={collapsed ? name : undefined}
-                style={collapsed ? { justifyContent:"center", padding:"9px 0" } : {}}
-              >
-                <Icon size={16} style={{ flexShrink:0 }} />
-                {!collapsed && <span>{name}</span>}
-              </NavLink>
+            {group.items.map(({ name, path, Icon, special }) => (
+              <NavItem
+                key={path}
+                name={name}
+                path={path}
+                Icon={Icon}
+                special={special}
+                collapsed={collapsed}
+              />
             ))}
           </div>
         ))}
@@ -508,14 +583,16 @@ function MobileDrawer({ open, onClose, streak }) {
                 color:T.dim, letterSpacing:".16em",
                 padding:"9px 5px 3px", textTransform:"uppercase",
               }}>{group.section}</p>
-              {group.items.map(({ name, path, Icon }) => (
-                <NavLink key={path} to={path}
-                  className={({ isActive: a }) => `mxl-nav${a ? " active" : ""}`}
+              {group.items.map(({ name, path, Icon, special }) => (
+                <NavItem
+                  key={path}
+                  name={name}
+                  path={path}
+                  Icon={Icon}
+                  special={special}
+                  collapsed={false}
                   onClick={onClose}
-                >
-                  <Icon size={15} style={{ flexShrink:0 }} />
-                  <span>{name}</span>
-                </NavLink>
+                />
               ))}
             </div>
           ))}
@@ -601,6 +678,24 @@ function Topbar({ collapsed, onToggle, pageName, streak }) {
             {streak}
           </div>
         )}
+
+        {/* Feedback quick link */}
+        <NavLink to="/app/feedback" title="Share Feedback" style={{
+          display:"flex", alignItems:"center", gap:6,
+          padding:"5px 11px",
+          background:"rgba(212,175,55,0.05)",
+          border:`1px solid rgba(212,175,55,0.14)`,
+          borderRadius:20, fontFamily:T.mono,
+          fontSize:10, fontWeight:600, color:T.muted,
+          textDecoration:"none", letterSpacing:".07em",
+          transition:"all .18s ease",
+        }}
+          onMouseEnter={e=>{ e.currentTarget.style.color=T.gold; e.currentTarget.style.borderColor=T.goldBorder; e.currentTarget.style.background=T.goldDim; }}
+          onMouseLeave={e=>{ e.currentTarget.style.color=T.muted; e.currentTarget.style.borderColor="rgba(212,175,55,0.14)"; e.currentTarget.style.background="rgba(212,175,55,0.05)"; }}
+        >
+          <MessageSquarePlus size={12} />
+          FEEDBACK
+        </NavLink>
 
         {/* Avatar */}
         <div style={{
