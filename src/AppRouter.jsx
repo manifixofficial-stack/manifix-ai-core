@@ -11,6 +11,7 @@ import Home          from "./pages/Home";
 import Privacy       from "./pages/Privacy";
 import Terms         from "./pages/Terms";
 import ResetPassword from "./pages/ResetPassword";
+import FeedbackPage from "./pages/FeedbackPage";
 
 /* ── Auth ── */
 import Login          from "./pages/Login";
@@ -101,6 +102,7 @@ export default function AppRouter() {
           <Route path="gpt"         element={<Gpt />} />
           <Route path="membership"  element={<Billing />} />
           <Route path="settings"    element={<Settings />} />
+          <Route path="feedback"    element={<FeedbackPage />} />
 
           {/* Health Ecosystem */}
           <Route path="mental"     element={<MentalHealth />} />
