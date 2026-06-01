@@ -1,7 +1,11 @@
 /**
- * ManifiX AI — Stress & Burnout Health Module v2.0
- * NEW: Focus Mode (beats Headspace), Strain Score (beats Whoop),
- *      Stress-Eating Journal (beats Noom)
+ * ManifiX AI — Stress & Burnout Health Module v3.0
+ * UPGRADED: Decisively beats Whoop, Headspace & Oura
+ *
+ * NEW vs Whoop:    Sleep Coach, Cardiovascular Load, Recovery Timeline, HRV Zones
+ * NEW vs Headspace: Ambient Soundscapes, Guided Voice Sessions, Sleep Stories, Session Streaks
+ * NEW vs Oura:    Resilience Score, Readiness Ring, Circadian Rhythm, Temperature Proxy
+ * KEPT & UPGRADED: Focus Mode, Strain Score, Eat Journal, Breathing, Programs
  */
 
 import {
@@ -18,11 +22,11 @@ import {
 /* ═══════════════ TOKENS ═══════════════ */
 const G = "#ffc83c";
 const DIM = "#c8a84b";
-const BG = "#080808";
-const CARD = "#0c0c0c";
-const CARD2 = "#0f0f0f";
-const BOR = "#1a1a1a";
-const BOR2 = "#222";
+const BG = "#060608";
+const CARD = "#0b0b0e";
+const CARD2 = "#0f0f13";
+const BOR = "#18181f";
+const BOR2 = "#222230";
 const FONT = "'DM Mono','Courier New',monospace";
 const HEAD = "'Bebas Neue',sans-serif";
 const GREEN = "#4ade80";
@@ -31,12 +35,14 @@ const PURPLE = "#A78BFA";
 const BLUE = "#60A5FA";
 const ORANGE = "#f97316";
 const TEAL = "#2dd4bf";
+const PINK = "#f472b6";
+const INDIGO = "#818CF8";
 
 /* ═══════════════ GLOBAL CSS ═══════════════ */
 function injectCSS() {
-  if (document.getElementById("mx-css")) return;
+  if (document.getElementById("mx-css3")) return;
   const s = document.createElement("style");
-  s.id = "mx-css";
+  s.id = "mx-css3";
   s.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -48,25 +54,28 @@ function injectCSS() {
     @keyframes mx-glow{0%,100%{box-shadow:0 0 6px #ffc83c22}50%{box-shadow:0 0 18px #ffc83c55}}
     @keyframes mx-hb{0%,100%{transform:scale(1)}15%{transform:scale(1.28)}30%{transform:scale(1)}}
     @keyframes mx-focus-ring{0%{transform:scale(1);opacity:.6}50%{transform:scale(1.04);opacity:.3}100%{transform:scale(1);opacity:.6}}
-    @keyframes mx-strain-fill{from{stroke-dashoffset:502}to{}}
-    @keyframes mx-eat-pulse{0%,100%{opacity:.4}50%{opacity:1}}
+    @keyframes mx-breathe{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.08);opacity:.7}}
+    @keyframes mx-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+    @keyframes mx-shimmer{0%{background-position:-200%}100%{background-position:200%}}
+    @keyframes mx-ready-ring{0%{stroke-dashoffset:502}to{}}
+    @keyframes mx-resilience{0%{opacity:0;transform:scale(.92)}100%{opacity:1;transform:scale(1)}}
     .mx-btn{cursor:pointer;transition:all .14s ease;outline:none}
-    .mx-btn:hover{opacity:.9;transform:translateY(-1px)}
-    .mx-btn:active{transform:translateY(0) scale(.98)}
-    .mx-input{background:#0a0a0a;border:1px solid #1a1a1a;color:#ddd8cc;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.05em;padding:10px 14px;width:100%;outline:none;transition:border-color .2s;resize:none}
+    .mx-btn:hover{opacity:.88;transform:translateY(-1px)}
+    .mx-btn:active{transform:translateY(0) scale(.97)}
+    .mx-input{background:#08080c;border:1px solid #18181f;color:#ddd8cc;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.05em;padding:10px 14px;width:100%;outline:none;transition:border-color .2s;resize:none}
     .mx-input:focus{border-color:#ffc83c44}
-    .mx-input::placeholder{color:#1e1e1e}
+    .mx-input::placeholder{color:#1a1a22}
     .mx-range{width:100%;accent-color:#ffc83c;height:3px}
     ::-webkit-scrollbar{width:3px;height:3px}
     ::-webkit-scrollbar-track{background:transparent}
-    ::-webkit-scrollbar-thumb{background:#1e1e1e;border-radius:2px}
-    .mx-card{background:#0c0c0c;border:1px solid #1a1a1a;transition:border-color .2s}
-    .mx-card:hover{border-color:#242424}
-    .mx-shimmer{background:linear-gradient(90deg,transparent,#ffc83c18,transparent);background-size:200%}
-    .mx-scan-line{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#ffc83c44,transparent);animation:mx-scan 3s linear infinite;pointer-events:none}
+    ::-webkit-scrollbar-thumb{background:#1e1e2a;border-radius:2px}
+    .mx-card{background:#0b0b0e;border:1px solid #18181f;transition:border-color .2s}
+    .mx-card:hover{border-color:#22222e}
     .mx-hb{animation:mx-hb 1.4s ease-in-out infinite}
     .focus-ring{animation:mx-focus-ring 4s ease-in-out infinite}
-    .eat-dot{animation:mx-eat-pulse 2s ease-in-out infinite}
+    .mx-breathe{animation:mx-breathe 4s ease-in-out infinite}
+    .mx-float{animation:mx-float 3s ease-in-out infinite}
+    .mx-scan-line{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#ffc83c33,transparent);animation:mx-scan 3s linear infinite;pointer-events:none}
   `;
   document.head.appendChild(s);
 }
@@ -170,14 +179,16 @@ const ACHIEVEMENTS_DEFS = [
   {id:"breathe_10",title:"Breath Master",desc:"Completed 10 breathing sessions",icon:"🫁"},
   {id:"journal_10",title:"Self-Aware",desc:"10 journal entries",icon:"📓"},
   {id:"med_5",title:"Still Mind",desc:"5 meditations completed",icon:"🧘"},
+  {id:"sleep_7",title:"Sleep Champion",desc:"7 nights of sleep logged",icon:"🌙"},
+  {id:"resilience_80",title:"Resilient",desc:"Resilience score over 80",icon:"🛡️"},
 ];
 
-/* ─── NEW: FOCUS MODE DATA ─── */
+/* ─── FOCUS PRESETS ─── */
 const FOCUS_PRESETS = [
-  {id:"deep",label:"Deep Work",work:50,rest:10,icon:"🧠",color:BLUE,desc:"50/10 ultra-focus. For creative and complex tasks. No interruptions.",tip:"Turn off all notifications. Close all browser tabs."},
+  {id:"deep",label:"Deep Work",work:50,rest:10,icon:"🧠",color:BLUE,desc:"50/10 ultra-focus blocks. For creative and complex tasks.",tip:"Turn off all notifications. Close all browser tabs."},
   {id:"pomodoro",label:"Pomodoro",work:25,rest:5,icon:"🍅",color:ORANGE,desc:"Classic 25/5 Pomodoro. Proven to sustain focus for 4+ hours.",tip:"Start with your hardest task. No multitasking."},
   {id:"sprint",label:"Sprint",work:15,rest:3,icon:"⚡",color:G,desc:"Short sprints for high-stress days. Lower barrier to starting.",tip:"Break daunting tasks into 15-min micro-chunks."},
-  {id:"mindful",label:"Mindful Work",work:30,rest:8,icon:"🧘",color:TEAL,desc:"30/8 with a guided mindfulness break. Beat Headspace's method.",tip:"During break: 3 breaths, then body scan."},
+  {id:"mindful",label:"Mindful Work",work:30,rest:8,icon:"🧘",color:TEAL,desc:"30/8 with a guided mindfulness break.",tip:"During break: 3 breaths, then body scan."},
 ];
 
 const MINDFUL_BREAKS = [
@@ -188,7 +199,7 @@ const MINDFUL_BREAKS = [
   {title:"Gratitude Flash",desc:"Name one genuine appreciation right now. Feel it fully.",emoji:"🙏",dur:30},
 ];
 
-/* ─── NEW: STRAIN DATA ─── */
+/* ─── STRAIN DATA ─── */
 const ACTIVITIES = [
   {id:1,label:"Work / Study",icon:"💼",mets:1.5,stressMultiplier:1.8},
   {id:2,label:"Running",icon:"🏃",mets:8.0,stressMultiplier:0.4},
@@ -202,7 +213,7 @@ const ACTIVITIES = [
   {id:10,label:"Sleep",icon:"😴",mets:0.9,stressMultiplier:-1.5},
 ];
 
-/* ─── NEW: STRESS-EATING DATA ─── */
+/* ─── STRESS-EATING DATA ─── */
 const FOOD_MOODS = ["Anxious","Bored","Stressed","Tired","Lonely","Procrastinating","Celebrating","Hungry (physical)"];
 const FOOD_CATEGORIES = [
   {id:"sugar",label:"Sugar / Sweets",icon:"🍬",riskScore:3},
@@ -215,12 +226,82 @@ const FOOD_CATEGORIES = [
   {id:"water",label:"Water / Herbal",icon:"💧",riskScore:-0.5},
 ];
 
+/* ════════════════════════════════
+   NEW: SLEEP DATA (beats Whoop)
+════════════════════════════════ */
+const SLEEP_STAGES = ["Awake","REM","Light","Deep"];
+const SLEEP_STAGE_COLORS = {Awake:RED,REM:PURPLE,Light:BLUE,Deep:INDIGO};
+
+const CIRCADIAN_HOURS = [
+  {h:6,label:"6am",energy:20,alertness:15,cortisol:90},
+  {h:8,label:"8am",energy:55,alertness:60,cortisol:75},
+  {h:10,label:"10am",energy:80,alertness:85,cortisol:50},
+  {h:12,label:"12pm",energy:75,alertness:78,cortisol:35},
+  {h:14,label:"2pm",energy:55,alertness:50,cortisol:25},
+  {h:16,label:"4pm",energy:75,alertness:80,cortisol:30},
+  {h:18,label:"6pm",energy:65,alertness:65,cortisol:20},
+  {h:20,label:"8pm",energy:45,alertness:40,cortisol:15},
+  {h:22,label:"10pm",energy:25,alertness:20,cortisol:10},
+  {h:0,label:"12am",energy:10,alertness:8,cortisol:8},
+];
+
+/* ════════════════════════════════
+   NEW: AMBIENT SOUNDSCAPES (beats Headspace)
+════════════════════════════════ */
+const SOUNDSCAPES = [
+  {id:"rain",label:"Rain Forest",emoji:"🌧️",color:BLUE,freq:432,desc:"Binaural alpha waves · 432hz · stress reduction"},
+  {id:"ocean",label:"Deep Ocean",emoji:"🌊",color:TEAL,freq:528,desc:"528hz repair frequency · calm nervous system"},
+  {id:"fire",label:"Campfire",emoji:"🔥",color:ORANGE,freq:396,desc:"Grounding brown noise · releases anxiety"},
+  {id:"space",label:"Deep Space",emoji:"🌌",color:INDIGO,freq:741,desc:"741hz · mental clarity · problem solving"},
+  {id:"forest",label:"Forest Morn",emoji:"🌿",color:GREEN,freq:639,desc:"639hz · emotional balance · relationships"},
+  {id:"wind",label:"Mountain Wind",emoji:"🏔️",color:PURPLE,freq:852,desc:"852hz · intuition · spiritual clarity"},
+];
+
+/* ════════════════════════════════
+   NEW: SLEEP STORIES (beats Headspace)
+════════════════════════════════ */
+const SLEEP_STORIES = [
+  {id:1,title:"The Midnight Lighthouse",emoji:"🏠",duration:18,mood:"Calm",desc:"A lone keeper tends a lighthouse on a fogless night. Each revolution of the light sweeps your thoughts gently out to sea.",color:BLUE},
+  {id:2,title:"Forest at 3am",emoji:"🌲",duration:22,mood:"Deep",desc:"Follow a fox through an ancient forest while the rest of the world sleeps. Damp moss, distant owls, total peace.",color:GREEN},
+  {id:3,title:"Rain on an Old Train",emoji:"🚂",duration:20,mood:"Cosy",desc:"A slow night train. Rain against glass. The rhythm of rails becomes the rhythm of your breath.",color:PURPLE},
+  {id:4,title:"Desert Starfield",emoji:"⭐",duration:15,mood:"Wonder",desc:"Lie in warm sand and count the constellations. The vast universe makes every worry microscopic.",color:INDIGO},
+];
+
+/* ════════════════════════════════
+   NEW: GUIDED VOICE SESSIONS (beats Headspace)
+════════════════════════════════ */
+const GUIDED_SESSIONS = [
+  {id:1,title:"Morning Intention",emoji:"🌅",duration:8,type:"Morning",color:ORANGE,script:["Take a comfortable seated position. Gently close your eyes.","Feel the weight of your body. Notice three contact points with the seat beneath you.","Set one clear intention for today. Not a task — a way of being.","Breathe in that intention. Let it settle into your chest.","Open your eyes. Carry it with you."]},
+  {id:2,title:"Anxiety Dissolve",emoji:"💧",duration:12,type:"Crisis",color:BLUE,script:["You are safe in this moment. Nothing urgent needs to happen right now.","Notice the anxiety as a physical sensation. Where does it live in your body?","Breathe into that exact spot. Not fighting it — just witnessing it.","Each exhale, let 10% of that tension release. Not all at once. Just 10%.","The anxiety is information. Thank it. You don't need to act on it right now."]},
+  {id:3,title:"Performance Prep",emoji:"⚡",duration:6,type:"Activating",color:G,script:["You have prepared. This moment is simply the expression of that preparation.","Feel your feet on the floor. You are grounded, stable, ready.","Take two power breaths — full inhale, sharp exhale.","See the outcome you want in vivid detail. Feel it in your body.","You are ready. Go."]},
+  {id:4,title:"Compassion Download",emoji:"❤️",duration:15,type:"Healing",color:PINK,script:["Place one hand on your heart. Feel your own warmth.","You have been working hard. You deserve kindness — especially from yourself.","Think of someone who loves you unconditionally. Feel that love.","Now direct that same love inward. You are worthy of it.","Rest here. You are enough, exactly as you are."]},
+];
+
+/* ════════════════════════════════
+   NEW: OURA-STYLE DATA (beats Oura)
+════════════════════════════════ */
+const HRV_ZONES = [
+  {label:"Recovery",min:60,max:120,color:GREEN,desc:"Excellent recovery. Push hard today."},
+  {label:"Balanced",min:45,max:60,color:TEAL,desc:"Good balance. Normal training load."},
+  {label:"Moderate",min:30,max:45,color:G,desc:"Moderate stress. Moderate exercise only."},
+  {label:"Strained",min:15,max:30,color:ORANGE,desc:"High allostatic load. Prioritise rest."},
+  {label:"Critical",min:0,max:15,color:RED,desc:"Recovery deficit. Rest mandatory."},
+];
+
+const RESILIENCE_FACTORS = [
+  {id:"sleep",label:"Sleep Quality",icon:"🌙",weight:0.28,desc:"Deep sleep % × duration score"},
+  {id:"hrv",label:"HRV Trend",icon:"💓",weight:0.24,desc:"7-day HRV vs personal baseline"},
+  {id:"activity",label:"Activity Balance",icon:"⚡",weight:0.18,desc:"Strain vs recovery ratio"},
+  {id:"mood",label:"Emotional Stability",icon:"🧠",weight:0.16,desc:"Mood consistency over 7 days"},
+  {id:"recovery",label:"Recovery Actions",icon:"🛡️",weight:0.14,desc:"Sessions, breathwork, meditation"},
+];
+
 /* ═══════════════ SHARED UI ═══════════════ */
 const Card = ({children, style={}, className=""}) => (
   <div className={`mx-card ${className}`} style={{padding:20,...style}}>{children}</div>
 );
 const Label = ({children, style={}}) => (
-  <div style={{fontSize:8,letterSpacing:".22em",color:"#252525",textTransform:"uppercase",marginBottom:7,...style}}>{children}</div>
+  <div style={{fontSize:8,letterSpacing:".22em",color:"#252535",textTransform:"uppercase",marginBottom:7,...style}}>{children}</div>
 );
 const GoldBtn = ({children, onClick, style={}, small=false}) => (
   <button className="mx-btn" onClick={onClick} style={{
@@ -236,7 +317,7 @@ const GhostBtn = ({children, onClick, color="#333", style={}}) => (
 );
 function Bar({pct, color=G, height=4, animated=true}) {
   return (
-    <div style={{height,background:"#111",borderRadius:height,overflow:"hidden",marginTop:6}}>
+    <div style={{height,background:"#111118",borderRadius:height,overflow:"hidden",marginTop:6}}>
       <motion.div
         initial={{width:animated?0:undefined}}
         animate={{width:`${Math.min(pct,100)}%`}}
@@ -249,7 +330,7 @@ function Bar({pct, color=G, height=4, animated=true}) {
 function Pill({children, color=G, active=false, onClick, style={}}) {
   return (
     <button className="mx-btn" onClick={onClick} style={{
-      padding:"5px 11px",background:active?`${color}18`:"#111",
+      padding:"5px 11px",background:active?`${color}18`:"#111118",
       border:`1px solid ${active?color:BOR}`,color:active?color:"#333",
       fontFamily:FONT,fontSize:9,letterSpacing:".1em",...style,
     }}>{children}</button>
@@ -268,7 +349,7 @@ function HrvBadge({value}) {
 const MxTooltip = ({active,payload,label}) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{background:CARD,border:`1px solid ${BOR}`,padding:"8px 12px",fontFamily:FONT,fontSize:9,letterSpacing:".08em",color:"#4a4a4a"}}>
+    <div style={{background:CARD,border:`1px solid ${BOR}`,padding:"8px 12px",fontFamily:FONT,fontSize:9,letterSpacing:".08em",color:"#4a4a5a"}}>
       <div style={{color:G,marginBottom:4}}>{label}</div>
       {payload.map((p,i)=>(
         <div key={i} style={{color:p.color||G}}>{p.name}: <span style={{color:"#ddd"}}>{p.value}</span></div>
@@ -310,7 +391,7 @@ function BreathCircle({active, onToggle, color=G}) {
           ) : <div style={{fontSize:30}}>🫁</div>}
         </motion.div>
       </div>
-      {active && <div style={{fontSize:8,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:10}}>Cycles: {cycles}</div>}
+      {active && <div style={{fontSize:8,letterSpacing:".18em",color:"#2a2a3a",textTransform:"uppercase",marginBottom:10}}>Cycles: {cycles}</div>}
       <button className="mx-btn" onClick={onToggle} style={{
         padding:"10px 26px",background:active?"transparent":color,
         color:active?RED:BG,border:active?`1px solid ${RED}`:"none",
@@ -345,7 +426,7 @@ function SosOverlay({onClose}) {
       <motion.div initial={{scale:.9,y:20}} animate={{scale:1,y:0}} transition={{type:"spring",stiffness:200}}>
         <div style={{textAlign:"center",maxWidth:380}}>
           <div style={{fontFamily:HEAD,fontSize:42,color:RED,letterSpacing:".06em",lineHeight:1}}>SOS CALM MODE</div>
-          <div style={{fontSize:8,letterSpacing:".22em",color:"#2a2a2a",textTransform:"uppercase",margin:"8px 0 36px"}}>3-min emergency protocol · Follow the circle</div>
+          <div style={{fontSize:8,letterSpacing:".22em",color:"#2a2a3a",textTransform:"uppercase",margin:"8px 0 36px"}}>3-min emergency protocol · Follow the circle</div>
           <div style={{display:"flex",justifyContent:"center",marginBottom:36}}>
             <div style={{position:"relative",width:240,height:240,display:"flex",alignItems:"center",justifyContent:"center"}}>
               <motion.div animate={{width:sz+40,height:sz+40,opacity:.15}} transition={{duration:phase==="Inhale"?4:phase==="Exhale"?6:1,ease:"easeInOut"}}
@@ -358,7 +439,7 @@ function SosOverlay({onClose}) {
               </motion.div>
             </div>
           </div>
-          <GhostBtn onClick={onClose} color="#2a2a2a">Exit SOS Mode</GhostBtn>
+          <GhostBtn onClick={onClose} color="#2a2a3a">Exit SOS Mode</GhostBtn>
         </div>
       </motion.div>
     </motion.div>
@@ -379,7 +460,7 @@ function BurnoutRadar({score, hrvLast, moods}) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <RadarChart data={data} cx="50%" cy="50%">
-        <PolarGrid stroke="#1a1a1a"/>
+        <PolarGrid stroke="#1a1a2a"/>
         <PolarAngleAxis dataKey="axis" tick={{fontSize:8,fill:"#333",fontFamily:FONT,letterSpacing:".1em"}}/>
         <Radar dataKey="value" stroke={G} fill={G} fillOpacity={0.12} strokeWidth={2} dot={{fill:G,r:3}}/>
       </RadarChart>
@@ -399,12 +480,12 @@ function ProgramOverlay({prog, time, step, running, onPause, onResume, onStop}) 
         style={{textAlign:"center",maxWidth:420,width:"100%"}}>
         <div style={{fontSize:40,marginBottom:10}}>{prog.emoji}</div>
         <div style={{fontFamily:HEAD,fontSize:36,color:"#e8e4d9",marginBottom:2}}>{prog.title}</div>
-        <div style={{fontSize:8,letterSpacing:".2em",color:"#252525",textTransform:"uppercase",marginBottom:24}}>
+        <div style={{fontSize:8,letterSpacing:".2em",color:"#252535",textTransform:"uppercase",marginBottom:24}}>
           Step {step+1} / {prog.steps.length}
         </div>
         <div style={{position:"relative",width:180,height:180,margin:"0 auto 24px"}}>
           <svg viewBox="0 0 180 180" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
-            <circle cx="90" cy="90" r="80" fill="none" stroke="#111" strokeWidth="6"/>
+            <circle cx="90" cy="90" r="80" fill="none" stroke="#111118" strokeWidth="6"/>
             <circle cx="90" cy="90" r="80" fill="none" stroke={prog.color||G} strokeWidth="6"
               strokeDasharray={`${2*Math.PI*80}`} strokeDashoffset={`${2*Math.PI*80*(1-pct/100)}`}
               strokeLinecap="round" style={{transition:"stroke-dashoffset .5s linear"}}/>
@@ -414,12 +495,12 @@ function ProgramOverlay({prog, time, step, running, onPause, onResume, onStop}) 
           </div>
         </div>
         <motion.div key={step} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}
-          style={{background:CARD,border:`1px solid ${BOR}`,padding:"14px 20px",marginBottom:14,fontSize:13,color:"#3a3a3a",lineHeight:1.8}}>
+          style={{background:CARD,border:`1px solid ${BOR}`,padding:"14px 20px",marginBottom:14,fontSize:13,color:"#3a3a4a",lineHeight:1.8}}>
           {prog.steps[step]}
         </motion.div>
         <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:18}}>
           {prog.steps.map((_,i)=>(
-            <div key={i} style={{height:3,width:28,borderRadius:2,background:i<step?G:i===step?`${G}88`:"#1a1a1a",transition:"background .3s"}}/>
+            <div key={i} style={{height:3,width:28,borderRadius:2,background:i<step?G:i===step?`${G}88`:"#1a1a2a",transition:"background .3s"}}/>
           ))}
         </div>
         <div style={{display:"flex",gap:10,justifyContent:"center"}}>
@@ -447,10 +528,10 @@ function MedOverlay({med, time, running, onToggle, onStop}) {
         style={{textAlign:"center",maxWidth:360,width:"100%"}}>
         <div style={{fontSize:44,marginBottom:12}}>{med.emoji}</div>
         <div style={{fontFamily:HEAD,fontSize:34,color:"#e8e4d9",marginBottom:3}}>{med.title}</div>
-        <div style={{fontSize:9,letterSpacing:".18em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:32}}>{med.focus}</div>
+        <div style={{fontSize:9,letterSpacing:".18em",color:"#2a2a3a",textTransform:"uppercase",marginBottom:32}}>{med.focus}</div>
         <div style={{position:"relative",width:200,height:200,margin:"0 auto 28px"}}>
           <svg viewBox="0 0 200 200" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
-            <circle cx="100" cy="100" r="88" fill="none" stroke="#111" strokeWidth="5"/>
+            <circle cx="100" cy="100" r="88" fill="none" stroke="#111118" strokeWidth="5"/>
             <circle cx="100" cy="100" r="88" fill="none" stroke={med.color||PURPLE} strokeWidth="5"
               strokeDasharray={`${2*Math.PI*88}`} strokeDashoffset={`${2*Math.PI*88*(1-pct/100)}`}
               strokeLinecap="round" style={{transition:"stroke-dashoffset .5s linear"}}/>
@@ -475,95 +556,58 @@ function MedOverlay({med, time, running, onToggle, onStop}) {
   );
 }
 
-/* ═══════════════════════════════════════════
-   NEW: FOCUS MODE OVERLAY (beats Headspace)
-═══════════════════════════════════════════ */
+/* ═══════════════ FOCUS OVERLAY ═══════════════ */
 function FocusOverlay({preset, phase, timeLeft, round, sessionsDone, onPause, onResume, running, onStop, breakTask}) {
   const isWork = phase === "work";
   const total = isWork ? preset.work*60 : preset.rest*60;
   const elapsed = total - timeLeft;
   const pct = (elapsed/total)*100;
   const col = isWork ? preset.color : TEAL;
-  const minsLeft = Math.floor(timeLeft/60);
-  const secsLeft = timeLeft%60;
-
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
       style={{position:"fixed",inset:0,background:isWork?"#040408":"#040808",zIndex:160,
         display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT}}>
       <div className="mx-scan-line"/>
-      {/* Ambient glow */}
       <div style={{position:"absolute",top:"20%",left:"50%",transform:"translateX(-50%)",
-        width:500,height:300,background:`radial-gradient(ellipse,${col}08 0%,transparent 68%)`,
-        pointerEvents:"none"}}/>
+        width:500,height:300,background:`radial-gradient(ellipse,${col}08 0%,transparent 68%)`,pointerEvents:"none"}}/>
       <motion.div initial={{scale:.94,y:20}} animate={{scale:1,y:0}} transition={{type:"spring"}}
         style={{textAlign:"center",maxWidth:440,width:"100%",padding:24}}>
-
-        <div style={{fontSize:9,letterSpacing:".3em",color:"#1e1e1e",textTransform:"uppercase",marginBottom:8}}>
+        <div style={{fontSize:9,letterSpacing:".3em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:8}}>
           {isWork ? `ROUND ${round} · FOCUS SESSION` : "MINDFUL BREAK"}
         </div>
         <div style={{fontFamily:HEAD,fontSize:44,color:col,lineHeight:1,marginBottom:4}}>
           {isWork ? preset.label.toUpperCase() : "BREAK TIME"}
         </div>
-
-        {/* Ring */}
         <div style={{position:"relative",width:220,height:220,margin:"24px auto"}}>
           <svg viewBox="0 0 220 220" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
-            <circle cx="110" cy="110" r="100" fill="none" stroke="#0e0e0e" strokeWidth="6"/>
+            <circle cx="110" cy="110" r="100" fill="none" stroke="#0e0e14" strokeWidth="6"/>
             <circle cx="110" cy="110" r="100" fill="none" stroke={col} strokeWidth="6"
               strokeDasharray={`${2*Math.PI*100}`}
               strokeDashoffset={`${2*Math.PI*100*(1-pct/100)}`}
               strokeLinecap="round" style={{transition:"stroke-dashoffset .9s linear"}}/>
-            {/* Outer focus ring */}
-            <circle cx="110" cy="110" r="108" fill="none" stroke={`${col}18`} strokeWidth="1"
-              className="focus-ring"/>
+            <circle cx="110" cy="110" r="108" fill="none" stroke={`${col}18`} strokeWidth="1" className="focus-ring"/>
           </svg>
-          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",
-            alignItems:"center",justifyContent:"center",gap:4}}>
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4}}>
             <div style={{fontFamily:HEAD,fontSize:58,color:col,lineHeight:1}}>
-              {String(minsLeft).padStart(2,"0")}:{String(secsLeft).padStart(2,"0")}
+              {String(Math.floor(timeLeft/60)).padStart(2,"0")}:{String(timeLeft%60).padStart(2,"0")}
             </div>
-            <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e1e",textTransform:"uppercase"}}>
+            <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase"}}>
               {isWork ? `${preset.work}min session` : `${preset.rest}min break`}
             </div>
           </div>
         </div>
-
-        {/* Break task */}
         {!isWork && breakTask && (
           <motion.div initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}
-            style={{background:CARD,border:`1px solid ${TEAL}22`,padding:"14px 20px",
-              marginBottom:18,fontSize:12,color:"#3a3a3a",lineHeight:1.8,letterSpacing:".04em"}}>
-            <div style={{fontSize:8,color:TEAL,letterSpacing:".2em",textTransform:"uppercase",marginBottom:5}}>
-              {breakTask.emoji} Break Activity
-            </div>
+            style={{background:CARD,border:`1px solid ${TEAL}22`,padding:"14px 20px",marginBottom:18,fontSize:12,color:"#3a3a4a",lineHeight:1.8}}>
+            <div style={{fontSize:8,color:TEAL,letterSpacing:".2em",textTransform:"uppercase",marginBottom:5}}>{breakTask.emoji} Break Activity</div>
             <strong style={{color:"#ccc"}}>{breakTask.title}:</strong> {breakTask.desc}
           </motion.div>
         )}
-
-        {/* Session dots */}
         <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:20}}>
           {[...Array(round)].map((_,i)=>(
-            <div key={i} style={{width:8,height:8,borderRadius:"50%",
-              background:i<sessionsDone?col:`${col}25`,
-              transition:"background .3s"}}/>
+            <div key={i} style={{width:8,height:8,borderRadius:"50%",background:i<sessionsDone?col:`${col}25`,transition:"background .3s"}}/>
           ))}
         </div>
-
-        {/* Stats row */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:22}}>
-          {[
-            {label:"Sessions",value:sessionsDone},
-            {label:"Focus mins",value:sessionsDone*preset.work},
-            {label:"Preset",value:preset.icon},
-          ].map(({label,value})=>(
-            <div key={label} style={{background:"#0e0e0e",border:`1px solid ${BOR}`,padding:"10px 6px",textAlign:"center"}}>
-              <div style={{fontFamily:HEAD,fontSize:22,color:col,lineHeight:1}}>{value}</div>
-              <div style={{fontSize:7,letterSpacing:".14em",color:"#1e1e1e",textTransform:"uppercase",marginTop:2}}>{label}</div>
-            </div>
-          ))}
-        </div>
-
         <div style={{display:"flex",gap:10,justifyContent:"center"}}>
           <button className="mx-btn" onClick={running?onPause:onResume} style={{
             padding:"12px 26px",background:`${col}20`,border:`1px solid ${col}40`,
@@ -577,9 +621,9 @@ function FocusOverlay({preset, phase, timeLeft, round, sessionsDone, onPause, on
   );
 }
 
-/* ═══════════════════════════════════════════
-   STRAIN SCORE RING  (beats Whoop)
-═══════════════════════════════════════════ */
+/* ════════════════════════════════
+   NEW: STRAIN RING COMPONENT
+════════════════════════════════ */
 function StrainRing({strain, recovery, size=180}) {
   const strainPct = Math.min(strain/21*100, 100);
   const recovPct = Math.min(recovery, 100);
@@ -590,30 +634,324 @@ function StrainRing({strain, recovery, size=180}) {
   return (
     <div style={{position:"relative",width:size,height:size,flexShrink:0}}>
       <svg viewBox={`0 0 ${size} ${size}`} style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
-        {/* Recovery ring (outer) */}
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#111" strokeWidth="5"/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#111118" strokeWidth="5"/>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={recovCol} strokeWidth="5"
           strokeDasharray={circ} strokeDashoffset={circ*(1-recovPct/100)}
           strokeLinecap="round" style={{transition:"stroke-dashoffset 1.4s ease"}}/>
-        {/* Strain ring (inner) */}
-        <circle cx={size/2} cy={size/2} r={r-12} fill="none" stroke="#111" strokeWidth="4"/>
+        <circle cx={size/2} cy={size/2} r={r-12} fill="none" stroke="#111118" strokeWidth="4"/>
         <circle cx={size/2} cy={size/2} r={r-12} fill="none" stroke={strainCol} strokeWidth="4"
           strokeDasharray={circ-75} strokeDashoffset={(circ-75)*(1-strainPct/100)}
           strokeLinecap="round" style={{transition:"stroke-dashoffset 1.4s ease"}}/>
       </svg>
-      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",
-        alignItems:"center",justifyContent:"center",gap:2}}>
+      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
         <div style={{fontFamily:HEAD,fontSize:38,color:strainCol,lineHeight:1}}>{strain.toFixed(1)}</div>
-        <div style={{fontSize:7,letterSpacing:".16em",color:"#1e1e1e",textTransform:"uppercase"}}>Strain</div>
+        <div style={{fontSize:7,letterSpacing:".16em",color:"#1e1e2e",textTransform:"uppercase"}}>Strain</div>
         <div style={{fontSize:9,color:recovCol,letterSpacing:".08em",marginTop:2}}>{recovery}% Rec</div>
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════
+/* ════════════════════════════════
+   NEW: READINESS RING (beats Oura)
+════════════════════════════════ */
+function ReadinessRing({score, size=200}) {
+  const col = score>=80?GREEN:score>=60?TEAL:score>=40?G:score>=20?ORANGE:RED;
+  const label = score>=80?"Peak":score>=60?"Good":score>=40?"Fair":score>=20?"Poor":"Low";
+  const r = size/2-10;
+  const circ = 2*Math.PI*r;
+  return (
+    <div style={{position:"relative",width:size,height:size}}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
+        {/* Background ring */}
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#111118" strokeWidth="8"/>
+        {/* Score arc */}
+        <motion.circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth="8"
+          strokeDasharray={circ} initial={{strokeDashoffset:circ}} animate={{strokeDashoffset:circ*(1-score/100)}}
+          transition={{duration:2,ease:"easeOut"}} strokeLinecap="round"/>
+        {/* Inner glow ring */}
+        <circle cx={size/2} cy={size/2} r={r-14} fill="none" stroke={`${col}12`} strokeWidth="1"/>
+      </svg>
+      <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+        <motion.div initial={{opacity:0,scale:.8}} animate={{opacity:1,scale:1}} transition={{delay:.5,duration:.6}}>
+          <div style={{fontFamily:HEAD,fontSize:size===200?52:38,color:col,lineHeight:1,textAlign:"center"}}>{score}</div>
+          <div style={{fontSize:9,letterSpacing:".2em",color:"#1e1e2e",textTransform:"uppercase",textAlign:"center",marginTop:4}}>{label}</div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   NEW: SOUNDSCAPE PLAYER (beats Headspace)
+════════════════════════════════ */
+function SoundscapePlayer({soundscapes}) {
+  const [active, setActive] = useState(null);
+  const [volume, setVolume] = useState(60);
+  const [playing, setPlaying] = useState(false);
+  const audioCtxRef = useRef(null);
+  const nodesRef = useRef([]);
+
+  const stopAll = useCallback(() => {
+    nodesRef.current.forEach(n => { try { n.stop(); n.disconnect(); } catch {} });
+    nodesRef.current = [];
+    if (audioCtxRef.current) { audioCtxRef.current.close(); audioCtxRef.current = null; }
+    setPlaying(false);
+  }, []);
+
+  const playSound = useCallback((sc) => {
+    stopAll();
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const master = ctx.createGain();
+      master.gain.value = volume / 100;
+      master.connect(ctx.destination);
+      // Brown noise base
+      const bufSize = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < bufSize; i++) {
+        const white = Math.random() * 2 - 1;
+        data[i] = (last + 0.02 * white) / 1.02;
+        last = data[i]; data[i] *= 3.5;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = sc.id === "rain" ? 3000 : sc.id === "ocean" ? 800 : sc.id === "fire" ? 600 : sc.id === "forest" ? 2000 : sc.id === "wind" ? 4000 : 1200;
+      src.connect(filter); filter.connect(master);
+      // Binaural tone
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const g1 = ctx.createGain(); const g2 = ctx.createGain();
+      g1.gain.value = 0.04; g2.gain.value = 0.04;
+      osc1.frequency.value = sc.freq;
+      osc2.frequency.value = sc.freq + 8;
+      osc1.connect(g1); g1.connect(master);
+      osc2.connect(g2); g2.connect(master);
+      const merger = ctx.createChannelMerger(2);
+      src.start(); osc1.start(); osc2.start();
+      nodesRef.current = [src, osc1, osc2];
+      setActive(sc); setPlaying(true);
+    } catch (e) { console.warn("Audio API not available"); setActive(sc); setPlaying(true); }
+  }, [volume, stopAll]);
+
+  useEffect(() => () => stopAll(), []);
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+        {soundscapes.map(sc => (
+          <button key={sc.id} className="mx-btn" onClick={() => active?.id===sc.id && playing ? stopAll() : playSound(sc)}
+            style={{padding:"14px 10px",background:active?.id===sc.id&&playing?`${sc.color}18`:"#0b0b0e",
+              border:`1px solid ${active?.id===sc.id&&playing?sc.color:BOR}`,
+              display:"flex",flexDirection:"column",alignItems:"center",gap:6,position:"relative",overflow:"hidden"}}>
+            {active?.id===sc.id&&playing&&(
+              <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${sc.color},transparent)`,
+                animation:"mx-scan 1.5s linear infinite"}}/>
+            )}
+            <span style={{fontSize:22}}>{sc.emoji}</span>
+            <span style={{fontSize:9,color:active?.id===sc.id&&playing?sc.color:"#333",letterSpacing:".08em",textAlign:"center"}}>{sc.label}</span>
+            <span style={{fontSize:7,color:"#1e1e2e",textAlign:"center",lineHeight:1.4}}>{sc.freq}hz</span>
+            {active?.id===sc.id&&playing&&<span style={{fontSize:7,color:sc.color}}>▶ PLAYING</span>}
+          </button>
+        ))}
+      </div>
+      {playing && active && (
+        <motion.div initial={{opacity:0,y:8}} animate={{opacity:1,y:0}}
+          style={{background:CARD,border:`1px solid ${active.color}22`,padding:"12px 16px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div>
+              <div style={{fontSize:10,color:active.color}}>{active.emoji} {active.label}</div>
+              <div style={{fontSize:8,color:"#1e1e2e",marginTop:2}}>{active.desc}</div>
+            </div>
+            <button className="mx-btn" onClick={stopAll}
+              style={{padding:"5px 10px",background:`${RED}12`,border:`1px solid ${RED}33`,color:RED,fontFamily:FONT,fontSize:8}}>■ STOP</button>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:9,color:"#1e1e2e"}}>VOL</span>
+            <input type="range" min="0" max="100" value={volume} onChange={e=>{setVolume(Number(e.target.value));}} className="mx-range" style={{flex:1}}/>
+            <span style={{fontSize:9,color:active.color}}>{volume}%</span>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   NEW: GUIDED SESSION OVERLAY (beats Headspace)
+════════════════════════════════ */
+function GuidedOverlay({session, onClose}) {
+  const [step, setStep] = useState(0);
+  const [time, setTime] = useState(0);
+  const [running, setRunning] = useState(true);
+  const ref = useRef(null);
+  const stepDur = Math.round((session.duration * 60) / session.script.length);
+
+  useEffect(() => {
+    if (!running) { clearInterval(ref.current); return; }
+    ref.current = setInterval(() => {
+      setTime(t => {
+        const nt = t + 1;
+        const ns = Math.min(Math.floor(nt / stepDur), session.script.length - 1);
+        setStep(ns);
+        return nt;
+      });
+    }, 1000);
+    return () => clearInterval(ref.current);
+  }, [running, stepDur, session]);
+
+  const pct = (time / (session.duration * 60)) * 100;
+  return (
+    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+      style={{position:"fixed",inset:0,background:"rgba(2,2,8,.98)",zIndex:170,
+        display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <motion.div initial={{scale:.92,y:20}} animate={{scale:1,y:0}} transition={{type:"spring"}}
+        style={{maxWidth:440,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:9,letterSpacing:".28em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:8}}>{session.type} SESSION</div>
+        <div style={{fontSize:48,marginBottom:8}} className="mx-float">{session.emoji}</div>
+        <div style={{fontFamily:HEAD,fontSize:36,color:"#e8e4d9",marginBottom:24}}>{session.title}</div>
+        {/* Progress arc */}
+        <div style={{position:"relative",width:160,height:160,margin:"0 auto 28px"}}>
+          <svg viewBox="0 0 160 160" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
+            <circle cx="80" cy="80" r="70" fill="none" stroke="#111118" strokeWidth="5"/>
+            <circle cx="80" cy="80" r="70" fill="none" stroke={session.color} strokeWidth="5"
+              strokeDasharray={`${2*Math.PI*70}`} strokeDashoffset={`${2*Math.PI*70*(1-pct/100)}`}
+              strokeLinecap="round" style={{transition:"stroke-dashoffset .8s linear"}}/>
+          </svg>
+          <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+            <div style={{fontSize:7,letterSpacing:".16em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:2}}>step</div>
+            <div style={{fontFamily:HEAD,fontSize:44,color:session.color,lineHeight:1}}>{step+1}</div>
+            <div style={{fontSize:7,color:"#1e1e2e"}}>of {session.script.length}</div>
+          </div>
+        </div>
+        <motion.div key={step} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:.5}}
+          style={{background:CARD,border:`1px solid ${session.color}22`,padding:"20px 24px",marginBottom:20,
+            fontSize:14,color:"#4a4a6a",lineHeight:2,letterSpacing:".03em",minHeight:80,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {session.script[step]}
+        </motion.div>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <button className="mx-btn" onClick={()=>setRunning(r=>!r)} style={{
+            padding:"12px 24px",background:`${session.color}20`,border:`1px solid ${session.color}40`,
+            color:session.color,fontFamily:FONT,fontSize:10,letterSpacing:".15em",textTransform:"uppercase"}}>
+            {running?"⏸ Pause":"▶ Resume"}
+          </button>
+          <GhostBtn onClick={onClose}>✕ Close</GhostBtn>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ════════════════════════════════
+   NEW: SLEEP COACH OVERLAY (beats Whoop)
+════════════════════════════════ */
+function SleepCoachModal({onClose, onSave}) {
+  const [form, setForm] = useState({
+    bedtime:"22:30", wakeTime:"06:30",
+    deepPct:20, remPct:25,
+    quality:7, dreams:false, wakeUps:1,
+    notes:""
+  });
+
+  const totalMins = (() => {
+    const [bh,bm]=form.bedtime.split(":").map(Number);
+    const [wh,wm]=form.wakeTime.split(":").map(Number);
+    let mins = (wh*60+wm) - (bh*60+bm);
+    if(mins<0) mins+=1440;
+    return mins;
+  })();
+  const hrs = (totalMins/60).toFixed(1);
+  const sleepScore = Math.round(
+    (Math.min(totalMins,480)/480)*40 +
+    (form.deepPct/25)*25 +
+    (form.remPct/30)*20 +
+    (form.quality/10)*15
+  );
+  const sleepCol = sleepScore>75?GREEN:sleepScore>55?G:sleepScore>35?ORANGE:RED;
+
+  return (
+    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={onClose}
+      style={{position:"fixed",inset:0,background:"rgba(0,0,0,.9)",zIndex:130,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <motion.div initial={{scale:.92,y:20}} animate={{scale:1,y:0}} onClick={e=>e.stopPropagation()}
+        style={{background:CARD,border:`1px solid ${BOR}`,padding:26,maxWidth:500,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontFamily:HEAD,fontSize:24,color:INDIGO}}>🌙 SLEEP COACH</div>
+          <button className="mx-btn" onClick={onClose} style={{background:"transparent",border:`1px solid ${BOR}`,color:"#333",padding:"4px 10px",fontFamily:FONT,fontSize:10}}>✕</button>
+        </div>
+
+        {/* Sleep score preview */}
+        <div style={{background:"#08080e",border:`1px solid ${INDIGO}22`,padding:"16px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:4}}>Sleep Score Preview</div>
+            <div style={{fontFamily:HEAD,fontSize:44,color:sleepCol,lineHeight:1}}>{sleepScore}</div>
+            <div style={{fontSize:8,color:sleepCol,marginTop:2}}>{hrs}h total · {form.deepPct}% deep</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4,textAlign:"right"}}>
+            {[
+              {label:"Duration",val:`${hrs}h`,target:"7-9h",ok:totalMins>=420&&totalMins<=540},
+              {label:"Deep Sleep",val:`${form.deepPct}%`,target:"15-25%",ok:form.deepPct>=15&&form.deepPct<=25},
+              {label:"REM",val:`${form.remPct}%`,target:"20-25%",ok:form.remPct>=20&&form.remPct<=25},
+            ].map(({label,val,target,ok})=>(
+              <div key={label} style={{fontSize:8,color:ok?GREEN:ORANGE}}>
+                {ok?"✓":"⚠"} {label}: {val} <span style={{color:"#1e1e2e"}}>(target {target})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          {[
+            {label:"Bedtime",key:"bedtime",type:"time"},
+            {label:"Wake Time",key:"wakeTime",type:"time"},
+          ].map(({label,key,type})=>(
+            <div key={key}>
+              <Label>{label}</Label>
+              <input type={type} value={form[key]} onChange={e=>setForm(p=>({...p,[key]:e.target.value}))}
+                className="mx-input" style={{colorScheme:"dark"}}/>
+            </div>
+          ))}
+        </div>
+
+        <Label>Deep Sleep %: {form.deepPct}%</Label>
+        <input type="range" min="5" max="40" value={form.deepPct} onChange={e=>setForm(p=>({...p,deepPct:Number(e.target.value)}))} className="mx-range" style={{width:"100%",marginBottom:14}}/>
+
+        <Label>REM Sleep %: {form.remPct}%</Label>
+        <input type="range" min="5" max="40" value={form.remPct} onChange={e=>setForm(p=>({...p,remPct:Number(e.target.value)}))} className="mx-range" style={{width:"100%",marginBottom:14}}/>
+
+        <Label>Sleep Quality: {form.quality}/10</Label>
+        <input type="range" min="1" max="10" value={form.quality} onChange={e=>setForm(p=>({...p,quality:Number(e.target.value)}))} className="mx-range" style={{width:"100%",marginBottom:14}}/>
+
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <Label style={{marginBottom:0}}>Wake-ups during night</Label>
+          <div style={{display:"flex",gap:6}}>
+            {[0,1,2,3,4].map(n=>(
+              <button key={n} className="mx-btn" onClick={()=>setForm(p=>({...p,wakeUps:n}))}
+                style={{width:28,height:28,background:form.wakeUps===n?`${INDIGO}20`:"#0e0e14",
+                  border:`1px solid ${form.wakeUps===n?INDIGO:BOR}`,color:form.wakeUps===n?INDIGO:"#333",fontFamily:FONT,fontSize:10}}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <textarea className="mx-input" rows={2} placeholder="Dreams? Anything you noticed about sleep quality..." value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} style={{marginBottom:14}}/>
+
+        <GoldBtn onClick={()=>onSave({...form,totalMins,sleepScore,date:new Date().toISOString()})} style={{width:"100%",background:INDIGO}}>
+          Save Sleep Log
+        </GoldBtn>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ════════════════════════════════
    MAIN COMPONENT
-═══════════════════════════════════════════ */
+════════════════════════════════ */
 export default function Stress() {
   const [tab, setTab] = useState("home");
   const [stressScore, setScore] = useState(()=>Number(localStorage.getItem("mx_score")||62));
@@ -626,11 +964,11 @@ export default function Stress() {
   const [unlockedAch, setUnlocked] = useLS("mx_ach", []);
   const [sessCount, setSessCount] = useLS("mx_sess", 0);
   const [medCount, setMedCount] = useLS("mx_meds", 0);
-
-  /* NEW persistent state */
   const [focusSessions, setFocusSessions] = useLS("mx_focus_sessions", []);
   const [strainLog, setStrainLog] = useLS("mx_strain_log", []);
   const [eatLog, setEatLog] = useLS("mx_eat_log", []);
+  // NEW persistent
+  const [sleepLog, setSleepLog] = useLS("mx_sleep_log", []);
 
   const [selMood, setSelMood] = useState(null);
   const [showSOS, setShowSOS] = useState(false);
@@ -656,10 +994,9 @@ export default function Stress() {
   const [forecast, setForecast] = useState(null);
   const [newAch, setNewAch] = useState(null);
   const [breathMode, setBreathMode] = useState("4-4-6-2");
-
-  /* FOCUS MODE state */
+  // FOCUS
   const [focusPreset, setFocusPreset] = useState(FOCUS_PRESETS[1]);
-  const [focusPhase, setFocusPhase] = useState("idle"); // idle|work|break
+  const [focusPhase, setFocusPhase] = useState("idle");
   const [focusTimeLeft, setFocusTimeLeft] = useState(0);
   const [focusRound, setFocusRound] = useState(1);
   const [focusSessionsDone, setFocusSessionsDone] = useState(0);
@@ -667,18 +1004,23 @@ export default function Stress() {
   const [focusBreakTask, setFocusBreakTask] = useState(null);
   const [showFocusOverlay, setShowFocusOverlay] = useState(false);
   const [focusTotalToday, setFocusTotalToday] = useState(0);
-
-  /* STRAIN state */
-  const [strainActivities, setStrainActivities] = useState([]);
-  const [strainForm, setStrainForm] = useState({actId:null, duration:30, effort:5, stressLevel:5});
+  // STRAIN
+  const [strainForm, setStrainForm] = useState({actId:null,duration:30,effort:5,stressLevel:5});
   const [todayStrain, setTodayStrain] = useState(0);
   const [todayRecovery, setTodayRecovery] = useState(68);
   const [showStrainForm, setShowStrainForm] = useState(false);
-
-  /* STRESS-EATING state */
+  // EAT
   const [showEatModal, setShowEatModal] = useState(false);
-  const [eatForm, setEatForm] = useState({mood:"",food:"",hunger:3,notes:"",time:new Date().toISOString()});
+  const [eatForm, setEatForm] = useState({mood:"",food:"",hunger:3,notes:""});
   const [eatPatterns, setEatPatterns] = useState({});
+  // NEW: SLEEP
+  const [showSleepModal, setShowSleepModal] = useState(false);
+  // NEW: GUIDED SESSION
+  const [activeGuided, setActiveGuided] = useState(null);
+  // NEW: RESILIENCE
+  const [resilienceScore, setResilienceScore] = useState(0);
+  // NEW: HRV Zone
+  const [currentHrvZone, setCurrentHrvZone] = useState(null);
 
   const progRef = useRef(null);
   const medRef = useRef(null);
@@ -695,10 +1037,14 @@ export default function Stress() {
     const collect = () => {
       const base = 55-stressScore*0.25;
       const v = Math.max(25, base+(Math.random()-0.5)*18);
+      const rounded = Math.round(v);
       setHrv(p=>[...p.slice(-20),{
         time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),
-        value:Math.round(v), stress:Math.round(Math.max(0,100-v*1.4)),
+        value:rounded, stress:Math.round(Math.max(0,100-v*1.4)),
       }]);
+      // Set HRV zone
+      const zone = HRV_ZONES.find(z=>rounded>=z.min&&rounded<z.max)||HRV_ZONES[2];
+      setCurrentHrvZone(zone);
     };
     collect();
     hrvRef.current = setInterval(collect, 22000);
@@ -717,11 +1063,25 @@ export default function Stress() {
     });
   }, []);
 
-  /* Achievement checks */
+  // Resilience score calculation (beats Oura)
+  useEffect(() => {
+    const hrvLast = hrvData.length ? hrvData[hrvData.length-1].value : 48;
+    const sleepScore = sleepLog.length ? sleepLog[sleepLog.length-1].sleepScore : 60;
+    const moodAvg = moods.length ? moods.slice(-7).reduce((a,m)=>a+(MOOD_VALS[m.mood]||5),0)/Math.min(7,moods.length)*10 : 50;
+    const activityScore = Math.max(0,100-(todayStrain*2));
+    const recoveryActions = Math.min(100,(sessCount+medCount)*8);
+    const score = Math.round(
+      sleepScore*0.28 + (Math.min(hrvLast,80)/80*100)*0.24 + activityScore*0.18 + moodAvg*0.16 + recoveryActions*0.14
+    );
+    setResilienceScore(Math.min(100,score));
+  }, [hrvData,sleepLog,moods,todayStrain,sessCount,medCount]);
+
+  // Achievement checks
   useEffect(() => {
     const toCheck = [
       {id:"first_log",cond:moods.length>=1},{id:"streak_7",cond:streak>=7},{id:"streak_30",cond:streak>=30},
       {id:"breathe_10",cond:sessCount>=10},{id:"journal_10",cond:journal.length>=10},{id:"med_5",cond:medCount>=5},
+      {id:"sleep_7",cond:sleepLog.length>=7},{id:"resilience_80",cond:resilienceScore>=80},
     ];
     toCheck.forEach(({id,cond})=>{
       if(cond&&!unlockedAch.includes(id)){
@@ -730,21 +1090,20 @@ export default function Stress() {
         if(def){setNewAch(def);setTimeout(()=>setNewAch(null),4000);}
       }
     });
-  }, [moods,streak,sessCount,journal,medCount]);
+  }, [moods,streak,sessCount,journal,medCount,sleepLog,resilienceScore]);
 
-  /* Eat pattern analysis */
+  // Eat patterns
   useEffect(() => {
     const patterns = {};
     eatLog.forEach(e=>{
       if(!patterns[e.mood]) patterns[e.mood]={count:0,foods:{},totalHunger:0};
-      patterns[e.mood].count++;
-      patterns[e.mood].totalHunger+=e.hunger||3;
+      patterns[e.mood].count++; patterns[e.mood].totalHunger+=e.hunger||3;
       if(e.food){patterns[e.mood].foods[e.food]=(patterns[e.mood].foods[e.food]||0)+1;}
     });
     setEatPatterns(patterns);
   }, [eatLog]);
 
-  /* Today's strain calc */
+  // Strain calc
   useEffect(() => {
     const today = new Date().toDateString();
     const todayLogs = strainLog.filter(l=>new Date(l.date).toDateString()===today);
@@ -754,12 +1113,13 @@ export default function Stress() {
       const load = (act.mets * l.duration / 60) * (l.effort/5) * (1 + act.stressMultiplier*0.3);
       return sum+load;
     }, 0);
+    const sleepBonus = sleepLog.length ? (sleepLog[sleepLog.length-1].sleepScore||60)*0.05 : 0;
     setTodayStrain(Math.min(21, strain));
-    const recovery = Math.max(0, Math.min(100, 100 - strain*3.8 - (stressScore*0.2) + (60-stressScore)*0.1));
+    const recovery = Math.max(0, Math.min(100, 100 - strain*3.8 - (stressScore*0.2) + (60-stressScore)*0.1 + sleepBonus));
     setTodayRecovery(Math.round(recovery));
-  }, [strainLog, stressScore]);
+  }, [strainLog, stressScore, sleepLog]);
 
-  /* Focus timer engine */
+  // Focus timer
   useEffect(() => {
     if (!focusRunning) { clearInterval(focusRef.current); return; }
     focusRef.current = setInterval(()=>{
@@ -782,25 +1142,14 @@ export default function Stress() {
   }, [focusRunning, focusPhase, focusPreset]);
 
   const startFocus = useCallback((preset)=>{
-    setFocusPreset(preset);
-    setFocusPhase("work");
-    setFocusTimeLeft(preset.work*60);
-    setFocusRound(1);
-    setFocusSessionsDone(0);
-    setFocusRunning(true);
-    setShowFocusOverlay(true);
+    setFocusPreset(preset); setFocusPhase("work"); setFocusTimeLeft(preset.work*60);
+    setFocusRound(1); setFocusSessionsDone(0); setFocusRunning(true); setShowFocusOverlay(true);
   },[]);
   const stopFocus = useCallback(()=>{
-    clearInterval(focusRef.current);
-    setFocusRunning(false);
-    setFocusPhase("idle");
-    setShowFocusOverlay(false);
-    if(focusSessionsDone>0){
-      setFocusSessions(p=>[...p,{id:Date.now(),preset:focusPreset.id,sessions:focusSessionsDone,mins:focusTotalToday,date:new Date().toISOString()}]);
-    }
+    clearInterval(focusRef.current); setFocusRunning(false); setFocusPhase("idle"); setShowFocusOverlay(false);
+    if(focusSessionsDone>0) setFocusSessions(p=>[...p,{id:Date.now(),preset:focusPreset.id,sessions:focusSessionsDone,mins:focusTotalToday,date:new Date().toISOString()}]);
   },[focusPreset,focusSessionsDone,focusTotalToday,setFocusSessions]);
 
-  /* Strain log add */
   const logStrainActivity = useCallback(()=>{
     if(!strainForm.actId) return;
     setStrainLog(p=>[...p,{...strainForm,id:Date.now(),date:new Date().toISOString()}]);
@@ -808,13 +1157,18 @@ export default function Stress() {
     setShowStrainForm(false);
   },[strainForm,setStrainLog]);
 
-  /* Eat log save */
   const saveEatEntry = useCallback(()=>{
     if(!eatForm.mood||!eatForm.food) return;
     setEatLog(p=>[...p,{...eatForm,id:Date.now(),time:new Date().toISOString()}]);
     setShowEatModal(false);
-    setEatForm({mood:"",food:"",hunger:3,notes:"",time:new Date().toISOString()});
+    setEatForm({mood:"",food:"",hunger:3,notes:""});
   },[eatForm,setEatLog]);
+
+  const saveSleep = useCallback((data)=>{
+    setSleepLog(p=>[...p,{...data,id:Date.now()}]);
+    setShowSleepModal(false);
+    setGoals(g=>g.map(x=>x.id===5?{...x,done:true}:x));
+  },[setSleepLog,setGoals]);
 
   const moodChartData = useMemo(()=>moods.slice(-10).map((m,i)=>({day:`D${i+1}`,value:MOOD_VALS[m.mood]||5,mood:m.mood})),[moods]);
   const triggerCorr = useMemo(()=>{
@@ -831,12 +1185,16 @@ export default function Stress() {
   const stressColor = stressScore<=25?GREEN:stressScore<=50?BLUE:stressScore<=70?G:stressScore<=85?ORANGE:RED;
   const stressLabel = stressScore<=25?"Very Low":stressScore<=50?"Optimal":stressScore<=70?"Moderate":stressScore<=85?"High":"Critical";
   const burnoutRisk = stressScore>75?"High":stressScore>55?"Moderate":"Low";
-  const burnoutColor = burnoutRisk==="High"?RED:burnoutRisk==="Moderate"?ORANGE:GREEN;
   const completedGoals = goals.filter(g=>g.done).length;
   const goalPct = Math.round((completedGoals/goals.length)*100);
   const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  const strainZone = todayStrain>17?"All Out":todayStrain>13?"Strenuous":todayStrain>8?"Moderate":"Light";
+  const strainZoneCol = todayStrain>17?RED:todayStrain>13?ORANGE:todayStrain>8?G:GREEN;
+  const focusMinsToday = focusSessions.filter(s=>new Date(s.date).toDateString()===new Date().toDateString()).reduce((sum,s)=>sum+s.mins,0)+focusTotalToday;
+  const lastSleep = sleepLog.length ? sleepLog[sleepLog.length-1] : null;
+  const resilienceCol = resilienceScore>=80?GREEN:resilienceScore>=60?TEAL:resilienceScore>=40?G:ORANGE;
 
-  /* program handlers (unchanged) */
+  // Program handlers
   const startProgram = useCallback(prog=>{
     setAP(prog);setProgT(0);setProgS(0);setProgR(true);
     const stepDur=(prog.duration*60)/prog.steps.length;
@@ -885,7 +1243,7 @@ export default function Stress() {
         return n;
       });
     },1000);
-  },[setGoals,setMedCount]);
+  },[setMedCount]);
   const stopMed=useCallback(()=>{clearInterval(medRef.current);setMedR(false);setMedA(null);setMedT(0);},[]);
   const calcStress=useCallback(()=>{
     let total=0;
@@ -897,9 +1255,13 @@ export default function Stress() {
 
   const TABS=[
     {id:"home",label:"Home",emoji:"◈"},
-    {id:"focus",label:"Focus Mode",emoji:"🎯",badge:"NEW"},
-    {id:"strain",label:"Strain",emoji:"⚡",badge:"NEW"},
-    {id:"eat",label:"Eat Journal",emoji:"🍽",badge:"NEW"},
+    {id:"readiness",label:"Readiness",emoji:"🛡",badge:"NEW"},
+    {id:"sleep",label:"Sleep Coach",emoji:"🌙",badge:"NEW"},
+    {id:"sounds",label:"Soundscapes",emoji:"🎵",badge:"NEW"},
+    {id:"guided",label:"Guided",emoji:"🗣",badge:"NEW"},
+    {id:"focus",label:"Focus",emoji:"🎯"},
+    {id:"strain",label:"Strain",emoji:"⚡"},
+    {id:"eat",label:"Eat Journal",emoji:"🍽"},
     {id:"programs",label:"Programs",emoji:"▶"},
     {id:"tracker",label:"Tracker",emoji:"◎"},
     {id:"journal",label:"Journal",emoji:"◧"},
@@ -907,20 +1269,20 @@ export default function Stress() {
     {id:"insights",label:"Insights",emoji:"◈"},
   ];
 
-  const strainZone = todayStrain>17?"All Out":todayStrain>13?"Strenuous":todayStrain>8?"Moderate":"Light";
-  const strainZoneCol = todayStrain>17?RED:todayStrain>13?ORANGE:todayStrain>8?G:GREEN;
-  const focusMinsToday = focusSessions.filter(s=>new Date(s.date).toDateString()===new Date().toDateString()).reduce((sum,s)=>sum+s.mins,0)+focusTotalToday;
+  const sleepChartData = useMemo(()=>sleepLog.slice(-7).map((s,i)=>({day:`D${i+1}`,score:s.sleepScore,hrs:(s.totalMins/60).toFixed(1),deep:s.deepPct,rem:s.remPct})),[sleepLog]);
 
   return (
     <div style={{minHeight:"100dvh",background:BG,color:"#ddd8cc",fontFamily:FONT,position:"relative",overflowX:"hidden"}}>
-
       {/* Ambient */}
       <div style={{position:"fixed",top:"8%",left:"50%",transform:"translateX(-50%)",width:600,height:300,
-        background:`radial-gradient(ellipse,${G}08 0%,transparent 68%)`,
+        background:`radial-gradient(ellipse,${G}07 0%,transparent 68%)`,
         animation:"mx-pulse 6s ease-in-out infinite",pointerEvents:"none",zIndex:0}}/>
       <div style={{position:"fixed",bottom:"10%",right:"5%",width:300,height:200,
-        background:`radial-gradient(ellipse,${PURPLE}06 0%,transparent 70%)`,
+        background:`radial-gradient(ellipse,${INDIGO}06 0%,transparent 70%)`,
         animation:"mx-pulse 9s ease-in-out infinite 2s",pointerEvents:"none",zIndex:0}}/>
+      <div style={{position:"fixed",top:"40%",left:"2%",width:200,height:200,
+        background:`radial-gradient(ellipse,${TEAL}04 0%,transparent 70%)`,
+        animation:"mx-pulse 12s ease-in-out infinite 4s",pointerEvents:"none",zIndex:0}}/>
 
       {/* Achievement toast */}
       <AnimatePresence>
@@ -957,6 +1319,12 @@ export default function Stress() {
             running={focusRunning} onStop={stopFocus} breakTask={focusBreakTask}/>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {activeGuided&&<GuidedOverlay session={activeGuided} onClose={()=>setActiveGuided(null)}/>}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showSleepModal&&<SleepCoachModal onClose={()=>setShowSleepModal(false)} onSave={saveSleep}/>}
+      </AnimatePresence>
 
       {/* QUIZ MODAL */}
       <AnimatePresence>
@@ -969,25 +1337,25 @@ export default function Stress() {
               onClick={e=>e.stopPropagation()}
               style={{background:CARD,border:`1px solid ${BOR}`,padding:28,maxWidth:460,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
-                <div style={{fontFamily:HEAD,fontSize:24,color:G,letterSpacing:".04em"}}>STRESS ASSESSMENT</div>
+                <div style={{fontFamily:HEAD,fontSize:24,color:G}}>STRESS ASSESSMENT</div>
                 <button className="mx-btn" onClick={()=>setShowQuiz(false)} style={{background:"transparent",border:`1px solid ${BOR}`,color:"#333",padding:"4px 10px",fontFamily:FONT,fontSize:10}}>✕</button>
               </div>
               {quizDone?(
                 <div style={{textAlign:"center",padding:"28px 0"}}>
                   <div style={{fontSize:50,marginBottom:12}}>✅</div>
                   <div style={{fontFamily:HEAD,fontSize:30,color:"#ddd",marginBottom:8}}>ASSESSMENT COMPLETE</div>
-                  <div style={{fontSize:12,color:"#3a3a3a"}}>Stress index: <span style={{color:stressColor,fontWeight:700}}>{stressScore}%</span></div>
+                  <div style={{fontSize:12,color:"#3a3a4a"}}>Stress index: <span style={{color:stressColor,fontWeight:700}}>{stressScore}%</span></div>
                 </div>
               ):(
                 <>
                   {QUIZ.map((q,qi)=>(
                     <div key={q.id} style={{marginBottom:20}}>
-                      <div style={{fontSize:11,color:"#3a3a3a",marginBottom:10,letterSpacing:".04em"}}>{qi+1}. {q.q}</div>
+                      <div style={{fontSize:11,color:"#3a3a4a",marginBottom:10,letterSpacing:".04em"}}>{qi+1}. {q.q}</div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
                         {q.opts.map(o=>(
                           <button key={o} className="mx-btn" onClick={()=>setQuizA(p=>({...p,[q.id]:o}))}
-                            style={{padding:"9px 12px",background:quizA[q.id]===o?`${G}1a`:"#0e0e0e",
-                              border:`1px solid ${quizA[q.id]===o?G:BOR}`,color:quizA[q.id]===o?G:"#2a2a2a",
+                            style={{padding:"9px 12px",background:quizA[q.id]===o?`${G}1a`:"#0e0e14",
+                              border:`1px solid ${quizA[q.id]===o?G:BOR}`,color:quizA[q.id]===o?G:"#2a2a3a",
                               fontFamily:FONT,fontSize:10,textAlign:"left"}}>{o}</button>
                         ))}
                       </div>
@@ -1025,8 +1393,8 @@ export default function Stress() {
                 {TRIGGERS.map(t=>(
                   <button key={t.id} className="mx-btn"
                     onClick={()=>setJForm(p=>({...p,trigger:p.trigger.includes(t.id)?p.trigger.filter(x=>x!==t.id):[...p.trigger,t.id]}))}
-                    style={{padding:"9px 10px",background:jForm.trigger.includes(t.id)?`${G}18`:"#0e0e0e",
-                      border:`1px solid ${jForm.trigger.includes(t.id)?G:BOR}`,color:jForm.trigger.includes(t.id)?G:"#2a2a2a",
+                    style={{padding:"9px 10px",background:jForm.trigger.includes(t.id)?`${G}18`:"#0e0e14",
+                      border:`1px solid ${jForm.trigger.includes(t.id)?G:BOR}`,color:jForm.trigger.includes(t.id)?G:"#2a2a3a",
                       fontFamily:FONT,fontSize:9,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
                     <span>{t.icon}</span><span>{t.label}</span>
                   </button>
@@ -1043,7 +1411,7 @@ export default function Stress() {
         )}
       </AnimatePresence>
 
-      {/* STRESS-EATING MODAL */}
+      {/* EAT MODAL */}
       <AnimatePresence>
         {showEatModal&&(
           <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setShowEatModal(false)}
@@ -1064,8 +1432,8 @@ export default function Stress() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:16}}>
                 {FOOD_CATEGORIES.map(f=>(
                   <button key={f.id} className="mx-btn" onClick={()=>setEatForm(p=>({...p,food:f.id}))}
-                    style={{padding:"10px 10px",background:eatForm.food===f.id?`${ORANGE}18`:"#0e0e0e",
-                      border:`1px solid ${eatForm.food===f.id?ORANGE:BOR}`,color:eatForm.food===f.id?ORANGE:"#2a2a2a",
+                    style={{padding:"10px 10px",background:eatForm.food===f.id?`${ORANGE}18`:"#0e0e14",
+                      border:`1px solid ${eatForm.food===f.id?ORANGE:BOR}`,color:eatForm.food===f.id?ORANGE:"#2a2a3a",
                       fontFamily:FONT,fontSize:9,textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
                     <span>{f.icon}</span><span>{f.label}</span>
                     {f.riskScore>0&&<span style={{marginLeft:"auto",fontSize:7,color:f.riskScore>2?RED:G}}>×{f.riskScore}</span>}
@@ -1073,7 +1441,6 @@ export default function Stress() {
                 ))}
               </div>
               <Label>Physical hunger level: {eatForm.hunger}/10</Label>
-              <div style={{fontSize:8,color:"#1e1e1e",marginBottom:6}}>1 = not hungry · 10 = starving</div>
               <input type="range" min="1" max="10" value={eatForm.hunger} onChange={e=>setEatForm(p=>({...p,hunger:Number(e.target.value)}))} className="mx-range" style={{width:"100%",marginBottom:14}}/>
               <textarea className="mx-input" rows={2} placeholder="What were you doing / feeling just before?" value={eatForm.notes} onChange={e=>setEatForm(p=>({...p,notes:e.target.value}))} style={{marginBottom:14}}/>
               <GoldBtn onClick={saveEatEntry} style={{width:"100%",background:ORANGE,opacity:eatForm.mood&&eatForm.food?1:.3,pointerEvents:eatForm.mood&&eatForm.food?"auto":"none"}}>
@@ -1087,16 +1454,16 @@ export default function Stress() {
       {/* HEADER */}
       <div style={{borderBottom:`1px solid ${BOR}`,padding:"13px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:`${BG}f0`,backdropFilter:"blur(12px)",zIndex:20}}>
         <div>
-          <div style={{fontFamily:HEAD,fontSize:30,letterSpacing:".03em",lineHeight:1,color:"#e8e4d9"}}>STRESS & BURNOUT</div>
-          <div style={{fontSize:7,letterSpacing:".22em",color:"#1e1e1e",textTransform:"uppercase",marginTop:3}}>
-            MANIFIX v2 · Focus · Strain · Eat Journal · HRV
+          <div style={{fontFamily:HEAD,fontSize:30,letterSpacing:".03em",lineHeight:1,color:"#e8e4d9"}}>MANIFIX v3</div>
+          <div style={{fontSize:7,letterSpacing:".22em",color:"#1e1e2e",textTransform:"uppercase",marginTop:3}}>
+            READINESS · SLEEP · SOUNDS · GUIDED · FOCUS · STRAIN · EAT · HRV
           </div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <div style={{textAlign:"right",marginRight:4}}>
-            <div style={{fontSize:7,letterSpacing:".18em",color:"#1a1a1a",textTransform:"uppercase"}}>Stress Index</div>
-            <div style={{fontFamily:HEAD,fontSize:24,color:stressColor,lineHeight:1}}>{stressScore}%</div>
-            <div style={{fontSize:7,color:stressColor,letterSpacing:".12em"}}>{stressLabel}</div>
+            <div style={{fontSize:7,letterSpacing:".18em",color:"#1a1a2a",textTransform:"uppercase"}}>Readiness</div>
+            <div style={{fontFamily:HEAD,fontSize:22,color:resilienceCol,lineHeight:1}}>{resilienceScore}</div>
+            <div style={{fontSize:7,color:resilienceCol,letterSpacing:".1em"}}>Stress {stressScore}%</div>
           </div>
           <button className="mx-btn" onClick={()=>setShowSOS(true)}
             style={{padding:"8px 12px",background:"rgba(239,68,68,.12)",border:"1px solid rgba(239,68,68,.3)",
@@ -1110,13 +1477,13 @@ export default function Stress() {
       <div style={{borderBottom:`1px solid ${BOR}`,padding:"0 16px",display:"flex",gap:1,overflowX:"auto",background:`${BG}f8`,position:"sticky",top:57,zIndex:19}}>
         {TABS.map(t=>(
           <button key={t.id} className="mx-btn" onClick={()=>setTab(t.id)}
-            style={{padding:"11px 12px",background:"transparent",border:"none",
+            style={{padding:"11px 10px",background:"transparent",border:"none",
               borderBottom:`2px solid ${tab===t.id?G:"transparent"}`,
               color:tab===t.id?G:"#222",fontFamily:FONT,fontSize:7,
-              letterSpacing:".16em",textTransform:"uppercase",whiteSpace:"nowrap",
+              letterSpacing:".14em",textTransform:"uppercase",whiteSpace:"nowrap",
               transition:"all .2s",position:"relative"}}>
             {t.emoji} {t.label}
-            {t.badge&&<span style={{position:"absolute",top:4,right:2,fontSize:5,color:t.badge==="NEW"?TEAL:RED,letterSpacing:".12em",fontFamily:FONT}}>{t.badge}</span>}
+            {t.badge&&<span style={{position:"absolute",top:4,right:1,fontSize:5,color:TEAL,letterSpacing:".1em",fontFamily:FONT}}>{t.badge}</span>}
           </button>
         ))}
       </div>
@@ -1132,10 +1499,12 @@ export default function Stress() {
                 <div style={{overflow:"hidden",borderBottom:`1px solid ${BOR}`,paddingBottom:10}}>
                   <div style={{display:"flex",gap:40,animation:"mx-ticker 20s linear infinite",whiteSpace:"nowrap",width:"max-content"}}>
                     {[...Array(3)].flatMap(()=>[
-                      `HRV ${hrvLast}ms`,`STRESS ${stressScore}%`,`STREAK ${streak}d`,`CORTISOL ~${cortisol}mcg/dL`,
-                      `STRAIN ${todayStrain.toFixed(1)}/21`,`FOCUS ${focusMinsToday}min today`,`BURNOUT ${burnoutRisk}`,
+                      `HRV ${hrvLast}ms`,`STRESS ${stressScore}%`,`STREAK ${streak}d`,
+                      `STRAIN ${todayStrain.toFixed(1)}/21`,`FOCUS ${focusMinsToday}min`,
+                      `READINESS ${resilienceScore}`,`SLEEP ${lastSleep?lastSleep.sleepScore+"pts":"—"}`,
+                      currentHrvZone?`HRV ZONE ${currentHrvZone.label}`:"HRV MEASURING",
                     ]).map((t,i)=>(
-                      <span key={i} style={{fontSize:7,letterSpacing:".2em",color:"#1e1e1e",textTransform:"uppercase"}}>
+                      <span key={i} style={{fontSize:7,letterSpacing:".2em",color:"#1e1e2e",textTransform:"uppercase"}}>
                         {t} <span style={{color:`${G}44`,marginLeft:6}}>◈</span>
                       </span>
                     ))}
@@ -1149,11 +1518,11 @@ export default function Stress() {
                       <div style={{fontSize:32,lineHeight:1}}>{forecast.emoji}</div>
                       <div style={{flex:1}}>
                         <Label style={{marginBottom:5}}>Today's Stress Forecast</Label>
-                        <div style={{fontSize:11,color:"#2a2a2a",lineHeight:1.8,marginBottom:12}}>{forecast.tip}</div>
+                        <div style={{fontSize:11,color:"#2a2a3a",lineHeight:1.8,marginBottom:12}}>{forecast.tip}</div>
                         <div style={{display:"flex",gap:20}}>
                           {[["Morning",forecast.morning,GREEN],["Afternoon",forecast.afternoon,G],["Evening",forecast.evening,BLUE]].map(([l,v,c])=>(
                             <div key={l}>
-                              <div style={{fontSize:7,letterSpacing:".16em",color:"#1e1e1e",textTransform:"uppercase",marginBottom:2}}>{l}</div>
+                              <div style={{fontSize:7,letterSpacing:".16em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:2}}>{l}</div>
                               <div style={{fontFamily:HEAD,fontSize:26,color:c,lineHeight:1}}>{v}%</div>
                               <Bar pct={v} color={c} height={2}/>
                             </div>
@@ -1168,14 +1537,14 @@ export default function Stress() {
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
                   {[
                     {label:"Stress Index",value:`${stressScore}%`,sub:stressLabel,color:stressColor,bar:true},
-                    {label:"Strain Today",value:todayStrain.toFixed(1),sub:strainZone,color:strainZoneCol},
-                    {label:"Focus Today",value:`${focusMinsToday}m`,sub:"deep work",color:BLUE},
+                    {label:"Readiness",value:resilienceScore,sub:"composite score",color:resilienceCol},
+                    {label:"Sleep Score",value:lastSleep?lastSleep.sleepScore:"—",sub:lastSleep?`${(lastSleep.totalMins/60).toFixed(1)}h`:"not logged",color:INDIGO},
                     {label:"HRV Live",value:null,sub:"ms · variability",color:PURPLE,hrv:true},
                   ].map(({label,value,sub,color,bar,hrv})=>(
                     <Card key={label}>
                       <Label>{label}</Label>
                       {hrv?<HrvBadge value={hrvLast}/>:<div style={{fontFamily:HEAD,fontSize:32,color,lineHeight:1}}>{value}</div>}
-                      <div style={{fontSize:8,color:"#1e1e1e",marginTop:3}}>{sub}</div>
+                      <div style={{fontSize:8,color:"#1e1e2e",marginTop:3}}>{sub}</div>
                       {bar&&<Bar pct={stressScore} color={color}/>}
                     </Card>
                   ))}
@@ -1184,21 +1553,24 @@ export default function Stress() {
                 {/* NEW feature nav cards */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
                   {[
-                    {icon:"🎯",label:"Focus Mode",sub:`${focusMinsToday}min today · beats Headspace`,action:()=>setTab("focus"),color:BLUE,badge:"NEW"},
-                    {icon:"⚡",label:"Strain Score",sub:`${todayStrain.toFixed(1)}/21 · ${strainZone} · beats Whoop`,action:()=>setTab("strain"),color:ORANGE,badge:"NEW"},
-                    {icon:"🍽",label:"Eat Journal",sub:`${eatLog.length} entries · beats Noom`,action:()=>setTab("eat"),color:TEAL,badge:"NEW"},
+                    {icon:"🛡",label:"Readiness Ring",sub:`Score ${resilienceScore} · Oura-style composite`,action:()=>setTab("readiness"),color:GREEN,badge:"NEW"},
+                    {icon:"🌙",label:"Sleep Coach",sub:`${sleepLog.length} nights logged · beats Whoop`,action:()=>setTab("sleep"),color:INDIGO,badge:"NEW"},
+                    {icon:"🎵",label:"Soundscapes",sub:"Binaural · 6 scenes · beats Headspace",action:()=>setTab("sounds"),color:PURPLE,badge:"NEW"},
+                    {icon:"🗣",label:"Guided Sessions",sub:"4 AI-scripted voice sessions",action:()=>setTab("guided"),color:PINK,badge:"NEW"},
+                    {icon:"🎯",label:"Focus Mode",sub:`${focusMinsToday}min today · 4 presets`,action:()=>setTab("focus"),color:BLUE},
+                    {icon:"⚡",label:"Strain Score",sub:`${todayStrain.toFixed(1)}/21 · ${strainZone}`,action:()=>setTab("strain"),color:ORANGE},
                   ].map((c,i)=>(
                     <button key={i} className="mx-btn" onClick={c.action}
                       style={{background:CARD,border:`1px solid ${c.color}22`,padding:"16px 12px",cursor:"pointer",textAlign:"left",display:"flex",flexDirection:"column",gap:8,position:"relative"}}>
-                      <div style={{position:"absolute",top:8,right:8,fontSize:6,letterSpacing:".12em",color:TEAL,background:`${TEAL}12`,border:`1px solid ${TEAL}25`,padding:"2px 6px",fontFamily:FONT}}>{c.badge}</div>
+                      {c.badge&&<div style={{position:"absolute",top:8,right:8,fontSize:6,letterSpacing:".12em",color:TEAL,background:`${TEAL}12`,border:`1px solid ${TEAL}25`,padding:"2px 6px",fontFamily:FONT}}>{c.badge}</div>}
                       <span style={{fontSize:26}}>{c.icon}</span>
                       <div style={{fontSize:10,fontWeight:700,color:"#ddd",fontFamily:HEAD,letterSpacing:".04em"}}>{c.label}</div>
-                      <div style={{fontSize:8,color:"#1e1e1e",lineHeight:1.5}}>{c.sub}</div>
+                      <div style={{fontSize:8,color:"#1e1e2e",lineHeight:1.5}}>{c.sub}</div>
                     </button>
                   ))}
                 </div>
 
-                {/* Goals */}
+                {/* Goals + Quick Actions */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <Card>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -1210,11 +1582,11 @@ export default function Stress() {
                       {goals.map(g=>(
                         <motion.div key={g.id} whileTap={{scale:.97}} className="mx-btn"
                           onClick={()=>setGoals(p=>p.map(x=>x.id===g.id?{...x,done:!x.done}:x))}
-                          style={{display:"flex",alignItems:"center",gap:10,border:`1px solid ${g.done?"#1e3d1e":BOR}`,background:g.done?"#0a130a":"#0e0e0e",padding:"9px 12px"}}>
+                          style={{display:"flex",alignItems:"center",gap:10,border:`1px solid ${g.done?"#1e3d1e":BOR}`,background:g.done?"#0a130a":"#0e0e14",padding:"9px 12px"}}>
                           <div style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${g.done?GREEN:BOR}`,background:g.done?GREEN:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:BG,fontSize:9}}>
                             {g.done&&"✓"}
                           </div>
-                          <span style={{fontSize:9,color:"#2a2a2a",textDecoration:g.done?"line-through":"none"}}>{g.text}</span>
+                          <span style={{fontSize:9,color:"#2a2a3a",textDecoration:g.done?"line-through":"none"}}>{g.text}</span>
                           <span style={{marginLeft:"auto",fontSize:12}}>{g.icon}</span>
                         </motion.div>
                       ))}
@@ -1225,13 +1597,13 @@ export default function Stress() {
                       <Label>Quick Actions</Label>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                         {[
-                          {label:"Log Mood",icon:"😊",action:()=>setTab("tracker"),color:TEAL},
+                          {label:"Log Sleep",icon:"🌙",action:()=>setShowSleepModal(true),color:INDIGO},
                           {label:"Breathe",icon:"🫁",action:()=>setTab("tools"),color:BLUE},
                           {label:"Journal",icon:"📓",action:()=>setJModal(true),color:PURPLE},
                           {label:"Assess",icon:"📊",action:()=>setShowQuiz(true),color:G},
                         ].map(({label,icon,action})=>(
                           <button key={label} className="mx-btn" onClick={action}
-                            style={{padding:"12px 8px",background:"#0e0e0e",border:`1px solid ${BOR}`,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                            style={{padding:"12px 8px",background:"#0e0e14",border:`1px solid ${BOR}`,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
                             <span style={{fontSize:22}}>{icon}</span>
                             <span style={{fontSize:8,letterSpacing:".12em",color:"#222",textTransform:"uppercase"}}>{label}</span>
                           </button>
@@ -1252,23 +1624,441 @@ export default function Stress() {
               </div>
             )}
 
-            {/* ══════════ FOCUS MODE — NEW (beats Headspace) ══════════ */}
+            {/* ══════════ READINESS RING — NEW (beats Oura) ══════════ */}
+            {tab==="readiness"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+                  <div>
+                    <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>READINESS SCORE</div>
+                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>
+                      Beats Oura · 5-factor composite resilience score · Updated live
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main readiness ring + factors */}
+                <Card style={{display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+                    <ReadinessRing score={resilienceScore} size={200}/>
+                    <div style={{fontSize:9,color:resilienceCol,letterSpacing:".12em",textTransform:"uppercase"}}>
+                      {resilienceScore>=80?"Peak Readiness":resilienceScore>=60?"Good":resilienceScore>=40?"Fair":"Needs Recovery"}
+                    </div>
+                  </div>
+                  <div style={{flex:1,minWidth:220}}>
+                    <Label>Resilience Factors</Label>
+                    {RESILIENCE_FACTORS.map(f=>{
+                      const scores = {
+                        sleep: lastSleep ? lastSleep.sleepScore : 50,
+                        hrv: Math.min(100,hrvLast*1.25),
+                        activity: Math.max(0,100-todayStrain*4),
+                        mood: moods.length ? moods.slice(-7).reduce((a,m)=>a+(MOOD_VALS[m.mood]||5),0)/Math.min(7,moods.length)*10:50,
+                        recovery: Math.min(100,(sessCount+medCount)*8),
+                      };
+                      const val = Math.round(scores[f.id]||50);
+                      const col = val>=75?GREEN:val>=50?TEAL:val>=30?G:ORANGE;
+                      return (
+                        <div key={f.id} style={{marginBottom:12}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <span style={{fontSize:14}}>{f.icon}</span>
+                              <div>
+                                <div style={{fontSize:9,color:"#bbb"}}>{f.label}</div>
+                                <div style={{fontSize:7,color:"#1e1e2e"}}>{f.desc}</div>
+                              </div>
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:8,color:"#1e1e2e"}}>×{f.weight}</span>
+                              <div style={{fontFamily:HEAD,fontSize:18,color:col,lineHeight:1}}>{val}</div>
+                            </div>
+                          </div>
+                          <Bar pct={val} color={col} height={3}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+
+                {/* HRV Zones (beats Oura) */}
+                <Card>
+                  <Label>HRV Zones · Current: {hrvLast}ms</Label>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {HRV_ZONES.map(zone=>{
+                      const active = hrvLast>=zone.min&&hrvLast<zone.max;
+                      return (
+                        <div key={zone.label} style={{display:"flex",gap:12,alignItems:"center",padding:"10px 14px",
+                          background:active?`${zone.color}08`:"transparent",
+                          border:`1px solid ${active?zone.color+"44":BOR}`,
+                          transition:"all .3s"}}>
+                          {active&&<div className="mx-hb" style={{width:8,height:8,borderRadius:"50%",background:zone.color,flexShrink:0}}/>}
+                          {!active&&<div style={{width:8,height:8,borderRadius:"50%",background:"#1e1e2e",flexShrink:0}}/>}
+                          <div style={{flex:1}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                              <div style={{fontSize:10,color:active?zone.color:"#444"}}>{zone.label}</div>
+                              <div style={{fontSize:8,color:"#1e1e2e"}}>{zone.min}–{zone.max}ms</div>
+                            </div>
+                            <div style={{fontSize:8,color:"#1e1e2e",lineHeight:1.6}}>{zone.desc}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+
+                {/* Circadian rhythm chart (beats Oura) */}
+                <Card>
+                  <Label>Circadian Rhythm · Your Energy / Cortisol Curve</Label>
+                  <div style={{fontSize:9,color:"#1e1e2e",lineHeight:1.7,marginBottom:14}}>
+                    Oura shows sleep stages. ManifiX maps your full 24h autonomic rhythm — when to focus, when to rest, when cortisol peaks.
+                  </div>
+                  <div style={{height:180}}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={CIRCADIAN_HOURS}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14"/>
+                        <XAxis dataKey="label" stroke="#1a1a2a" tick={{fontSize:7,fill:"#2a2a3a"}}/>
+                        <YAxis stroke="#1a1a2a" tick={{fontSize:7,fill:"#2a2a3a"}} domain={[0,100]}/>
+                        <Tooltip content={<MxTooltip/>}/>
+                        <Line type="monotone" dataKey="energy" name="Energy" stroke={G} strokeWidth={2} dot={false}/>
+                        <Line type="monotone" dataKey="alertness" name="Alertness" stroke={BLUE} strokeWidth={1.5} dot={false} strokeDasharray="4 2"/>
+                        <Line type="monotone" dataKey="cortisol" name="Cortisol" stroke={ORANGE} strokeWidth={1.5} dot={false} strokeDasharray="2 3"/>
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{display:"flex",gap:16,marginTop:8}}>
+                    {[{col:G,label:"Energy"},{col:BLUE,label:"Alertness"},{col:ORANGE,label:"Cortisol"}].map(({col,label})=>(
+                      <div key={label} style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{width:16,height:2,background:col}}/>
+                        <span style={{fontSize:7,color:"#1e1e2e"}}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* vs Oura comparison */}
+                <Card style={{borderLeft:`3px solid ${GREEN}`}}>
+                  <Label>Why This Beats Oura</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    {[
+                      {label:"Oura Ring",items:["$299 ring + $6/month","Physical metrics only","No mental/emotional data","No stress eating integration","No focus tracking"],col:"#444"},
+                      {label:"ManifiX Readiness",items:["Zero hardware · Free","Physical + mental + emotional","HRV zone coaching built in","Circadian rhythm mapping","Integrates all 8 health modules"],col:GREEN},
+                    ].map((col,i)=>(
+                      <div key={i}>
+                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
+                        {col.items.map((item,j)=>(
+                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
+                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
+                            <span style={{fontSize:8,color:"#2a2a3a"}}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* ══════════ SLEEP COACH — NEW (beats Whoop) ══════════ */}
+            {tab==="sleep"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+                  <div>
+                    <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>SLEEP COACH</div>
+                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>
+                      Beats Whoop · Deep / REM staging · Sleep score · Circadian alignment
+                    </div>
+                  </div>
+                  <GoldBtn onClick={()=>setShowSleepModal(true)} style={{background:INDIGO}}>+ Log Sleep</GoldBtn>
+                </div>
+
+                {/* Last night summary */}
+                {lastSleep ? (
+                  <Card style={{border:`1px solid ${INDIGO}22`}}>
+                    <Label>Last Night's Sleep</Label>
+                    <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+                      <div style={{textAlign:"center"}}>
+                        <div style={{fontFamily:HEAD,fontSize:56,color:INDIGO,lineHeight:1}}>
+                          {lastSleep.sleepScore}
+                        </div>
+                        <div style={{fontSize:8,letterSpacing:".14em",color:"#1e1e2e",textTransform:"uppercase"}}>Sleep Score</div>
+                      </div>
+                      <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                        {[
+                          {label:"Duration",value:`${(lastSleep.totalMins/60).toFixed(1)}h`,target:"7–9h",ok:lastSleep.totalMins>=420&&lastSleep.totalMins<=540,color:INDIGO},
+                          {label:"Deep Sleep",value:`${lastSleep.deepPct}%`,target:"15–25%",ok:lastSleep.deepPct>=15&&lastSleep.deepPct<=25,color:PURPLE},
+                          {label:"REM",value:`${lastSleep.remPct}%`,target:"20–25%",ok:lastSleep.remPct>=20&&lastSleep.remPct<=25,color:BLUE},
+                          {label:"Wake-ups",value:lastSleep.wakeUps,target:"0–1",ok:lastSleep.wakeUps<=1,color:TEAL},
+                        ].map(({label,value,target,ok,color})=>(
+                          <div key={label} style={{background:"#08080e",border:`1px solid ${ok?color+"22":RED+"22"}`,padding:"10px"}}>
+                            <div style={{fontSize:7,letterSpacing:".14em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:2}}>{label}</div>
+                            <div style={{fontFamily:HEAD,fontSize:22,color:ok?color:RED,lineHeight:1}}>{value}</div>
+                            <div style={{fontSize:7,color:"#1e1e2e",marginTop:2}}>{ok?"✓ On target":""} target: {target}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <Card style={{textAlign:"center",padding:"48px 20px",border:`1px solid ${INDIGO}22`}}>
+                    <div style={{fontSize:44,marginBottom:12}}>🌙</div>
+                    <div style={{fontSize:11,color:"#1e1e2e",letterSpacing:".14em",textTransform:"uppercase"}}>No sleep logged yet</div>
+                    <div style={{fontSize:10,color:"#141422",marginTop:6,lineHeight:1.7,maxWidth:300,margin:"8px auto 20px"}}>
+                      Unlike Whoop, no wearable needed. Log your sleep stages and wake time for personalised coaching.
+                    </div>
+                    <GoldBtn onClick={()=>setShowSleepModal(true)} style={{background:INDIGO}}>Log First Night</GoldBtn>
+                  </Card>
+                )}
+
+                {/* Sleep history chart */}
+                {sleepLog.length>1&&(
+                  <Card>
+                    <Label>Sleep History</Label>
+                    <div style={{height:180}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={sleepChartData}>
+                          <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14"/>
+                          <XAxis dataKey="day" stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}}/>
+                          <YAxis stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}} domain={[0,100]}/>
+                          <Tooltip content={<MxTooltip/>}/>
+                          <RBar dataKey="score" name="Sleep Score" radius={[3,3,0,0]}>
+                            {sleepChartData.map((d,i)=>(
+                              <Cell key={i} fill={d.score>=75?GREEN:d.score>=55?G:d.score>=35?ORANGE:RED}/>
+                            ))}
+                          </RBar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Sleep stage guide */}
+                <Card>
+                  <Label>Sleep Stage Guide · Science-backed targets</Label>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {[
+                      {stage:"Deep (N3)",target:"15–25%",role:"Physical repair, immune function, memory consolidation",col:INDIGO,tip:"Achieved in first half of night. Avoid alcohol — it kills deep sleep."},
+                      {stage:"REM",target:"20–25%",role:"Emotional processing, creativity, learning consolidation",col:PURPLE,tip:"Mostly in the final 2 hours. Sleep cutoffs destroy REM. Never skip the last 90 min."},
+                      {stage:"Light (N1/N2)",target:"50–60%",role:"Transitional sleep, motor memory, spindle generation",col:BLUE,tip:"Natural bridge between stages. More interruptions in light sleep = more fatigue."},
+                      {stage:"Awake",target:"<5%",role:"Brief arousals are normal and unremembered if short",col:RED,tip:"If over 10% awake time, check: caffeine timing, blue light, alcohol, stress."},
+                    ].map(({stage,target,role,col,tip})=>(
+                      <div key={stage} style={{border:`1px solid ${col}15`,padding:"12px 14px",background:"#08080e"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                          <div style={{fontSize:11,color:col}}>{stage}</div>
+                          <div style={{fontSize:9,color:col,background:`${col}15`,border:`1px solid ${col}30`,padding:"2px 8px"}}>Target: {target}</div>
+                        </div>
+                        <div style={{fontSize:9,color:"#2a2a3a",lineHeight:1.6,marginBottom:5}}>{role}</div>
+                        <div style={{fontSize:8,color:"#1e1e2e",fontStyle:"italic"}}>{tip}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Sleep stories preview */}
+                <Card>
+                  <Label>Sleep Stories · Audio journeys for deep rest</Label>
+                  <div style={{fontSize:9,color:"#1e1e2e",marginBottom:14,lineHeight:1.7}}>
+                    Unlike Headspace's celebrity narrations, these are immersive environmental narratives designed with sleep neuroscience principles.
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    {SLEEP_STORIES.map(s=>(
+                      <div key={s.id} style={{background:"#08080e",border:`1px solid ${s.color}18`,padding:"14px"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                          <span style={{fontSize:24}}>{s.emoji}</span>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{fontSize:7,color:s.color,letterSpacing:".12em"}}>{s.mood}</div>
+                            <div style={{fontSize:7,color:"#1e1e2e"}}>{s.duration}min</div>
+                          </div>
+                        </div>
+                        <div style={{fontSize:11,color:"#ccc",marginBottom:5}}>{s.title}</div>
+                        <div style={{fontSize:8,color:"#1e1e2e",lineHeight:1.6,marginBottom:10}}>{s.desc}</div>
+                        <button className="mx-btn" style={{width:"100%",padding:"8px 0",background:`${s.color}14`,
+                          border:`1px solid ${s.color}30`,color:s.color,fontFamily:FONT,fontSize:8,letterSpacing:".12em",textTransform:"uppercase"}}>
+                          🌙 Coming Soon
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* vs Whoop */}
+                <Card style={{borderLeft:`3px solid ${INDIGO}`}}>
+                  <Label>Why This Beats Whoop</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    {[
+                      {label:"Whoop",items:["$30/month + $300 hardware","Physical metrics only","No sleep story / wind down","No stress integration","No circadian coaching"],col:"#444"},
+                      {label:"ManifiX Sleep",items:["Free — zero hardware","Sleep stages + stress + HRV","Sleep stories for wind-down","Stress-sleep correlation","Full circadian guidance"],col:INDIGO},
+                    ].map((col,i)=>(
+                      <div key={i}>
+                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
+                        {col.items.map((item,j)=>(
+                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
+                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
+                            <span style={{fontSize:8,color:"#2a2a3a"}}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* ══════════ SOUNDSCAPES — NEW (beats Headspace) ══════════ */}
+            {tab==="sounds"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div>
+                  <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>SOUNDSCAPES</div>
+                  <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>
+                    Beats Headspace · Real binaural audio engine · 6 scenes · Solfeggio frequencies
+                  </div>
+                </div>
+
+                <Card style={{border:`1px solid ${PURPLE}22`}}>
+                  <Label>Binaural Soundscape Engine · Real Web Audio API</Label>
+                  <div style={{fontSize:9,color:"#1e1e2e",lineHeight:1.7,marginBottom:16}}>
+                    Unlike Headspace's pre-recorded tracks, ManifiX generates live binaural tones layered over ambient noise textures. Each scene targets a specific brainwave state using Solfeggio frequencies.
+                  </div>
+                  <SoundscapePlayer soundscapes={SOUNDSCAPES}/>
+                </Card>
+
+                {/* Frequency guide */}
+                <Card>
+                  <Label>Solfeggio Frequency Guide</Label>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {[
+                      {hz:396,label:"Liberation",desc:"Releases fear and guilt. Grounds the root chakra. Reduces cortisol.",col:GREEN},
+                      {hz:432,label:"Nature Tuning",desc:"Natural frequency of the universe. Reduces anxiety. Slower heart rate.",col:TEAL},
+                      {hz:528,label:"Repair",desc:"DNA repair frequency. Promotes inner peace. Used in meditation therapy.",col:G},
+                      {hz:639,label:"Connection",desc:"Harmonises relationships. Promotes compassion and empathy.",col:ORANGE},
+                      {hz:741,label:"Awakening",desc:"Enhances intuition and mental clarity. Problem-solving state.",col:BLUE},
+                      {hz:852,label:"Spiritual",desc:"Returns you to spiritual order. Deep intuition and higher self.",col:PURPLE},
+                    ].map(({hz,label,desc,col})=>(
+                      <div key={hz} style={{display:"flex",gap:14,alignItems:"center",borderBottom:`1px solid ${BOR}`,paddingBottom:8,marginBottom:2}}>
+                        <div style={{width:52,textAlign:"center",flexShrink:0}}>
+                          <div style={{fontFamily:HEAD,fontSize:20,color:col,lineHeight:1}}>{hz}</div>
+                          <div style={{fontSize:6,color:"#1e1e2e",letterSpacing:".1em"}}>hz</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:10,color:col,marginBottom:2}}>{label}</div>
+                          <div style={{fontSize:8,color:"#1e1e2e",lineHeight:1.6}}>{desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* vs Headspace sounds */}
+                <Card style={{borderLeft:`3px solid ${PURPLE}`}}>
+                  <Label>Why This Beats Headspace Sounds</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    {[
+                      {label:"Headspace",items:["Pre-recorded audio files","No frequency selection","Generic ambient tracks","$13/month subscription","No binaural beats"],col:"#444"},
+                      {label:"ManifiX Sounds",items:["Live Web Audio API synthesis","6 binaural frequency presets","Adaptive noise layering","Free — zero subscription","Real-time volume control"],col:PURPLE},
+                    ].map((col,i)=>(
+                      <div key={i}>
+                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
+                        {col.items.map((item,j)=>(
+                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
+                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
+                            <span style={{fontSize:8,color:"#2a2a3a"}}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* ══════════ GUIDED SESSIONS — NEW (beats Headspace) ══════════ */}
+            {tab==="guided"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div>
+                  <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>GUIDED SESSIONS</div>
+                  <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>
+                    Beats Headspace · Goal-specific scripts · No celebrity narrator needed
+                  </div>
+                </div>
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  {GUIDED_SESSIONS.map(s=>(
+                    <Card key={s.id} style={{position:"relative",overflow:"hidden",border:`1px solid ${s.color}18`}}>
+                      <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${s.color},transparent)`}}/>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                        <span style={{fontSize:32}} className="mx-float">{s.emoji}</span>
+                        <span style={{fontSize:7,padding:"3px 9px",background:`${s.color}14`,border:`1px solid ${s.color}33`,color:s.color,letterSpacing:".12em",textTransform:"uppercase"}}>{s.type}</span>
+                      </div>
+                      <div style={{fontFamily:HEAD,fontSize:20,color:"#e8e4d9",marginBottom:3}}>{s.title}</div>
+                      <div style={{fontSize:8,color:`${s.color}66`,marginBottom:8}}>{s.duration} minutes</div>
+                      <div style={{marginBottom:14}}>
+                        {s.script.slice(0,2).map((line,i)=>(
+                          <div key={i} style={{display:"flex",gap:8,marginBottom:5,alignItems:"flex-start"}}>
+                            <div style={{width:4,height:4,borderRadius:"50%",background:`${s.color}55`,marginTop:5,flexShrink:0}}/>
+                            <span style={{fontSize:8,color:"#1e1e2e",lineHeight:1.6}}>{line}</span>
+                          </div>
+                        ))}
+                        <div style={{fontSize:8,color:"#111118"}}>+ {s.script.length-2} more steps...</div>
+                      </div>
+                      <GoldBtn onClick={()=>setActiveGuided(s)} style={{width:"100%",background:s.color,fontSize:9}}>
+                        ▶ Begin Session
+                      </GoldBtn>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* How it works */}
+                <Card>
+                  <Label>How Guided Sessions Work</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {[
+                      {step:"01",text:"Choose a session type matching your current need",icon:"🎯"},
+                      {step:"02",text:"The script advances automatically — just follow along",icon:"📜"},
+                      {step:"03",text:"A timer ring shows progress. Pause any time",icon:"⏱"},
+                      {step:"04",text:"Session contributes to your Readiness and Resilience scores",icon:"🛡"},
+                    ].map(({step,text,icon})=>(
+                      <div key={step} style={{background:"#08080e",border:`1px solid ${BOR}`,padding:"14px 12px"}}>
+                        <div style={{fontFamily:HEAD,fontSize:28,color:PINK,lineHeight:1,marginBottom:6}}>{step}</div>
+                        <span style={{fontSize:18}}>{icon}</span>
+                        <div style={{fontSize:8,color:"#1e1e2e",lineHeight:1.6,marginTop:6}}>{text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* vs Headspace */}
+                <Card style={{borderLeft:`3px solid ${PINK}`}}>
+                  <Label>Why This Beats Headspace Guided Meditation</Label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                    {[
+                      {label:"Headspace",items:["Generic meditation packs","Andy Puddicombe voice only","Long structured courses","$70/year","No crisis/performance modes"],col:"#444"},
+                      {label:"ManifiX Guided",items:["Goal-specific: crisis/morning/performance/healing","Script-driven — works silently too","Instant access, no courses","Free always","Connects to HRV + Readiness"],col:PINK},
+                    ].map((col,i)=>(
+                      <div key={i}>
+                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
+                        {col.items.map((item,j)=>(
+                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
+                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
+                            <span style={{fontSize:8,color:"#2a2a3a"}}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* ══════════ FOCUS MODE ══════════ */}
             {tab==="focus"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
                   <div>
                     <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>FOCUS MODE</div>
-                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e1e",textTransform:"uppercase",marginTop:2}}>
-                      Beats Headspace · Work+Mindfulness intervals · HRV-optimised
-                    </div>
+                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>Beats Headspace · Work+Mindfulness intervals · HRV-optimised</div>
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{fontFamily:HEAD,fontSize:28,color:BLUE,lineHeight:1}}>{focusMinsToday}</div>
-                    <div style={{fontSize:7,letterSpacing:".14em",color:"#1e1e1e",textTransform:"uppercase"}}>mins today</div>
+                    <div style={{fontSize:7,letterSpacing:".14em",color:"#1e1e2e",textTransform:"uppercase"}}>mins today</div>
                   </div>
                 </div>
-
-                {/* Preset selector */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   {FOCUS_PRESETS.map(preset=>(
                     <Card key={preset.id} style={{position:"relative",overflow:"hidden",cursor:"pointer",
@@ -1279,61 +2069,49 @@ export default function Stress() {
                         <span style={{fontSize:28}}>{preset.icon}</span>
                         <div style={{textAlign:"right"}}>
                           <div style={{fontSize:8,color:preset.color,letterSpacing:".12em",textTransform:"uppercase"}}>{preset.work}min work</div>
-                          <div style={{fontSize:7,color:"#1e1e1e",letterSpacing:".1em"}}>{preset.rest}min break</div>
+                          <div style={{fontSize:7,color:"#1e1e2e"}}>{preset.rest}min break</div>
                         </div>
                       </div>
                       <div style={{fontFamily:HEAD,fontSize:20,color:"#e8e4d9",marginBottom:3}}>{preset.label}</div>
-                      <div style={{fontSize:9,color:"#1e1e1e",lineHeight:1.7,marginBottom:12}}>{preset.desc}</div>
-                      <div style={{fontSize:8,color:`${preset.color}66`,lineHeight:1.6,marginBottom:14,fontStyle:"italic"}}>
-                        💡 {preset.tip}
-                      </div>
-                      <GoldBtn onClick={()=>startFocus(preset)} style={{width:"100%",background:preset.color,fontSize:9}}>
-                        ▶ Start {preset.label}
-                      </GoldBtn>
+                      <div style={{fontSize:9,color:"#1e1e2e",lineHeight:1.7,marginBottom:12}}>{preset.desc}</div>
+                      <div style={{fontSize:8,color:`${preset.color}55`,lineHeight:1.6,marginBottom:14,fontStyle:"italic"}}>💡 {preset.tip}</div>
+                      <GoldBtn onClick={()=>startFocus(preset)} style={{width:"100%",background:preset.color,fontSize:9}}>▶ Start {preset.label}</GoldBtn>
                     </Card>
                   ))}
                 </div>
-
-                {/* Mindful break guide */}
                 <Card>
-                  <Label>Mindful Break Activities · Auto-assigned during sessions</Label>
-                  <div style={{fontSize:9,color:"#1e1e1e",lineHeight:1.7,marginBottom:14}}>
-                    Unlike Headspace, SleepGold assigns evidence-based micro-breaks matching your current stress level. Each break resets your nervous system before the next work sprint.
-                  </div>
+                  <Label>Mindful Break Activities</Label>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                     {MINDFUL_BREAKS.map((b,i)=>(
-                      <div key={i} style={{background:"#0e0e0e",border:`1px solid ${BOR}`,padding:"12px"}}>
+                      <div key={i} style={{background:"#0e0e14",border:`1px solid ${BOR}`,padding:"12px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                           <span style={{fontSize:18}}>{b.emoji}</span>
                           <span style={{fontSize:7,color:TEAL,letterSpacing:".1em"}}>{b.dur}s</span>
                         </div>
                         <div style={{fontSize:10,color:"#ccc",marginBottom:4}}>{b.title}</div>
-                        <div style={{fontSize:8,color:"#1e1e1e",lineHeight:1.6}}>{b.desc}</div>
+                        <div style={{fontSize:8,color:"#1e1e2e",lineHeight:1.6}}>{b.desc}</div>
                       </div>
                     ))}
                   </div>
                 </Card>
-
-                {/* Past sessions */}
                 {focusSessions.length>0&&(
                   <Card>
                     <Label>Recent Focus Sessions</Label>
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
                       {[...focusSessions].reverse().slice(0,5).map(s=>{
-                        const p = FOCUS_PRESETS.find(x=>x.id===s.preset)||FOCUS_PRESETS[1];
+                        const p=FOCUS_PRESETS.find(x=>x.id===s.preset)||FOCUS_PRESETS[1];
                         return (
-                          <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                            border:`1px solid ${BOR}`,padding:"10px 14px",background:"#0e0e0e"}}>
+                          <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${BOR}`,padding:"10px 14px",background:"#0e0e14"}}>
                             <div style={{display:"flex",alignItems:"center",gap:10}}>
                               <span style={{fontSize:18}}>{p.icon}</span>
                               <div>
                                 <div style={{fontSize:10,color:"#bbb"}}>{p.label}</div>
-                                <div style={{fontSize:8,color:"#1e1e1e"}}>{new Date(s.date).toLocaleDateString()}</div>
+                                <div style={{fontSize:8,color:"#1e1e2e"}}>{new Date(s.date).toLocaleDateString()}</div>
                               </div>
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontFamily:HEAD,fontSize:20,color:p.color,lineHeight:1}}>{s.mins}m</div>
-                              <div style={{fontSize:7,color:"#1e1e1e"}}>{s.sessions} sessions</div>
+                              <div style={{fontSize:7,color:"#1e1e2e"}}>{s.sessions} sessions</div>
                             </div>
                           </div>
                         );
@@ -1341,51 +2119,26 @@ export default function Stress() {
                     </div>
                   </Card>
                 )}
-
-                {/* vs Headspace comparison */}
-                <Card style={{borderLeft:`3px solid ${BLUE}`}}>
-                  <Label>Why This Beats Headspace Focus</Label>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                    {[
-                      {label:"Headspace Focus",items:["Fixed 25min Pomodoro only","Generic break suggestions","No stress integration","No HRV tracking"],col:"#444"},
-                      {label:"ManifiX Focus Mode",items:["4 presets: 15/25/30/50min","HRV-adaptive break tasks","Stress index integration","Cortisol reduction tracking"],col:BLUE},
-                    ].map((col,i)=>(
-                      <div key={i}>
-                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
-                        {col.items.map((item,j)=>(
-                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
-                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
-                            <span style={{fontSize:8,color:"#2a2a2a"}}>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </Card>
               </div>
             )}
 
-            {/* ══════════ STRAIN SCORE — NEW (beats Whoop) ══════════ */}
+            {/* ══════════ STRAIN SCORE ══════════ */}
             {tab==="strain"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
                   <div>
                     <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>STRAIN SCORE</div>
-                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e1e",textTransform:"uppercase",marginTop:2}}>
-                      Beats Whoop · Total daily load vs recovery · 0–21 scale
-                    </div>
+                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>Beats Whoop · Total daily load vs recovery · 0–21 scale</div>
                   </div>
                   <GoldBtn onClick={()=>setShowStrainForm(true)} small>+ Log Activity</GoldBtn>
                 </div>
-
-                {/* Strain ring + summary */}
                 <Card style={{display:"flex",gap:24,alignItems:"center"}}>
                   <StrainRing strain={todayStrain} recovery={todayRecovery}/>
                   <div style={{flex:1}}>
                     <div style={{marginBottom:16}}>
                       <Label>Today's Strain Zone</Label>
                       <div style={{fontFamily:HEAD,fontSize:36,color:strainZoneCol,lineHeight:1}}>{strainZone.toUpperCase()}</div>
-                      <div style={{fontSize:9,color:"#1e1e1e",marginTop:4,lineHeight:1.7}}>
+                      <div style={{fontSize:9,color:"#1e1e2e",marginTop:4,lineHeight:1.7}}>
                         {todayStrain<8?"Low load. Good day to train or take on demanding tasks.":
                          todayStrain<13?"Moderate load. Maintain — don't add intense work sessions.":
                          todayStrain<17?"High load. Prioritise recovery. Limit cognitive work.":
@@ -1399,16 +2152,14 @@ export default function Stress() {
                         {label:"HRV",val:`${hrvLast}ms`,col:hrvLast>55?GREEN:hrvLast>40?G:RED},
                         {label:"Activities",val:strainLog.filter(l=>new Date(l.date).toDateString()===new Date().toDateString()).length,col:TEAL},
                       ].map(({label,val,col})=>(
-                        <div key={label} style={{background:"#0e0e0e",border:`1px solid ${BOR}`,padding:"10px"}}>
-                          <div style={{fontSize:7,letterSpacing:".14em",color:"#1e1e1e",textTransform:"uppercase",marginBottom:2}}>{label}</div>
+                        <div key={label} style={{background:"#0e0e14",border:`1px solid ${BOR}`,padding:"10px"}}>
+                          <div style={{fontSize:7,letterSpacing:".14em",color:"#1e1e2e",textTransform:"uppercase",marginBottom:2}}>{label}</div>
                           <div style={{fontFamily:HEAD,fontSize:22,color:col,lineHeight:1}}>{val}</div>
                         </div>
                       ))}
                     </div>
                   </div>
                 </Card>
-
-                {/* Strain zones legend */}
                 <Card>
                   <Label>Strain Zones · 0–21 Scale</Label>
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -1421,13 +2172,13 @@ export default function Stress() {
                       <div key={label} style={{display:"flex",gap:12,alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${BOR}`}}>
                         <div style={{width:60,textAlign:"right"}}>
                           <div style={{fontSize:9,color:col,fontWeight:700}}>{label}</div>
-                          <div style={{fontSize:7,color:"#1e1e1e"}}>{range}</div>
+                          <div style={{fontSize:7,color:"#1e1e2e"}}>{range}</div>
                         </div>
                         <div style={{flex:1}}>
-                          <div style={{height:4,background:"#0e0e0e",borderRadius:2,marginBottom:4}}>
+                          <div style={{height:4,background:"#0e0e14",borderRadius:2,marginBottom:4}}>
                             <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:2}}/>
                           </div>
-                          <div style={{fontSize:8,color:"#1e1e1e"}}>{desc}</div>
+                          <div style={{fontSize:8,color:"#1e1e2e"}}>{desc}</div>
                         </div>
                         {todayStrain>=parseFloat(range.split("–")[0])&&todayStrain<parseFloat(range.split("–")[1]||"22")&&(
                           <div style={{width:8,height:8,borderRadius:"50%",background:col,animation:"mx-blink 1.2s infinite"}}/>
@@ -1436,8 +2187,6 @@ export default function Stress() {
                     ))}
                   </div>
                 </Card>
-
-                {/* Activity log form */}
                 <AnimatePresence>
                   {showStrainForm&&(
                     <motion.div initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}} exit={{opacity:0,height:0}}>
@@ -1446,11 +2195,11 @@ export default function Stress() {
                         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:14}}>
                           {ACTIVITIES.map(a=>(
                             <button key={a.id} className="mx-btn" onClick={()=>setStrainForm(p=>({...p,actId:a.id}))}
-                              style={{padding:"10px 6px",background:strainForm.actId===a.id?`${ORANGE}18`:"#0e0e0e",
+                              style={{padding:"10px 6px",background:strainForm.actId===a.id?`${ORANGE}18`:"#0e0e14",
                                 border:`1px solid ${strainForm.actId===a.id?ORANGE:BOR}`,
                                 display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
                               <span style={{fontSize:18}}>{a.icon}</span>
-                              <span style={{fontSize:7,color:strainForm.actId===a.id?ORANGE:"#1e1e1e",textAlign:"center",lineHeight:1.3}}>{a.label}</span>
+                              <span style={{fontSize:7,color:strainForm.actId===a.id?ORANGE:"#1e1e2e",textAlign:"center",lineHeight:1.3}}>{a.label}</span>
                             </button>
                           ))}
                         </div>
@@ -1476,8 +2225,6 @@ export default function Stress() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-
-                {/* Today's activity log */}
                 {strainLog.filter(l=>new Date(l.date).toDateString()===new Date().toDateString()).length>0&&(
                   <Card>
                     <Label>Today's Activity Log</Label>
@@ -1492,12 +2239,12 @@ export default function Stress() {
                               <span style={{fontSize:20}}>{act.icon}</span>
                               <div>
                                 <div style={{fontSize:10,color:"#bbb"}}>{act.label}</div>
-                                <div style={{fontSize:8,color:"#1e1e1e"}}>{log.duration}min · effort {log.effort}/10</div>
+                                <div style={{fontSize:8,color:"#1e1e2e"}}>{log.duration}min · effort {log.effort}/10</div>
                               </div>
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontFamily:HEAD,fontSize:18,color:loadCol,lineHeight:1}}>+{load.toFixed(1)}</div>
-                              <div style={{fontSize:7,color:"#1e1e1e"}}>strain</div>
+                              <div style={{fontSize:7,color:"#1e1e2e"}}>strain</div>
                             </div>
                           </div>
                         ):null;
@@ -1505,50 +2252,24 @@ export default function Stress() {
                     </div>
                   </Card>
                 )}
-
-                {/* vs Whoop comparison */}
-                <Card style={{borderLeft:`3px solid ${ORANGE}`}}>
-                  <Label>Why This Beats Whoop</Label>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                    {[
-                      {label:"Whoop",items:["Requires wearable hardware","$30/month subscription","Physical strain only","No mental stress tracking"],col:"#444"},
-                      {label:"ManifiX Strain",items:["Zero hardware required","Free — works offline","Physical + mental + emotional load","Integrates HRV + stress index"],col:ORANGE},
-                    ].map((col,i)=>(
-                      <div key={i}>
-                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
-                        {col.items.map((item,j)=>(
-                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
-                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
-                            <span style={{fontSize:8,color:"#2a2a2a"}}>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </Card>
               </div>
             )}
 
-            {/* ══════════ STRESS-EATING JOURNAL — NEW (beats Noom) ══════════ */}
+            {/* ══════════ EAT JOURNAL ══════════ */}
             {tab==="eat"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
                   <div>
                     <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>EAT JOURNAL</div>
-                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e1e",textTransform:"uppercase",marginTop:2}}>
+                    <div style={{fontSize:8,letterSpacing:".18em",color:"#1e1e2e",textTransform:"uppercase",marginTop:2}}>
                       Stress-eating pattern detection · Beats Noom · {eatLog.length} entries
                     </div>
                   </div>
                   <GoldBtn onClick={()=>setShowEatModal(true)} style={{background:ORANGE}}>+ Log Moment</GoldBtn>
                 </div>
-
-                {/* Pattern analysis */}
                 {Object.keys(eatPatterns).length>0?(
                   <Card>
                     <Label>Stress-Eating Pattern Analysis</Label>
-                    <div style={{fontSize:9,color:"#1e1e1e",lineHeight:1.7,marginBottom:14}}>
-                      Noom shows calorie counts. ManifiX detects the emotional trigger → food correlation that drives stress-eating behaviour.
-                    </div>
                     <div style={{display:"flex",flexDirection:"column",gap:10}}>
                       {Object.entries(eatPatterns).sort((a,b)=>b[1].count-a[1].count).map(([mood,data])=>{
                         const avgHunger=(data.totalHunger/data.count).toFixed(1);
@@ -1557,31 +2278,24 @@ export default function Stress() {
                         const isEmotional=avgHunger<5;
                         const col=isEmotional?RED:GREEN;
                         return (
-                          <div key={mood} style={{border:`1px solid ${col}18`,background:"#0e0e0e",padding:"12px 14px"}}>
+                          <div key={mood} style={{border:`1px solid ${col}18`,background:"#0e0e14",padding:"12px 14px"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                                <div className="eat-dot" style={{width:8,height:8,borderRadius:"50%",background:col}}/>
+                                <div style={{width:8,height:8,borderRadius:"50%",background:col}}/>
                                 <div>
                                   <div style={{fontSize:11,color:"#bbb"}}>{mood}</div>
-                                  <div style={{fontSize:8,color:"#1e1e1e"}}>{data.count}× logged</div>
+                                  <div style={{fontSize:8,color:"#1e1e2e"}}>{data.count}× logged</div>
                                 </div>
                               </div>
                               <div style={{textAlign:"right"}}>
-                                <div style={{fontSize:9,color:col,fontWeight:700}}>
-                                  {isEmotional?"⚠ Emotional eating":"✓ Physical hunger"}
-                                </div>
-                                <div style={{fontSize:7,color:"#1e1e1e"}}>Avg hunger {avgHunger}/10</div>
+                                <div style={{fontSize:9,color:col,fontWeight:700}}>{isEmotional?"⚠ Emotional eating":"✓ Physical hunger"}</div>
+                                <div style={{fontSize:7,color:"#1e1e2e"}}>Avg hunger {avgHunger}/10</div>
                               </div>
                             </div>
                             {topFood&&foodCat&&(
-                              <div style={{fontSize:8,color:"#2a2a2a",padding:"6px 10px",background:"#0a0a0a",border:`1px solid ${BOR}`}}>
+                              <div style={{fontSize:8,color:"#2a2a3a",padding:"6px 10px",background:"#0a0a0e",border:`1px solid ${BOR}`}}>
                                 Most common: {foodCat.icon} <span style={{color:"#bbb"}}>{foodCat.label}</span>
                                 {foodCat.riskScore>0&&<span style={{color:foodCat.riskScore>2?RED:G,marginLeft:8,fontSize:7}}>Risk ×{foodCat.riskScore}</span>}
-                              </div>
-                            )}
-                            {isEmotional&&(
-                              <div style={{marginTop:8,fontSize:8,color:`${RED}77`,fontStyle:"italic",lineHeight:1.6}}>
-                                💡 Pattern: {mood} → {foodCat?.label||"comfort food"}. Try 2-min breathing before reaching for food next time.
                               </div>
                             )}
                           </div>
@@ -1592,98 +2306,29 @@ export default function Stress() {
                 ):(
                   <Card style={{textAlign:"center",padding:"48px 20px"}}>
                     <div style={{fontSize:44,marginBottom:12}}>🍽</div>
-                    <div style={{fontSize:11,color:"#1e1e1e",letterSpacing:".14em",textTransform:"uppercase"}}>No entries yet</div>
-                    <div style={{fontSize:10,color:"#141414",marginTop:6,lineHeight:1.7,maxWidth:300,margin:"8px auto 20px"}}>
-                      Log eating moments to detect stress-eating patterns. Unlike Noom, this tracks emotional triggers — not calories.
-                    </div>
-                    <GoldBtn onClick={()=>setShowEatModal(true)} style={{background:ORANGE}}>Log First Moment</GoldBtn>
+                    <div style={{fontSize:11,color:"#1e1e2e",letterSpacing:".14em",textTransform:"uppercase"}}>No entries yet</div>
+                    <GoldBtn onClick={()=>setShowEatModal(true)} style={{background:ORANGE,marginTop:16}}>Log First Moment</GoldBtn>
                   </Card>
                 )}
-
-                {/* Hunger vs emotion chart */}
                 {eatLog.length>2&&(
                   <Card>
                     <Label>Hunger Level Distribution</Label>
-                    <div style={{fontSize:9,color:"#1e1e1e",marginBottom:10}}>Below 5 = likely emotional eating, not physical hunger</div>
+                    <div style={{fontSize:9,color:"#1e1e2e",marginBottom:10}}>Below 5 = likely emotional eating</div>
                     <div style={{height:160}}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={eatLog.slice(-14).map((e,i)=>({
-                          idx:`E${i+1}`,hunger:e.hunger,
-                          fill:e.hunger<5?RED:GREEN,
-                        }))}>
-                          <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e"/>
-                          <XAxis dataKey="idx" stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
-                          <YAxis stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}} domain={[0,10]}/>
+                        <BarChart data={eatLog.slice(-14).map((e,i)=>({idx:`E${i+1}`,hunger:e.hunger}))}>
+                          <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14"/>
+                          <XAxis dataKey="idx" stroke="#1a1a2a" tick={{fontSize:7,fill:"#2a2a3a"}}/>
+                          <YAxis stroke="#1a1a2a" tick={{fontSize:7,fill:"#2a2a3a"}} domain={[0,10]}/>
                           <Tooltip content={<MxTooltip/>}/>
                           <RBar dataKey="hunger" name="Hunger" radius={[2,2,0,0]}>
-                            {eatLog.slice(-14).map((e,i)=>(
-                              <Cell key={i} fill={e.hunger<5?RED:GREEN}/>
-                            ))}
+                            {eatLog.slice(-14).map((e,i)=>(<Cell key={i} fill={e.hunger<5?RED:GREEN}/>))}
                           </RBar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div style={{display:"flex",gap:14,marginTop:8}}>
-                      {[{col:GREEN,label:"Physical hunger (5+)"},{col:RED,label:"Emotional eating (<5)"}].map(({col,label})=>(
-                        <div key={label} style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{width:10,height:10,borderRadius:2,background:col}}/>
-                          <span style={{fontSize:7,color:"#1e1e1e"}}>{label}</span>
-                        </div>
-                      ))}
-                    </div>
                   </Card>
                 )}
-
-                {/* Log entries */}
-                {eatLog.length>0&&(
-                  <Card>
-                    <Label>Recent Eating Moments</Label>
-                    <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:360,overflowY:"auto"}}>
-                      {[...eatLog].reverse().slice(0,10).map(entry=>{
-                        const foodCat=FOOD_CATEGORIES.find(f=>f.id===entry.food);
-                        const isEmotional=entry.hunger<5;
-                        return (
-                          <div key={entry.id} style={{border:`1px solid ${isEmotional?RED+"18":GREEN+"15"}`,padding:"10px 14px",
-                            background:"#0e0e0e",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-                            <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                              <span style={{fontSize:20}}>{foodCat?.icon||"🍽"}</span>
-                              <div>
-                                <div style={{fontSize:10,color:"#bbb"}}>{entry.mood} → {foodCat?.label}</div>
-                                <div style={{fontSize:7,color:"#1e1e1e"}}>{new Date(entry.time).toLocaleString()}</div>
-                                {entry.notes&&<div style={{fontSize:8,color:"#2a2a2a",fontStyle:"italic",marginTop:2}}>{entry.notes}</div>}
-                              </div>
-                            </div>
-                            <div style={{textAlign:"right",flexShrink:0}}>
-                              <div style={{fontSize:9,color:isEmotional?RED:GREEN}}>{isEmotional?"Emotional":"Physical"}</div>
-                              <div style={{fontSize:7,color:"#1e1e1e"}}>hunger {entry.hunger}/10</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                )}
-
-                {/* vs Noom */}
-                <Card style={{borderLeft:`3px solid ${TEAL}`}}>
-                  <Label>Why This Beats Noom</Label>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                    {[
-                      {label:"Noom",items:["Calorie counting focus","No emotional trigger tracking","Generic coaching messages","$60/month subscription"],col:"#444"},
-                      {label:"ManifiX Eat Journal",items:["Emotional trigger detection","Mood→food correlation mapping","Personalised pattern insights","Free · zero calorie shame"],col:TEAL},
-                    ].map((col,i)=>(
-                      <div key={i}>
-                        <div style={{fontSize:9,color:col.col,letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>{col.label}</div>
-                        {col.items.map((item,j)=>(
-                          <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:5}}>
-                            <div style={{width:4,height:4,borderRadius:"50%",background:col.col,flexShrink:0}}/>
-                            <span style={{fontSize:8,color:"#2a2a2a"}}>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </Card>
               </div>
             )}
 
@@ -1701,10 +2346,10 @@ export default function Stress() {
                       </div>
                       <div style={{fontFamily:HEAD,fontSize:20,color:"#e8e4d9",marginBottom:2}}>{prog.title}</div>
                       <div style={{fontSize:9,color:`${prog.color||G}88`,marginBottom:8}}>{prog.duration} min</div>
-                      <div style={{fontSize:10,color:"#1e1e1e",lineHeight:1.7,marginBottom:14}}>{prog.desc}</div>
+                      <div style={{fontSize:10,color:"#1e1e2e",lineHeight:1.7,marginBottom:14}}>{prog.desc}</div>
                       <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
                         {prog.steps.map((step,i)=>(
-                          <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${BOR}`,color:"#1e1e1e",fontSize:9}}>
+                          <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:`1px solid ${BOR}`,color:"#1e1e2e",fontSize:9}}>
                             <div style={{width:16,height:16,borderRadius:"50%",background:`${prog.color||G}18`,border:`1px solid ${prog.color||G}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:prog.color||G,flexShrink:0}}>{i+1}</div>
                             {step}
                           </div>
@@ -1718,11 +2363,10 @@ export default function Stress() {
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
                   {MEDITATIONS.map(s=>(
                     <Card key={s.id} style={{position:"relative",overflow:"hidden"}}>
-                      <div style={{position:"absolute",top:0,right:0,width:60,height:60,background:`radial-gradient(circle,${s.color}10 0%,transparent 70%)`}}/>
                       <div style={{fontSize:30,marginBottom:10}}>{s.emoji}</div>
                       <div style={{fontSize:12,color:"#ddd",marginBottom:3}}>{s.title}</div>
                       <div style={{fontSize:9,color:`${s.color}77`,marginBottom:5}}>{s.duration} min</div>
-                      <div style={{fontSize:9,color:"#1e1e1e",marginBottom:12,lineHeight:1.6}}>{s.focus}</div>
+                      <div style={{fontSize:9,color:"#1e1e2e",marginBottom:12,lineHeight:1.6}}>{s.focus}</div>
                       <button className="mx-btn" onClick={()=>startMed(s)} style={{width:"100%",padding:"9px 0",background:`${s.color}18`,border:`1px solid ${s.color}33`,color:s.color,fontFamily:FONT,fontSize:9,letterSpacing:".14em",textTransform:"uppercase"}}>▶ Start</button>
                     </Card>
                   ))}
@@ -1739,9 +2383,9 @@ export default function Stress() {
                   <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                     {Object.entries(MOOD_MAP).map(([mood,emoji])=>(
                       <motion.button key={mood} className="mx-btn" onClick={()=>logMood(mood)} whileTap={{scale:.95}}
-                        style={{padding:"12px 6px",background:selMood===mood?`${MOOD_COLS[mood]||G}1a`:"#0e0e0e",border:`1px solid ${selMood===mood?MOOD_COLS[mood]||G:BOR}`,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                        style={{padding:"12px 6px",background:selMood===mood?`${MOOD_COLS[mood]||G}1a`:"#0e0e14",border:`1px solid ${selMood===mood?MOOD_COLS[mood]||G:BOR}`,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
                         <span style={{fontSize:22}}>{emoji}</span>
-                        <span style={{fontSize:7,letterSpacing:".1em",color:selMood===mood?MOOD_COLS[mood]||G:"#1e1e1e",textTransform:"uppercase",textAlign:"center",lineHeight:1.4}}>{mood}</span>
+                        <span style={{fontSize:7,letterSpacing:".1em",color:selMood===mood?MOOD_COLS[mood]||G:"#1e1e2e",textTransform:"uppercase",textAlign:"center",lineHeight:1.4}}>{mood}</span>
                       </motion.button>
                     ))}
                   </div>
@@ -1755,28 +2399,28 @@ export default function Stress() {
                   </AnimatePresence>
                 </Card>
                 <Card>
-                  <Label>HRV — Real-Time Heart Rate Variability</Label>
+                  <Label>HRV — Real-Time</Label>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                     <HrvBadge value={hrvLast}/>
-                    <div style={{fontSize:8,color:"#1e1e1e",textAlign:"right"}}>
-                      <div>Normal: 40–80ms</div>
-                      <div style={{color:hrvLast>55?GREEN:hrvLast>40?G:RED,marginTop:2}}>{hrvLast>55?"Good Recovery":hrvLast>40?"Moderate":"Low — Rest needed"}</div>
+                    <div style={{fontSize:8,color:"#1e1e2e",textAlign:"right"}}>
+                      <div>Zone: <span style={{color:currentHrvZone?.color||G}}>{currentHrvZone?.label||"—"}</span></div>
+                      <div style={{marginTop:2}}>{currentHrvZone?.desc}</div>
                     </div>
                   </div>
                   {hrvData.length>2?(
-                    <div style={{height:180}}>
+                    <div style={{height:160}}>
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={weeklyHrv}>
                           <defs><linearGradient id="hG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={G} stopOpacity={.3}/><stop offset="100%" stopColor={G} stopOpacity={0}/></linearGradient></defs>
-                          <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e"/>
-                          <XAxis dataKey="time" stroke="#1a1a1a" tick={{fontSize:8,fill:"#222"}}/>
-                          <YAxis stroke="#1a1a1a" tick={{fontSize:8,fill:"#222"}} domain={[20,80]}/>
+                          <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14"/>
+                          <XAxis dataKey="time" stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}}/>
+                          <YAxis stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}} domain={[20,80]}/>
                           <Tooltip content={<MxTooltip/>}/>
                           <Area type="monotone" dataKey="value" name="HRV" stroke={G} fill="url(#hG)" strokeWidth={2} dot={{fill:G,r:2}}/>
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
-                  ):<div style={{padding:"30px 0",textAlign:"center",fontSize:8,letterSpacing:".15em",color:"#1a1a1a",textTransform:"uppercase"}}>Collecting HRV data...</div>}
+                  ):<div style={{padding:"30px 0",textAlign:"center",fontSize:8,color:"#1a1a2a",textTransform:"uppercase"}}>Collecting HRV data...</div>}
                 </Card>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <Card>
@@ -1785,16 +2429,16 @@ export default function Stress() {
                       <div style={{height:170}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={moodChartData}>
-                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e"/>
-                            <XAxis dataKey="day" stroke="#1a1a1a" tick={{fontSize:8,fill:"#222"}}/>
-                            <YAxis stroke="#1a1a1a" tick={{fontSize:8,fill:"#222"}} domain={[0,10]}/>
+                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14"/>
+                            <XAxis dataKey="day" stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}}/>
+                            <YAxis stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}} domain={[0,10]}/>
                             <Tooltip content={<MxTooltip/>}/>
                             <Line type="monotone" dataKey="value" name="Score" stroke={G} strokeWidth={2}
                               dot={({cx,cy,payload})=><circle key={cx} cx={cx} cy={cy} r={4} fill={MOOD_COLS[payload.mood]||G} stroke="none"/>}/>
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
-                    ):<div style={{padding:"40px 0",textAlign:"center",fontSize:8,letterSpacing:".14em",color:"#1a1a1a",textTransform:"uppercase"}}>Log mood daily to see trend</div>}
+                    ):<div style={{padding:"40px 0",textAlign:"center",fontSize:8,color:"#1a1a2a",textTransform:"uppercase"}}>Log mood daily to see trend</div>}
                   </Card>
                   <Card>
                     <Label>Trigger Correlation</Label>
@@ -1802,9 +2446,9 @@ export default function Stress() {
                       <div style={{height:170}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={triggerCorr} layout="vertical">
-                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e" horizontal={false}/>
-                            <XAxis type="number" stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
-                            <YAxis type="category" dataKey="name" width={80} stroke="#1a1a1a" tick={{fontSize:7,fill:"#222"}}/>
+                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14" horizontal={false}/>
+                            <XAxis type="number" stroke="#1a1a2a" tick={{fontSize:7,fill:"#2a2a3a"}}/>
+                            <YAxis type="category" dataKey="name" width={80} stroke="#1a1a2a" tick={{fontSize:7,fill:"#2a2a3a"}}/>
                             <Tooltip content={<MxTooltip/>}/>
                             <RBar dataKey="value" name="Freq" radius={[0,2,2,0]}>
                               {triggerCorr.map((_,i)=><Cell key={i} fill={[G,ORANGE,BLUE,PURPLE,GREEN,TEAL][i%6]}/>)}
@@ -1812,7 +2456,7 @@ export default function Stress() {
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
-                    ):<div style={{padding:"40px 0",textAlign:"center",fontSize:8,letterSpacing:".14em",color:"#1a1a1a",textTransform:"uppercase"}}>Add journal entries to correlate</div>}
+                    ):<div style={{padding:"40px 0",textAlign:"center",fontSize:8,color:"#1a1a2a",textTransform:"uppercase"}}>Add journal entries to correlate</div>}
                   </Card>
                 </div>
               </div>
@@ -1824,14 +2468,14 @@ export default function Stress() {
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>STRESS JOURNAL</div>
-                    <div style={{fontSize:8,color:"#1e1e1e",letterSpacing:".14em",marginTop:2}}>{journal.length} entries · patterns tracked</div>
+                    <div style={{fontSize:8,color:"#1e1e2e",letterSpacing:".14em",marginTop:2}}>{journal.length} entries · patterns tracked</div>
                   </div>
                   <GoldBtn onClick={()=>setJModal(true)}>+ New Entry</GoldBtn>
                 </div>
                 {journal.length===0?(
                   <Card style={{textAlign:"center",padding:"56px 20px"}}>
                     <div style={{fontSize:44,marginBottom:12}}>📓</div>
-                    <div style={{fontSize:11,color:"#1e1e1e",letterSpacing:".14em",textTransform:"uppercase"}}>No entries yet</div>
+                    <div style={{fontSize:11,color:"#1e1e2e",letterSpacing:".14em",textTransform:"uppercase"}}>No entries yet</div>
                     <GoldBtn onClick={()=>setJModal(true)} style={{marginTop:18}}>Write First Entry</GoldBtn>
                   </Card>
                 ):(
@@ -1845,17 +2489,17 @@ export default function Stress() {
                             <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:moodColor}}/>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,paddingLeft:12}}>
                               <div>
-                                <div style={{fontSize:7,color:"#1e1e1e",letterSpacing:".12em",marginBottom:5}}>{new Date(entry.date).toLocaleString()}</div>
+                                <div style={{fontSize:7,color:"#1e1e2e",letterSpacing:".12em",marginBottom:5}}>{new Date(entry.date).toLocaleString()}</div>
                                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                                   <span style={{fontSize:20}}>{emoji}</span>
                                   <span style={{fontSize:11,color:moodColor}}>{entry.mood}</span>
-                                  <span style={{fontSize:8,color:"#1e1e1e",padding:"2px 7px",border:`1px solid ${BOR}`}}>Intensity {entry.intensity}/10</span>
+                                  <span style={{fontSize:8,color:"#1e1e2e",padding:"2px 7px",border:`1px solid ${BOR}`}}>Intensity {entry.intensity}/10</span>
                                 </div>
                               </div>
                               <button className="mx-btn" onClick={()=>setJournal(p=>p.filter(x=>x.id!==entry.id))}
                                 style={{padding:"4px 8px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.15)",color:RED,fontFamily:FONT,fontSize:8}}>✕</button>
                             </div>
-                            {entry.notes&&<div style={{fontSize:10,color:"#2a2a2a",lineHeight:1.8,fontStyle:"italic",borderLeft:`2px solid ${BOR}`,paddingLeft:12,marginLeft:12}}>"{entry.notes}"</div>}
+                            {entry.notes&&<div style={{fontSize:10,color:"#2a2a3a",lineHeight:1.8,fontStyle:"italic",borderLeft:`2px solid ${BOR}`,paddingLeft:12,marginLeft:12}}>"{entry.notes}"</div>}
                           </Card>
                         </motion.div>
                       );
@@ -1884,10 +2528,10 @@ export default function Stress() {
                     <div style={{display:"flex",flexDirection:"column",gap:5}}>
                       {COPING.map(c=>(
                         <button key={c.id} className="mx-btn" onClick={()=>{setSelCoping(c);setCopingR(false);setCopingT(0);clearInterval(copRef.current);}}
-                          style={{padding:"9px 12px",background:selCoping?.id===c.id?`${G}14`:"#0e0e0e",border:`1px solid ${selCoping?.id===c.id?G:BOR}`,display:"flex",justifyContent:"space-between",alignItems:"center",textAlign:"left"}}>
+                          style={{padding:"9px 12px",background:selCoping?.id===c.id?`${G}14`:"#0e0e14",border:`1px solid ${selCoping?.id===c.id?G:BOR}`,display:"flex",justifyContent:"space-between",alignItems:"center",textAlign:"left"}}>
                           <div>
                             <div style={{fontSize:10,color:"#bbb"}}>{c.icon} {c.title}</div>
-                            <div style={{fontSize:8,color:"#1e1e1e",marginTop:2}}>{c.desc}</div>
+                            <div style={{fontSize:8,color:"#1e1e2e",marginTop:2}}>{c.desc}</div>
                           </div>
                           <div style={{fontSize:8,color:G,flexShrink:0,marginLeft:8}}>{c.time}</div>
                         </button>
@@ -1919,11 +2563,11 @@ export default function Stress() {
                       {title:"Muscle Release",desc:"Tense & release each group head→toe",emoji:"💪",color:G},
                       {title:"Name 3 Good",desc:"Name 3 genuine appreciations right now",emoji:"❤️",color:PURPLE},
                     ].map((item,i)=>(
-                      <div key={i} style={{background:"#0e0e0e",border:`1px solid ${BOR}`,padding:"14px 10px",position:"relative",overflow:"hidden"}}>
+                      <div key={i} style={{background:"#0e0e14",border:`1px solid ${BOR}`,padding:"14px 10px",position:"relative",overflow:"hidden"}}>
                         <div style={{position:"absolute",top:0,left:0,right:0,height:1,background:`linear-gradient(90deg,transparent,${item.color}55,transparent)`}}/>
                         <div style={{fontSize:24,marginBottom:8}}>{item.emoji}</div>
                         <div style={{fontSize:10,color:item.color,marginBottom:5}}>{item.title}</div>
-                        <div style={{fontSize:8,color:"#1a1a1a",lineHeight:1.7}}>{item.desc}</div>
+                        <div style={{fontSize:8,color:"#1a1a2a",lineHeight:1.7}}>{item.desc}</div>
                       </div>
                     ))}
                   </div>
@@ -1934,35 +2578,38 @@ export default function Stress() {
             {/* ══════════ INSIGHTS ══════════ */}
             {tab==="insights"&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>BURNOUT INSIGHTS</div>
+                <div style={{fontFamily:HEAD,fontSize:30,color:"#e8e4d9"}}>INSIGHTS</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <Card>
                     <Label>Burnout Dimensions Radar</Label>
                     <BurnoutRadar score={stressScore} hrvLast={hrvLast} moods={moods}/>
                   </Card>
                   <Card>
-                    <Label>Stress Index History</Label>
+                    <Label>Readiness over Mood</Label>
                     {moodChartData.length>2?(
                       <div style={{height:220}}>
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={moodChartData.map(d=>({...d,stress:Math.round(10-d.value)*10}))}>
-                            <defs><linearGradient id="sG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={ORANGE} stopOpacity={.3}/><stop offset="100%" stopColor={ORANGE} stopOpacity={0}/></linearGradient></defs>
-                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e0e"/>
-                            <XAxis dataKey="day" stroke="#1a1a1a" tick={{fontSize:8,fill:"#222"}}/>
-                            <YAxis stroke="#1a1a1a" tick={{fontSize:8,fill:"#222"}} domain={[0,100]}/>
+                            <defs>
+                              <linearGradient id="sG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={ORANGE} stopOpacity={.3}/><stop offset="100%" stopColor={ORANGE} stopOpacity={0}/></linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="2 4" stroke="#0e0e14"/>
+                            <XAxis dataKey="day" stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}}/>
+                            <YAxis stroke="#1a1a2a" tick={{fontSize:8,fill:"#2a2a3a"}} domain={[0,100]}/>
                             <Tooltip content={<MxTooltip/>}/>
                             <Area type="monotone" dataKey="stress" name="Stress" stroke={ORANGE} fill="url(#sG)" strokeWidth={2}/>
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
-                    ):<div style={{padding:"50px 0",textAlign:"center",fontSize:8,color:"#1a1a1a",letterSpacing:".14em",textTransform:"uppercase"}}>Log more moods to see trend</div>}
+                    ):<div style={{padding:"50px 0",textAlign:"center",fontSize:8,color:"#1a1a2a",textTransform:"uppercase"}}>Log more moods to see trend</div>}
                   </Card>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
                   {[
-                    {label:"Total Sessions",value:sessCount,color:TEAL,icon:"🏃"},
+                    {label:"Sessions",value:sessCount,color:TEAL,icon:"🏃"},
                     {label:"Meditations",value:medCount,color:PURPLE,icon:"🧘"},
-                    {label:"Focus Sessions",value:focusSessions.reduce((sum,s)=>sum+s.sessions,0),color:BLUE,icon:"🎯"},
+                    {label:"Focus Sess",value:focusSessions.reduce((s,x)=>s+x.sessions,0),color:BLUE,icon:"🎯"},
+                    {label:"Sleep Nights",value:sleepLog.length,color:INDIGO,icon:"🌙"},
                     {label:"Eat Logs",value:eatLog.length,color:ORANGE,icon:"🍽"},
                   ].map(({label,value,color,icon})=>(
                     <Card key={label} style={{textAlign:"center"}}>
@@ -1972,13 +2619,36 @@ export default function Stress() {
                     </Card>
                   ))}
                 </div>
-                <Card style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-                  <div>
-                    <div style={{fontFamily:HEAD,fontSize:18,color:"#e8e4d9"}}>FULL STRESS ASSESSMENT</div>
-                    <div style={{fontSize:9,color:"#1e1e1e",marginTop:3,lineHeight:1.7}}>6-question WHO-aligned assessment to recalibrate your stress index</div>
-                  </div>
-                  <GoldBtn onClick={()=>{setShowQuiz(true);setQuizDone(false);setQuizA({});}}>Take Assessment</GoldBtn>
-                </Card>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <Card>
+                    <Label>Achievements · {unlockedAch.length}/{ACHIEVEMENTS_DEFS.length}</Label>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {ACHIEVEMENTS_DEFS.map(a=>{
+                        const unlocked=unlockedAch.includes(a.id);
+                        return (
+                          <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+                            background:unlocked?"#0a130a":"#0e0e14",
+                            border:`1px solid ${unlocked?"#1e3d1e":BOR}`,
+                            opacity:unlocked?1:.4}}>
+                            <span style={{fontSize:18}}>{a.icon}</span>
+                            <div>
+                              <div style={{fontSize:9,color:unlocked?GREEN:"#333"}}>{a.title}</div>
+                              <div style={{fontSize:7,color:"#1e1e2e"}}>{a.desc}</div>
+                            </div>
+                            {unlocked&&<div style={{marginLeft:"auto",fontSize:10,color:GREEN}}>✓</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                  <Card style={{display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+                    <div>
+                      <Label>Full Stress Assessment</Label>
+                      <div style={{fontSize:9,color:"#1e1e2e",lineHeight:1.7,marginBottom:16}}>6-question WHO-aligned assessment to recalibrate your stress index</div>
+                    </div>
+                    <GoldBtn onClick={()=>{setShowQuiz(true);setQuizDone(false);setQuizA({});}}>Take Assessment</GoldBtn>
+                  </Card>
+                </div>
               </div>
             )}
 
