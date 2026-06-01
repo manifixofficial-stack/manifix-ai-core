@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 
 /* ═══════════════════════════════════════════════════════════
-   MANIFIX SLEEPGOLD — BLACK × GOLD × CRIMSON
+   MANIFIX SLEEPGOLD v3 — BLACK × GOLD × CRIMSON
    Global Health Tech · WHO MH-SLP · SDG 3.4
-   v2.0 — + Sleep Stories · Sleep Stages · Wind-Down Routine
+   v3.0 — + HRV · RHR · SpO2 · Sleep Debt · Recovery Score
+           + Goal vs Actual · 30-Day Analytics · AI Insights
+           + Nap Tracking · Consistency Streaks
 ═══════════════════════════════════════════════════════════ */
 
 const GOLD    = "#D4AF37";
@@ -19,6 +21,8 @@ const TEXTM   = "#F5E6C8";
 const TEXTD   = "#5a4020";
 const TEXTMU  = "#2e2010";
 const PROG    = `linear-gradient(90deg,#1a0c04,#8B6914,#D4AF37)`;
+const GREEN   = "#34D399";
+const AMBER   = "#F59E0B";
 
 /* ─── WHO DATA ─── */
 const WHO = {
@@ -61,14 +65,10 @@ const HABITS_DEFAULT = [
 /* ─── SLEEP STORIES ─── */
 const SLEEP_STORIES = [
   {
-    id:"forest_dawn",
-    title:"The Forest at Dawn",
-    subtitle:"Ancient Woodland · 12 min",
-    emoji:"🌲",
-    duration:720,
-    color: GOLD,
-    category:"Nature",
+    id:"forest_dawn", title:"The Forest at Dawn", subtitle:"Ancient Woodland · 12 min", emoji:"🌲",
+    duration:720, color: GOLD, category:"Nature",
     science:"Biophilic narrative reduces amygdala activation 28%. Nature imagery triggers parasympathetic state.",
+    soundRec:"Crystal Bowl or 432 Hz",
     paragraphs:[
       "You are walking along a moss-covered path deep in an ancient forest. The air is cool and carries the faint scent of cedar and damp earth. Each footstep is soft, almost silent, cushioned by layers of fallen leaves accumulated over decades.",
       "Sunlight filters through the canopy far above, arriving in long golden columns that illuminate drifting motes of pollen. The forest breathes around you — a slow, deep breath measured in centuries rather than seconds.",
@@ -78,14 +78,10 @@ const SLEEP_STORIES = [
     ]
   },
   {
-    id:"ocean_village",
-    title:"The Sleeping Village",
-    subtitle:"Mediterranean Coast · 14 min",
-    emoji:"🌊",
-    duration:840,
-    color: GOLD2,
-    category:"Journey",
+    id:"ocean_village", title:"The Sleeping Village", subtitle:"Mediterranean Coast · 14 min", emoji:"🌊",
+    duration:840, color: GOLD2, category:"Journey",
     science:"Scene-based imagery activates default mode network, bypassing anxiety circuits. Proven faster sleep onset.",
+    soundRec:"Ocean Resonance",
     paragraphs:[
       "A small whitewashed village clings to the cliffs above a midnight-blue sea. Every window is dark except yours, where a single candle burns low. The smell of salt and jasmine moves through the open shutter like a gentle tide.",
       "Below, the harbor holds three fishing boats that rock in slow unison. The water against the hull makes the softest sound — a repeated, wordless syllable that means nothing and everything. The boats know this rhythm by heart. They have rested here every night for generations.",
@@ -95,14 +91,10 @@ const SLEEP_STORIES = [
     ]
   },
   {
-    id:"mountain_rain",
-    title:"Rain on the Mountain Hut",
-    subtitle:"High Alpine · 10 min",
-    emoji:"🏔",
-    duration:600,
-    color: GOLD,
-    category:"Weather",
+    id:"mountain_rain", title:"Rain on the Mountain Hut", subtitle:"High Alpine · 10 min", emoji:"🏔",
+    duration:600, color: GOLD, category:"Weather",
     science:"Rain audio is proven sleep-onset accelerant. Narrative framing adds safety cue — shelter against elements.",
+    soundRec:"Brown Rain",
     paragraphs:[
       "You have reached the stone hut just before the storm arrives. The door is heavy and latches cleanly. Inside: a narrow cot, a wool blanket, a small iron stove already warming. The smell of pine smoke and old wood fills every corner.",
       "The rain begins softly on the slate roof, then finds its rhythm — a million small negotiations between water and stone. The window shows nothing but darkness and moving water. You are behind glass and warmth and three feet of mountain wall.",
@@ -112,14 +104,10 @@ const SLEEP_STORIES = [
     ]
   },
   {
-    id:"library_night",
-    title:"The Midnight Library",
-    subtitle:"Old Reading Room · 11 min",
-    emoji:"📚",
-    duration:660,
-    color: GOLD2,
-    category:"Interior",
+    id:"library_night", title:"The Midnight Library", subtitle:"Old Reading Room · 11 min", emoji:"📚",
+    duration:660, color: GOLD2, category:"Interior",
     science:"Interior safety imagery with low stimulation reduces cortisol. Reading narrative shifts attention from ruminative loops.",
+    soundRec:"Delta Binaural",
     paragraphs:[
       "The library closes at ten, but you have a key. The reading room at this hour belongs entirely to you — the long oak tables, the green-shaded lamps that pool light in warm circles, the tall shelves receding into shadow.",
       "You find your usual chair by the window. Outside, the street is empty and slicked with recent rain. A single lamp post stands in a small cone of amber light. A leaf crosses through it and disappears. The world has grown very small and very quiet.",
@@ -129,14 +117,10 @@ const SLEEP_STORIES = [
     ]
   },
   {
-    id:"desert_stars",
-    title:"Stars Over the Desert",
-    subtitle:"Open Wilderness · 13 min",
-    emoji:"✨",
-    duration:780,
-    color: GOLD,
-    category:"Sky",
+    id:"desert_stars", title:"Stars Over the Desert", subtitle:"Open Wilderness · 13 min", emoji:"✨",
+    duration:780, color: GOLD, category:"Sky",
     science:"Vastness imagery triggers awe response, silencing the default mode network's self-referential chatter. Accelerates sleep.",
+    soundRec:"Schumann + 40Hz",
     paragraphs:[
       "You are lying on warm sandstone in a desert that has not seen rain in forty days. The rock beneath you holds the day's heat, radiating it slowly back through your spine and shoulders. Above you, the Milky Way is so dense it looks structural, like something load-bearing.",
       "The desert at night is not silent — it clicks and hisses with cooling stone, with the distant passage of an unseen animal, with the strange acoustics of open space carrying sounds from impossible distances. But all of it is far away. None of it requires anything from you.",
@@ -146,14 +130,10 @@ const SLEEP_STORIES = [
     ]
   },
   {
-    id:"train_night",
-    title:"Night Train Through the Valley",
-    subtitle:"Sleeper Carriage · 15 min",
-    emoji:"🚂",
-    duration:900,
-    color: GOLD2,
-    category:"Journey",
-    science:"Rhythmic motion cues (visual + narrative) synchronize with natural sleep oscillations. Train rhythm mirrors rocking associated with infant sleep onset.",
+    id:"train_night", title:"Night Train Through the Valley", subtitle:"Sleeper Carriage · 15 min", emoji:"🚂",
+    duration:900, color: GOLD2, category:"Journey",
+    science:"Rhythmic motion cues synchronize with natural sleep oscillations. Train rhythm mirrors rocking associated with infant sleep onset.",
+    soundRec:"Theta Binaural",
     paragraphs:[
       "The sleeper carriage sways on its rails with the unhurried rhythm of a night journey. Your berth is narrow and exactly right — the thin pillow, the folded blanket, the small curtained window showing darkness broken occasionally by a distant farmhouse light that appears and disappears before you can hold it.",
       "The train's motion is a kind of conversation with the tracks — a recurring phrase, a beat in three-four time that the wheels have been saying for hours. You are not going anywhere urgent. You have surrendered your passage to the schedule, and this surrender is a form of rest in itself.",
@@ -175,6 +155,183 @@ const WINDDOWN_STEPS = [
   { id:7, time:10, label:"Sleep Story", icon:"🌙", color:GOLD, desc:"Begin a sleep story in SleepGold. Let narrative carry your mind away from the day.", science:"Scene-based imagery bypasses anxiety circuits. 83% of users report faster sleep onset vs silence.", soundRec:"Theta Binaural" },
   { id:8, time:0,  label:"Sleep Tones On", icon:"🎵", color:GOLD2, desc:"Activate Delta Binaural or Brown Rain. Headphones recommended for binaural.", science:"Delta binaural beats entrain brain to 0.5-4 Hz sleep frequencies within 20-30 minutes.", soundRec:"Delta Binaural" },
 ];
+
+/* ─── SLEEP STAGE DATA ─── */
+const SLEEP_STAGES = [
+  { id:"awake",  label:"Awake",    shortLabel:"W",  color:"#E74C3C", pct:5,  desc:"Brief waking moments. Normal: 5% of night. More than 10% signals fragmented sleep.", hz:"Beta 13–30 Hz", waves:"High frequency, low amplitude", benefits:[], duration:"5–15 min" },
+  { id:"n1",     label:"Light N1", shortLabel:"N1", color:"#F59E0B", pct:8,  desc:"Sleep onset. Hypnic jerks common. Easily woken. Gateway stage.", hz:"Alpha/Theta 8–12 Hz", waves:"Slow eye movement", benefits:["Memory processing begins","Body temperature drops"], duration:"5–10 min" },
+  { id:"n2",     label:"Core N2",  shortLabel:"N2", color:GOLD,      pct:47, desc:"Majority of night. Sleep spindles protect sleep from noise. Motor learning consolidated.", hz:"Theta 4–8 Hz + Spindles", waves:"Sleep spindles 12–15 Hz", benefits:["Motor skill learning","Immune repair begins","Blood pressure drops 10–20%"], duration:"10–25 min/cycle" },
+  { id:"n3",     label:"Deep N3",  shortLabel:"N3", color:"#34D399", pct:25, desc:"Slow-wave sleep. Hardest to wake. Growth hormone released. Critical immune restoration.", hz:"Delta 0.5–4 Hz", waves:"High amplitude, slow", benefits:["Growth hormone release","Immune system repair","Memory consolidation","Cell regeneration","Glucose metabolism"], duration:"20–40 min (early cycles)" },
+  { id:"rem",    label:"REM",      shortLabel:"REM",color:GOLD2,     pct:20, desc:"Dreaming stage. Emotional processing, creativity, learning. Increases in later cycles.", hz:"Theta/Beta mixed", waves:"Rapid eye movement, muscle atonia", benefits:["Emotional regulation","Creative insight","Procedural memory","Stress processing","Empathy circuits"], duration:"10–60 min (grows each cycle)" },
+];
+
+const STAGE_CYCLE = [
+  {stage:"n1",start:0,end:8,cycle:1},{stage:"n2",start:8,end:22,cycle:1},{stage:"n3",start:22,end:50,cycle:1},{stage:"rem",start:50,end:60,cycle:1},
+  {stage:"n2",start:62,end:75,cycle:2},{stage:"n3",start:75,end:95,cycle:2},{stage:"rem",start:95,end:112,cycle:2},
+  {stage:"n2",start:114,end:125,cycle:3},{stage:"n3",start:125,end:135,cycle:3},{stage:"rem",start:135,end:160,cycle:3},
+  {stage:"n2",start:162,end:175,cycle:4},{stage:"rem",start:175,end:210,cycle:4},
+  {stage:"n2",start:212,end:225,cycle:5},{stage:"rem",start:225,end:270,cycle:5},
+];
+
+const CYCLES_FN = (wakeStr) => {
+  const [h,m] = wakeStr.split(":").map(Number);
+  const wake  = new Date(); wake.setHours(h,m,0,0);
+  if (wake < new Date()) wake.setDate(wake.getDate()+1);
+  return [6,5,4,3].map(c => {
+    const t = new Date(wake.getTime()-(c*90+14)*60000);
+    return { cycles:c, time:t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}), best:c===5 };
+  });
+};
+
+/* ─── NEW v3: ENHANCED SCORE ALGORITHM with Recovery ─── */
+const SCORE_FN = (logs, habits) => {
+  if (!logs.length) return 50;
+  const r=logs.slice(0,7);
+  const avg=r.reduce((a,b)=>a+b.duration,0)/r.length;
+  const aq =r.reduce((a,b)=>a+b.quality,0)/r.length;
+  const dur =avg>=7&&avg<=9?38:avg>5?26:12;
+  const qual=(aq/10)*30;
+  const vars=r.map(l=>l.duration);
+  const vari=vars.reduce((a,b)=>a+Math.pow(b-avg,2),0)/vars.length;
+  const cons=Math.max(0,20-vari*9);
+  const hab =(habits.filter(h=>h.done).length/habits.length)*12;
+  return Math.min(100,Math.round(dur+qual+cons+hab));
+};
+
+/* ─── NEW v3: RECOVERY SCORE ─── */
+const RECOVERY_FN = (log, prevLog) => {
+  if (!log) return null;
+  let score = 50;
+  // Duration component
+  if (log.duration >= 8) score += 20;
+  else if (log.duration >= 7) score += 12;
+  else if (log.duration >= 6) score += 4;
+  else score -= 10;
+  // Quality component
+  score += (log.quality - 5) * 3;
+  // HRV component
+  if (log.hrv) {
+    const hrvBaseline = 45;
+    score += Math.min(15, Math.max(-15, (log.hrv - hrvBaseline) / 2));
+  }
+  // RHR component - lower is better
+  if (log.rhr) {
+    const rhrBaseline = 60;
+    score += Math.min(10, Math.max(-10, (rhrBaseline - log.rhr)));
+  }
+  return Math.min(100, Math.max(0, Math.round(score)));
+};
+
+/* ─── NEW v3: SLEEP DEBT ─── */
+const SLEEP_DEBT_FN = (logs, goalHours) => {
+  const goal = goalHours || 8;
+  let debt = 0;
+  const recent = logs.slice(0, 14);
+  recent.forEach(l => { debt += Math.max(0, goal - l.duration); });
+  return Math.round(debt * 10) / 10;
+};
+
+/* ─── NEW v3: STREAK CALCULATION ─── */
+const STREAK_FN = (logs, goalHours) => {
+  const goal = goalHours || 7;
+  let streak = 0;
+  const sorted = [...logs].sort((a,b) => new Date(b.date) - new Date(a.date));
+  for (const log of sorted) {
+    if (log.duration >= goal) streak++;
+    else break;
+  }
+  return streak;
+};
+
+/* ─── NEW v3: 30-DAY STATS ─── */
+const MONTHLY_STATS_FN = (logs) => {
+  const last30 = logs.slice(0, 30);
+  if (!last30.length) return null;
+  const avgDur = last30.reduce((a,b) => a+b.duration, 0) / last30.length;
+  const avgQual = last30.reduce((a,b) => a+b.quality, 0) / last30.length;
+  const best = last30.reduce((a,b) => b.duration > a.duration ? b : a, last30[0]);
+  const worst = last30.reduce((a,b) => b.duration < a.duration ? b : a, last30[0]);
+  const nights7plus = last30.filter(l => l.duration >= 7).length;
+  const pctGoal = Math.round((nights7plus / last30.length) * 100);
+  return { avgDur: avgDur.toFixed(1), avgQual: avgQual.toFixed(1), best, worst, pctGoal, nights7plus, count: last30.length };
+};
+
+/* ─── NEW v3: AI INSIGHT GENERATION ─── */
+const AI_INSIGHTS_FN = (logs, habits, sleepGoal, debt) => {
+  const insights = [];
+  if (!logs.length) return [{ icon:"◎", color:GOLD, title:"Start Tracking", body:"Log your first night's sleep to unlock personalized AI insights.", priority:1 }];
+
+  const avgDur = logs.slice(0,7).reduce((a,b)=>a+b.duration,0) / Math.min(7,logs.length);
+  const avgQual = logs.slice(0,7).reduce((a,b)=>a+b.quality,0) / Math.min(7,logs.length);
+  const streak = STREAK_FN(logs, sleepGoal);
+  const habDone = habits.filter(h=>h.done).length;
+  const consistency = (() => {
+    const durs = logs.slice(0,7).map(l=>l.duration);
+    const avg = durs.reduce((a,b)=>a+b,0)/durs.length;
+    const variance = durs.reduce((a,b)=>a+Math.pow(b-avg,2),0)/durs.length;
+    return Math.sqrt(variance);
+  })();
+
+  // Debt insight
+  if (debt >= 5) {
+    insights.push({ icon:"⚠", color:CRIMSON, title:"Critical Sleep Debt", body:`You've accumulated ${debt}h of sleep debt in the past 14 nights. At this level, cognitive performance equals legal intoxication. Prioritize 8h+ for 5 consecutive nights to restore baseline.`, priority:1 });
+  } else if (debt >= 2) {
+    insights.push({ icon:"◑", color:AMBER, title:"Sleep Debt Building", body:`${debt}h deficit detected. Plan 30-min extra sleep on 3 nights this week. Avoid "catching up" on weekends — it disrupts circadian rhythm more than it helps.`, priority:2 });
+  }
+
+  // Consistency insight
+  if (consistency > 1.5) {
+    insights.push({ icon:"⟳", color:GOLD, title:"Irregular Schedule Detected", body:`Your sleep duration varies by ${consistency.toFixed(1)}h on average. High variability is as harmful as short sleep. Aim for ±30 min variance. Set a fixed wake time — even weekends.`, priority:2 });
+  } else if (consistency < 0.5) {
+    insights.push({ icon:"◈", color:GREEN, title:"Elite Consistency", body:`Your sleep schedule shows remarkable regularity (${consistency.toFixed(1)}h variance). This is one of the strongest predictors of deep sleep architecture quality. Keep the fixed bedtime.`, priority:3 });
+  }
+
+  // Duration insight
+  if (avgDur < 6) {
+    insights.push({ icon:"🔴", color:CRIMSON, title:"Severe Sleep Restriction", body:`7-night average: ${avgDur.toFixed(1)}h. Below 6h chronically: Alzheimer's risk ↑33%, immune function ↓40%, testosterone ↓10-15%. Recovery protocol: add 1h per night for 2 weeks.`, priority:1 });
+  } else if (avgDur >= 7 && avgDur <= 8.5) {
+    insights.push({ icon:"◉", color:GREEN, title:"Optimal Duration Zone", body:`Your ${avgDur.toFixed(1)}h average sits in the 7-9h sweet spot. Mortality risk in this range is 25% lower than under-sleepers. Maintaining this consistently is more important than occasional perfect nights.`, priority:3 });
+  }
+
+  // Quality vs duration mismatch
+  if (avgDur >= 7 && avgQual < 5) {
+    insights.push({ icon:"◐", color:AMBER, title:"Duration-Quality Mismatch", body:`You're getting enough hours but rating quality low. Likely causes: fragmented sleep, poor sleep architecture, stress, or alcohol. Check wind-down routine. Track wake-ups in your notes.`, priority:2 });
+  }
+
+  // Streak encouragement
+  if (streak >= 7) {
+    insights.push({ icon:"✦", color:GOLD, title:`${streak}-Night Streak`, body:`${streak} consecutive nights at goal. At this point, sleep architecture is actively rebuilding. Deep sleep spindle density increases after 10+ nights of consistency. Keep going.`, priority:3 });
+  }
+
+  // Habit correlation
+  if (habDone >= 8) {
+    insights.push({ icon:"◎", color:GREEN, title:"Habit Compliance: Elite", body:`${habDone}/10 sleep hygiene habits completed. Users with 8+ habits consistently score 22% higher on sleep quality metrics. The compound effect of multiple small habits outperforms any single intervention.`, priority:3 });
+  } else if (habDone <= 3) {
+    insights.push({ icon:"▸", color:GOLD, title:"Activate Sleep Hygiene", body:`Only ${habDone} habits active tonight. The single highest-impact habit to add first: no screens 60 min before bed. Blue light alone can delay sleep onset by 40 minutes.`, priority:2 });
+  }
+
+  // RHR trend insight
+  const logsWithRHR = logs.filter(l => l.rhr).slice(0, 7);
+  if (logsWithRHR.length >= 3) {
+    const avgRHR = logsWithRHR.reduce((a,b)=>a+b.rhr,0)/logsWithRHR.length;
+    if (avgRHR > 65) {
+      insights.push({ icon:"❤", color:CRIMSON, title:"Elevated Resting Heart Rate", body:`Average RHR ${avgRHR.toFixed(0)} BPM over 7 nights. RHR above 65 during sleep often signals poor parasympathetic tone or incomplete recovery. Prioritize 4-7-8 breathing and consistent bedtimes.`, priority:2 });
+    }
+  }
+
+  // HRV insight
+  const logsWithHRV = logs.filter(l => l.hrv).slice(0, 7);
+  if (logsWithHRV.length >= 3) {
+    const avgHRV = logsWithHRV.reduce((a,b)=>a+b.hrv,0)/logsWithHRV.length;
+    if (avgHRV < 35) {
+      insights.push({ icon:"◈", color:AMBER, title:"Low HRV — Recovery Needed", body:`Average HRV ${avgHRV.toFixed(0)}ms. Below 40ms indicates sympathetic dominance — your system hasn't fully recovered. Reduce training load, avoid alcohol, and protect 8h sleep for 3 nights.`, priority:2 });
+    } else if (avgHRV > 60) {
+      insights.push({ icon:"◈", color:GREEN, title:"Strong HRV — Well Recovered", body:`Average HRV ${avgHRV.toFixed(0)}ms indicates strong parasympathetic activity. Your sleep is delivering genuine physiological recovery. This directly predicts immune, cognitive, and cardiovascular performance.`, priority:3 });
+    }
+  }
+
+  return insights.sort((a,b) => a.priority - b.priority).slice(0, 4);
+};
 
 /* ═══════════════════════════════════════════════════════════
    REAL THERAPEUTIC FREQUENCY ENGINE
@@ -334,47 +491,7 @@ const SOUNDS = [
   { id:"spine_release",   label:"Schumann + 40Hz",  sub:"7.83 Hz · Earth Resonance", emoji:"🌍", color:GOLD,   science:"Schumann 7.83 Hz = Earth's EM heartbeat. Grounds nervous system for deep sleep." },
 ];
 
-/* ─── SLEEP STAGE DATA ─── */
-const SLEEP_STAGES = [
-  { id:"awake",  label:"Awake",    shortLabel:"W",  color:"#E74C3C", pct:5,  desc:"Brief waking moments. Normal: 5% of night. More than 10% signals fragmented sleep.", hz:"Beta 13–30 Hz", waves:"High frequency, low amplitude", benefits:[], duration:"5–15 min" },
-  { id:"n1",     label:"Light N1", shortLabel:"N1", color:"#F59E0B", pct:8,  desc:"Sleep onset. Hypnic jerks common. Easily woken. Gateway stage.", hz:"Alpha/Theta 8–12 Hz", waves:"Slow eye movement", benefits:["Memory processing begins","Body temperature drops"], duration:"5–10 min" },
-  { id:"n2",     label:"Core N2",  shortLabel:"N2", color:GOLD,      pct:47, desc:"Majority of night. Sleep spindles protect sleep from noise. Motor learning consolidated.", hz:"Theta 4–8 Hz + Spindles", waves:"Sleep spindles 12–15 Hz", benefits:["Motor skill learning","Immune repair begins","Blood pressure drops 10–20%"], duration:"10–25 min/cycle" },
-  { id:"n3",     label:"Deep N3",  shortLabel:"N3", color:"#34D399", pct:25, desc:"Slow-wave sleep. Hardest to wake. Growth hormone released. Critical immune restoration.", hz:"Delta 0.5–4 Hz", waves:"High amplitude, slow", benefits:["Growth hormone release","Immune system repair","Memory consolidation","Cell regeneration","Glucose metabolism"], duration:"20–40 min (early cycles)" },
-  { id:"rem",    label:"REM",      shortLabel:"REM",color:GOLD2,     pct:20, desc:"Dreaming stage. Emotional processing, creativity, learning. Increases in later cycles.", hz:"Theta/Beta mixed", waves:"Rapid eye movement, muscle atonia", benefits:["Emotional regulation","Creative insight","Procedural memory","Stress processing","Empathy circuits"], duration:"10–60 min (grows each cycle)" },
-];
-
-const STAGE_CYCLE = [
-  {stage:"n1",start:0,end:8,cycle:1},{stage:"n2",start:8,end:22,cycle:1},{stage:"n3",start:22,end:50,cycle:1},{stage:"rem",start:50,end:60,cycle:1},
-  {stage:"n2",start:62,end:75,cycle:2},{stage:"n3",start:75,end:95,cycle:2},{stage:"rem",start:95,end:112,cycle:2},
-  {stage:"n2",start:114,end:125,cycle:3},{stage:"n3",start:125,end:135,cycle:3},{stage:"rem",start:135,end:160,cycle:3},
-  {stage:"n2",start:162,end:175,cycle:4},{stage:"rem",start:175,end:210,cycle:4},
-  {stage:"n2",start:212,end:225,cycle:5},{stage:"rem",start:225,end:270,cycle:5},
-];
-
-const CYCLES_FN = (wakeStr) => {
-  const [h,m] = wakeStr.split(":").map(Number);
-  const wake  = new Date(); wake.setHours(h,m,0,0);
-  if (wake < new Date()) wake.setDate(wake.getDate()+1);
-  return [6,5,4,3].map(c => {
-    const t = new Date(wake.getTime()-(c*90+14)*60000);
-    return { cycles:c, time:t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}), best:c===5 };
-  });
-};
-
-const SCORE_FN = (logs, habits) => {
-  if (!logs.length) return 50;
-  const r=logs.slice(0,7);
-  const avg=r.reduce((a,b)=>a+b.duration,0)/r.length;
-  const aq =r.reduce((a,b)=>a+b.quality,0)/r.length;
-  const dur =avg>=7&&avg<=9?38:avg>5?26:12;
-  const qual=(aq/10)*30;
-  const vars=r.map(l=>l.duration);
-  const vari=vars.reduce((a,b)=>a+Math.pow(b-avg,2),0)/vars.length;
-  const cons=Math.max(0,20-vari*9);
-  const hab =(habits.filter(h=>h.done).length/habits.length)*12;
-  return Math.min(100,Math.round(dur+qual+cons+hab));
-};
-
+/* ─── HELPERS ─── */
 function useLs(key, def) {
   const [val,setVal] = useState(()=>{
     try{ const x=localStorage.getItem(key); return x?JSON.parse(x):def; } catch{ return def; }
@@ -418,12 +535,15 @@ function injectCSS() {
     @keyframes stageBar{from{width:0}to{}}
     @keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
     @keyframes storyPulse{0%,100%{opacity:.3}50%{opacity:.7}}
+    @keyframes insightSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes streakGlow{0%,100%{box-shadow:0 0 8px #D4AF3730}50%{box-shadow:0 0 22px #D4AF3760}}
     .fu{animation:fu .5s cubic-bezier(.22,.68,0,1.2) both}
     .sg-btn:hover{filter:brightness(1.18);transform:translateY(-2px)!important;transition:all .18s!important}
     .sg-btn:active{transform:translateY(0)!important}
     .snd-card:hover{border-color:rgba(212,175,55,0.3)!important;background:#0e0a06!important;transition:all .2s}
     .story-card:hover{border-color:rgba(212,175,55,0.25)!important;background:#0c0904!important;transition:all .18s}
     .wd-step:hover{background:#0d0904!important;transition:background .16s}
+    .insight-card{animation:insightSlide .4s ease both}
     input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border-radius:3px;outline:none;cursor:pointer}
     input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:${GOLD};cursor:pointer;border:2px solid #040200;box-shadow:0 0 8px ${GOLD}60}
     *{box-sizing:border-box;margin:0;padding:0}
@@ -432,6 +552,7 @@ function injectCSS() {
     ::-webkit-scrollbar-track{background:#040302}
     ::-webkit-scrollbar-thumb{background:${GOLD}30}
     textarea,input{font-family:'Space Mono',monospace}
+    .streak-badge{animation:streakGlow 2.5s ease-in-out infinite}
   `;
   document.head.appendChild(el);
 }
@@ -484,25 +605,54 @@ function BreathEngine({ active }) {
   );
 }
 
-function ScoreRing({ score }) {
+/* ─── SCORE RING ─── */
+function ScoreRing({ score, label: lbl, size=56, fontSize=11 }) {
   const c = score>=80?"#34D399":score>=60?GOLD:score>=40?"#F59E0B":CRIMSON;
-  const label = score>=80?"ELITE":score>=60?"RESTORATIVE":score>=40?"BUILDING":"CRITICAL";
+  const label = lbl || (score>=80?"ELITE":score>=60?"RESTORATIVE":score>=40?"BUILDING":"CRITICAL");
+  const r = (size/2) - 4;
+  const circ = 2 * Math.PI * r;
   return (
     <div style={{display:"flex",alignItems:"center",gap:12}}>
-      <div style={{position:"relative",width:56,height:56}}>
-        <svg viewBox="0 0 56 56" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
-          <circle cx="28" cy="28" r="24" fill="none" stroke="#141008" strokeWidth="3.5"/>
-          <circle cx="28" cy="28" r="24" fill="none" stroke={c} strokeWidth="3.5"
-            strokeLinecap="round" strokeDasharray={`${(score/100)*150.8} 150.8`}
+      <div style={{position:"relative",width:size,height:size}}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#141008" strokeWidth="3.5"/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={c} strokeWidth="3.5"
+            strokeLinecap="round" strokeDasharray={`${(score/100)*circ} ${circ}`}
             style={{transition:"stroke-dasharray 1.4s cubic-bezier(.4,0,.2,1)",filter:`drop-shadow(0 0 6px ${c}60)`}}/>
         </svg>
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:700,color:c}}>
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Space Mono',monospace",fontSize,fontWeight:700,color:c}}>
           {score}
         </div>
       </div>
       <div>
         <div style={{fontSize:6,letterSpacing:".2em",color:TEXTD,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:2}}>Sleep Score</div>
         <div style={{fontSize:10,color:c,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── NEW: RECOVERY RING ─── */
+function RecoveryRing({ score }) {
+  if (score === null) return null;
+  const c = score>=80?GREEN:score>=60?GOLD:score>=40?AMBER:CRIMSON;
+  const label = score>=80?"PEAK":score>=60?"GOOD":score>=40?"MODERATE":"LOW";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <div style={{position:"relative",width:46,height:46}}>
+        <svg viewBox="0 0 46 46" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
+          <circle cx="23" cy="23" r="19" fill="none" stroke="#141008" strokeWidth="3"/>
+          <circle cx="23" cy="23" r="19" fill="none" stroke={c} strokeWidth="3"
+            strokeLinecap="round" strokeDasharray={`${(score/100)*119.4} 119.4`}
+            style={{transition:"stroke-dasharray 1.2s ease",filter:`drop-shadow(0 0 5px ${c}50)`}}/>
+        </svg>
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Space Mono',monospace",fontSize:9,fontWeight:700,color:c}}>
+          {score}
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:6,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:2}}>Recovery</div>
+        <div style={{fontSize:8,color:c,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>{label}</div>
       </div>
     </div>
   );
@@ -531,7 +681,7 @@ function StoryReader({ story, onClose, lang, speak }) {
 
   useEffect(() => {
     if (!autoPlay) return;
-    const readingSpeed = 38; // avg words per minute for bedtime (slow)
+    const readingSpeed = 38;
     const words = story.paragraphs.slice(0, parIdx+1).join(" ").split(" ").length;
     const expectedTime = Math.floor(words / readingSpeed * 60);
     if (elapsed >= expectedTime && parIdx < story.paragraphs.length - 1) {
@@ -544,7 +694,6 @@ function StoryReader({ story, onClose, lang, speak }) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(2,1,1,.97)",zIndex:300,display:"flex",flexDirection:"column",overflowY:"auto"}} onClick={onClose}>
       <div style={{maxWidth:480,width:"100%",margin:"0 auto",padding:"24px 20px",display:"flex",flexDirection:"column",gap:0}} onClick={e=>e.stopPropagation()}>
-        {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,paddingBottom:14,borderBottom:`1px solid ${BORDER}40`}}>
           <div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:GOLD,lineHeight:1.2}}>{story.title}</div>
@@ -552,13 +701,9 @@ function StoryReader({ story, onClose, lang, speak }) {
           </div>
           <button onClick={onClose} style={{background:"none",border:`1px solid ${BORDER}40`,color:TEXTMU,cursor:"pointer",fontSize:14,fontFamily:"inherit",padding:"6px 10px"}}>✕</button>
         </div>
-
-        {/* Progress bar */}
         <div style={{height:2,background:"#0e0a06",marginBottom:20,borderRadius:1}}>
           <div style={{height:"100%",width:`${progress}%`,background:PROG,transition:"width .8s ease",borderRadius:1,boxShadow:`0 0 8px ${GOLD}30`}}/>
         </div>
-
-        {/* Paragraphs */}
         <div style={{display:"flex",flexDirection:"column",gap:24,marginBottom:28}}>
           {story.paragraphs.map((p, i) => (
             <p key={i} style={{
@@ -575,8 +720,6 @@ function StoryReader({ story, onClose, lang, speak }) {
             </p>
           ))}
         </div>
-
-        {/* Controls */}
         <div style={{display:"flex",gap:8,flexDirection:"column",position:"sticky",bottom:0,background:"rgba(4,3,2,.96)",paddingTop:12,paddingBottom:12}}>
           <div style={{display:"flex",gap:8}}>
             <button className="sg-btn" onClick={()=>setAutoPlay(v=>!v)}
@@ -586,16 +729,12 @@ function StoryReader({ story, onClose, lang, speak }) {
               {autoPlay?"⏸  Pause":"▶  Auto-Advance"}
             </button>
             <button className="sg-btn" onClick={()=>setParIdx(p=>Math.max(0,p-1))}
-              style={{padding:"13px 14px",background:"transparent",color:TEXTD,border:`1px solid ${BORDER}40`,fontSize:10,fontFamily:"'Space Mono',monospace",cursor:"pointer",letterSpacing:".06em"}}>
-              ◀
-            </button>
+              style={{padding:"13px 14px",background:"transparent",color:TEXTD,border:`1px solid ${BORDER}40`,fontSize:10,fontFamily:"'Space Mono',monospace",cursor:"pointer",letterSpacing:".06em"}}>◀</button>
             <button className="sg-btn" onClick={()=>setParIdx(p=>Math.min(story.paragraphs.length-1,p+1))}
-              style={{padding:"13px 14px",background:"transparent",color:TEXTD,border:`1px solid ${BORDER}40`,fontSize:10,fontFamily:"'Space Mono',monospace",cursor:"pointer",letterSpacing:".06em"}}>
-              ▶
-            </button>
+              style={{padding:"13px 14px",background:"transparent",color:TEXTD,border:`1px solid ${BORDER}40`,fontSize:10,fontFamily:"'Space Mono',monospace",cursor:"pointer",letterSpacing:".06em"}}>▶</button>
           </div>
           <div style={{fontSize:7,letterSpacing:".12em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",textAlign:"center"}}>
-            Passage {parIdx+1} of {story.paragraphs.length} · Pair with {story.soundRec || "Delta Binaural"} for deeper effect
+            Passage {parIdx+1} of {story.paragraphs.length} · Pair with {story.soundRec || "Delta Binaural"}
           </div>
         </div>
       </div>
@@ -609,48 +748,87 @@ function StoryReader({ story, onClose, lang, speak }) {
 export default function SleepGold() {
   useEffect(()=>{ injectCSS(); },[]);
 
-  const [sleepLog,setSleepLog] = useLs("sg_log_v1",[
-    {id:1,date:"2026-05-16",duration:7.5,quality:8,notes:"Felt rested"},
-    {id:2,date:"2026-05-15",duration:6.2,quality:5,notes:"Woke up twice"},
-    {id:3,date:"2026-05-14",duration:8.0,quality:9,notes:"Deep sleep"},
-    {id:4,date:"2026-05-13",duration:6.8,quality:6,notes:"Vivid dreams"},
-    {id:5,date:"2026-05-12",duration:7.2,quality:7,notes:"Good night"},
+  /* ─── STATE ─── */
+  const [sleepLog,setSleepLog] = useLs("sg_log_v3",[
+    {id:1,date:"2026-05-31",duration:7.5,quality:8,notes:"Felt rested",hrv:52,rhr:58,spo2:97,isNap:false},
+    {id:2,date:"2026-05-30",duration:6.2,quality:5,notes:"Woke up twice",hrv:38,rhr:64,spo2:96,isNap:false},
+    {id:3,date:"2026-05-29",duration:8.0,quality:9,notes:"Deep sleep",hrv:61,rhr:55,spo2:98,isNap:false},
+    {id:4,date:"2026-05-28",duration:6.8,quality:6,notes:"Vivid dreams",hrv:44,rhr:62,spo2:97,isNap:false},
+    {id:5,date:"2026-05-27",duration:7.2,quality:7,notes:"Good night",hrv:49,rhr:59,spo2:97,isNap:false},
+    {id:6,date:"2026-05-26",duration:5.8,quality:4,notes:"Late night, early alarm",hrv:32,rhr:68,spo2:95,isNap:false},
+    {id:7,date:"2026-05-25",duration:7.8,quality:8,notes:"Weekend recovery",hrv:57,rhr:57,spo2:98,isNap:false},
+    {id:8,date:"2026-05-24",duration:7.1,quality:7,notes:"Normal night",hrv:46,rhr:60,spo2:97,isNap:false},
+    {id:9,date:"2026-05-23",duration:6.5,quality:6,notes:"",hrv:41,rhr:63,spo2:96,isNap:false},
+    {id:10,date:"2026-05-22",duration:8.2,quality:9,notes:"Holiday rest",hrv:63,rhr:54,spo2:98,isNap:false},
+    {id:11,date:"2026-05-31",duration:1.2,quality:6,notes:"Afternoon nap",hrv:null,rhr:null,spo2:null,isNap:true},
   ]);
   const [habits,setHabits] = useLs("sg_habits_v1",HABITS_DEFAULT.map(h=>({...h,done:false})));
   const [wakeGoal,setWakeGoal] = useLs("sg_wake_v1","07:00");
+  const [sleepGoalHours,setSleepGoalHours] = useLs("sg_sleep_goal_v3",8);
   const [lang,setLang] = useLs("sg_lang_v1","en-IN");
   const [completedWD,setCompletedWD] = useLs("sg_wd_v1",[]);
+  const [analyticsRange,setAnalyticsRange] = useLs("sg_analytics_range","7");
 
   const [tab,setTab] = useState("dashboard");
   const [breathActive,setBreath] = useState(false);
   const [activeSound,setActive] = useState(null);
   const [volume,setVolume] = useState(42);
   const [showLog,setShowLog] = useState(false);
-  const [newEntry,setNewEntry] = useState({duration:"",quality:7,notes:""});
+  const [showNapLog,setShowNapLog] = useState(false);
+  const [newEntry,setNewEntry] = useState({duration:"",quality:7,notes:"",hrv:"",rhr:"",spo2:"",isNap:false});
   const [whoOpen,setWhoOpen] = useState(false);
   const [expandedSound,setExpand] = useState(null);
   const [showHabitScience,setShowSci] = useState(null);
   const [activeStory,setActiveStory] = useState(null);
   const [selectedStage,setSelectedStage] = useState(null);
-  const [stageView,setStageView] = useState("overview"); // overview | chart | detail
+  const [stageView,setStageView] = useState("overview");
   const [expandedWD,setExpandedWD] = useState(null);
+  const [insightExpanded,setInsightExpanded] = useState(null);
+  const [analyticsView,setAnalyticsView] = useState("trend"); // trend | debt | hrv | consistency
 
   const volRef = useRef(volume);
   useEffect(()=>{ volRef.current=volume; },[volume]);
   const audioCtxRef = useRef(null);
   const soundRef    = useRef(null);
 
-  const score   = useMemo(()=>SCORE_FN(sleepLog,habits),[sleepLog,habits]);
+  /* ─── COMPUTED ─── */
+  const mainLogs = useMemo(() => sleepLog.filter(l => !l.isNap), [sleepLog]);
+  const napLogs  = useMemo(() => sleepLog.filter(l => l.isNap), [sleepLog]);
+
+  const score   = useMemo(()=>SCORE_FN(mainLogs,habits),[mainLogs,habits]);
   const cycles  = useMemo(()=>CYCLES_FN(wakeGoal),[wakeGoal]);
   const speak   = useMemo(()=>makeSpeaker(lang),[lang]);
-  const avgDur  = sleepLog.length?(sleepLog.reduce((a,b)=>a+b.duration,0)/sleepLog.length).toFixed(1):"—";
-  const avgQual = sleepLog.length?(sleepLog.reduce((a,b)=>a+b.quality,0)/sleepLog.length).toFixed(1):"—";
-  const longestStreak = useMemo(()=>{
-    let streak=0,max=0;
-    sleepLog.slice().reverse().forEach(l=>{ if(l.duration>=7){streak++;max=Math.max(max,streak);}else streak=0; });
-    return max;
-  },[sleepLog]);
 
+  const avgDur  = mainLogs.length?(mainLogs.slice(0,7).reduce((a,b)=>a+b.duration,0)/Math.min(7,mainLogs.length)).toFixed(1):"—";
+  const avgQual = mainLogs.length?(mainLogs.slice(0,7).reduce((a,b)=>a+b.quality,0)/Math.min(7,mainLogs.length)).toFixed(1):"—";
+
+  const streak = useMemo(() => STREAK_FN(mainLogs, sleepGoalHours), [mainLogs, sleepGoalHours]);
+  const sleepDebt = useMemo(() => SLEEP_DEBT_FN(mainLogs, sleepGoalHours), [mainLogs, sleepGoalHours]);
+  const recovery = useMemo(() => RECOVERY_FN(mainLogs[0], mainLogs[1]), [mainLogs]);
+  const monthlyStats = useMemo(() => MONTHLY_STATS_FN(mainLogs), [mainLogs]);
+  const insights = useMemo(() => AI_INSIGHTS_FN(mainLogs, habits, sleepGoalHours, sleepDebt), [mainLogs, habits, sleepGoalHours, sleepDebt]);
+
+  const avgHRV  = useMemo(() => {
+    const withHRV = mainLogs.filter(l=>l.hrv).slice(0,7);
+    return withHRV.length ? (withHRV.reduce((a,b)=>a+b.hrv,0)/withHRV.length).toFixed(0) : null;
+  }, [mainLogs]);
+  const avgRHR  = useMemo(() => {
+    const withRHR = mainLogs.filter(l=>l.rhr).slice(0,7);
+    return withRHR.length ? (withRHR.reduce((a,b)=>a+b.rhr,0)/withRHR.length).toFixed(0) : null;
+  }, [mainLogs]);
+  const avgSpO2 = useMemo(() => {
+    const withSpo2 = mainLogs.filter(l=>l.spo2).slice(0,14);
+    return withSpo2.length ? (withSpo2.reduce((a,b)=>a+b.spo2,0)/withSpo2.length).toFixed(1) : null;
+  }, [mainLogs]);
+
+  const goalVsActual = useMemo(() => {
+    return mainLogs.slice(0, parseInt(analyticsRange)).map(l => ({
+      ...l,
+      gap: l.duration - sleepGoalHours,
+    }));
+  }, [mainLogs, sleepGoalHours, analyticsRange]);
+
+  /* ─── AUDIO ─── */
   useEffect(()=>{ const t=setTimeout(()=>speak(ph(lang,"ready")),1600); return()=>clearTimeout(t); },[]);
 
   const toggleSound = useCallback((snd)=>{
@@ -675,26 +853,43 @@ export default function SleepGold() {
 
   useEffect(()=>()=>{ soundRef.current?.stopAll(0.3); try{ audioCtxRef.current?.close(); }catch{} },[]);
 
-  const saveLog = useCallback(()=>{
+  /* ─── SAVE LOG ─── */
+  const saveLog = useCallback((isNap=false)=>{
     if(!newEntry.duration) return;
-    setSleepLog(p=>[{id:Date.now(),date:new Date().toISOString().split("T")[0],duration:parseFloat(newEntry.duration),quality:parseInt(newEntry.quality),notes:newEntry.notes},...p]);
-    setNewEntry({duration:"",quality:7,notes:""});
+    setSleepLog(p=>[{
+      id:Date.now(),
+      date:new Date().toISOString().split("T")[0],
+      duration:parseFloat(newEntry.duration),
+      quality:parseInt(newEntry.quality),
+      notes:newEntry.notes,
+      hrv: newEntry.hrv ? parseInt(newEntry.hrv) : null,
+      rhr: newEntry.rhr ? parseInt(newEntry.rhr) : null,
+      spo2: newEntry.spo2 ? parseFloat(newEntry.spo2) : null,
+      isNap,
+    },...p]);
+    setNewEntry({duration:"",quality:7,notes:"",hrv:"",rhr:"",spo2:"",isNap:false});
     setShowLog(false);
+    setShowNapLog(false);
     speak(ph(lang,"saved"));
   },[newEntry,setSleepLog,lang,speak]);
 
   const toggleHabit = useCallback((id)=>{ setHabits(p=>p.map(h=>h.id===id?{...h,done:!h.done}:h)); },[setHabits]);
   const toggleWD = useCallback((id)=>{ setCompletedWD(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]); },[setCompletedWD]);
 
+  /* ─── TABS ─── */
   const TABS=[
-    {id:"dashboard",label:"Dashboard",  icon:"◎"},
-    {id:"sounds",   label:"Sleep Tones",icon:"◉"},
-    {id:"stories",  label:"Stories",    icon:"📖"},
-    {id:"stages",   label:"Stages",     icon:"◐"},
-    {id:"winddown", label:"Wind Down",  icon:"🌙"},
-    {id:"breathe",  label:"Breathe",    icon:"○"},
-    {id:"log",      label:"Sleep Log",  icon:"▣"},
-    {id:"habits",   label:"Hygiene",    icon:"✦"},
+    {id:"dashboard",  label:"Dashboard",   icon:"◎"},
+    {id:"analytics",  label:"Analytics",   icon:"▦", badge:"NEW"},
+    {id:"recovery",   label:"Recovery",    icon:"❤", badge:"NEW"},
+    {id:"insights",   label:"AI Insights", icon:"◈", badge:"NEW"},
+    {id:"sounds",     label:"Sleep Tones", icon:"◉"},
+    {id:"stories",    label:"Stories",     icon:"📖"},
+    {id:"stages",     label:"Stages",      icon:"◐"},
+    {id:"winddown",   label:"Wind Down",   icon:"🌙"},
+    {id:"breathe",    label:"Breathe",     icon:"○"},
+    {id:"log",        label:"Sleep Log",   icon:"▣"},
+    {id:"naps",       label:"Naps",        icon:"💤", badge:"NEW"},
+    {id:"habits",     label:"Hygiene",     icon:"✦"},
   ];
 
   const LANGUAGES=[
@@ -702,21 +897,89 @@ export default function SleepGold() {
     {code:"es-ES",label:"ES"},{code:"fr-FR",label:"FR"},{code:"de-DE",label:"DE"},{code:"ja-JP",label:"日"},
   ];
 
-  /* ── RENDER ── */
+  /* ══════ LOG MODAL SHARED ══════ */
+  const LogModal = ({ isNap, onClose }) => (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+      onClick={onClose}>
+      <div className="fu" style={{background:"#0c0904",border:`1px solid ${GOLD}25`,padding:28,width:"100%",maxWidth:440,boxShadow:`0 0 60px ${GOLD}08`,maxHeight:"90vh",overflowY:"auto"}}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:GOLD}}>
+            {isNap ? "Log Nap" : "Log Sleep Entry"}
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:TEXTMU,cursor:"pointer",fontSize:20}}>✕</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <div style={{fontSize:7,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:7}}>Duration (hours)</div>
+            <input type="number" step=".5" min="0" max="12" value={newEntry.duration}
+              onChange={e=>setNewEntry(p=>({...p,duration:e.target.value}))} placeholder={isNap?"e.g. 1.5":"e.g. 7.5"}
+              style={{width:"100%",background:"#070502",border:`1px solid ${BORDER}60`,color:GOLD,fontSize:16,fontFamily:"'Space Mono',monospace",padding:"12px 14px",outline:"none",letterSpacing:".08em"}}/>
+          </div>
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+              <span style={{fontSize:7,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Quality</span>
+              <span style={{fontSize:13,color:newEntry.quality>=7?GREEN:newEntry.quality>=5?GOLD:CRIMSON,fontWeight:700,fontFamily:"'Cormorant Garamond',serif"}}>{newEntry.quality}/10</span>
+            </div>
+            <input type="range" min={1} max={10} value={newEntry.quality}
+              onChange={e=>setNewEntry(p=>({...p,quality:parseInt(e.target.value)}))}
+              style={{width:"100%",background:`linear-gradient(90deg,${GOLD} ${newEntry.quality*10}%,#1a1408 0%)`}}/>
+          </div>
+          {!isNap && (
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                {[
+                  {key:"hrv",label:"HRV (ms)",placeholder:"e.g. 48",hint:"Heart Rate Variability"},
+                  {key:"rhr",label:"RHR (bpm)",placeholder:"e.g. 58",hint:"Resting Heart Rate"},
+                  {key:"spo2",label:"SpO₂ (%)",placeholder:"e.g. 97",hint:"Blood Oxygen"},
+                ].map(f=>(
+                  <div key={f.key}>
+                    <div style={{fontSize:6,letterSpacing:".14em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:5}}>{f.label}</div>
+                    <input type="number" step="1" value={newEntry[f.key]}
+                      onChange={e=>setNewEntry(p=>({...p,[f.key]:e.target.value}))} placeholder={f.placeholder}
+                      style={{width:"100%",background:"#070502",border:`1px solid ${BORDER}50`,color:`${GOLD}80`,fontSize:11,fontFamily:"'Space Mono',monospace",padding:"9px 8px",outline:"none"}}/>
+                    <div style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:3,letterSpacing:".04em"}}>{f.hint}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{padding:"8px 10px",background:`${GOLD}06`,border:`1px solid ${GOLD}12`,fontSize:7,color:`${GOLD}55`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7}}>
+                Optional: Enter from your wearable or smart ring. These unlock HRV trend analysis, recovery scoring, and personalized AI insights.
+              </div>
+            </>
+          )}
+          <div>
+            <div style={{fontSize:7,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:7}}>Notes</div>
+            <textarea value={newEntry.notes} onChange={e=>setNewEntry(p=>({...p,notes:e.target.value}))}
+              placeholder={isNap?"Time, location, how refreshed after...":"Dreams, wake-ups, how rested you felt..."}
+              style={{width:"100%",background:"#070502",border:`1px solid ${BORDER}60`,color:`${GOLD}70`,fontSize:9,fontFamily:"'Space Mono',monospace",padding:"12px 14px",outline:"none",minHeight:60,lineHeight:1.7,resize:"none"}}/>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:4}}>
+            <button className="sg-btn" onClick={()=>saveLog(isNap)}
+              style={{flex:1,padding:"15px",background:`${GOLD}18`,color:GOLD,border:`1px solid ${GOLD}40`,fontSize:11,fontWeight:700,fontFamily:"'Cormorant Garamond',serif",letterSpacing:".1em",textTransform:"uppercase",cursor:"pointer"}}>
+              Save Entry
+            </button>
+            <button onClick={onClose}
+              style={{flex:1,padding:"15px",background:"transparent",border:`1px solid ${BORDER}50`,color:TEXTMU,fontSize:9,fontFamily:"'Space Mono',monospace",letterSpacing:".08em",textTransform:"uppercase",cursor:"pointer"}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ══════ RENDER ══════ */
   return (
     <div style={{minHeight:"100dvh",background:BG,color:TEXTM,fontFamily:"'Space Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",position:"relative"}}>
 
       <div style={{position:"fixed",inset:0,pointerEvents:"none",backgroundImage:`linear-gradient(${GRID} 1px,transparent 1px),linear-gradient(90deg,${GRID} 1px,transparent 1px)`,backgroundSize:"52px 52px"}}/>
       <div style={{position:"fixed",top:"10%",left:"50%",transform:"translateX(-50%)",width:500,height:260,background:`radial-gradient(ellipse,${GOLD}07 0%,transparent 70%)`,animation:"pulse 6s ease-in-out infinite",pointerEvents:"none"}}/>
       <div style={{position:"fixed",bottom:"20%",right:"10%",width:200,height:200,background:`radial-gradient(ellipse,${CRIMSON}04 0%,transparent 70%)`,animation:"pulse2 8s ease-in-out infinite",pointerEvents:"none"}}/>
-      {[{top:12,left:12,borderTopWidth:2,borderLeftWidth:2},{top:12,right:12,borderTopWidth:2,borderRightWidth:2},{bottom:12,left:12,borderBottomWidth:2,borderLeftWidth:2},{bottom:12,right:12,borderBottomWidth:2,borderRightWidth:2}].map((pos,i)=>(
-        <div key={i} style={{position:"fixed",width:22,height:22,borderColor:GOLD,borderStyle:"solid",borderWidth:0,opacity:.18,pointerEvents:"none",...pos}}/>
-      ))}
 
       {/* Ticker */}
       <div style={{width:"100%",overflow:"hidden",whiteSpace:"nowrap",borderBottom:`1px solid ${BORDER}30`,padding:"6px 0",background:"#030201"}}>
         <span style={{display:"inline-block",animation:"ticker 55s linear infinite",fontSize:7,letterSpacing:".12em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>
-          {[WHO.stat1,WHO.stat2,WHO.stat3,WHO.stat4,WHO.solve,WHO.sdg,"✦ ManifiX SleepGold v2 · "+WHO.promise,"✦ Sleep Stories · Stage Tracker · Wind-Down · WHO "+WHO.code].join("   ✦   ").repeat(2)}
+          {[WHO.stat1,WHO.stat2,WHO.stat3,WHO.stat4,WHO.solve,WHO.sdg,"✦ ManifiX SleepGold v3 · "+WHO.promise,"✦ HRV · RHR · SpO₂ · Recovery · Debt · AI Insights · Naps · Streaks"].join("   ✦   ").repeat(2)}
         </span>
       </div>
 
@@ -729,7 +992,7 @@ export default function SleepGold() {
               SLEEP<span style={{color:GOLD}}>GOLD</span>
             </div>
             <div style={{fontFamily:"'Space Mono',monospace",fontSize:7,letterSpacing:".2em",color:`${GOLD}50`,textTransform:"uppercase",marginTop:3}}>
-              ManifiX · WHO {WHO.code} · SDG 3.4 · v2.0
+              ManifiX · WHO {WHO.code} · SDG 3.4 · v3.0
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}>
@@ -753,10 +1016,10 @@ export default function SleepGold() {
               onClick={()=>setTab(t.id)}
               style={{background:tab===t.id?`${GOLD}12`:"#080604",border:`1px solid ${tab===t.id?GOLD+"35":BORDER+"60"}`,
                 color:tab===t.id?GOLD:TEXTD,fontSize:7,letterSpacing:".14em",textTransform:"uppercase",
-                fontFamily:"inherit",padding:"8px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5,transition:"all .16s"}}>
+                fontFamily:"inherit",padding:"8px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5,transition:"all .16s",position:"relative"}}>
               <span style={{color:tab===t.id?GOLD:TEXTMU,fontSize:tab===t.id?10:9}}>{t.icon}</span>
-              <span style={{display:"none"}}>{t.label}</span>
               {t.label}
+              {t.badge&&<span style={{fontSize:5,letterSpacing:".1em",color:tab===t.id?GOLD:CRIMSON,background:tab===t.id?`${GOLD}15`:`${CRIMSON}18`,border:`1px solid ${tab===t.id?GOLD+"25":CRIMSON+"30"}`,padding:"1px 4px",textTransform:"uppercase"}}>{t.badge}</span>}
             </button>
           ))}
         </div>
@@ -764,26 +1027,114 @@ export default function SleepGold() {
         {/* ══════════ DASHBOARD ══════════ */}
         {tab==="dashboard"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
+
+            {/* Main stats + streak */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
               {[
-                {label:"Avg Sleep",   val:`${avgDur}h`,       col:parseFloat(avgDur)>=7?"#34D399":GOLD},
-                {label:"Avg Quality", val:`${avgQual}/10`,     col:parseFloat(avgQual)>=7?"#34D399":GOLD},
-                {label:"7d Streak",   val:`${longestStreak}d`, col:longestStreak>=5?"#34D399":longestStreak>=3?GOLD:CRIMSON},
-                {label:"Nights",      val:sleepLog.length,     col:GOLD},
+                {label:"Avg Sleep",   val:`${avgDur}h`,       col:parseFloat(avgDur)>=7?GREEN:GOLD},
+                {label:"Avg Quality", val:`${avgQual}/10`,     col:parseFloat(avgQual)>=7?GREEN:GOLD},
+                {label:"Streak",      val:`${streak}d`,        col:streak>=7?GREEN:streak>=3?GOLD:CRIMSON, badge:streak>=7?"🔥":""},
+                {label:"Nights",      val:mainLogs.length,     col:GOLD},
               ].map((s,i)=>(
-                <div key={i} style={{border:`1px solid ${BORDER}30`,background:BG2,padding:"12px 8px"}}>
+                <div key={i} style={{border:`1px solid ${BORDER}30`,background:BG2,padding:"12px 8px",position:"relative"}}>
                   <div style={{fontSize:6,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>{s.label}</div>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:s.col,lineHeight:1}}>{s.val}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:s.col,lineHeight:1}}>
+                    {s.val}{s.badge}
+                  </div>
                 </div>
               ))}
             </div>
 
+            {/* Recovery + Biometrics Row */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px",display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:6,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Last Night Recovery</div>
+                <RecoveryRing score={recovery}/>
+                <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.6}}>
+                  {recovery >= 80 ? "Body fully restored. Ready to push." : recovery >= 60 ? "Good recovery. Normal training." : recovery >= 40 ? "Moderate. Reduce intensity." : "Low. Prioritize rest today."}
+                </div>
+              </div>
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px",display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:6,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Sleep Debt · 14 nights</div>
+                <div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,color:sleepDebt>=5?CRIMSON:sleepDebt>=2?AMBER:GREEN,lineHeight:1}}>{sleepDebt}h</div>
+                  <div style={{fontSize:7,color:sleepDebt>=5?`${CRIMSON}70`:sleepDebt>=2?`${AMBER}70`:`${GREEN}70`,fontFamily:"'Space Mono',monospace",letterSpacing:".06em",marginTop:4}}>
+                    {sleepDebt>=5?"CRITICAL":sleepDebt>=2?"BUILDING":"MINIMAL"}
+                  </div>
+                </div>
+                <div style={{height:3,background:"#0e0a06",borderRadius:2}}>
+                  <div style={{height:"100%",width:`${Math.min(100,(sleepDebt/14)*100)}%`,background:sleepDebt>=5?`linear-gradient(90deg,${CRIMSON},${CRIM2})`:sleepDebt>=2?`linear-gradient(90deg,${AMBER},${GOLD})`:`linear-gradient(90deg,${GREEN},#059669)`,borderRadius:2,transition:"width .6s ease"}}/>
+                </div>
+                <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>Goal: {sleepGoalHours}h/night</div>
+              </div>
+            </div>
+
+            {/* Biometrics row */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+              {[
+                {label:"Avg HRV",  val:avgHRV?`${avgHRV}ms`:"—", sub:"7-night",  col:avgHRV?parseInt(avgHRV)>=50?GREEN:parseInt(avgHRV)>=35?GOLD:CRIMSON:TEXTD, icon:"◈"},
+                {label:"Avg RHR",  val:avgRHR?`${avgRHR}bpm`:"—",sub:"7-night",  col:avgRHR?parseInt(avgRHR)<=58?GREEN:parseInt(avgRHR)<=65?GOLD:CRIMSON:TEXTD, icon:"❤"},
+                {label:"SpO₂",    val:avgSpO2?`${avgSpO2}%`:"—", sub:"14-night", col:avgSpO2?parseFloat(avgSpO2)>=97?GREEN:parseFloat(avgSpO2)>=95?GOLD:CRIMSON:TEXTD, icon:"○"},
+              ].map((m,i)=>(
+                <div key={i} style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"12px 10px"}}>
+                  <div style={{fontSize:8,color:m.col,marginBottom:4}}>{m.icon}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:700,color:m.col,lineHeight:1}}>{m.val}</div>
+                  <div style={{fontSize:6,letterSpacing:".14em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginTop:3}}>{m.label} · {m.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Goal vs actual quick view */}
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Goal vs Actual · Last 7 Nights</div>
+                <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>Target: {sleepGoalHours}h</div>
+              </div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:5,height:80,paddingBottom:20,position:"relative"}}>
+                {mainLogs.slice(0,7).reverse().map((log,i)=>{
+                  const actualPct = Math.min((log.duration/10)*100, 98);
+                  const goalPct   = (sleepGoalHours/10)*100;
+                  const exceeded  = log.duration >= sleepGoalHours;
+                  const c = exceeded ? GREEN : log.duration >= sleepGoalHours*0.85 ? GOLD : CRIMSON;
+                  return (
+                    <div key={log.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative",height:"100%",justifyContent:"flex-end"}}>
+                      <div style={{fontSize:6,color:c,fontFamily:"'Space Mono',monospace"}}>{log.duration}h</div>
+                      <div style={{width:"100%",height:`${actualPct}%`,background:`linear-gradient(180deg,${c},${c}25)`,borderRadius:"2px 2px 0 0",minHeight:3,position:"relative"}}>
+                        {exceeded && <div style={{position:"absolute",top:-1,left:0,right:0,height:2,background:GREEN,borderRadius:1,boxShadow:`0 0 6px ${GREEN}60`}}/>}
+                      </div>
+                      <span style={{position:"absolute",bottom:-16,fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>
+                        {new Date(log.date+"T00:00:00").toLocaleDateString([],{weekday:"short"})}
+                      </span>
+                    </div>
+                  );
+                })}
+                {/* Goal line */}
+                <div style={{position:"absolute",left:0,right:0,bottom:`${20+(sleepGoalHours/10)*60}px`,borderTop:`1px dashed ${GOLD}35`,pointerEvents:"none"}}>
+                  <span style={{fontSize:6,color:`${GOLD}50`,letterSpacing:".1em",paddingLeft:4,fontFamily:"'Space Mono',monospace"}}>{sleepGoalHours}h goal</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Streak display */}
+            {streak >= 3 && (
+              <div className="streak-badge fu" style={{border:`1px solid ${GOLD}30`,background:`linear-gradient(135deg,${GOLD}08,${GOLD}04)`,padding:"14px 16px",display:"flex",alignItems:"center",gap:14}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:40,fontWeight:700,color:GOLD,lineHeight:1}}>{streak}</div>
+                <div>
+                  <div style={{fontSize:9,fontWeight:700,color:GOLD,fontFamily:"'Space Mono',monospace",letterSpacing:".08em"}}>NIGHT STREAK 🔥</div>
+                  <div style={{fontSize:7,color:`${GOLD}60`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",marginTop:3,lineHeight:1.6}}>
+                    {streak >= 21 ? "21-day habit formed. Sleep architecture rebuilt." : streak >= 14 ? "2 weeks of consistent sleep. Circadian rhythm locked." : streak >= 7 ? "7-day milestone. Deep sleep improving." : `${streak} nights at ${sleepGoalHours}h goal.`}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 7-Night Chart */}
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
               <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:12}}>7-Night Sleep Duration</div>
               <div style={{display:"flex",alignItems:"flex-end",gap:7,height:110,paddingBottom:24,position:"relative"}}>
-                {sleepLog.slice(0,7).reverse().map((log,i)=>{
+                {mainLogs.slice(0,7).reverse().map((log,i)=>{
                   const pct=Math.max((log.duration/10)*100,5);
-                  const c=log.duration>=7?"#34D399":log.duration>=6?GOLD:CRIMSON;
+                  const c=log.duration>=7?GREEN:log.duration>=6?GOLD:CRIMSON;
                   return (
                     <div key={log.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,position:"relative"}}>
                       <div style={{fontSize:7,color:c,fontWeight:700,fontFamily:"'Space Mono',monospace"}}>{log.duration}h</div>
@@ -800,12 +1151,11 @@ export default function SleepGold() {
               </div>
             </div>
 
+            {/* Wake Calculator */}
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
-              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:10}}>Smart Wake-Up Calculator · 90-min REM Cycles</div>
-              <div style={{marginBottom:10}}>
-                <input type="time" value={wakeGoal} onChange={e=>setWakeGoal(e.target.value)}
-                  style={{background:"#050300",border:`1px solid ${BORDER}60`,color:GOLD,fontSize:16,fontFamily:"'Space Mono',monospace",padding:"10px 14px",outline:"none",width:"100%",letterSpacing:".1em"}}/>
-              </div>
+              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:10}}>Smart Wake-Up · 90-min REM Cycles</div>
+              <input type="time" value={wakeGoal} onChange={e=>setWakeGoal(e.target.value)}
+                style={{background:"#050300",border:`1px solid ${BORDER}60`,color:GOLD,fontSize:16,fontFamily:"'Space Mono',monospace",padding:"10px 14px",outline:"none",width:"100%",letterSpacing:".1em",marginBottom:10}}/>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
                 {cycles.map((c,i)=>(
                   <div key={i} style={{padding:"12px 6px",textAlign:"center",background:c.best?"#140e04":BG2,border:`1px solid ${c.best?GOLD:BORDER+"30"}`}}>
@@ -816,32 +1166,22 @@ export default function SleepGold() {
               </div>
             </div>
 
-            <button className="sg-btn" onClick={()=>setShowLog(true)}
-              style={{width:"100%",padding:"16px",background:`linear-gradient(135deg,${GOLD}15,${GOLD}08)`,
-                color:GOLD,border:`1px solid ${GOLD}30`,fontSize:12,fontWeight:700,
-                fontFamily:"'Cormorant Garamond',serif",letterSpacing:".1em",textTransform:"uppercase",cursor:"pointer",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-              ✦ &nbsp;Log Last Night's Sleep
-            </button>
-
-            {/* Quick nav cards */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              {[
-                {icon:"📖",label:"Sleep Stories",sub:"6 narratives · Beats Calm",action:()=>setTab("stories"),badge:"NEW"},
-                {icon:"◐",label:"Sleep Stages",sub:"Deep/REM/N2 breakdown",action:()=>setTab("stages"),badge:"NEW"},
-                {icon:"🌙",label:"Wind Down",sub:`${completedWD.length}/8 done tonight`,action:()=>setTab("winddown"),badge:"NEW"},
-                {icon:"◉",label:"Sleep Tones",sub:activeSound?"Playing ▶":"10 frequencies",action:()=>setTab("sounds"),badge:activeSound?"LIVE":null},
-              ].map((c,i)=>(
-                <button key={i} className="sg-btn" onClick={c.action}
-                  style={{background:BG2,border:`1px solid ${BORDER}25`,color:TEXTD,padding:"14px 12px",cursor:"pointer",textAlign:"left",position:"relative",display:"flex",flexDirection:"column",gap:6}}>
-                  {c.badge&&<div style={{position:"absolute",top:8,right:8,fontSize:6,letterSpacing:".12em",color:c.badge==="LIVE"?CRIMSON:GOLD,background:c.badge==="LIVE"?`${CRIMSON}18`:`${GOLD}12`,border:`1px solid ${c.badge==="LIVE"?CRIMSON+"30":GOLD+"25"}`,padding:"2px 5px",textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>{c.badge}</div>}
-                  <span style={{fontSize:20}}>{c.icon}</span>
-                  <div style={{fontSize:9,fontWeight:700,color:TEXTM,fontFamily:"'Space Mono',monospace",letterSpacing:".06em"}}>{c.label}</div>
-                  <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>{c.sub}</div>
-                </button>
-              ))}
+            <div style={{display:"flex",gap:8}}>
+              <button className="sg-btn" onClick={()=>setShowLog(true)}
+                style={{flex:1,padding:"14px",background:`linear-gradient(135deg,${GOLD}15,${GOLD}08)`,
+                  color:GOLD,border:`1px solid ${GOLD}30`,fontSize:11,fontWeight:700,
+                  fontFamily:"'Cormorant Garamond',serif",letterSpacing:".1em",textTransform:"uppercase",cursor:"pointer"}}>
+                ✦ Log Night's Sleep
+              </button>
+              <button className="sg-btn" onClick={()=>setShowNapLog(true)}
+                style={{padding:"14px 18px",background:`${CRIMSON}10`,
+                  color:CRIMSON,border:`1px solid ${CRIMSON}25`,fontSize:9,fontWeight:700,
+                  fontFamily:"'Space Mono',monospace",letterSpacing:".06em",cursor:"pointer"}}>
+                💤 Log Nap
+              </button>
             </div>
 
+            {/* WHO Panel */}
             <button onClick={()=>setWhoOpen(v=>!v)}
               style={{background:"transparent",border:`1px solid ${BORDER}30`,color:TEXTMU,fontSize:7,letterSpacing:".14em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",padding:"8px 12px",cursor:"pointer",display:"flex",justifyContent:"space-between"}}>
               <span>{whoOpen?"▾":"▸"} WHO Global Impact · {WHO.code}</span>
@@ -855,6 +1195,405 @@ export default function SleepGold() {
                 <div style={{marginTop:4,fontSize:7,letterSpacing:".1em",color:`${GOLD}35`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>{WHO.sdg}</div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ══════════ ANALYTICS (NEW) ══════════ */}
+        {tab==="analytics"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
+
+            {/* Goal setting */}
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:10}}>Sleep Goal & Range</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div>
+                  <div style={{fontSize:6,letterSpacing:".14em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:6}}>Nightly Goal</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={()=>setSleepGoalHours(h=>Math.max(5,h-0.5))} style={{background:`${GOLD}10`,border:`1px solid ${GOLD}20`,color:GOLD,fontSize:14,fontFamily:"inherit",padding:"6px 10px",cursor:"pointer"}}>−</button>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:700,color:GOLD,flex:1,textAlign:"center"}}>{sleepGoalHours}h</div>
+                    <button onClick={()=>setSleepGoalHours(h=>Math.min(10,h+0.5))} style={{background:`${GOLD}10`,border:`1px solid ${GOLD}20`,color:GOLD,fontSize:14,fontFamily:"inherit",padding:"6px 10px",cursor:"pointer"}}>+</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:6,letterSpacing:".14em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:6}}>Analysis Range</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {["7","14","30"].map(r=>(
+                      <button key={r} onClick={()=>setAnalyticsRange(r)}
+                        style={{padding:"7px",background:analyticsRange===r?`${GOLD}15`:BG3,border:`1px solid ${analyticsRange===r?GOLD+"30":BORDER+"20"}`,color:analyticsRange===r?GOLD:TEXTMU,fontSize:7,fontFamily:"'Space Mono',monospace",letterSpacing:".1em",cursor:"pointer"}}>
+                        Last {r} nights
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly summary */}
+            {monthlyStats && (
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:12}}>30-Night Summary</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:12}}>
+                  {[
+                    {label:"Avg Duration",val:`${monthlyStats.avgDur}h`,col:parseFloat(monthlyStats.avgDur)>=7?GREEN:GOLD},
+                    {label:"Avg Quality", val:`${monthlyStats.avgQual}/10`,col:parseFloat(monthlyStats.avgQual)>=7?GREEN:GOLD},
+                    {label:"Goal Nights", val:`${monthlyStats.pctGoal}%`,col:monthlyStats.pctGoal>=70?GREEN:GOLD},
+                  ].map((s,i)=>(
+                    <div key={i} style={{padding:"10px 8px",background:BG3,border:`1px solid ${BORDER}18`,textAlign:"center"}}>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:s.col}}>{s.val}</div>
+                      <div style={{fontSize:6,letterSpacing:".12em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginTop:3}}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                  <div style={{padding:"10px",background:BG3,border:`1px solid ${GREEN}15`}}>
+                    <div style={{fontSize:6,letterSpacing:".14em",color:`${GREEN}60`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Best Night</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:700,color:GREEN}}>{monthlyStats.best.duration}h</div>
+                    <div style={{fontSize:7,color:`${GREEN}55`,fontFamily:"'Space Mono',monospace"}}>{monthlyStats.best.date}</div>
+                  </div>
+                  <div style={{padding:"10px",background:BG3,border:`1px solid ${CRIMSON}12`}}>
+                    <div style={{fontSize:6,letterSpacing:".14em",color:`${CRIMSON}60`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Worst Night</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:700,color:CRIMSON}}>{monthlyStats.worst.duration}h</div>
+                    <div style={{fontSize:7,color:`${CRIMSON}55`,fontFamily:"'Space Mono',monospace"}}>{monthlyStats.worst.date}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Analytics sub-views */}
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {[{id:"trend",l:"Duration Trend"},{id:"debt",l:"Sleep Debt"},{id:"hrv",l:"HRV Trend"},{id:"consistency",l:"Consistency"}].map(v=>(
+                <button key={v.id} onClick={()=>setAnalyticsView(v.id)} className="sg-btn"
+                  style={{flex:1,minWidth:"45%",padding:"8px",background:analyticsView===v.id?`${GOLD}12`:BG2,border:`1px solid ${analyticsView===v.id?GOLD+"35":BORDER+"30"}`,
+                    color:analyticsView===v.id?GOLD:TEXTD,fontSize:7,letterSpacing:".1em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",cursor:"pointer"}}>
+                  {v.l}
+                </button>
+              ))}
+            </div>
+
+            {/* DURATION TREND */}
+            {analyticsView==="trend"&&(
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:12}}>
+                  Duration vs Goal · Last {analyticsRange} Nights
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:4,height:120,paddingBottom:22,position:"relative"}}>
+                  {goalVsActual.slice().reverse().map((log,i)=>{
+                    const pct=Math.max((log.duration/10)*100,4);
+                    const c=log.duration>=sleepGoalHours?GREEN:log.duration>=sleepGoalHours*0.88?GOLD:CRIMSON;
+                    return (
+                      <div key={log.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
+                        <div style={{width:"100%",height:`${pct}%`,background:`linear-gradient(180deg,${c},${c}20)`,borderRadius:"2px 2px 0 0",minHeight:4,position:"relative"}}>
+                          {log.gap >= 0 && <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:GREEN,boxShadow:`0 0 4px ${GREEN}50`}}/>}
+                        </div>
+                        <span style={{position:"absolute",bottom:-18,fontSize:5,color:TEXTMU,fontFamily:"'Space Mono',monospace",textAlign:"center"}}>
+                          {new Date(log.date+"T00:00:00").toLocaleDateString([],{month:"numeric",day:"numeric"})}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div style={{position:"absolute",left:0,right:0,bottom:`${22+(sleepGoalHours/10)*98}px`,borderTop:`1px dashed ${GOLD}35`,pointerEvents:"none"}}>
+                    <span style={{fontSize:6,color:`${GOLD}50`,paddingLeft:4,fontFamily:"'Space Mono',monospace"}}>{sleepGoalHours}h</span>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:12,marginTop:8}}>
+                  {[{c:GREEN,l:"At/above goal"},{c:GOLD,l:"Near goal (±12%)"},{c:CRIMSON,l:"Below goal"}].map((x,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
+                      <div style={{width:8,height:8,borderRadius:1,background:x.c}}/>
+                      <span style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{x.l}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* DEBT TREND */}
+            {analyticsView==="debt"&&(
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Cumulative Sleep Debt · Running Total</div>
+                <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7,marginBottom:14}}>
+                  Each bar shows cumulative debt up to that night. Green = paid off. Rising = debt accumulating.
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:4,height:100,paddingBottom:22,position:"relative"}}>
+                  {(()=>{
+                    let cumulative = 0;
+                    return mainLogs.slice(0,parseInt(analyticsRange)).slice().reverse().map((log,i)=>{
+                      const shortfall = Math.max(0, sleepGoalHours - log.duration);
+                      cumulative += shortfall;
+                      const pct = Math.min((cumulative/14)*100, 100);
+                      const c = cumulative>=5?CRIMSON:cumulative>=2?AMBER:GREEN;
+                      return (
+                        <div key={log.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
+                          <div style={{width:"100%",height:`${Math.max(pct,4)}%`,background:`linear-gradient(180deg,${c},${c}25)`,borderRadius:"2px 2px 0 0"}}/>
+                          <span style={{position:"absolute",bottom:-18,fontSize:5,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>
+                            {new Date(log.date+"T00:00:00").toLocaleDateString([],{month:"numeric",day:"numeric"})}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+                <div style={{marginTop:14,padding:"10px",background:`${CRIMSON}06`,border:`1px solid ${CRIMSON}15`}}>
+                  <div style={{fontSize:8,color:`${CRIMSON}80`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7}}>
+                    Total debt: <span style={{color:CRIMSON,fontWeight:700}}>{sleepDebt}h</span> over 14 nights. 
+                    Recovery plan: Add 1–1.5h sleep per night for {Math.ceil(sleepDebt/1.2)} nights to eliminate deficit.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HRV TREND */}
+            {analyticsView==="hrv"&&(
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>HRV · Resting Heart Rate Trend</div>
+                <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7,marginBottom:12}}>
+                  Higher HRV = better recovery. Lower RHR = stronger cardiovascular base. Log with HRV-capable wearable.
+                </div>
+                {mainLogs.some(l=>l.hrv) ? (
+                  <>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:4,height:90,paddingBottom:20,position:"relative",marginBottom:20}}>
+                      {mainLogs.filter(l=>l.hrv).slice(0,parseInt(analyticsRange)).slice().reverse().map((log,i)=>{
+                        const pct = Math.max(((log.hrv||0)/120)*100, 4);
+                        const c = log.hrv>=60?GREEN:log.hrv>=40?GOLD:CRIMSON;
+                        return (
+                          <div key={log.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                            <div style={{fontSize:6,color:c,fontFamily:"'Space Mono',monospace"}}>{log.hrv}</div>
+                            <div style={{width:"100%",height:`${pct}%`,background:`linear-gradient(180deg,${c},${c}20)`,borderRadius:"2px 2px 0 0",minHeight:4}}/>
+                            <span style={{position:"absolute",bottom:-16,fontSize:5,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>
+                              {new Date(log.date+"T00:00:00").toLocaleDateString([],{month:"numeric",day:"numeric"})}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      {[
+                        {label:"HRV Zones",items:[{r:"60+",c:GREEN,l:"Excellent recovery"},{r:"40–59",c:GOLD,l:"Good recovery"},{r:"<40",c:CRIMSON,l:"Poor — rest needed"}]},
+                        {label:"RHR Zones",items:[{r:"<55",c:GREEN,l:"Athletic"},{r:"55–65",c:GOLD,l:"Healthy"},{r:"65+",c:CRIMSON,l:"Elevated — stress"}]},
+                      ].map((group,i)=>(
+                        <div key={i}>
+                          <div style={{fontSize:6,letterSpacing:".14em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:6}}>{group.label}</div>
+                          {group.items.map((item,j)=>(
+                            <div key={j} style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
+                              <div style={{width:6,height:6,borderRadius:"50%",background:item.c,flexShrink:0}}/>
+                              <span style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{item.r} — {item.l}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{padding:"20px",textAlign:"center",color:TEXTMU,fontSize:8,fontFamily:"'Space Mono',monospace",lineHeight:1.8}}>
+                    No HRV data yet. When logging sleep, enter your HRV from a wearable (Oura, Whoop, Garmin, Apple Watch) to unlock this chart.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CONSISTENCY */}
+            {analyticsView==="consistency"&&(
+              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Sleep Consistency Score</div>
+                <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7,marginBottom:14}}>
+                  Consistency = low variance in both duration AND schedule. High variability harms circadian rhythm even if total hours are adequate.
+                </div>
+                {(()=>{
+                  const recent = mainLogs.slice(0, parseInt(analyticsRange));
+                  if (recent.length < 3) return <div style={{color:TEXTMU,fontSize:8,fontFamily:"'Space Mono',monospace",padding:"14px 0"}}>Need at least 3 entries for consistency analysis.</div>;
+                  const avg = recent.reduce((a,b)=>a+b.duration,0)/recent.length;
+                  const variance = recent.reduce((a,b)=>a+Math.pow(b.duration-avg,2),0)/recent.length;
+                  const stdDev = Math.sqrt(variance);
+                  const consistScore = Math.max(0, Math.round(100 - stdDev*25));
+                  const nights7plus = recent.filter(l=>l.duration>=7).length;
+                  const pct = Math.round((nights7plus/recent.length)*100);
+                  return (
+                    <>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+                        {[
+                          {label:"Consistency",val:`${consistScore}`,unit:"/100",col:consistScore>=70?GREEN:consistScore>=50?GOLD:CRIMSON},
+                          {label:"Std Dev",val:stdDev.toFixed(1),unit:"h",col:stdDev<0.5?GREEN:stdDev<1?GOLD:CRIMSON},
+                          {label:"Goal Hit",val:`${pct}`,unit:"%",col:pct>=70?GREEN:pct>=50?GOLD:CRIMSON},
+                        ].map((s,i)=>(
+                          <div key={i} style={{padding:"10px 8px",background:BG3,border:`1px solid ${BORDER}18`,textAlign:"center"}}>
+                            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:s.col,lineHeight:1}}>{s.val}<span style={{fontSize:12}}>{s.unit}</span></div>
+                            <div style={{fontSize:6,letterSpacing:".12em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginTop:3}}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:"flex",gap:5,marginBottom:6}}>
+                        {recent.slice().reverse().map((log,i)=>{
+                          const onTrack = log.duration >= sleepGoalHours;
+                          return (
+                            <div key={i} style={{flex:1,height:24,borderRadius:2,background:onTrack?`${GREEN}25`:log.duration>=sleepGoalHours*0.85?`${GOLD}20`:`${CRIMSON}20`,border:`1px solid ${onTrack?GREEN:log.duration>=sleepGoalHours*0.85?GOLD:CRIMSON}25`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                              <div style={{width:4,height:4,borderRadius:"50%",background:onTrack?GREEN:log.duration>=sleepGoalHours*0.85?GOLD:CRIMSON}}/>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7}}>
+                        {stdDev < 0.5 ? `Elite consistency (${stdDev.toFixed(1)}h std dev). Circadian rhythm is well-anchored.` 
+                          : stdDev < 1 ? `Good consistency. Small improvements in schedule will push sleep quality higher.`
+                          : `High variability (${stdDev.toFixed(1)}h std dev) detected. Fix wake time first — it's the master circadian anchor.`}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════ RECOVERY TAB (NEW) ══════════ */}
+        {tab==="recovery"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div>
+                  <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Recovery Dashboard</div>
+                  <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>Multi-signal recovery assessment</div>
+                </div>
+                <RecoveryRing score={recovery}/>
+              </div>
+
+              {/* Recovery breakdown */}
+              {[
+                {label:"Sleep Duration",val:`${mainLogs[0]?.duration||0}h`,goal:`Goal: ${sleepGoalHours}h`,score:mainLogs[0]?Math.round(Math.min(100,(mainLogs[0].duration/sleepGoalHours)*100)):0,col:mainLogs[0]?.duration>=sleepGoalHours?GREEN:GOLD},
+                {label:"Sleep Quality",val:`${mainLogs[0]?.quality||0}/10`,goal:"Target: 7+",score:mainLogs[0]?Math.round(mainLogs[0].quality*10):0,col:mainLogs[0]?.quality>=7?GREEN:GOLD},
+                {label:"HRV",val:mainLogs[0]?.hrv?`${mainLogs[0].hrv}ms`:"—",goal:"Baseline: 45ms",score:mainLogs[0]?.hrv?Math.round(Math.min(100,(mainLogs[0].hrv/80)*100)):50,col:mainLogs[0]?.hrv>=50?GREEN:mainLogs[0]?.hrv>=35?GOLD:CRIMSON},
+                {label:"Resting HR",val:mainLogs[0]?.rhr?`${mainLogs[0].rhr}bpm`:"—",goal:"Target: <60",score:mainLogs[0]?.rhr?Math.round(Math.min(100,((80-mainLogs[0].rhr)/25)*100)):50,col:mainLogs[0]?.rhr<=58?GREEN:mainLogs[0]?.rhr<=65?GOLD:CRIMSON},
+                {label:"Blood Oxygen",val:mainLogs[0]?.spo2?`${mainLogs[0].spo2}%`:"—",goal:"Normal: ≥95%",score:mainLogs[0]?.spo2?Math.round(Math.min(100,((mainLogs[0].spo2-90)/10)*100)):50,col:mainLogs[0]?.spo2>=97?GREEN:mainLogs[0]?.spo2>=95?GOLD:CRIMSON},
+              ].map((m,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:i<4?`1px solid ${BORDER}18`:""}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                      <span style={{fontSize:8,color:TEXTM,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>{m.label}</span>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{m.goal}</span>
+                        <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:700,color:m.col}}>{m.val}</span>
+                      </div>
+                    </div>
+                    <div style={{height:3,background:"#0e0a06",borderRadius:2}}>
+                      <div style={{height:"100%",width:`${Math.max(m.score,4)}%`,background:m.col,borderRadius:2,transition:"width .8s ease",boxShadow:`0 0 6px ${m.col}30`}}/>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 7-day recovery trend */}
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:12}}>7-Night Recovery Trend</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:5,height:80,paddingBottom:20,position:"relative"}}>
+                {mainLogs.slice(0,7).reverse().map((log,i)=>{
+                  const rec = RECOVERY_FN(log, null);
+                  const pct = rec ? (rec/100)*100 : 40;
+                  const c = rec>=70?GREEN:rec>=50?GOLD:CRIMSON;
+                  return (
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
+                      <div style={{fontSize:6,color:c,fontFamily:"'Space Mono',monospace"}}>{rec||"?"}</div>
+                      <div style={{width:"100%",height:`${Math.max(pct,5)}%`,background:`linear-gradient(180deg,${c},${c}20)`,borderRadius:"2px 2px 0 0",minHeight:4}}/>
+                      <span style={{position:"absolute",bottom:-16,fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>
+                        {new Date(log.date+"T00:00:00").toLocaleDateString([],{weekday:"short"})}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SpO2 history */}
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>SpO₂ Blood Oxygen · 14-Night History</div>
+              <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7,marginBottom:12}}>
+                Normal: 95–100%. Below 90%: hypoxemia — see a doctor. Chronic dips may indicate sleep apnea.
+              </div>
+              {mainLogs.some(l=>l.spo2) ? (
+                <div style={{display:"flex",alignItems:"flex-end",gap:4,height:70,paddingBottom:20,position:"relative"}}>
+                  {mainLogs.filter(l=>l.spo2).slice(0,14).slice().reverse().map((log,i)=>{
+                    const pct = ((log.spo2-90)/12)*100;
+                    const c = log.spo2>=97?GREEN:log.spo2>=95?GOLD:CRIMSON;
+                    return (
+                      <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1,position:"relative"}}>
+                        <div style={{fontSize:5,color:c,fontFamily:"'Space Mono',monospace"}}>{log.spo2}</div>
+                        <div style={{width:"100%",height:`${Math.max(pct,5)}%`,background:c,borderRadius:"2px 2px 0 0",opacity:0.7,minHeight:4}}/>
+                        <span style={{position:"absolute",bottom:-16,fontSize:5,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>
+                          {new Date(log.date+"T00:00:00").toLocaleDateString([],{month:"numeric",day:"numeric"})}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div style={{position:"absolute",left:0,right:0,bottom:`${20+((95-90)/12)*60}px`,borderTop:`1px dashed ${AMBER}40`,pointerEvents:"none"}}>
+                    <span style={{fontSize:5,color:`${AMBER}60`,paddingLeft:2,fontFamily:"'Space Mono',monospace"}}>95%</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{padding:"16px",textAlign:"center",color:TEXTMU,fontSize:8,fontFamily:"'Space Mono',monospace",lineHeight:1.8}}>
+                  Log SpO₂ readings from a pulse oximeter or smartwatch to track blood oxygen during sleep.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════ AI INSIGHTS (NEW) ══════════ */}
+        {tab==="insights"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
+            <div style={{border:`1px solid ${GOLD}15`,background:`${GOLD}04`,padding:"14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}60`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>AI Sleep Analyst</div>
+                <div style={{fontSize:6,letterSpacing:".1em",color:CRIMSON,fontFamily:"'Space Mono',monospace",background:`${CRIMSON}12`,border:`1px solid ${CRIMSON}25`,padding:"2px 7px",textTransform:"uppercase"}}>EXCLUSIVE</div>
+              </div>
+              <div style={{fontSize:8,color:TEXTMU,letterSpacing:".04em",lineHeight:1.8,fontFamily:"'Space Mono',monospace"}}>
+                Personalized insights from your sleep data. Updates every time you log. Analyzes: duration, quality, HRV, RHR, consistency, habits, sleep debt.
+              </div>
+            </div>
+
+            {insights.map((insight, i) => (
+              <div key={i} className="insight-card" style={{animationDelay:`${i*80}ms`,border:`1px solid ${insight.color}18`,background:BG2}}>
+                <div onClick={()=>setInsightExpanded(insightExpanded===i?null:i)}
+                  style={{display:"flex",gap:12,padding:"16px",cursor:"pointer",alignItems:"flex-start"}}>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:`${insight.color}12`,border:`1.5px solid ${insight.color}25`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:16}}>
+                    {insight.icon}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:10,fontWeight:700,color:insight.color,fontFamily:"'Cormorant Garamond',serif",marginBottom:5,letterSpacing:".02em"}}>{insight.title}</div>
+                    <div style={{fontSize:7,color:`${insight.color}60`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7,display:insightExpanded===i?"block":"-webkit-box",WebkitLineClamp:insightExpanded===i?undefined:2,WebkitBoxOrient:"vertical",overflow:insightExpanded===i?"visible":"hidden"}}>{insight.body}</div>
+                  </div>
+                  <div style={{fontSize:8,color:TEXTMU,flexShrink:0,marginTop:2}}>{insightExpanded===i?"▲":"▸"}</div>
+                </div>
+                {insightExpanded===i&&(
+                  <div style={{borderTop:`1px solid ${insight.color}12`,padding:"10px 16px 14px 64px"}}>
+                    <div style={{fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:6}}>Priority Level</div>
+                    <div style={{display:"flex",gap:4}}>
+                      {[1,2,3].map(p=>(
+                        <div key={p} style={{width:24,height:5,borderRadius:2,background:p<=insight.priority?`${insight.priority===1?CRIMSON:insight.priority===2?AMBER:GREEN}`:BORDER+"40"}}/>
+                      ))}
+                      <span style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginLeft:6,letterSpacing:".08em"}}>
+                        {insight.priority===1?"HIGH":insight.priority===2?"MEDIUM":"POSITIVE"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:10}}>Insight Quality Improves With</div>
+              {[
+                {icon:"◈",text:"HRV data from wearable (Oura, Whoop, Garmin)",done:mainLogs.some(l=>l.hrv)},
+                {icon:"❤",text:"RHR data logged each night",done:mainLogs.some(l=>l.rhr)},
+                {icon:"○",text:"SpO₂ readings for blood oxygen analysis",done:mainLogs.some(l=>l.spo2)},
+                {icon:"✦",text:"7+ nights of consistent logging",done:mainLogs.length>=7},
+                {icon:"◎",text:"Sleep hygiene habits tracked",done:habits.some(h=>h.done)},
+              ].map((item,i)=>(
+                <div key={i} style={{display:"flex",gap:10,alignItems:"center",marginBottom:7,paddingBottom:7,borderBottom:i<4?`1px solid ${BORDER}15`:""}}>
+                  <div style={{width:20,height:20,borderRadius:"50%",background:item.done?`${GREEN}15`:"transparent",border:`1.5px solid ${item.done?GREEN:BORDER+"40"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    {item.done?<span style={{fontSize:9,color:GREEN}}>✓</span>:<span style={{fontSize:8,color:TEXTD}}>{item.icon}</span>}
+                  </div>
+                  <span style={{fontSize:7,color:item.done?`${GREEN}70`:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",textDecoration:item.done?"line-through":"none"}}>{item.text}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -914,7 +1653,7 @@ export default function SleepGold() {
           </div>
         )}
 
-        {/* ══════════ SLEEP STORIES — NEW ══════════ */}
+        {/* ══════════ SLEEP STORIES ══════════ */}
         {tab==="stories"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
@@ -923,7 +1662,7 @@ export default function SleepGold() {
                 <div style={{fontSize:6,letterSpacing:".1em",color:CRIMSON,fontFamily:"'Space Mono',monospace",background:`${CRIMSON}12`,border:`1px solid ${CRIMSON}25`,padding:"2px 7px",textTransform:"uppercase"}}>BEATS CALM</div>
               </div>
               <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:14}}>
-                6 narrative sleep stories. Scene-based imagery deactivates anxiety circuits. 83% faster sleep onset vs silence. Pair with any tone.
+                6 narrative sleep stories. Scene-based imagery deactivates anxiety circuits. 83% faster sleep onset vs silence.
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {SLEEP_STORIES.map((story,i)=>(
@@ -937,9 +1676,7 @@ export default function SleepGold() {
                         <div style={{fontSize:6,letterSpacing:".1em",color:story.color,fontFamily:"'Space Mono',monospace",textTransform:"uppercase",flexShrink:0,marginLeft:8}}>{story.category}</div>
                       </div>
                       <div style={{fontSize:7,letterSpacing:".1em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:7}}>{story.subtitle}</div>
-                      <div style={{fontSize:7,color:`${GOLD}45`,letterSpacing:".04em",lineHeight:1.6,fontFamily:"'Space Mono',monospace"}}>
-                        {story.science}
-                      </div>
+                      <div style={{fontSize:7,color:`${GOLD}45`,letterSpacing:".04em",lineHeight:1.6,fontFamily:"'Space Mono',monospace"}}>{story.science}</div>
                       <div style={{marginTop:10,fontSize:7,color:story.color,letterSpacing:".08em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",display:"flex",alignItems:"center",gap:6}}>
                         <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:story.color,animation:"storyPulse 2s ease-in-out infinite"}}/>
                         Read Story · {story.paragraphs.length} passages
@@ -949,28 +1686,12 @@ export default function SleepGold() {
                 ))}
               </div>
             </div>
-
-            {/* Protocol note */}
-            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
-              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:10}}>Story + Sound Pairings</div>
-              {SLEEP_STORIES.slice(0,4).map((s,i)=>(
-                <div key={i} style={{display:"flex",gap:10,marginBottom:8,paddingBottom:8,borderBottom:i<3?`1px solid ${BORDER}15`:"",alignItems:"center"}}>
-                  <span style={{fontSize:14,flexShrink:0}}>{s.emoji}</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:8,color:TEXTM,fontFamily:"'Space Mono',monospace",marginBottom:2}}>{s.title}</div>
-                    <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>→ {s.soundRec || "Delta Binaural"}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
-        {/* ══════════ SLEEP STAGES — NEW (beats Whoop) ══════════ */}
+        {/* ══════════ SLEEP STAGES ══════════ */}
         {tab==="stages"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
-
-            {/* View toggle */}
             <div style={{display:"flex",gap:6}}>
               {[{id:"overview",label:"Overview"},{id:"chart",label:"Hypnogram"},{id:"detail",label:"Science"}].map(v=>(
                 <button key={v.id} onClick={()=>setStageView(v.id)} className="sg-btn"
@@ -981,66 +1702,51 @@ export default function SleepGold() {
               ))}
             </div>
 
-            {/* OVERVIEW */}
             {stageView==="overview"&&(
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
-                  <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Sleep Architecture · What Happens Each Night</div>
-                  <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:14}}>
-                    A full 7.5h night cycles through 5 complete 90-min cycles. Tap any stage to explore its biology.
+                  <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:14}}>Typical Stage Distribution · 7.5h Night</div>
+                  <div style={{display:"flex",height:28,borderRadius:2,overflow:"hidden",gap:1,marginBottom:8}}>
+                    {SLEEP_STAGES.map(s=>(
+                      <div key={s.id} style={{flex:s.pct,background:s.color,cursor:"pointer"}}
+                        onClick={()=>setSelectedStage(selectedStage===s.id?null:s.id)}/>
+                    ))}
                   </div>
-
-                  {/* Pie-style distribution bar */}
-                  <div style={{marginBottom:14}}>
-                    <div style={{fontSize:6,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:8}}>Typical Stage Distribution · 7.5h Night</div>
-                    <div style={{display:"flex",height:28,borderRadius:2,overflow:"hidden",gap:1}}>
-                      {SLEEP_STAGES.map(s=>(
-                        <div key={s.id} style={{flex:s.pct,background:s.color,transition:"flex .6s ease",cursor:"pointer",position:"relative"}}
-                          onClick={()=>setSelectedStage(selectedStage===s.id?null:s.id)}
-                          title={`${s.label}: ${s.pct}%`}/>
-                      ))}
-                    </div>
-                    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:8}}>
-                      {SLEEP_STAGES.map(s=>(
-                        <div key={s.id} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}} onClick={()=>setSelectedStage(selectedStage===s.id?null:s.id)}>
-                          <div style={{width:8,height:8,borderRadius:"50%",background:s.color,flexShrink:0}}/>
-                          <span style={{fontSize:7,color:selectedStage===s.id?s.color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".06em"}}>{s.shortLabel} {s.pct}%</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
+                    {SLEEP_STAGES.map(s=>(
+                      <div key={s.id} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}} onClick={()=>setSelectedStage(selectedStage===s.id?null:s.id)}>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:s.color}}/>
+                        <span style={{fontSize:7,color:selectedStage===s.id?s.color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{s.shortLabel} {s.pct}%</span>
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Stage cards */}
-                  {SLEEP_STAGES.map((stage,i)=>{
+                  {SLEEP_STAGES.map((stage)=>{
                     const open = selectedStage === stage.id;
                     return (
                       <div key={stage.id} style={{marginBottom:6}}>
                         <div onClick={()=>setSelectedStage(open?null:stage.id)}
-                          style={{display:"flex",gap:12,padding:"12px 14px",background:open?`${stage.color}06`:BG3,
-                            border:`1px solid ${open?stage.color+"25":BORDER+"18"}`,cursor:"pointer",transition:"all .18s",alignItems:"center"}}>
-                          <div style={{width:32,height:32,borderRadius:"50%",background:open?`${stage.color}18`:"transparent",
-                            border:`2px solid ${open?stage.color:BORDER+"40"}`,display:"flex",alignItems:"center",justifyContent:"center",
-                            flexShrink:0,transition:"all .18s"}}>
+                          style={{display:"flex",gap:12,padding:"12px 14px",background:open?`${stage.color}06`:BG3,border:`1px solid ${open?stage.color+"25":BORDER+"18"}`,cursor:"pointer",alignItems:"center"}}>
+                          <div style={{width:32,height:32,borderRadius:"50%",background:open?`${stage.color}18`:"transparent",border:`2px solid ${open?stage.color:BORDER+"40"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                             <span style={{fontSize:10,fontWeight:700,color:open?stage.color:TEXTD,fontFamily:"'Space Mono',monospace"}}>{stage.shortLabel}</span>
                           </div>
                           <div style={{flex:1}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
                               <div style={{fontSize:10,fontWeight:700,color:open?stage.color:TEXTM,fontFamily:"'Cormorant Garamond',serif"}}>{stage.label}</div>
-                              <div style={{fontSize:7,color:open?stage.color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".1em"}}>{stage.pct}% · {stage.duration}</div>
+                              <div style={{fontSize:7,color:open?stage.color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{stage.pct}% · {stage.duration}</div>
                             </div>
                             <div style={{height:3,background:"#0e0a06",borderRadius:1}}>
-                              <div style={{height:"100%",width:`${stage.pct}%`,background:stage.color,borderRadius:1,transition:"width .8s ease",boxShadow:`0 0 6px ${stage.color}30`}}/>
+                              <div style={{height:"100%",width:`${stage.pct}%`,background:stage.color,borderRadius:1,boxShadow:`0 0 6px ${stage.color}30`}}/>
                             </div>
                           </div>
-                          <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{open?"▲":"▸"}</div>
+                          <div style={{fontSize:8,color:TEXTMU}}>{open?"▲":"▸"}</div>
                         </div>
                         {open&&(
                           <div className="fu" style={{background:`${stage.color}04`,border:`1px solid ${stage.color}15`,borderTop:"none",padding:"14px"}}>
                             <div style={{fontSize:8,color:`${stage.color}80`,letterSpacing:".05em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:10}}>{stage.desc}</div>
                             <div style={{marginBottom:8}}>
                               <div style={{fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:5}}>Brainwaves</div>
-                              <div style={{fontSize:8,color:stage.color,fontFamily:"'Space Mono',monospace",letterSpacing:".06em"}}>{stage.hz}</div>
-                              <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>{stage.waves}</div>
+                              <div style={{fontSize:8,color:stage.color,fontFamily:"'Space Mono',monospace"}}>{stage.hz}</div>
+                              <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{stage.waves}</div>
                             </div>
                             {stage.benefits.length>0&&(
                               <div>
@@ -1048,7 +1754,7 @@ export default function SleepGold() {
                                 {stage.benefits.map((b,j)=>(
                                   <div key={j} style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}>
                                     <div style={{width:4,height:4,borderRadius:"50%",background:stage.color,flexShrink:0}}/>
-                                    <span style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>{b}</span>
+                                    <span style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{b}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1062,21 +1768,13 @@ export default function SleepGold() {
               </div>
             )}
 
-            {/* HYPNOGRAM */}
             {stageView==="chart"&&(
               <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
-                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Hypnogram · Typical 7.5h Night</div>
-                <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:14}}>
-                  Stage depth over time. Deep N3 dominates early cycles; REM expands in later cycles.
-                </div>
-
-                {/* Hypnogram visualization */}
+                <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:14}}>Hypnogram · Typical 7.5h Night</div>
                 <div style={{position:"relative",height:130,marginBottom:20,overflow:"hidden"}}>
-                  {/* Y-axis labels */}
                   {[{label:"REM",y:8},{label:"N2",y:36},{label:"N3",y:64},{label:"N1",y:90},{label:"W",y:112}].map((l,i)=>(
-                    <div key={i} style={{position:"absolute",left:0,top:l.y,fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".08em",width:24,textAlign:"right"}}>{l.label}</div>
+                    <div key={i} style={{position:"absolute",left:0,top:l.y,fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",width:24,textAlign:"right"}}>{l.label}</div>
                   ))}
-                  {/* Chart area */}
                   <div style={{position:"absolute",left:30,right:0,top:0,bottom:24,overflow:"hidden"}}>
                     <svg width="100%" height="100%" viewBox="0 0 270 106" preserveAspectRatio="none">
                       <defs>
@@ -1087,11 +1785,9 @@ export default function SleepGold() {
                           </linearGradient>
                         ))}
                       </defs>
-                      {/* Grid lines */}
                       {[0,28,56,84].map(y=>(
                         <line key={y} x1="0" y1={y} x2="270" y2={y} stroke={`${GOLD}08`} strokeWidth="0.5"/>
                       ))}
-                      {/* Stage blocks */}
                       {STAGE_CYCLE.map((seg,i)=>{
                         const stageData = SLEEP_STAGES.find(s=>s.id===seg.stage);
                         if(!stageData) return null;
@@ -1101,25 +1797,16 @@ export default function SleepGold() {
                         const h = heightMap[seg.stage] || 20;
                         const x = (seg.start/270)*270;
                         const w = ((seg.end-seg.start)/270)*270;
-                        return (
-                          <rect key={i} x={x} y={y} width={Math.max(w,1)} height={h}
-                            fill={`url(#grad_${seg.stage})`} rx="1"/>
-                        );
+                        return <rect key={i} x={x} y={y} width={Math.max(w,1)} height={h} fill={`url(#grad_${seg.stage})`} rx="1"/>;
                       })}
-                      {/* Stage path line */}
                       {(()=>{
                         const yCenter={awake:10,n1:40,n2:70,n3:94,rem:28};
-                        const pts = STAGE_CYCLE.map(seg=>({
-                          x: ((seg.start+seg.end)/2/270)*270,
-                          y: yCenter[seg.stage]||50,
-                          color: SLEEP_STAGES.find(s=>s.id===seg.stage)?.color || GOLD,
-                        }));
+                        const pts = STAGE_CYCLE.map(seg=>({x:((seg.start+seg.end)/2/270)*270,y:yCenter[seg.stage]||50}));
                         if(pts.length<2) return null;
                         const d = pts.map((p,i)=>i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`).join(" ");
                         return <path d={d} fill="none" stroke={`${GOLD}40`} strokeWidth="0.8" strokeLinejoin="round"/>;
                       })()}
                     </svg>
-                    {/* Time axis */}
                     <div style={{position:"absolute",bottom:-18,left:0,right:0,display:"flex",justifyContent:"space-between"}}>
                       {["0h","1h","2h","3h","4h","5h","6h","7h"].map(t=>(
                         <span key={t} style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{t}</span>
@@ -1127,47 +1814,23 @@ export default function SleepGold() {
                     </div>
                   </div>
                 </div>
-
-                {/* Cycle markers */}
-                <div style={{marginTop:12}}>
-                  <div style={{fontSize:6,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:8}}>5 × 90-min Cycles</div>
-                  <div style={{display:"flex",gap:6}}>
-                    {[1,2,3,4,5].map(c=>(
-                      <div key={c} style={{flex:1,padding:"8px 4px",background:BG3,border:`1px solid ${BORDER}20`,textAlign:"center"}}>
-                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:700,color:GOLD,lineHeight:1}}>{c}</div>
-                        <div style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:2,letterSpacing:".06em"}}>{c<=2?"N3 heavy":c<=4?"Balanced":"REM heavy"}</div>
-                      </div>
-                    ))}
-                  </div>
+                <div style={{display:"flex",gap:6}}>
+                  {[1,2,3,4,5].map(c=>(
+                    <div key={c} style={{flex:1,padding:"8px 4px",background:BG3,border:`1px solid ${BORDER}20`,textAlign:"center"}}>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:700,color:GOLD}}>{c}</div>
+                      <div style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:2}}>{c<=2?"N3 heavy":c<=4?"Balanced":"REM heavy"}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* SCIENCE DETAIL */}
             {stageView==="detail"&&(
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {[
-                  {title:"Why Deep Sleep (N3) Is Non-Negotiable",color:"#34D399",facts:[
-                    "Growth hormone: 70-80% of daily GH released during N3 only",
-                    "Immune: NK cell activity increases 40% with 8h sleep vs 6h",
-                    "Memory: Hippocampal replay transfers facts to neocortex",
-                    "Metabolism: Glucose metabolism restores insulin sensitivity",
-                    "Cellular repair: DNA repair enzymes peak during N3",
-                  ]},
-                  {title:"Why REM Is Your Emotional Reset",color:GOLD2,facts:[
-                    "Emotional processing: amygdala consolidates fear memories, strips emotion from content",
-                    "Creativity: remote associations form between unlinked memories",
-                    "Empathy circuits recharge — REM deprivation reduces facial emotion recognition 20%",
-                    "REM duration doubles from cycle 1 (10 min) to cycle 5 (60 min)",
-                    "Dreaming correlates with norepinephrine absence — safe emotional processing",
-                  ]},
-                  {title:"What Destroys Your Architecture",color:CRIMSON,facts:[
-                    "Alcohol: kills REM entirely in first 3 cycles. Total REM loss: 40%",
-                    "Screens: delays melatonin 90 min, reduces N3 by 15-25%",
-                    "Caffeine at 6pm: still 50% active at midnight, suppresses adenosine",
-                    "Heat: core temp must drop 1°C. Warm room prevents N3 onset",
-                    "Fragmentation: even brief awakenings destroy slow-wave continuity",
-                  ]},
+                  {title:"Why Deep Sleep (N3) Is Non-Negotiable",color:GREEN,facts:["Growth hormone: 70-80% of daily GH released during N3 only","Immune: NK cell activity increases 40% with 8h sleep vs 6h","Memory: Hippocampal replay transfers facts to neocortex","Metabolism: Glucose metabolism restores insulin sensitivity","Cellular repair: DNA repair enzymes peak during N3"]},
+                  {title:"Why REM Is Your Emotional Reset",color:GOLD2,facts:["Emotional processing: amygdala consolidates fear memories, strips emotion from content","Creativity: remote associations form between unlinked memories","Empathy circuits recharge — REM deprivation reduces facial emotion recognition 20%","REM duration doubles from cycle 1 (10 min) to cycle 5 (60 min)","Dreaming correlates with norepinephrine absence — safe emotional processing"]},
+                  {title:"What Destroys Your Architecture",color:CRIMSON,facts:["Alcohol: kills REM entirely in first 3 cycles. Total REM loss: 40%","Screens: delays melatonin 90 min, reduces N3 by 15-25%","Caffeine at 6pm: still 50% active at midnight, suppresses adenosine","Heat: core temp must drop 1°C. Warm room prevents N3 onset","Fragmentation: even brief awakenings destroy slow-wave continuity"]},
                 ].map((sec,i)=>(
                   <div key={i} style={{border:`1px solid ${sec.color}14`,background:BG2,padding:"14px"}}>
                     <div style={{fontSize:9,fontWeight:700,color:sec.color,letterSpacing:".06em",fontFamily:"'Space Mono',monospace",marginBottom:10}}>{sec.title}</div>
@@ -1184,62 +1847,41 @@ export default function SleepGold() {
           </div>
         )}
 
-        {/* ══════════ WIND DOWN ROUTINE — NEW ══════════ */}
+        {/* ══════════ WIND DOWN ══════════ */}
         {tab==="winddown"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
               <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>60-Min Wind Down Routine</div>
               <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:14}}>
-                Science-sequenced pre-sleep protocol. Each step builds on the last. Complete nightly for 21 days to establish deep sleep conditioning.
+                Science-sequenced pre-sleep protocol. Complete nightly for 21 days to establish deep sleep conditioning.
               </div>
-
-              {/* Progress */}
               <div style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
                   <span style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".1em",textTransform:"uppercase"}}>Tonight's Progress</span>
-                  <span style={{fontSize:10,color:completedWD.length===WINDDOWN_STEPS.length?"#34D399":GOLD,fontFamily:"'Space Mono',monospace",fontWeight:700}}>{completedWD.length}/{WINDDOWN_STEPS.length}</span>
+                  <span style={{fontSize:10,color:completedWD.length===WINDDOWN_STEPS.length?GREEN:GOLD,fontFamily:"'Space Mono',monospace",fontWeight:700}}>{completedWD.length}/{WINDDOWN_STEPS.length}</span>
                 </div>
                 <div style={{height:4,background:"#0e0a06",borderRadius:2}}>
-                  <div style={{height:"100%",width:`${(completedWD.length/WINDDOWN_STEPS.length)*100}%`,background:completedWD.length===WINDDOWN_STEPS.length?"linear-gradient(90deg,#34D399,#059669)":PROG,transition:"width .6s ease",borderRadius:2,boxShadow:`0 0 8px ${GOLD}30`}}/>
+                  <div style={{height:"100%",width:`${(completedWD.length/WINDDOWN_STEPS.length)*100}%`,background:completedWD.length===WINDDOWN_STEPS.length?`linear-gradient(90deg,${GREEN},#059669)`:PROG,transition:"width .6s ease",borderRadius:2}}/>
                 </div>
               </div>
-
-              {WINDDOWN_STEPS.map((step,i)=>{
+              {WINDDOWN_STEPS.map((step)=>{
                 const done = completedWD.includes(step.id);
                 const open = expandedWD === step.id;
                 return (
                   <div key={step.id} style={{marginBottom:6}}>
-                    <div className="wd-step"
-                      style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",
-                        background:done?"#0d0a05":"#080604",
-                        border:`1px solid ${done?step.color+"20":BORDER+"20"}`,
-                        cursor:"pointer",transition:"all .16s",position:"relative"}}>
-
-                      {/* Time marker */}
-                      <div style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",
-                        fontSize:7,color:done?`${step.color}60`:`${GOLD}25`,fontFamily:"'Space Mono',monospace",letterSpacing:".08em"}}>
-                        {step.time===0?"Bed":`-${step.time}m`}
-                      </div>
-
-                      {/* Checkbox */}
-                      <div onClick={()=>toggleWD(step.id)}
-                        style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${done?step.color:TEXTD}`,
-                          background:done?step.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",
-                          flexShrink:0,transition:"all .18s",cursor:"pointer",boxShadow:done?`0 0 10px ${step.color}35`:""}}>
+                    <div className="wd-step" style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",background:done?"#0d0a05":"#080604",border:`1px solid ${done?step.color+"20":BORDER+"20"}`,cursor:"pointer",position:"relative"}}>
+                      <div style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",fontSize:7,color:done?`${step.color}60`:`${GOLD}25`,fontFamily:"'Space Mono',monospace"}}>{step.time===0?"Bed":`-${step.time}m`}</div>
+                      <div onClick={()=>toggleWD(step.id)} style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${done?step.color:TEXTD}`,background:done?step.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .18s",cursor:"pointer",boxShadow:done?`0 0 10px ${step.color}35`:""}}>
                         {done&&<span style={{fontSize:11,color:"#040200",fontWeight:700}}>✓</span>}
                       </div>
-
-                      {/* Icon + content */}
                       <div style={{display:"flex",alignItems:"center",gap:10,flex:1}} onClick={()=>setExpandedWD(open?null:step.id)}>
                         <span style={{fontSize:16,flexShrink:0}}>{step.icon}</span>
                         <div>
-                          <div style={{fontSize:9,letterSpacing:".06em",color:done?`${step.color}90`:TEXTMU,fontFamily:"'Space Mono',monospace",textDecoration:done?"line-through":"none",transition:"all .16s"}}>{step.label}</div>
-                          <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",marginTop:1}}>{step.soundRec}</div>
+                          <div style={{fontSize:9,letterSpacing:".06em",color:done?`${step.color}90`:TEXTMU,fontFamily:"'Space Mono',monospace",textDecoration:done?"line-through":"none"}}>{step.label}</div>
+                          <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:1}}>{step.soundRec}</div>
                         </div>
                       </div>
-
-                      <div onClick={()=>setExpandedWD(open?null:step.id)}
-                        style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",cursor:"pointer",marginRight:40}}>{open?"▲":"▸"}</div>
+                      <div onClick={()=>setExpandedWD(open?null:step.id)} style={{fontSize:8,color:TEXTMU,cursor:"pointer",marginRight:40}}>{open?"▲":"▸"}</div>
                     </div>
                     {open&&(
                       <div className="fu" style={{background:"#080604",border:`1px solid ${step.color}12`,borderTop:"none",padding:"12px 14px 12px 50px",display:"flex",flexDirection:"column",gap:8}}>
@@ -1248,28 +1890,20 @@ export default function SleepGold() {
                           <div style={{fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:3}}>Science</div>
                           <div style={{fontSize:7,color:TEXTMU,letterSpacing:".04em",lineHeight:1.7,fontFamily:"'Space Mono',monospace"}}>{step.science}</div>
                         </div>
-                        <div style={{fontSize:7,color:`${GOLD}45`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>
-                          🎵 Pair with: {step.soundRec}
-                        </div>
+                        <div style={{fontSize:7,color:`${GOLD}45`,fontFamily:"'Space Mono',monospace"}}>🎵 Pair with: {step.soundRec}</div>
                       </div>
                     )}
                   </div>
                 );
               })}
-
               {completedWD.length===WINDDOWN_STEPS.length&&(
-                <div className="fu" style={{marginTop:10,padding:"16px",background:`${"#34D399"}08`,border:`1px solid ${"#34D399"}25`,textAlign:"center"}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:"#34D399",marginBottom:4}}>✦ Routine Complete</div>
-                  <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".06em",lineHeight:1.8}}>
-                    Your body is primed for elite sleep. Activate a tone and begin a story.
-                  </div>
+                <div className="fu" style={{marginTop:10,padding:"16px",background:`${GREEN}08`,border:`1px solid ${GREEN}25`,textAlign:"center"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:GREEN,marginBottom:4}}>✦ Routine Complete</div>
+                  <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".06em",lineHeight:1.8}}>Your body is primed for elite sleep. Activate a tone and begin a story.</div>
                 </div>
               )}
             </div>
-
-            {/* Reset button */}
-            <button onClick={()=>setCompletedWD([])}
-              style={{background:"transparent",border:`1px solid ${BORDER}30`,color:TEXTMU,fontSize:7,letterSpacing:".14em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",padding:"8px 12px",cursor:"pointer"}}>
+            <button onClick={()=>setCompletedWD([])} style={{background:"transparent",border:`1px solid ${BORDER}30`,color:TEXTMU,fontSize:7,letterSpacing:".14em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",padding:"8px 12px",cursor:"pointer"}}>
               ↺ Reset Tonight's Checklist
             </button>
           </div>
@@ -1280,32 +1914,13 @@ export default function SleepGold() {
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
               <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>4-7-8 Breathing · Parasympathetic Activation</div>
-              <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:0}}>
-                Developed by Dr. Andrew Weil · Activates vagus nerve · Reduces cortisol · Proven sleep-onset accelerator
-              </div>
+              <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:0}}>Developed by Dr. Andrew Weil · Activates vagus nerve · Reduces cortisol</div>
               <BreathEngine active={breathActive}/>
-              <button className="sg-btn"
-                onClick={()=>{ setBreath(v=>!v); if(!breathActive) speak(ph(lang,"breathe")); }}
-                style={{width:"100%",padding:"15px",background:breathActive?`${GOLD}10`:`linear-gradient(135deg,${GOLD}20,${GOLD}08)`,
-                  color:GOLD,border:`1px solid ${GOLD}35`,fontSize:12,fontWeight:700,
-                  fontFamily:"'Cormorant Garamond',serif",letterSpacing:".1em",textTransform:"uppercase",cursor:"pointer"}}>
+              <button className="sg-btn" onClick={()=>{ setBreath(v=>!v); if(!breathActive) speak(ph(lang,"breathe")); }}
+                style={{width:"100%",padding:"15px",background:breathActive?`${GOLD}10`:`linear-gradient(135deg,${GOLD}20,${GOLD}08)`,color:GOLD,border:`1px solid ${GOLD}35`,fontSize:12,fontWeight:700,fontFamily:"'Cormorant Garamond',serif",letterSpacing:".1em",textTransform:"uppercase",cursor:"pointer"}}>
                 {breathActive?"⏹  Stop Breathing Guide":"▶  Start 4-7-8 Guide"}
               </button>
             </div>
-            {[
-              {n:"4",phase:"Inhale",action:"Slow nasal inhale, expanding belly",science:"Activates diaphragm, signals safety to nervous system"},
-              {n:"7",phase:"Hold",  action:"Retain breath, relax face and jaw",science:"CO₂ buildup triggers parasympathetic response, releases muscle tension"},
-              {n:"8",phase:"Exhale",action:"Slow mouth exhale, twice as long",science:"Longer exhale than inhale = HRV increase, cortisol drop, sleep onset"},
-            ].map((s,i)=>(
-              <div key={i} style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px",display:"flex",gap:14,alignItems:"flex-start"}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:700,color:GOLD,lineHeight:1,flexShrink:0,width:32,textAlign:"center"}}>{s.n}</div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:TEXTM,letterSpacing:".1em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>{s.phase}</div>
-                  <div style={{fontSize:8,color:`${GOLD}70`,letterSpacing:".06em",lineHeight:1.7,fontFamily:"'Space Mono',monospace",marginBottom:4}}>{s.action}</div>
-                  <div style={{fontSize:7,color:TEXTMU,letterSpacing:".05em",lineHeight:1.7,fontFamily:"'Space Mono',monospace"}}>{s.science}</div>
-                </div>
-              </div>
-            ))}
           </div>
         )}
 
@@ -1313,57 +1928,115 @@ export default function SleepGold() {
         {tab==="log"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:7,letterSpacing:".2em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Sleep Journal · {sleepLog.length} Entries</div>
+              <div style={{fontSize:7,letterSpacing:".2em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Sleep Journal · {mainLogs.length} Entries</div>
               <button className="sg-btn" onClick={()=>setShowLog(true)}
-                style={{background:`${GOLD}15`,color:GOLD,border:`1px solid ${GOLD}35`,fontSize:8,fontWeight:700,
-                  fontFamily:"'Space Mono',monospace",letterSpacing:".1em",textTransform:"uppercase",padding:"9px 16px",cursor:"pointer"}}>
+                style={{background:`${GOLD}15`,color:GOLD,border:`1px solid ${GOLD}35`,fontSize:8,fontWeight:700,fontFamily:"'Space Mono',monospace",letterSpacing:".1em",textTransform:"uppercase",padding:"9px 16px",cursor:"pointer"}}>
                 + Log Sleep
               </button>
             </div>
-            {sleepLog.length>0&&(
-              <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"12px 14px",display:"flex",gap:16,alignItems:"center"}}>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:6,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:6}}>Quality Distribution</div>
-                  <div style={{display:"flex",gap:3,alignItems:"flex-end",height:30}}>
-                    {[1,2,3,4,5,6,7,8,9,10].map(q=>{
-                      const cnt=sleepLog.filter(l=>Math.round(l.quality)===q).length;
-                      const pct=sleepLog.length?cnt/sleepLog.length:0;
-                      return (
-                        <div key={q} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-                          <div style={{width:"100%",height:`${pct*100}%`,minHeight:pct>0?3:0,background:q>=8?"#34D399":q>=6?GOLD:q>=4?"#F59E0B":CRIMSON,borderRadius:"2px 2px 0 0"}}/>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:3}}>
-                    <span>1</span><span>5</span><span>10</span>
-                  </div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:700,color:GOLD,lineHeight:1}}>{avgQual}</div>
-                  <div style={{fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>avg quality</div>
-                </div>
-              </div>
-            )}
-            {sleepLog.map((log,i)=>{
-              const c=log.duration>=7?"#34D399":log.duration>=6?GOLD:CRIMSON;
-              const qc=log.quality>=7?"#34D399":log.quality>=5?GOLD:CRIMSON;
+            {mainLogs.map((log,i)=>{
+              const c=log.duration>=7?GREEN:log.duration>=6?GOLD:CRIMSON;
+              const qc=log.quality>=7?GREEN:log.quality>=5?GOLD:CRIMSON;
               return (
-                <div key={log.id} className="fu" style={{border:`1px solid ${c}12`,background:BG2,padding:"14px 16px",animationDelay:`${i*35}ms`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0,boxShadow:`0 0 8px ${c}50`}}/>
-                    <div>
-                      <div style={{fontSize:10,fontWeight:700,color:TEXTM,marginBottom:3,fontFamily:"'Space Mono',monospace"}}>{log.date}</div>
-                      <div style={{fontSize:7,letterSpacing:".06em",color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{log.notes||"No notes"}</div>
+                <div key={log.id} className="fu" style={{border:`1px solid ${c}12`,background:BG2,padding:"14px 16px",animationDelay:`${i*35}ms`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:log.hrv||log.rhr||log.spo2?8:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0,boxShadow:`0 0 8px ${c}50`}}/>
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:TEXTM,marginBottom:3,fontFamily:"'Space Mono',monospace"}}>{log.date}</div>
+                        <div style={{fontSize:7,letterSpacing:".06em",color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{log.notes||"No notes"}</div>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:c,lineHeight:1}}>{log.duration}h</div>
+                      <div style={{fontSize:7,letterSpacing:".12em",color:qc,textTransform:"uppercase",marginTop:2,fontFamily:"'Space Mono',monospace"}}>Q:{log.quality}/10</div>
                     </div>
                   </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:c,lineHeight:1}}>{log.duration}h</div>
-                    <div style={{fontSize:7,letterSpacing:".12em",color:qc,textTransform:"uppercase",marginTop:2,fontFamily:"'Space Mono',monospace"}}>Q:{log.quality}/10</div>
-                  </div>
+                  {(log.hrv||log.rhr||log.spo2)&&(
+                    <div style={{display:"flex",gap:8,paddingTop:8,borderTop:`1px solid ${BORDER}20`}}>
+                      {log.hrv&&<div style={{fontSize:7,color:`${GREEN}60`,fontFamily:"'Space Mono',monospace"}}>HRV: {log.hrv}ms</div>}
+                      {log.rhr&&<div style={{fontSize:7,color:`${GOLD}60`,fontFamily:"'Space Mono',monospace"}}>RHR: {log.rhr}bpm</div>}
+                      {log.spo2&&<div style={{fontSize:7,color:`${GOLD2}60`,fontFamily:"'Space Mono',monospace"}}>SpO₂: {log.spo2}%</div>}
+                    </div>
+                  )}
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ══════════ NAPS (NEW) ══════════ */}
+        {tab==="naps"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
+            <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div>
+                  <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Nap Tracker</div>
+                  <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>Separate from main sleep. {napLogs.length} naps logged.</div>
+                </div>
+                <button className="sg-btn" onClick={()=>setShowNapLog(true)}
+                  style={{background:`${GOLD}12`,color:GOLD,border:`1px solid ${GOLD}30`,fontSize:8,fontFamily:"'Space Mono',monospace",letterSpacing:".08em",padding:"9px 14px",cursor:"pointer"}}>
+                  + Log Nap
+                </button>
+              </div>
+
+              {/* Nap science */}
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:6,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:8}}>Nap Science · Optimal Timing</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {[
+                    {duration:"10–20 min",name:"Power Nap",col:GREEN,effect:"Alertness +34%, motor performance +16%. Avoids sleep inertia. NASA protocol."},
+                    {duration:"30 min",name:"Stage 2 Nap",col:GOLD,effect:"Memory consolidation. May cause brief grogginess on waking. Take before 3pm."},
+                    {duration:"60 min",name:"Slow Wave Nap",col:AMBER,effect:"Perceptual learning boost. Significant sleep inertia (15-30 min grogginess)."},
+                    {duration:"90 min",name:"Full Cycle Nap",col:CRIMSON,effect:"Complete sleep cycle. Emotional + motor memory. High circadian disruption risk."},
+                  ].map((n,i)=>(
+                    <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 10px",background:BG3,border:`1px solid ${n.col}12`}}>
+                      <div style={{width:60,flexShrink:0}}>
+                        <div style={{fontSize:8,fontWeight:700,color:n.col,fontFamily:"'Space Mono',monospace"}}>{n.duration}</div>
+                        <div style={{fontSize:6,color:`${n.col}60`,fontFamily:"'Space Mono',monospace",marginTop:2}}>{n.name}</div>
+                      </div>
+                      <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.6}}>{n.effect}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Circadian nap timing */}
+              <div style={{padding:"12px",background:BG3,border:`1px solid ${GOLD}10`,marginBottom:14}}>
+                <div style={{fontSize:6,letterSpacing:".14em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:6}}>Optimal Nap Window</div>
+                <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7}}>
+                  1:00–3:00 PM: Natural circadian dip. Body temperature drops. Ideal window for a 10-20 min nap. 
+                  <span style={{color:`${CRIMSON}70`}}> After 3pm: disrupts nighttime sleep by 30+ min.</span>
+                </div>
+              </div>
+
+              {/* Logged naps */}
+              {napLogs.length > 0 ? (
+                <>
+                  <div style={{fontSize:6,letterSpacing:".18em",color:`${GOLD}40`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:8}}>Logged Naps</div>
+                  {napLogs.map((log,i)=>{
+                    const c = log.duration<=0.4?GREEN:log.duration<=0.6?GOLD:log.duration<=1?AMBER:CRIMSON;
+                    const napType = log.duration<=0.35?"Power":log.duration<=0.5?"Stage 2":log.duration<=1.1?"Slow Wave":"Full Cycle";
+                    return (
+                      <div key={log.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:BG3,border:`1px solid ${c}12`,marginBottom:5}}>
+                        <div>
+                          <div style={{fontSize:8,color:TEXTM,fontFamily:"'Space Mono',monospace",fontWeight:700}}>{log.date}</div>
+                          <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:2}}>{log.notes||"No notes"}</div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:c}}>{log.duration}h</div>
+                          <div style={{fontSize:6,color:`${c}60`,fontFamily:"'Space Mono',monospace",letterSpacing:".08em"}}>{napType}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <div style={{padding:"20px",textAlign:"center",color:TEXTMU,fontSize:8,fontFamily:"'Space Mono',monospace",lineHeight:1.8}}>
+                  No naps logged yet. Use the button above to track today's nap.
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1371,21 +2044,14 @@ export default function SleepGold() {
         {tab==="habits"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
-              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:4}}>Sleep Hygiene Checklist · Tonight</div>
-              <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:14}}>
-                Each habit backed by published sleep science. Tap any to reveal the evidence.
-              </div>
-              {habits.map((h,i)=>{
+              <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:14}}>Sleep Hygiene Checklist · Tonight</div>
+              {habits.map((h)=>{
                 const sci=showHabitScience===h.id;
                 return (
                   <div key={h.id} style={{marginBottom:6}}>
                     <div onClick={()=>toggleHabit(h.id)}
-                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
-                        background:h.done?"#0e0b06":BG3,border:`1px solid ${h.done?GOLD+"20":BORDER+"20"}`,
-                        cursor:"pointer",transition:"all .16s"}}>
-                      <div style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${h.done?GOLD:TEXTD}`,
-                        background:h.done?GOLD:"transparent",display:"flex",alignItems:"center",justifyContent:"center",
-                        flexShrink:0,transition:"all .16s",boxShadow:h.done?`0 0 10px ${GOLD}35`:""}}>
+                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:h.done?"#0e0b06":BG3,border:`1px solid ${h.done?GOLD+"20":BORDER+"20"}`,cursor:"pointer",transition:"all .16s"}}>
+                      <div style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${h.done?GOLD:TEXTD}`,background:h.done?GOLD:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .16s",boxShadow:h.done?`0 0 10px ${GOLD}35`:""}}>
                         {h.done&&<span style={{fontSize:11,color:"#040200",fontWeight:700}}>✓</span>}
                       </div>
                       <div style={{flex:1}}>
@@ -1414,66 +2080,16 @@ export default function SleepGold() {
         )}
 
         <div style={{textAlign:"center",fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",paddingTop:8}}>
-          ManifiX SleepGold v2 · WHO {WHO.code} · SDG 3.4 · Stories · Stages · Wind-Down · 8 Tabs · 10 Tones
+          ManifiX SleepGold v3 · WHO {WHO.code} · SDG 3.4 · 12 Tabs · 10 Tones · 6 Stories · HRV · Recovery · AI Insights
         </div>
       </div>
 
-      {/* ══════════ MODAL: LOG ══════════ */}
-      {showLog&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-          onClick={()=>setShowLog(false)}>
-          <div className="fu" style={{background:"#0c0904",border:`1px solid ${GOLD}25`,padding:28,width:"100%",maxWidth:440,boxShadow:`0 0 60px ${GOLD}08`}}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:GOLD}}>Log Sleep Entry</div>
-              <button onClick={()=>setShowLog(false)} style={{background:"none",border:"none",color:TEXTMU,cursor:"pointer",fontSize:20,fontFamily:"inherit"}}>✕</button>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:16}}>
-              <div>
-                <div style={{fontSize:7,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:7}}>Duration (hours)</div>
-                <input type="number" step=".5" min="0" max="12" value={newEntry.duration}
-                  onChange={e=>setNewEntry(p=>({...p,duration:e.target.value}))}
-                  placeholder="e.g. 7.5"
-                  style={{width:"100%",background:"#070502",border:`1px solid ${BORDER}60`,color:GOLD,fontSize:16,fontFamily:"'Space Mono',monospace",padding:"12px 14px",outline:"none",letterSpacing:".08em"}}/>
-              </div>
-              <div>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
-                  <span style={{fontSize:7,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Quality</span>
-                  <span style={{fontSize:13,color:newEntry.quality>=7?"#34D399":newEntry.quality>=5?GOLD:CRIMSON,fontWeight:700,fontFamily:"'Cormorant Garamond',serif"}}>{newEntry.quality}/10</span>
-                </div>
-                <input type="range" min={1} max={10} value={newEntry.quality}
-                  onChange={e=>setNewEntry(p=>({...p,quality:parseInt(e.target.value)}))}
-                  style={{width:"100%",background:`linear-gradient(90deg,${GOLD} ${newEntry.quality*10}%,#1a1408 0%)`}}/>
-              </div>
-              <div>
-                <div style={{fontSize:7,letterSpacing:".18em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:7}}>Notes</div>
-                <textarea value={newEntry.notes} onChange={e=>setNewEntry(p=>({...p,notes:e.target.value}))}
-                  placeholder="Dreams, wake-ups, how rested you felt..."
-                  style={{width:"100%",background:"#070502",border:`1px solid ${BORDER}60`,color:`${GOLD}70`,fontSize:9,fontFamily:"'Space Mono',monospace",padding:"12px 14px",outline:"none",minHeight:70,lineHeight:1.7,resize:"none"}}/>
-              </div>
-              <div style={{display:"flex",gap:10,marginTop:4}}>
-                <button className="sg-btn" onClick={saveLog}
-                  style={{flex:1,padding:"15px",background:`${GOLD}18`,color:GOLD,border:`1px solid ${GOLD}40`,fontSize:11,fontWeight:700,fontFamily:"'Cormorant Garamond',serif",letterSpacing:".1em",textTransform:"uppercase",cursor:"pointer"}}>
-                  Save Entry
-                </button>
-                <button onClick={()=>setShowLog(false)}
-                  style={{flex:1,padding:"15px",background:"transparent",border:`1px solid ${BORDER}50`,color:TEXTMU,fontSize:9,fontFamily:"'Space Mono',monospace",letterSpacing:".08em",textTransform:"uppercase",cursor:"pointer"}}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ══ MODALS ══ */}
+      {showLog && <LogModal isNap={false} onClose={()=>setShowLog(false)}/>}
+      {showNapLog && <LogModal isNap={true} onClose={()=>setShowNapLog(false)}/>}
 
-      {/* ══════════ STORY READER ══════════ */}
       {activeStory&&(
-        <StoryReader
-          story={activeStory}
-          onClose={()=>setActiveStory(null)}
-          lang={lang}
-          speak={speak}
-        />
+        <StoryReader story={activeStory} onClose={()=>setActiveStory(null)} lang={lang} speak={speak}/>
       )}
     </div>
   );
