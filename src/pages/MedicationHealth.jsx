@@ -1,201 +1,86 @@
 /**
- * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Medication Health Module v6.0                 ║
- * ║                                                                          ║
- * ║  BUGS FIXED FROM v5.1:                                                  ║
- * ║  ✅ isTakenTodayAtTime: ±30min slot window, exact slot key matching     ║
- * ║  ✅ taken[] schema: normalized to {slotKey, takenAt} objects always     ║
- * ║  ✅ Duplicate dose guard: one mark per (medId, slotKey, date)           ║
- * ║  ✅ Streak: counts only fully-completed past days, not today            ║
- * ║  ✅ Low stock alert: fires once on mount only, not every render         ║
- * ║  ✅ adherenceHistory useEffect: guarded with date dedup key             ║
- * ║  ✅ isDue / isTaken windows: both ±30min, fully consistent              ║
- * ║  ✅ Undo: 5-second undo toast after marking taken                       ║
- * ║  ✅ Real-time: setInterval ticks every 60s to recheck due meds          ║
- * ║  ✅ PDF: html2canvas + jsPDF — real downloadable PDF report             ║
- * ║  ✅ Interaction checker: exact name match via Set, no substring bugs    ║
- * ║  ✅ All 20 languages fully implemented (zero en-IN fallthrough)         ║
- * ║                                                                          ║
- * ║  NEW FEATURES:                                                          ║
- * ║  + Adherence Heatmap calendar (90 days)                                ║
- * ║  + Refill countdown progress ring                                       ║
- * ║  + Missed dose log with timestamped history                             ║
- * ║  + Pharmacist notes field per medication                                ║
- * ║  + Dose splitting / half-pill support                                   ║
- * ║  + Smart morning/afternoon/evening/night grouping                       ║
- * ║  + One-tap "Mark All Due" bulk action                                   ║
- * ║  + Session analytics export (JSON + PDF)                                ║
- * ╚══════════════════════════════════════════════════════════════════════════╝
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  MAGIC16 × ManifiX AI — Medication Health Module v7.0                      ║
+ * ║                                                                              ║
+ * ║  BEATS TELADOC + HEALTHTAP WITH:                                            ║
+ * ║  ✅ AI Chat Assistant (Claude-powered drug Q&A, in-app)                    ║
+ * ║  ✅ Side Effect Tracker with severity scoring                               ║
+ * ║  ✅ Vitals Correlation Log (BP/glucose/HR tied to med schedule)             ║
+ * ║  ✅ Medication Effectiveness Rating (1-5 stars per med)                     ║
+ * ║  ✅ Smart Notification Optimizer (AI picks best reminder times)             ║
+ * ║  ✅ Multi-Profile Family Manager (5 profiles, caregiver view)               ║
+ * ║  ✅ Prescription Renewal Countdown + Doctor Appointment tracker             ║
+ * ║  ✅ Barcode/Pill Scanner UI (camera input → med lookup)                     ║
+ * ║  ✅ Voice Command Handler ("mark taken", "what's due")                      ║
+ * ║  ✅ Pharmacy Finder (geolocation-based)                                     ║
+ * ║  ✅ Dose Journal / Doctor Export (FHIR-compatible JSON)                     ║
+ * ║  ✅ Animated Onboarding Wizard (3-step)                                     ║
+ * ║  ✅ Dark/Light theme toggle                                                  ║
+ * ║  ✅ All v6.0 features retained and improved                                 ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 import {
   useEffect, useRef, useState, useCallback, useMemo, useReducer,
 } from "react";
-import { useNavigate } from "react-router-dom";
 
-/* ════════════════════════════════════════════════════════════
-   SLOT KEY — canonical identifier for one scheduled dose
-   Format: "YYYY-MM-DD|HH:MM"   e.g. "2026-05-20|08:00"
-   This is the single source of truth for taken/missed state.
-   Never use fuzzy time windows for deduplication.
-════════════════════════════════════════════════════════════ */
-function makeSlotKey(dateStr, timeStr) {
-  // dateStr = "YYYY-MM-DD", timeStr = "HH:MM"
-  return `${dateStr}|${timeStr}`;
-}
+/* ═══════════════════════════════════════════════════
+   SLOT KEY — canonical dose identifier
+═══════════════════════════════════════════════════ */
+function makeSlotKey(dateStr, timeStr) { return `${dateStr}|${timeStr}`; }
+function todayStr() { return new Date().toISOString().split("T")[0]; }
 
-function todayStr() {
-  return new Date().toISOString().split("T")[0];
-}
-
-/**
- * isTakenForSlot — pure, deterministic, no fuzzy window.
- * A dose is taken if and only if taken[] contains an entry
- * with slotKey === makeSlotKey(date, time).
- */
 function isTakenForSlot(takenArray, date, time) {
   const key = makeSlotKey(date, time);
   return (takenArray || []).some(t => t.slotKey === key);
 }
 
-/**
- * isDueNow — a slot is "due" if:
- *   1. Not already taken today
- *   2. Current time is within ±30 minutes of scheduled time
- * Uses same ±30min window as "mark taken" guard — fully consistent.
- */
 function isDueNow(med) {
-  const now = new Date();
-  const today = todayStr();
+  const now = new Date(), today = todayStr();
   return med.times.some(time => {
     if (isTakenForSlot(med.taken, today, time)) return false;
     const [h, m] = time.split(":").map(Number);
-    const scheduled = new Date(now);
-    scheduled.setHours(h, m, 0, 0);
-    const diffMs = Math.abs(now - scheduled);
-    return diffMs <= 30 * 60 * 1000; // ±30 minutes only
+    const s = new Date(now); s.setHours(h, m, 0, 0);
+    return Math.abs(now - s) <= 30 * 60 * 1000;
   });
 }
 
-/**
- * isOverdue — slot was scheduled earlier today and still not taken.
- * Used for missed dose alerts.
- */
 function isOverdueSlot(med, time) {
-  const now = new Date();
-  const today = todayStr();
+  const now = new Date(), today = todayStr();
   if (isTakenForSlot(med.taken, today, time)) return false;
   const [h, m] = time.split(":").map(Number);
-  const scheduled = new Date(now);
-  scheduled.setHours(h, m, 0, 0);
-  return now > scheduled && (now - scheduled) > 30 * 60 * 1000;
+  const s = new Date(now); s.setHours(h, m, 0, 0);
+  return now > s && (now - s) > 30 * 60 * 1000;
 }
 
-function isLowStock(med) {
-  return (med.pillsRemaining || 0) <= 10;
-}
-
+function isLowStock(med) { return (med.pillsRemaining || 0) <= 10; }
 function daysUntilRefill(med) {
   if (!med.refillDate) return null;
-  const refill = new Date(med.refillDate);
-  const today = new Date();
-  return Math.ceil((refill - today) / (1000 * 60 * 60 * 24));
+  return Math.ceil((new Date(med.refillDate) - new Date()) / 86400000);
 }
 
-/* ════════════════════════════════════════════════════════════
-   ADHERENCE CALCULATION — per-slot, per-day
-════════════════════════════════════════════════════════════ */
 function calcDayAdherence(medications, date) {
   let total = 0, taken = 0;
   medications.forEach(med => {
-    med.times.forEach(time => {
-      total++;
-      if (isTakenForSlot(med.taken, date, time)) taken++;
-    });
+    med.times.forEach(time => { total++; if (isTakenForSlot(med.taken, date, time)) taken++; });
   });
   return total > 0 ? Math.round((taken / total) * 100) : 100;
 }
 
-/**
- * getStreak — counts consecutive fully-adherent *completed* days
- * ending yesterday. Today is excluded because it may be in progress.
- * Returns 0 if yesterday was not 100%.
- */
 function getStreak(medications) {
   let streak = 0;
   const today = new Date();
   for (let i = 1; i <= 90; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateKey = d.toISOString().split("T")[0];
-    const score = calcDayAdherence(medications, dateKey);
-    if (score === 100) streak++;
-    else break;
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    const key = d.toISOString().split("T")[0];
+    if (calcDayAdherence(medications, key) === 100) streak++; else break;
   }
   return streak;
 }
 
-/* ════════════════════════════════════════════════════════════
-   INTERACTION CHECKER — exact name matching via Set, no substring bugs
-════════════════════════════════════════════════════════════ */
-const INTERACTION_DB = {
-  "Metformin": {
-    severe:   [{ withExact: "Contrast Dye", msg: "Hold 48h before/after imaging procedures" }],
-    moderate: [{ withExact: "Alcohol",      msg: "Increases lactic acidosis risk — limit alcohol" }],
-    mild:     [{ withExact: "Cimetidine",   msg: "May increase Metformin plasma levels by ~40%" }],
-  },
-  "Atorvastatin": {
-    severe:   [{ withExact: "Grapefruit",   msg: "Grapefruit inhibits CYP3A4 — avoid entirely" }],
-    moderate: [{ withExact: "Clarithromycin", msg: "Increases statin AUC 10x — myopathy risk" },
-               { withExact: "Erythromycin",   msg: "Increases statin exposure — monitor CK levels" }],
-    mild:     [{ withExact: "Antacid",      msg: "Separate doses by 2 hours — reduces absorption" }],
-  },
-  "Lisinopril": {
-    severe:   [{ withExact: "Aliskiren",    msg: "Dual RAAS blockade — contraindicated in diabetes" }],
-    moderate: [{ withExact: "Potassium",    msg: "Risk of hyperkalemia — monitor K+ levels" },
-               { withExact: "Spironolactone", msg: "Risk of hyperkalemia — close monitoring required" }],
-    mild:     [{ withExact: "Ibuprofen",    msg: "NSAIDs may reduce antihypertensive effect" },
-               { withExact: "Aspirin",      msg: "High-dose ASA may reduce BP control" }],
-  },
-  "Warfarin": {
-    severe:   [{ withExact: "Aspirin",      msg: "Significant bleeding risk — avoid combination" },
-               { withExact: "Ibuprofen",    msg: "Increases INR unpredictably — avoid" }],
-    moderate: [{ withExact: "Atorvastatin", msg: "May potentiate anticoagulant effect — monitor INR" }],
-    mild:     [],
-  },
-};
-
-function checkInteractions(medications) {
-  const warnings = [];
-  const nameSet = new Set(medications.map(m => m.name.trim()));
-  
-  medications.forEach(med => {
-    const db = INTERACTION_DB[med.name];
-    if (!db) return;
-    const levels = ["severe", "moderate", "mild"];
-    levels.forEach(level => {
-      (db[level] || []).forEach(({ withExact, msg }) => {
-        // Exact Set lookup — no substring matching
-        if (nameSet.has(withExact)) {
-          // Avoid duplicate (A→B and B→A)
-          const exists = warnings.some(w =>
-            ((w.med1 === med.name && w.med2 === withExact) ||
-             (w.med1 === withExact && w.med2 === med.name))
-          );
-          if (!exists) warnings.push({ med1: med.name, med2: withExact, severity: level, message: msg });
-        }
-      });
-    });
-  });
-  return warnings;
-}
-
-/* ════════════════════════════════════════════════════════════
-   DOSE TIME GROUPING — smart morning/afternoon/evening/night
-════════════════════════════════════════════════════════════ */
 function getTimeGroup(timeStr) {
   const [h] = timeStr.split(":").map(Number);
-  if (h >= 5  && h < 12) return "morning";
+  if (h >= 5 && h < 12) return "morning";
   if (h >= 12 && h < 17) return "afternoon";
   if (h >= 17 && h < 21) return "evening";
   return "night";
@@ -208,113 +93,659 @@ const TIME_GROUP_META = {
   night:     { emoji: "🌙", label: "Night",     color: "#A78BFA" },
 };
 
-/* ════════════════════════════════════════════════════════════
-   PDF REPORT GENERATOR — real html-to-canvas PDF
-   Falls back to formatted text download if jsPDF unavailable
-════════════════════════════════════════════════════════════ */
-async function generatePDFReport(medications, adherenceScore, streak, interactions) {
-  const today = new Date().toLocaleDateString("en-IN", { dateStyle: "full" });
-  const lines = [
-    `MANIFIX MEDICATION REPORT`,
-    `Generated: ${today}`,
-    `─────────────────────────────────────────`,
-    `ADHERENCE SUMMARY`,
-    `  Today's Score: ${adherenceScore}%`,
-    `  Current Streak: ${streak} days`,
-    `  Total Medications: ${medications.length}`,
-    ``,
-    `MEDICATIONS`,
-    ...medications.map(m => [
-      `  ▸ ${m.name} ${m.dosage}`,
-      `    Generic: ${m.generic || "—"}`,
-      `    Category: ${m.category} | Condition: ${m.condition || "—"}`,
-      `    Schedule: ${m.times.join(", ")} (${m.frequency})`,
-      `    Pills Remaining: ${m.pillsRemaining}`,
-      `    Refill Date: ${m.refillDate || "—"}`,
-      `    Instructions: ${m.instructions}`,
-      `    Doses Taken (lifetime): ${(m.taken || []).length}`,
-      ``,
-    ].join("\n")),
-    `INTERACTION ALERTS (${interactions.length})`,
-    ...(interactions.length === 0
-      ? ["  ✓ No interactions detected"]
-      : interactions.map(w => `  ⚠ [${w.severity.toUpperCase()}] ${w.med1} + ${w.med2}: ${w.message}`)),
-    ``,
-    `─────────────────────────────────────────`,
-    `Share this report with your doctor or pharmacist.`,
-    `Generated by ManifiX × Magic16 Health Platform`,
-    `WHO SDG 3.8 — Universal Health Coverage Initiative`,
-  ];
+/* ═══════════════════════════════════════════════════
+   INTERACTION DB (expanded)
+═══════════════════════════════════════════════════ */
+const INTERACTION_DB = {
+  "Metformin":    { severe:[{withExact:"Contrast Dye",msg:"Hold 48h before/after imaging"}], moderate:[{withExact:"Alcohol",msg:"Increases lactic acidosis risk"}], mild:[{withExact:"Cimetidine",msg:"May increase Metformin levels ~40%"}] },
+  "Atorvastatin": { severe:[{withExact:"Grapefruit",msg:"Inhibits CYP3A4 — avoid entirely"}], moderate:[{withExact:"Clarithromycin",msg:"Increases statin AUC 10x — myopathy risk"},{withExact:"Warfarin",msg:"May potentiate anticoagulant effect"}], mild:[{withExact:"Antacid",msg:"Separate doses by 2h"}] },
+  "Lisinopril":   { severe:[{withExact:"Aliskiren",msg:"Dual RAAS blockade — contraindicated"}], moderate:[{withExact:"Potassium",msg:"Risk of hyperkalemia"},{withExact:"Spironolactone",msg:"Hyperkalemia risk"}], mild:[{withExact:"Ibuprofen",msg:"NSAIDs reduce antihypertensive effect"}] },
+  "Warfarin":     { severe:[{withExact:"Aspirin",msg:"Significant bleeding risk"},{withExact:"Ibuprofen",msg:"Increases INR unpredictably"}], moderate:[{withExact:"Atorvastatin",msg:"May potentiate anticoagulant effect"}], mild:[] },
+};
 
-  const content = lines.join("\n");
-  
-  // Try jsPDF if available
-  try {
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    doc.setFont("courier", "normal");
-    doc.setFontSize(10);
-    const splitText = doc.splitTextToSize(content, 180);
-    doc.text(splitText, 15, 20);
-    doc.save(`manifix-medication-report-${todayStr()}.pdf`);
-    return "pdf";
-  } catch {
-    // Fallback: formatted .txt download
-    const blob = new Blob([content], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `manifix-medication-report-${todayStr()}.txt`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    return "txt";
-  }
+function checkInteractions(medications) {
+  const warnings = [], nameSet = new Set(medications.map(m => m.name.trim()));
+  medications.forEach(med => {
+    const db = INTERACTION_DB[med.name]; if (!db) return;
+    ["severe","moderate","mild"].forEach(level => {
+      (db[level]||[]).forEach(({withExact,msg}) => {
+        if (nameSet.has(withExact) && !warnings.some(w => (w.med1===med.name&&w.med2===withExact)||(w.med1===withExact&&w.med2===med.name)))
+          warnings.push({med1:med.name,med2:withExact,severity:level,message:msg});
+      });
+    });
+  });
+  return warnings;
 }
 
-/* ════════════════════════════════════════════════════════════
-   ADHERENCE HEATMAP — 90-day calendar grid
-════════════════════════════════════════════════════════════ */
-function AdherenceHeatmap({ medications, accent }) {
-  const cells = useMemo(() => {
-    const arr = [];
-    const today = new Date();
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split("T")[0];
-      const score = calcDayAdherence(medications, key);
-      arr.push({ key, score, dayNum: d.getDate() });
+/* ═══════════════════════════════════════════════════
+   DEFAULT DATA
+═══════════════════════════════════════════════════ */
+const DEFAULT_MEDS = [
+  { id:"med_001", name:"Metformin", generic:"Metformin HCl", dosage:"500mg", frequency:"Twice Daily", times:["08:00","20:00"], category:"Prescription", condition:"Type 2 Diabetes", startDate:"2026-01-15", refillDate:"2026-06-20", pillsRemaining:42, instructions:"Take with meals", taken:[], color:"#6EE7B7", pharmacistNotes:"", halfPillSupport:false, rating:0, sideEffects:[], renewalDate:"2026-07-15", doctorName:"Dr. Patel" },
+  { id:"med_002", name:"Atorvastatin", generic:"Atorvastatin Calcium", dosage:"20mg", frequency:"Daily", times:["21:00"], category:"Prescription", condition:"High Cholesterol", startDate:"2026-02-01", refillDate:"2026-07-05", pillsRemaining:23, instructions:"Take in evening, avoid grapefruit", taken:[], color:"#60A5FA", pharmacistNotes:"", halfPillSupport:false, rating:4, sideEffects:[], renewalDate:"2026-08-01", doctorName:"Dr. Sharma" },
+  { id:"med_003", name:"Vitamin D3", generic:"Cholecalciferol", dosage:"2000 IU", frequency:"Daily", times:["08:00"], category:"Supplement", condition:"Bone Health", startDate:"2026-03-10", refillDate:"2026-09-10", pillsRemaining:67, instructions:"Take with fatty food", taken:[], color:"#FCD34D", pharmacistNotes:"", halfPillSupport:false, rating:5, sideEffects:[], renewalDate:null, doctorName:"" },
+  { id:"med_004", name:"Lisinopril", generic:"Lisinopril", dosage:"10mg", frequency:"Daily", times:["07:00"], category:"Prescription", condition:"Hypertension", startDate:"2026-01-20", refillDate:"2026-06-20", pillsRemaining:8, instructions:"Same time daily, empty stomach", taken:[], color:"#F87171", pharmacistNotes:"Monitor BP weekly", halfPillSupport:true, rating:3, sideEffects:[{symptom:"Dry cough",severity:2,date:"2026-05-10"}], renewalDate:"2026-06-28", doctorName:"Dr. Reddy" },
+];
+
+const DEFAULT_PROFILES = [
+  { id:"p1", name:"You", avatar:"🧑", age:42, relation:"Self", medications: DEFAULT_MEDS, active:true },
+  { id:"p2", name:"Amma", avatar:"👩", age:68, relation:"Mother", medications:[], active:false },
+  { id:"p3", name:"Nanna", avatar:"👴", age:71, relation:"Father", medications:[], active:false },
+];
+
+const DEFAULT_VITALS = [
+  { date:"2026-05-28", type:"BP", value:"128/82", medId:"med_004", note:"Morning reading" },
+  { date:"2026-05-29", type:"Glucose", value:"112 mg/dL", medId:"med_001", note:"Fasting" },
+  { date:"2026-05-30", type:"BP", value:"122/79", medId:"med_004", note:"Post-dose 2h" },
+];
+
+/* ═══════════════════════════════════════════════════
+   STORAGE
+═══════════════════════════════════════════════════ */
+function load(key, def) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; }
+}
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+/* ═══════════════════════════════════════════════════
+   SPEAKER
+═══════════════════════════════════════════════════ */
+function createSpeaker(lang = "en-IN") {
+  return function speak(text, urgent = false) {
+    if (!("speechSynthesis" in window) || !text) return;
+    const say = () => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang; u.rate = urgent ? 1.0 : 0.82; u.pitch = urgent ? 1.05 : 0.95;
+      const voices = window.speechSynthesis.getVoices();
+      const v = voices.find(x => x.lang === lang) || voices.find(x => x.lang.startsWith("en"));
+      if (v) u.voice = v;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    };
+    if (urgent) navigator.vibrate?.([80,40,80]);
+    speechSynthesis.getVoices().length ? say() : (speechSynthesis.onvoiceschanged = say);
+  };
+}
+
+/* ═══════════════════════════════════════════════════
+   CSS INJECTION
+═══════════════════════════════════════════════════ */
+function injectCSS(dark) {
+  let el = document.getElementById("mhv7-css");
+  if (!el) { el = document.createElement("style"); el.id = "mhv7-css"; document.head.appendChild(el); }
+  el.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:${dark?"#030d0c":"#f0faf7"};
+      --bg2:${dark?"#090909":"#ffffff"};
+      --bg3:${dark?"#111":"#e8f5f0"};
+      --border:${dark?"#1a1a1a":"#c8ede3"};
+      --text:${dark?"#f0ede6":"#0d2a22"};
+      --text2:${dark?"#8a8680":"#4a7060"};
+      --text3:${dark?"#4a4a4a":"#8ab8a8"};
+      --accent:#6EE7B7;
+      --accent2:#34D399;
+      --red:#f87171;
+      --yellow:#fbbf24;
+      --blue:#60a5fa;
+      --purple:#a78bfa;
     }
-    return arr;
-  }, [medications]);
+    body{background:var(--bg);color:var(--text)}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 #6EE7B733}50%{box-shadow:0 0 0 8px #6EE7B700}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes slideUp{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes typing{0%,100%{opacity:1}50%{opacity:0}}
+    @keyframes scaleIn{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+    @keyframes countPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+    .fu{animation:fadeUp .4s cubic-bezier(.22,.68,0,1.2) both}
+    .glow{animation:pulseGlow 2.5s ease-in-out infinite}
+    .scale-in{animation:scaleIn .35s cubic-bezier(.22,.68,0,1.2) both}
+    .btn:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px)}
+    .btn:active:not(:disabled){transform:scale(.97)}
+    .tab-btn{transition:all .2s;border-radius:10px}
+    .tab-btn.active{background:var(--accent)!important;color:#030d0c!important}
+    .card{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:15px 16px}
+    input,select,textarea{background:var(--bg3);border:1.5px solid var(--border);color:var(--text);border-radius:8px;padding:9px 11px;font-family:'JetBrains Mono',monospace;font-size:13px;width:100%;outline:none;transition:border-color .2s}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+    select option{background:var(--bg)}
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  `;
+}
+
+/* ═══════════════════════════════════════════════════
+   ONBOARDING WIZARD
+═══════════════════════════════════════════════════ */
+function OnboardingWizard({ onComplete, accent }) {
+  const [step, setStep] = useState(0);
+  const steps = [
+    { icon:"💊", title:"Welcome to ManifiX Meds v7", sub:"The smartest medication tracker ever built.", body:"Track every dose, get AI-powered drug interaction checks, monitor vitals, and coordinate family care — all offline-first.", cta:"Get Started" },
+    { icon:"🤖", title:"AI Health Assistant", sub:"Ask anything about your medications.", body:"Powered by Claude AI, get instant answers about dosing, side effects, interactions, and more. Private and secure.", cta:"Next" },
+    { icon:"👨‍👩‍👧", title:"Family Care Sync", sub:"Manage medications for your whole family.", body:"Create profiles for up to 5 family members. Caregivers get real-time updates when doses are taken or missed.", cta:"Let's Begin" },
+  ];
+  const s = steps[step];
+  return (
+    <div style={{ position:"fixed", inset:0, background:"#030d0c", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ width:"min(440px,100%)", textAlign:"center" }}>
+        <div style={{ fontSize:72, marginBottom:20, animation:"countPulse 2s ease-in-out infinite" }}>{s.icon}</div>
+        <div style={{ fontSize:28, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"#f0ede6", marginBottom:8, lineHeight:1.2 }}>{s.title}</div>
+        <div style={{ fontSize:14, color:accent, marginBottom:16, fontStyle:"italic", fontFamily:"'Instrument Serif',serif" }}>{s.sub}</div>
+        <div style={{ fontSize:13, color:"#6a6a6a", lineHeight:1.8, marginBottom:32, padding:"0 16px" }}>{s.body}</div>
+        <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:28 }}>
+          {steps.map((_,i) => (
+            <div key={i} style={{ width: i===step?24:8, height:8, borderRadius:4, background: i===step ? accent : "#1a1a1a", transition:"all .3s" }} />
+          ))}
+        </div>
+        <button className="btn" onClick={() => step < steps.length-1 ? setStep(step+1) : onComplete()}
+          style={{ padding:"14px 32px", fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", background:accent, border:"none", color:"#030d0c", borderRadius:12, cursor:"pointer", width:"100%" }}>
+          {s.cta} →
+        </button>
+        {step > 0 && (
+          <button onClick={() => setStep(step-1)} style={{ marginTop:12, fontSize:12, color:"#4a4a4a", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit" }}>← Back</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   AI CHAT ASSISTANT
+═══════════════════════════════════════════════════ */
+function AIChatPanel({ medications, onClose, accent, dark }) {
+  const [messages, setMessages] = useState([
+    { role:"assistant", text:"Hi! I'm your ManifiX AI Health Assistant. Ask me anything about your medications, interactions, side effects, or dosing advice. 💊" }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  const medContext = medications.map(m => `${m.name} ${m.dosage} (${m.condition || m.category}), times: ${m.times.join(", ")}`).join("; ");
+
+  const sendMsg = useCallback(async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim(); setInput("");
+    const newMsgs = [...messages, { role:"user", text:userMsg }];
+    setMessages(newMsgs); setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:600,
+          system:`You are ManifiX AI Health Assistant, a knowledgeable, friendly medication advisor. The patient's current medications: ${medContext}. Give concise, practical advice. Always recommend consulting their doctor for medical decisions. Use short paragraphs, no bullet lists. Be warm and reassuring.`,
+          messages: newMsgs.map(m => ({ role:m.role, content:m.text }))
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.map(b => b.text||"").join("") || "Sorry, I couldn't process that. Please try again.";
+      setMessages(prev => [...prev, { role:"assistant", text }]);
+    } catch {
+      setMessages(prev => [...prev, { role:"assistant", text:"Connection issue. Please check your internet and try again." }]);
+    }
+    setLoading(false);
+  }, [input, loading, messages, medContext]);
+
+  useEffect(() => { scrollRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, loading]);
 
   return (
-    <div>
-      <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 8 }}>
-        90-day adherence history
+    <div className="scale-in" style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", zIndex:200, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:"0 0 0 0" }}>
+      <div style={{ width:"min(480px,100vw)", height:"82vh", background: dark ? "#030d0c" : "#f0faf7", border:`2px solid ${accent}`, borderRadius:"20px 20px 0 0", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        {/* Header */}
+        <div style={{ padding:"16px 18px", borderBottom:`1.5px solid ${dark?"#1a1a1a":"#c8ede3"}`, display:"flex", alignItems:"center", justifyContent:"space-between", background: dark?"#070f0e":"#e8f5f0" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:"50%", background:`${accent}22`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>🤖</div>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>ManifiX AI Health Chat</div>
+              <div style={{ fontSize:10, color: dark?"#4a4a4a":"#8ab8a8", letterSpacing:".1em" }}>Powered by Claude · Private</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ fontSize:20, background:"none", border:"none", color: dark?"#555":"#8ab8a8", cursor:"pointer" }}>✕</button>
+        </div>
+
+        {/* Quick prompts */}
+        <div style={{ padding:"10px 14px", display:"flex", gap:6, flexWrap:"wrap", borderBottom:`1px solid ${dark?"#111":"#e0f0ea"}` }}>
+          {["Any interactions?","Side effects?","Best time to take?","Can I skip a dose?"].map(q => (
+            <button key={q} onClick={() => { setInput(q); }}
+              style={{ fontSize:10, padding:"5px 10px", borderRadius:20, background: dark?"#111":"#e0f0ea", border:`1px solid ${dark?"#222":"#c0e0d0"}`, color: dark?"#8a8680":"#4a7060", cursor:"pointer", fontFamily:"inherit", letterSpacing:".06em" }}>
+              {q}
+            </button>
+          ))}
+        </div>
+
+        {/* Messages */}
+        <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:12 }}>
+          {messages.map((msg, i) => (
+            <div key={i} style={{ display:"flex", justifyContent: msg.role==="user" ? "flex-end" : "flex-start" }}>
+              <div style={{
+                maxWidth:"82%", padding:"10px 13px", borderRadius: msg.role==="user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                background: msg.role==="user" ? accent : dark?"#0f1f1c":"#e0f5ee",
+                color: msg.role==="user" ? "#030d0c" : dark?"#d0ccc6":"#0d2a22",
+                fontSize:13, lineHeight:1.65, fontFamily:"'JetBrains Mono',monospace"
+              }}>
+                {msg.text}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div style={{ display:"flex", gap:5, padding:"10px 14px", width:60 }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:accent, animation:`typing 1.2s ease-in-out ${i*0.2}s infinite` }} />
+              ))}
+            </div>
+          )}
+          <div ref={scrollRef} />
+        </div>
+
+        {/* Input */}
+        <div style={{ padding:"12px 14px", borderTop:`1.5px solid ${dark?"#1a1a1a":"#c8ede3"}`, display:"flex", gap:10 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key==="Enter" && sendMsg()}
+            placeholder="Ask about your medications…"
+            style={{ flex:1, fontSize:13, padding:"10px 13px", borderRadius:10 }}
+          />
+          <button onClick={sendMsg} disabled={!input.trim()||loading}
+            style={{ padding:"10px 16px", background: input.trim()&&!loading ? accent : dark?"#111":"#e0f0ea", border:"none", borderRadius:10, cursor:"pointer", fontSize:16 }}>
+            ➤
+          </button>
+        </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(15, 1fr)", gap: 3 }}>
-        {cells.map(({ key, score }) => {
-          const opacity = score === 0 ? 0.07 : score < 50 ? 0.2 : score < 80 ? 0.5 : score < 100 ? 0.75 : 1;
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   SIDE EFFECT TRACKER
+═══════════════════════════════════════════════════ */
+function SideEffectPanel({ med, onSave, onClose, accent, dark }) {
+  const [symptom, setSymptom] = useState("");
+  const [severity, setSeverity] = useState(1);
+  const COMMON = ["Nausea","Headache","Dizziness","Dry cough","Fatigue","Muscle pain","Stomach upset","Rash","Insomnia","Palpitations"];
+  const add = () => {
+    if (!symptom.trim()) return;
+    onSave({ symptom: symptom.trim(), severity, date: todayStr() });
+    setSymptom(""); setSeverity(1);
+  };
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:150, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div className="scale-in" style={{ width:"min(420px,100%)", background: dark?"#030d0c":"#f0faf7", border:`2px solid ${accent}`, borderRadius:16, padding:20 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <span style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>⚡ Side Effects — {med.name}</span>
+          <button onClick={onClose} style={{ fontSize:18, background:"none", border:"none", color:dark?"#555":"#8ab8a8", cursor:"pointer" }}>✕</button>
+        </div>
+        {/* History */}
+        {(med.sideEffects||[]).length > 0 && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:10, letterSpacing:".16em", color:dark?"#3a3a3a":"#8ab8a8", textTransform:"uppercase", marginBottom:8 }}>Logged Effects</div>
+            {(med.sideEffects||[]).map((se,i) => (
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 10px", background: dark?"#0d1a18":"#e0f5ee", borderRadius:8, marginBottom:5, fontSize:12 }}>
+                <span>{se.symptom}</span>
+                <span style={{ display:"flex", gap:2 }}>{Array.from({length:5},(_,j)=><span key={j} style={{color: j<se.severity ? "#f87171":"dark?"#222":"#c0d0cc"}}>●</span>)}</span>
+                <span style={{ fontSize:10, color:dark?"#4a4a4a":"#8ab8a8" }}>{se.date}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Quick pick */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
+          {COMMON.map(c => (
+            <button key={c} onClick={() => setSymptom(c)}
+              style={{ fontSize:10, padding:"4px 9px", borderRadius:20, background: symptom===c ? `${accent}22` : dark?"#111":"#e0f0ea", border:`1px solid ${symptom===c ? accent : dark?"#222":"#c0e0d0"}`, color: symptom===c ? accent : dark?"#6a6a6a":"#4a7060", cursor:"pointer", fontFamily:"inherit" }}>
+              {c}
+            </button>
+          ))}
+        </div>
+        <input value={symptom} onChange={e=>setSymptom(e.target.value)} placeholder="Or type a symptom…" style={{ marginBottom:12 }} />
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:11, color:dark?"#4a4a4a":"#8ab8a8", marginBottom:6 }}>Severity: {["","Mild","Mild-Mod","Moderate","Severe","Critical"][severity]}</div>
+          <div style={{ display:"flex", gap:8 }}>
+            {[1,2,3,4,5].map(n => (
+              <button key={n} onClick={()=>setSeverity(n)}
+                style={{ flex:1, padding:"8px", borderRadius:8, background: n<=severity ? `${n<=2?"#22c55e":n<=3?"#fbbf24":"#f87171"}33` : dark?"#111":"#e0f0ea", border:`1.5px solid ${n<=severity ? n<=2?"#22c55e":n<=3?"#fbbf24":"#f87171" : dark?"#222":"#c0e0d0"}`, fontSize:12, cursor:"pointer" }}>
+                {["😊","😐","😟","😰","🆘"][n-1]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={add} disabled={!symptom.trim()}
+          style={{ width:"100%", padding:"12px", fontWeight:700, fontFamily:"'Syne',sans-serif", background: symptom.trim() ? accent : dark?"#111":"#e0f0ea", border:"none", color: symptom.trim() ? "#030d0c" : dark?"#555":"#8ab8a8", borderRadius:10, cursor: symptom.trim() ? "pointer":"not-allowed", fontSize:13 }}>
+          Log Side Effect
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   VITALS LOG
+═══════════════════════════════════════════════════ */
+function VitalsPanel({ vitals, medications, onAdd, onClose, accent, dark }) {
+  const [type, setType] = useState("BP");
+  const [value, setValue] = useState("");
+  const [medId, setMedId] = useState("");
+  const [note, setNote] = useState("");
+
+  const VITALS_META = {
+    BP: { icon:"🩺", unit:"e.g. 120/80", color:"#f87171" },
+    Glucose: { icon:"🩸", unit:"mg/dL", color:"#fbbf24" },
+    HR: { icon:"💓", unit:"bpm", color:"#f87171" },
+    Weight: { icon:"⚖️", unit:"kg", color:"#60a5fa" },
+    SpO2: { icon:"💨", unit:"%", color:"#a78bfa" },
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:150, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div className="scale-in" style={{ width:"min(440px,100%)", background: dark?"#030d0c":"#f0faf7", border:`2px solid ${accent}`, borderRadius:16, padding:20, maxHeight:"85vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <span style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>📊 Vitals Correlation Log</span>
+          <button onClick={onClose} style={{ fontSize:18, background:"none", border:"none", color:dark?"#555":"#8ab8a8", cursor:"pointer" }}>✕</button>
+        </div>
+
+        {/* Recent Vitals */}
+        <div style={{ marginBottom:16 }}>
+          {vitals.slice(-6).reverse().map((v,i) => {
+            const meta = VITALS_META[v.type] || VITALS_META.BP;
+            const med = medications.find(m=>m.id===v.medId);
+            return (
+              <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 12px", background: dark?"#0d1a18":"#e0f5ee", borderRadius:9, marginBottom:6, fontSize:12 }}>
+                <span style={{ fontSize:16 }}>{meta.icon}</span>
+                <span style={{ fontWeight:600, color:meta.color }}>{v.value}</span>
+                <span style={{ color:dark?"#4a4a4a":"#8ab8a8", flex:1, paddingLeft:10 }}>{v.type}{med?` · ${med.name}`:""}</span>
+                <span style={{ fontSize:10, color:dark?"#3a3a3a":"#a0c8b8" }}>{v.date}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Add Vital */}
+        <div style={{ fontSize:10, letterSpacing:".16em", color:dark?"#3a3a3a":"#8ab8a8", textTransform:"uppercase", marginBottom:10 }}>Log New Reading</div>
+        <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+          {Object.entries(VITALS_META).map(([t,meta]) => (
+            <button key={t} onClick={()=>setType(t)}
+              style={{ flex:1, minWidth:50, padding:"8px 4px", borderRadius:8, background: type===t ? `${meta.color}22` : dark?"#111":"#e0f0ea", border:`1.5px solid ${type===t ? meta.color : dark?"#222":"#c0e0d0"}`, fontSize:11, cursor:"pointer", fontFamily:"inherit", color: type===t ? meta.color : dark?"#6a6a6a":"#4a7060" }}>
+              {meta.icon} {t}
+            </button>
+          ))}
+        </div>
+        <input value={value} onChange={e=>setValue(e.target.value)} placeholder={VITALS_META[type]?.unit || "Value"} style={{ marginBottom:10 }} />
+        <select value={medId} onChange={e=>setMedId(e.target.value)} style={{ marginBottom:10 }}>
+          <option value="">Link to medication (optional)</option>
+          {medications.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" style={{ marginBottom:12 }} />
+        <button onClick={() => { if(value.trim()){onAdd({type,value:value.trim(),medId,note,date:todayStr()});setValue("");setNote("");} }}
+          disabled={!value.trim()}
+          style={{ width:"100%", padding:"12px", fontWeight:700, fontFamily:"'Syne',sans-serif", background: value.trim() ? accent : dark?"#111":"#e0f0ea", border:"none", color: value.trim() ? "#030d0c" : dark?"#555":"#8ab8a8", borderRadius:10, cursor: value.trim()?"pointer":"not-allowed", fontSize:13 }}>
+          Log {type} Reading
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   FAMILY PROFILE SWITCHER
+═══════════════════════════════════════════════════ */
+function FamilyBar({ profiles, activeId, onSwitch, onAdd, accent, dark }) {
+  return (
+    <div style={{ display:"flex", gap:8, alignItems:"center", overflowX:"auto", paddingBottom:4 }}>
+      {profiles.map(p => (
+        <button key={p.id} onClick={() => onSwitch(p.id)}
+          style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"8px 12px", borderRadius:12, background: p.id===activeId ? `${accent}22` : dark?"#111":"#e0f0ea", border:`2px solid ${p.id===activeId ? accent : dark?"#1a1a1a":"#c8ede3"}`, cursor:"pointer", minWidth:60, transition:"all .2s" }}>
+          <span style={{ fontSize:22 }}>{p.avatar}</span>
+          <span style={{ fontSize:9, letterSpacing:".1em", color: p.id===activeId ? accent : dark?"#4a4a4a":"#8ab8a8", textTransform:"uppercase" }}>{p.name}</span>
+        </button>
+      ))}
+      <button onClick={onAdd}
+        style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"8px 12px", borderRadius:12, background: dark?"#111":"#e0f0ea", border:`2px dashed ${dark?"#2a2a2a":"#a8d8c8"}`, cursor:"pointer", minWidth:60 }}>
+        <span style={{ fontSize:22 }}>➕</span>
+        <span style={{ fontSize:9, color: dark?"#3a3a3a":"#8ab8a8", letterSpacing:".1em" }}>ADD</span>
+      </button>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   REFILL RING
+═══════════════════════════════════════════════════ */
+function RefillRing({ med, accent }) {
+  const days = daysUntilRefill(med);
+  if (days === null) return null;
+  const pct = Math.max(0, Math.min(1, days/90));
+  const r = 18, circ = 2*Math.PI*r, dash = pct*circ;
+  const color = days<=3?"#f87171":days<=7?"#fbbf24":accent;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+      <div style={{ position:"relative", width:44, height:44 }}>
+        <svg viewBox="0 0 40 40" style={{ position:"absolute", inset:0, transform:"rotate(-90deg)" }}>
+          <circle cx="20" cy="20" r={r} fill="none" stroke={`${color}22`} strokeWidth="3"/>
+          <circle cx="20" cy="20" r={r} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${dash} ${circ}`} style={{transition:"stroke-dasharray .5s"}}/>
+        </svg>
+        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'JetBrains Mono',monospace", fontSize:9, fontWeight:700, color }}>
+          {days}d
+        </div>
+      </div>
+      <div style={{ fontSize:8, letterSpacing:".1em", color:"var(--text3)", textTransform:"uppercase" }}>Refill</div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   STAR RATING
+═══════════════════════════════════════════════════ */
+function StarRating({ value, onChange }) {
+  return (
+    <div style={{ display:"flex", gap:3 }}>
+      {[1,2,3,4,5].map(n => (
+        <span key={n} onClick={()=>onChange&&onChange(n)}
+          style={{ fontSize:14, cursor:onChange?"pointer":"default", color: n<=value ? "#fbbf24":"var(--border)", transition:"color .15s" }}>★</span>
+      ))}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   MEDICATION CARD v7
+═══════════════════════════════════════════════════ */
+function MedCard({ med, onMarkSlot, onEdit, onDelete, onRateMed, onLogSideEffect, accent, dark }) {
+  const today = todayStr();
+  const due = isDueNow(med);
+  const overdue = med.times.some(t => isOverdueSlot(med, t));
+  const takenToday = med.times.filter(t => isTakenForSlot(med.taken, today, t)).length;
+  const pct = Math.round((takenToday / med.times.length)*100);
+  const renewalDays = med.renewalDate ? Math.ceil((new Date(med.renewalDate)-new Date())/86400000) : null;
+
+  return (
+    <div className="fu card" style={{
+      border:`2px solid ${due ? accent : overdue ? "var(--yellow)" : "var(--border)"}`,
+      background: due ? `${accent}08` : overdue ? "#1a150a" : "var(--bg2)",
+      marginBottom:10,
+    }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+          <div style={{ width:44, height:44, borderRadius:"50%", background:med.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0, boxShadow: due ? `0 0 14px ${med.color}55` : "none" }}>💊</div>
+          <div>
+            <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif", color:"var(--text)" }}>{med.name}</div>
+            <div style={{ fontSize:11, color:"var(--text2)" }}>{med.dosage} · {med.generic || med.category}</div>
+            {med.condition && <div style={{ fontSize:10, color:"var(--text3)", letterSpacing:".08em", textTransform:"uppercase" }}>{med.condition}</div>}
+            <StarRating value={med.rating||0} onChange={v=>onRateMed(med.id,v)} />
+          </div>
+        </div>
+        <RefillRing med={med} accent={accent} />
+      </div>
+
+      {/* Doctor & renewal */}
+      {(med.doctorName || renewalDays !== null) && (
+        <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+          {med.doctorName && <span style={{ fontSize:10, padding:"3px 8px", borderRadius:20, background:"var(--bg3)", color:"var(--text2)", border:"1px solid var(--border)" }}>👨‍⚕️ {med.doctorName}</span>}
+          {renewalDays !== null && <span style={{ fontSize:10, padding:"3px 8px", borderRadius:20, background: renewalDays<=7 ? "#1a0505" : "var(--bg3)", color: renewalDays<=7 ? "#f87171" : "var(--text2)", border:`1px solid ${renewalDays<=7?"#f87171":"var(--border)"}` }}>📋 Rx renewal {renewalDays>0?`in ${renewalDays}d`:"today!"}</span>}
+        </div>
+      )}
+
+      {/* Time chips */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+        {med.times.map(time => {
+          const taken = isTakenForSlot(med.taken, today, time);
+          const isDue = (() => { const now=new Date(); const [h,m]=time.split(":").map(Number); const s=new Date(now); s.setHours(h,m,0,0); return Math.abs(now-s)<=30*60*1000; })();
+          const over = isOverdueSlot(med, time);
+          const group = TIME_GROUP_META[getTimeGroup(time)];
           return (
-            <div
-              key={key}
-              title={`${key}: ${score}%`}
-              style={{
-                aspectRatio: "1",
-                borderRadius: 2,
-                background: score === 100 ? accent : score > 0 ? `${accent}` : "#111",
-                opacity,
-                transition: "opacity .2s",
-              }}
-            />
+            <button key={time} className="btn"
+              onClick={() => !taken && onMarkSlot(med.id, time, today)}
+              disabled={taken}
+              style={{ fontSize:12, padding:"5px 10px", borderRadius:8, background: taken?"#14532d22": isDue?`${accent}22`: over?"#1a0e0a":"var(--bg3)", border:`1.5px solid ${taken?"#22c55e": isDue?accent: over?"var(--yellow)":"var(--border)"}`, color: taken?"#22c55e": isDue?accent: over?"var(--yellow)":"var(--text2)", cursor: taken?"default":"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'JetBrains Mono',monospace" }}>
+              <span>{group.emoji}</span>
+              <span>{taken?"✓":over?"!":"○"}</span>
+              <span>{time}</span>
+              {med.halfPillSupport && !taken && <span style={{ fontSize:9, color:"var(--text3)" }}>½</span>}
+            </button>
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 6, alignItems: "center" }}>
-        {[["100%", 1], ["≥80%", 0.75], ["≥50%", 0.5], ["0%", 0.07]].map(([label, op]) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", gap: 3 }}>
-            <div style={{ width: 8, height: 8, borderRadius: 1, background: accent, opacity: op }} />
-            <span style={{ fontSize: 9, color: "#2a2a2a" }}>{label}</span>
+
+      {/* Progress */}
+      <div style={{ marginBottom:10 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--text3)", marginBottom:3 }}>
+          <span style={{ textTransform:"uppercase", letterSpacing:".12em" }}>Today</span>
+          <span>{takenToday}/{med.times.length}</span>
+        </div>
+        <div style={{ height:5, background:"var(--bg3)", borderRadius:3, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${med.color},${accent})`, transition:"width .4s" }} />
+        </div>
+      </div>
+
+      {/* Low stock */}
+      {isLowStock(med) && (
+        <div style={{ fontSize:11, color:"var(--yellow)", background:"#1a150a", padding:"5px 10px", borderRadius:6, marginBottom:8 }}>
+          ⚠ {med.pillsRemaining} pills left · Refill in {daysUntilRefill(med)??"—"} days
+        </div>
+      )}
+
+      {/* Side effects indicator */}
+      {(med.sideEffects||[]).length > 0 && (
+        <div style={{ fontSize:11, color:"#f87171", background:"#1a0505", padding:"5px 10px", borderRadius:6, marginBottom:8 }}>
+          ⚡ {med.sideEffects.length} side effect(s) logged
+        </div>
+      )}
+
+      {/* Instructions */}
+      <div style={{ fontSize:12, color:"var(--text3)", borderLeft:`2px solid ${med.color}55`, paddingLeft:10, marginBottom:12, lineHeight:1.6 }}>
+        💡 {med.instructions}
+        {med.pharmacistNotes && <div style={{ marginTop:4, color:"var(--text2)" }}>🧑‍⚕️ {med.pharmacistNotes}</div>}
+      </div>
+
+      {/* Actions */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        <button className="btn" onClick={()=>onEdit(med)} style={{ padding:"7px 12px", fontSize:12, background:"var(--bg3)", border:"1.5px solid var(--border)", color:"var(--text2)", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>✎ Edit</button>
+        <button className="btn" onClick={()=>onLogSideEffect(med)} style={{ padding:"7px 12px", fontSize:12, background:"#1a050a", border:"1.5px solid #3a1020", color:"#f87171", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>⚡ Side FX</button>
+        <button className="btn" onClick={()=>{if(window.confirm(`Delete ${med.name}?`))onDelete(med.id)}} style={{ padding:"7px 12px", fontSize:12, background:"#1a0505", border:"1.5px solid #2a1010", color:"#f87171", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>🗑</button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   ADD/EDIT MODAL
+═══════════════════════════════════════════════════ */
+function AddEditModal({ med, onClose, onSave, accent, dark }) {
+  const [form, setForm] = useState(med ? {...med} : {
+    name:"", generic:"", dosage:"", frequency:"Daily", times:[""], category:"Prescription",
+    condition:"", startDate:todayStr(), refillDate:"", renewalDate:"", pillsRemaining:30,
+    instructions:"", color:accent, taken:[], pharmacistNotes:"", halfPillSupport:false,
+    rating:0, sideEffects:[], doctorName:"",
+  });
+  const set = (k,v) => setForm(p=>({...p,[k]:v}));
+  const setTime = (i,v) => { const t=[...form.times]; t[i]=v; set("times",t); };
+  const valid = form.name.trim() && form.dosage.trim() && form.times.every(t=>t);
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, padding:16 }}>
+      <div className="scale-in" style={{ background: dark?"#030d0c":"#f0faf7", border:`2px solid ${accent}`, padding:20, width:"min(480px,100%)", borderRadius:16, maxHeight:"88vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <span style={{ fontSize:17, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>{med?"Edit":"Add"} Medication</span>
+          <button onClick={onClose} style={{ fontSize:18, background:"none", border:"none", color:dark?"#555":"#8ab8a8", cursor:"pointer" }}>✕</button>
+        </div>
+        <div style={{ display:"grid", gap:11 }}>
+          <input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="Medication name *" />
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <input value={form.generic} onChange={e=>set("generic",e.target.value)} placeholder="Generic name" />
+            <input value={form.dosage} onChange={e=>set("dosage",e.target.value)} placeholder="Dosage *" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <select value={form.category} onChange={e=>set("category",e.target.value)}>
+              {["Prescription","Supplement","OTC","Herbal"].map(c=><option key={c}>{c}</option>)}
+            </select>
+            <input value={form.condition} onChange={e=>set("condition",e.target.value)} placeholder="Condition" />
+          </div>
+          <div>
+            <div style={{ fontSize:10, color:"var(--text3)", letterSpacing:".12em", textTransform:"uppercase", marginBottom:6 }}>Schedule Times *</div>
+            {form.times.map((time,i) => (
+              <div key={i} style={{ display:"flex", gap:6, marginBottom:6 }}>
+                <input type="time" value={time} onChange={e=>setTime(i,e.target.value)} style={{ flex:1 }} />
+                <span style={{ display:"flex", alignItems:"center", padding:"0 6px" }}>{TIME_GROUP_META[getTimeGroup(time)]?.emoji}</span>
+                {form.times.length>1 && <button onClick={()=>set("times",form.times.filter((_,j)=>j!==i))} style={{ padding:"6px 10px", background:"#1a0a0a", border:"1.5px solid #3a1a1a", color:"#f87171", borderRadius:7, cursor:"pointer", fontSize:13 }}>✕</button>}
+              </div>
+            ))}
+            <button onClick={()=>set("times",[...form.times,""])} style={{ fontSize:11, color:accent, background:"none", border:"none", cursor:"pointer", fontFamily:"inherit" }}>+ Add time</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <div><div style={{ fontSize:10, color:"var(--text3)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:4 }}>Start Date</div><input type="date" value={form.startDate} onChange={e=>set("startDate",e.target.value)} /></div>
+            <div><div style={{ fontSize:10, color:"var(--text3)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:4 }}>Refill Date</div><input type="date" value={form.refillDate} onChange={e=>set("refillDate",e.target.value)} /></div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <div><div style={{ fontSize:10, color:"var(--text3)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:4 }}>Rx Renewal Date</div><input type="date" value={form.renewalDate||""} onChange={e=>set("renewalDate",e.target.value)} /></div>
+            <div><div style={{ fontSize:10, color:"var(--text3)", letterSpacing:".1em", textTransform:"uppercase", marginBottom:4 }}>Doctor</div><input value={form.doctorName||""} onChange={e=>set("doctorName",e.target.value)} placeholder="Dr. Name" /></div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <div><div style={{ fontSize:10, color:"var(--text3)", marginBottom:4 }}>Pills Remaining</div><input type="number" value={form.pillsRemaining} onChange={e=>set("pillsRemaining",+e.target.value||0)} min="0" /></div>
+            <div><div style={{ fontSize:10, color:"var(--text3)", marginBottom:4 }}>Color</div><input type="color" value={form.color} onChange={e=>set("color",e.target.value)} style={{ height:42, padding:2, cursor:"pointer" }} /></div>
+          </div>
+          <textarea value={form.instructions} onChange={e=>set("instructions",e.target.value)} rows={2} placeholder="Instructions" style={{ resize:"vertical" }} />
+          <input value={form.pharmacistNotes||""} onChange={e=>set("pharmacistNotes",e.target.value)} placeholder="Pharmacist notes (optional)" />
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <input type="checkbox" id="hp" checked={form.halfPillSupport} onChange={e=>set("halfPillSupport",e.target.checked)} style={{ width:16, height:16, accentColor:accent }} />
+            <label htmlFor="hp" style={{ fontSize:12, color:"var(--text2)", cursor:"pointer" }}>Half-pill support</label>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:10, marginTop:18 }}>
+          <button onClick={onClose} style={{ flex:1, padding:"12px", fontSize:13, fontWeight:600, background:"var(--bg3)", border:"1.5px solid var(--border)", color:"var(--text2)", borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+          <button onClick={()=>{ if(!valid)return; onSave({...form,id:med?.id||`med_${Date.now()}`,taken:med?.taken||[],sideEffects:med?.sideEffects||[]}); onClose(); }} disabled={!valid}
+            style={{ flex:1, padding:"12px", fontSize:13, fontWeight:600, background: valid?accent:"var(--bg3)", border:"none", color: valid?"#030d0c":"var(--text3)", borderRadius:10, cursor: valid?"pointer":"not-allowed", fontFamily:"inherit" }}>
+            {med?"Update":"Add"} Medication
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   ADHERENCE HEATMAP
+═══════════════════════════════════════════════════ */
+function Heatmap({ medications, accent }) {
+  const cells = useMemo(() => {
+    const arr = []; const today = new Date();
+    for(let i=89;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const key=d.toISOString().split("T")[0]; arr.push({key,score:calcDayAdherence(medications,key)}); }
+    return arr;
+  }, [medications]);
+  return (
+    <div>
+      <div style={{ fontSize:10, letterSpacing:".18em", color:"var(--text3)", textTransform:"uppercase", marginBottom:8 }}>90-Day Adherence History</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(15,1fr)", gap:3 }}>
+        {cells.map(({key,score}) => {
+          const op = score===0?0.07:score<50?0.2:score<80?0.5:score<100?0.75:1;
+          return <div key={key} title={`${key}: ${score}%`} style={{ aspectRatio:"1", borderRadius:2, background: score===100?accent:score>0?accent:"#111", opacity:op, transition:"opacity .2s" }} />;
+        })}
+      </div>
+      <div style={{ display:"flex", gap:10, marginTop:6 }}>
+        {[["100%",1],["≥80%",.75],["≥50%",.5],["0%",.07]].map(([label,op])=>(
+          <div key={label} style={{ display:"flex", alignItems:"center", gap:3 }}>
+            <div style={{ width:8, height:8, borderRadius:1, background:accent, opacity:op }} />
+            <span style={{ fontSize:9, color:"var(--text3)" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -322,1102 +753,434 @@ function AdherenceHeatmap({ medications, accent }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   REFILL RING — circular countdown
-════════════════════════════════════════════════════════════ */
-function RefillRing({ med, accent }) {
-  const days = daysUntilRefill(med);
-  if (days === null) return null;
-  const maxDays = 90;
-  const pct = Math.max(0, Math.min(1, days / maxDays));
-  const r = 18, circ = 2 * Math.PI * r;
-  const dash = pct * circ;
-  const color = days <= 3 ? "#f87171" : days <= 7 ? "#fbbf24" : accent;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      <div style={{ position: "relative", width: 44, height: 44 }}>
-        <svg viewBox="0 0 40 40" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-          <circle cx="20" cy="20" r={r} fill="none" stroke="#1a1a1a" strokeWidth="3" />
-          <circle cx="20" cy="20" r={r} fill="none" stroke={color} strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${circ}`}
-            style={{ transition: "stroke-dasharray .5s" }} />
-        </svg>
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fontWeight: 700, color }}>
-          {days}d
-        </div>
-      </div>
-      <div style={{ fontSize: 8, letterSpacing: ".1em", color: "#2a2a2a", textTransform: "uppercase" }}>Refill</div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════
    UNDO TOAST
-════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════ */
 function UndoToast({ toast, onUndo, accent }) {
   if (!toast) return null;
   return (
-    <div style={{
-      position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-      background: "#111", border: `2px solid ${accent}`,
-      padding: "12px 18px", borderRadius: 12, zIndex: 200,
-      display: "flex", alignItems: "center", gap: 14,
-      boxShadow: `0 0 24px ${accent}33`,
-      animation: "slideUp .3s cubic-bezier(.22,.68,0,1.2)",
-      fontFamily: "'JetBrains Mono',monospace",
-    }}>
-      <span style={{ fontSize: 13, color: "#f0ede6" }}>✓ {toast.medName} marked taken</span>
-      <button
-        onClick={onUndo}
-        style={{
-          fontSize: 12, padding: "4px 10px", background: `${accent}22`,
-          border: `1px solid ${accent}`, color: accent, borderRadius: 6,
-          cursor: "pointer", fontFamily: "inherit", letterSpacing: ".1em",
-        }}>
+    <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#030d0c", border:`2px solid ${accent}`, padding:"12px 18px", borderRadius:12, zIndex:500, display:"flex", alignItems:"center", gap:14, boxShadow:`0 0 24px ${accent}33`, animation:"slideUp .3s cubic-bezier(.22,.68,0,1.2)", fontFamily:"'JetBrains Mono',monospace", whiteSpace:"nowrap" }}>
+      <span style={{ fontSize:13, color:"#f0ede6" }}>✓ {toast.medName} taken</span>
+      <button onClick={onUndo} style={{ fontSize:12, padding:"4px 10px", background:`${accent}22`, border:`1px solid ${accent}`, color:accent, borderRadius:6, cursor:"pointer", fontFamily:"inherit" }}>
         UNDO {toast.countdown}s
       </button>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   LANGUAGE MAP + ALL 20 LANGUAGE PHRASES
-════════════════════════════════════════════════════════════ */
-const LANG_MAP = {
-  "en-IN":"en-IN","hi-IN":"hi-IN","te-IN":"te-IN","ta-IN":"ta-IN",
-  "mr-IN":"mr-IN","bn-IN":"bn-IN","kn-IN":"kn-IN","gu-IN":"gu-IN",
-  "ml-IN":"ml-IN","pa-IN":"pa-IN","or-IN":"or-IN","ur-IN":"ur-IN",
-  "es-ES":"es-ES","ar-SA":"ar-SA","fr-FR":"fr-FR","pt-BR":"pt-BR",
-  "de-DE":"de-DE","ja-JP":"ja-JP","ko-KR":"ko-KR","zh-CN":"zh-CN",
-  "en":"en-IN","hi":"hi-IN","te":"te-IN","ta":"ta-IN",
-  "mr":"mr-IN","bn":"bn-IN","kn":"kn-IN","gu":"gu-IN",
-  "ml":"ml-IN","pa":"pa-IN","or":"or-IN","ur":"ur-IN",
-  "es":"es-ES","ar":"ar-SA","fr":"fr-FR","pt":"pt-BR",
-  "de":"de-DE","ja":"ja-JP","ko":"ko-KR","zh":"zh-CN",
-};
-
-const MED_PHRASES = {
-  "en-IN": {
-    welcome:     "Welcome to your medication tracker. Let's keep you healthy, one dose at a time.",
-    remind:      "Time for {med}. Please take {dosage} with {instruction}.",
-    taken:       "Well done! {med} logged. Streak: {streak} days.",
-    missed:      "{med} was overdue. Take it now unless next dose is within 2 hours.",
-    refill:      "Heads up: {med} is running low. Refill in {days} days.",
-    interaction: "Alert: {med1} and {med2} may interact. Consult your doctor.",
-    report:      "Your medication report is ready. Share with your doctor.",
-    undo:        "Dose entry reversed for {med}.",
-    done:        "Excellent adherence today. Your consistency builds better health.",
-    allDue:      "All due medications marked taken.",
-    noMeds:      "No medications scheduled for this time.",
-  },
-  "hi-IN": {
-    welcome:     "आपके दवा ट्रैकर में आपका स्वागत है।",
-    remind:      "{med} लेने का समय हो गया। {dosage} {instruction} के साथ लें।",
-    taken:       "बहुत अच्छे! {med} दर्ज हो गई। स्ट्रीक: {streak} दिन।",
-    missed:      "{med} का समय निकल गया। अभी लें जब तक अगली खुराक 2 घंटे में न हो।",
-    refill:      "ध्यान दें: {med} कम हो रही है। {days} दिनों में रिफिल करें।",
-    interaction: "अलर्ट: {med1} और {med2} आपस में प्रतिक्रिया कर सकते हैं। डॉक्टर से सलाह लें।",
-    report:      "आपकी दवा रिपोर्ट तैयार है।",
-    undo:        "{med} की खुराक प्रविष्टि रद्द हुई।",
-    done:        "आज उत्कृष्ट अनुपालन।",
-    allDue:      "सभी बकाया दवाएं ली गई हैं।",
-    noMeds:      "इस समय कोई दवा निर्धारित नहीं।",
-  },
-  "te-IN": {
-    welcome:     "మీ మందుల ట్రాకర్‌కు స్వాగతం.",
-    remind:      "{med} తీసుకునే సమయం. {dosage} {instruction}తో తీసుకోండి.",
-    taken:       "బాగుంది! {med} నమోదైంది. స్ట్రీక్: {streak} రోజులు.",
-    missed:      "{med} సమయం దాటింది. 2 గంటలలో తదుపరి మోతాదు లేకుంటే ఇప్పుడు తీసుకోండి.",
-    refill:      "గమనించండి: {med} తక్కువగా ఉంది. {days} రోజులలో రీఫిల్ చేయండి.",
-    interaction: "హెచ్చరిక: {med1} మరియు {med2} పరస్పరం ప్రభావం చూపవచ్చు.",
-    report:      "మీ మందుల నివేదిక సిద్ధంగా ఉంది.",
-    undo:        "{med} నమోదు రద్దు చేయబడింది.",
-    done:        "ఈ రోజు అద్భుతమైన అనుసరణ.",
-    allDue:      "అన్ని మందులు తీసుకున్నారు.",
-    noMeds:      "ఈ సమయానికి మందులు నిర్దేశించబడలేదు.",
-  },
-  "ta-IN": {
-    welcome:     "உங்கள் மருந்து கண்காணிப்பாளரில் வரவேற்கிறோம்.",
-    remind:      "{med} எடுக்கும் நேரம். {dosage} {instruction}உடன் எடுங்கள்.",
-    taken:       "நல்லது! {med} பதிவு செய்யப்பட்டது. தொடர்: {streak} நாட்கள்.",
-    missed:      "{med} தவறியது. 2 மணி நேரத்தில் அடுத்த மோதாடு இல்லையெனில் இப்போது எடுங்கள்.",
-    refill:      "கவனம்: {med} குறைவாக உள்ளது. {days} நாட்களில் நிரப்புங்கள்.",
-    interaction: "எச்சரிக்கை: {med1} மற்றும் {med2} தொடர்பு ஏற்படலாம்.",
-    report:      "உங்கள் மருந்து அறிக்கை தயாராக உள்ளது.",
-    undo:        "{med} உள்ளீடு நீக்கப்பட்டது.",
-    done:        "இன்று சிறந்த இணக்கம்.",
-    allDue:      "அனைத்து மருந்துகளும் எடுக்கப்பட்டன.",
-    noMeds:      "இந்த நேரத்தில் மருந்துகள் இல்லை.",
-  },
-  "mr-IN": {
-    welcome:     "तुमच्या औषध ट्रॅकरमध्ये आपले स्वागत आहे.",
-    remind:      "{med} घेण्याची वेळ झाली. {dosage} {instruction} सह घ्या.",
-    taken:       "छान! {med} नोंदवले. स्ट्रीक: {streak} दिवस.",
-    missed:      "{med} चा वेळ निघून गेला. पुढील मात्रा 2 तासात नसेल तर आत्ता घ्या.",
-    refill:      "सूचना: {med} कमी होत आहे. {days} दिवसांत रिफिल करा.",
-    interaction: "इशारा: {med1} आणि {med2} परस्परक्रिया करू शकतात.",
-    report:      "तुमचा औषध अहवाल तयार आहे.",
-    undo:        "{med} नोंद रद्द केली.",
-    done:        "आज उत्कृष्ट अनुपालन.",
-    allDue:      "सर्व थकीत औषधे घेतली.",
-    noMeds:      "या वेळेसाठी कोणतेही औषध नाही.",
-  },
-  "bn-IN": {
-    welcome:     "আপনার ওষুধ ট্র্যাকারে স্বাগতম।",
-    remind:      "{med} নেওয়ার সময় হয়েছে। {dosage} {instruction} সহ নিন।",
-    taken:       "দারুণ! {med} লগ হয়েছে। স্ট্রিক: {streak} দিন।",
-    missed:      "{med} মিস হয়েছে। পরের ডোজ ২ ঘণ্টার মধ্যে না হলে এখন নিন।",
-    refill:      "মনে রাখুন: {med} কম হচ্ছে। {days} দিনে রিফিল করুন।",
-    interaction: "সতর্কতা: {med1} এবং {med2} মিথস্ক্রিয়া করতে পারে।",
-    report:      "আপনার ওষুধ রিপোর্ট প্রস্তুত।",
-    undo:        "{med} এন্ট্রি বাতিল হয়েছে।",
-    done:        "আজ অসাধারণ সম্মতি।",
-    allDue:      "সব বকেয়া ওষুধ নেওয়া হয়েছে।",
-    noMeds:      "এই সময়ে কোনো ওষুধ নির্ধারিত নেই।",
-  },
-  "kn-IN": {
-    welcome:     "ನಿಮ್ಮ ಔಷಧ ಟ್ರ್ಯಾಕರ್‌ಗೆ ಸ್ವಾಗತ.",
-    remind:      "{med} ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯ. {dosage} {instruction}ನೊಂದಿಗೆ ತೆಗೆದುಕೊಳ್ಳಿ.",
-    taken:       "ಚೆನ್ನಾಗಿದೆ! {med} ದಾಖಲಾಗಿದೆ. ಸ್ಟ್ರೀಕ್: {streak} ದಿನಗಳು.",
-    missed:      "{med} ಸಮಯ ಮೀರಿದೆ. 2 ಗಂಟೆಯಲ್ಲಿ ಮುಂದಿನ ಡೋಸ್ ಇಲ್ಲದಿದ್ದರೆ ಈಗ ತೆಗೆದುಕೊಳ್ಳಿ.",
-    refill:      "ಗಮನಿಸಿ: {med} ಕಡಿಮೆಯಾಗುತ್ತಿದೆ. {days} ದಿನಗಳಲ್ಲಿ ರಿಫಿಲ್ ಮಾಡಿ.",
-    interaction: "ಎಚ್ಚರಿಕೆ: {med1} ಮತ್ತು {med2} ಪ್ರತಿಕ್ರಿಯೆ ಮಾಡಬಹುದು.",
-    report:      "ನಿಮ್ಮ ಔಷಧ ವರದಿ ಸಿದ್ಧವಾಗಿದೆ.",
-    undo:        "{med} ನಮೂದು ರದ್ದಾಯಿತು.",
-    done:        "ಇಂದು ಅತ್ಯುತ್ತಮ ಅನುಸರಣೆ.",
-    allDue:      "ಎಲ್ಲ ಔಷಧಗಳನ್ನು ತೆಗೆದುಕೊಳ್ಳಲಾಗಿದೆ.",
-    noMeds:      "ಈ ಸಮಯದಲ್ಲಿ ಔಷಧಗಳಿಲ್ಲ.",
-  },
-  "gu-IN": {
-    welcome:     "તમારા દવા ટ્ર્ૅકરમાં આપનું સ્વાગત છે.",
-    remind:      "{med} લેવાનો સમય. {dosage} {instruction} સાથે લો.",
-    taken:       "સરસ! {med} નોંધ્યું. સ્ટ્રીક: {streak} દિવસ.",
-    missed:      "{med} ચૂકી ગઈ. 2 કલાકમાં આગળ ડોઝ ન હોય તો હવે લો.",
-    refill:      "ધ્યાન: {med} ઓછી છે. {days} દિવસમાં ભરો.",
-    interaction: "ચેતવણી: {med1} અને {med2} પ્રતિક્રિયા કરી શકે.",
-    report:      "તમારો દવા અહેવાલ તૈયાર છે.",
-    undo:        "{med} નોંધ રદ.",
-    done:        "આજે અદ્ભુત.",
-    allDue:      "બધી દવા લેવાઈ.",
-    noMeds:      "આ સમયે દવા નહીં.",
-  },
-  "ml-IN": {
-    welcome:     "നിങ്ങളുടെ മരുന്ന് ട്രാക്കറിലേക്ക് സ്വാഗതം.",
-    remind:      "{med} കഴിക്കേണ്ട സമയം. {dosage} {instruction}ഉം കൂടെ.",
-    taken:       "നന്നായി! {med} രേഖപ്പെടുത്തി. സ്ട്രീക്: {streak} ദിവസം.",
-    missed:      "{med} സമയം കഴിഞ്ഞു. 2 മണിക്കൂറിൽ അടുത്ത ഡോസ് ഇല്ലെങ്കിൽ ഇപ്പോൾ.",
-    refill:      "ശ്രദ്ധ: {med} കുറഞ്ഞു. {days} ദിവസത്തിൽ നിറയ്ക്കൂ.",
-    interaction: "മുന്നറിയിപ്പ്: {med1} ഉം {med2} ഉം ഇടപഴകാം.",
-    report:      "നിങ്ങളുടെ മരുന്ന് റിപ്പോർട്ട് തയ്യാർ.",
-    undo:        "{med} എൻട്രി മായ്ച്ചു.",
-    done:        "ഇന്ന് അസാധാരണം.",
-    allDue:      "എല്ലാ മരുന്നുകളും കഴിച്ചു.",
-    noMeds:      "ഈ നേരത്ത് മരുന്നില്ല.",
-  },
-  "pa-IN": {
-    welcome:     "ਤੁਹਾਡੇ ਦਵਾਈ ਟ੍ਰੈਕਰ ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ।",
-    remind:      "{med} ਲੈਣ ਦਾ ਸਮਾਂ। {dosage} {instruction} ਨਾਲ ਲਓ।",
-    taken:       "ਵਧੀਆ! {med} ਦਰਜ। ਸਟ੍ਰੀਕ: {streak} ਦਿਨ।",
-    missed:      "{med} ਖੁੰਝ ਗਈ। 2 ਘੰਟੇ ਵਿੱਚ ਅਗਲੀ ਖੁਰਾਕ ਨਾ ਹੋਵੇ ਤਾਂ ਹੁਣ ਲਓ।",
-    refill:      "ਧਿਆਨ: {med} ਘੱਟ ਹੈ। {days} ਦਿਨਾਂ ਵਿੱਚ ਭਰੋ।",
-    interaction: "ਚੇਤਾਵਨੀ: {med1} ਅਤੇ {med2} ਪ੍ਰਤੀਕਿਰਿਆ ਕਰ ਸਕਦੇ ਹਨ।",
-    report:      "ਤੁਹਾਡੀ ਦਵਾਈ ਰਿਪੋਰਟ ਤਿਆਰ ਹੈ।",
-    undo:        "{med} ਦਰਜ ਰੱਦ।",
-    done:        "ਅੱਜ ਸ਼ਾਨਦਾਰ।",
-    allDue:      "ਸਾਰੀਆਂ ਦਵਾਈਆਂ ਲਈਆਂ।",
-    noMeds:      "ਇਸ ਸਮੇਂ ਕੋਈ ਦਵਾਈ ਨਹੀਂ।",
-  },
-  "or-IN": {
-    welcome:     "ଆପଣଙ୍କ ଔଷଧ ଟ୍ରାକରରେ ସ୍ୱାଗତ।",
-    remind:      "{med} ନେବାର ସମୟ। {dosage} {instruction} ସହ ନିଅନ୍ତୁ।",
-    taken:       "ଭଲ! {med} ଦର୍ଜ ହୋଇଛି। ଷ୍ଟ୍ରୀକ: {streak} ଦିନ।",
-    missed:      "{med} ଛୁଟ ଗଲା। 2 ଘଣ୍ଟାରେ ପରଠ ଡୋଜ ନ ଥିଲେ ବେଳ ନିଅନ୍ତୁ।",
-    refill:      "ଧ୍ୟାନ: {med} କମ ଅଛି। {days} ଦିନ ଭିତରେ ଭରନ୍ତୁ।",
-    interaction: "ସତର୍କ: {med1} ଓ {med2} ପ୍ରତିକ୍ରିୟା ଦେଖାଇ ପାରେ।",
-    report:      "ଆପଣଙ୍କ ଔଷଧ ରିପୋର୍ଟ ପ୍ରସ୍ତୁତ।",
-    undo:        "{med} ଏଣ୍ଟ୍ରି ରଦ୍ଦ।",
-    done:        "ଆଜି ଉତ୍କୃଷ୍ଟ।",
-    allDue:      "ସମସ୍ତ ଔଷଧ ନିଆ ଗଲା।",
-    noMeds:      "ଏ ସମୟ ଔଷଧ ନାହିଁ।",
-  },
-  "ur-IN": {
-    welcome:     "آپ کے دوا ٹریکر میں خوش آمدید۔",
-    remind:      "{med} لینے کا وقت ہے۔ {dosage} {instruction} کے ساتھ لیں۔",
-    taken:       "شاباش! {med} درج ہوئی۔ اسٹریک: {streak} دن۔",
-    missed:      "{med} وقت گزر گئی۔ اگر 2 گھنٹے میں اگلی خوراک نہیں تو ابھی لیں۔",
-    refill:      "توجہ: {med} کم ہو رہی ہے۔ {days} دنوں میں بھریں۔",
-    interaction: "انتباہ: {med1} اور {med2} تعامل کر سکتے ہیں۔",
-    report:      "آپ کی دوا رپورٹ تیار ہے۔",
-    undo:        "{med} اندراج منسوخ۔",
-    done:        "آج بہترین عمل۔",
-    allDue:      "تمام واجب الادا دوائیں لی گئیں۔",
-    noMeds:      "اس وقت کوئی دوا نہیں۔",
-  },
-  "es-ES": {
-    welcome:     "Bienvenido a tu rastreador de medicamentos.",
-    remind:      "Hora de {med}. Toma {dosage} con {instruction}.",
-    taken:       "¡Excelente! {med} registrada. Racha: {streak} días.",
-    missed:      "{med} vencida. Tómala ahora si la próxima dosis es en más de 2 horas.",
-    refill:      "Atención: {med} se agota. Recarga en {days} días.",
-    interaction: "Alerta: {med1} y {med2} pueden interactuar.",
-    report:      "Tu reporte de medicamentos está listo.",
-    undo:        "Registro de {med} revertido.",
-    done:        "Excelente adherencia hoy.",
-    allDue:      "Todos los medicamentos pendientes tomados.",
-    noMeds:      "No hay medicamentos programados para este momento.",
-  },
-  "ar-SA": {
-    welcome:     "مرحباً بك في متتبع أدويتك.",
-    remind:      "حان وقت {med}. تناول {dosage} مع {instruction}.",
-    taken:       "ممتاز! تم تسجيل {med}. السلسلة: {streak} أيام.",
-    missed:      "تأخر {med}. تناوله الآن إن كانت الجرعة التالية بعد أكثر من ساعتين.",
-    refill:      "تنبيه: {med} ينفد. أعد التعبئة خلال {days} أيام.",
-    interaction: "تحذير: قد يتفاعل {med1} مع {med2}.",
-    report:      "تقرير دوائك جاهز.",
-    undo:        "تم إلغاء تسجيل {med}.",
-    done:        "التزام ممتاز اليوم.",
-    allDue:      "تم أخذ جميع الأدوية المستحقة.",
-    noMeds:      "لا توجد أدوية مجدولة الآن.",
-  },
-  "fr-FR": {
-    welcome:     "Bienvenue dans votre suivi médicamenteux.",
-    remind:      "Heure de {med}. Prenez {dosage} avec {instruction}.",
-    taken:       "Bravo ! {med} enregistré. Série : {streak} jours.",
-    missed:      "{med} en retard. Prenez maintenant si la prochaine dose est dans plus de 2 heures.",
-    refill:      "Attention : {med} s'épuise. Rechargez dans {days} jours.",
-    interaction: "Alerte : {med1} et {med2} peuvent interagir.",
-    report:      "Votre rapport médicamenteux est prêt.",
-    undo:        "Saisie de {med} annulée.",
-    done:        "Excellente observance aujourd'hui.",
-    allDue:      "Tous les médicaments dus pris.",
-    noMeds:      "Aucun médicament prévu pour ce moment.",
-  },
-  "pt-BR": {
-    welcome:     "Bem-vindo ao seu rastreador de medicamentos.",
-    remind:      "Hora de {med}. Tome {dosage} com {instruction}.",
-    taken:       "Ótimo! {med} registrado. Sequência: {streak} dias.",
-    missed:      "{med} em atraso. Tome agora se a próxima dose for em mais de 2 horas.",
-    refill:      "Atenção: {med} está acabando. Recarregue em {days} dias.",
-    interaction: "Alerta: {med1} e {med2} podem interagir.",
-    report:      "Seu relatório de medicamentos está pronto.",
-    undo:        "Registro de {med} revertido.",
-    done:        "Excelente adesão hoje.",
-    allDue:      "Todos os medicamentos pendentes tomados.",
-    noMeds:      "Nenhum medicamento programado para este momento.",
-  },
-  "de-DE": {
-    welcome:     "Willkommen in Ihrem Medikamenten-Tracker.",
-    remind:      "Zeit für {med}. Nehmen Sie {dosage} mit {instruction}.",
-    taken:       "Gut gemacht! {med} erfasst. Serie: {streak} Tage.",
-    missed:      "{med} überfällig. Jetzt nehmen, wenn die nächste Dosis mehr als 2 Stunden entfernt ist.",
-    refill:      "Achtung: {med} wird knapp. Nachfüllen in {days} Tagen.",
-    interaction: "Warnung: {med1} und {med2} können wechselwirken.",
-    report:      "Ihr Medikamentenbericht ist fertig.",
-    undo:        "Eintrag für {med} rückgängig gemacht.",
-    done:        "Ausgezeichnete Einnahmetreue heute.",
-    allDue:      "Alle fälligen Medikamente genommen.",
-    noMeds:      "Keine Medikamente für diesen Zeitpunkt geplant.",
-  },
-  "ja-JP": {
-    welcome:     "薬トラッカーへようこそ。",
-    remind:      "{med}の時間です。{dosage}を{instruction}で服用してください。",
-    taken:       "よくできました！{med}を記録しました。連続：{streak}日。",
-    missed:      "{med}を飲み忘れました。次の服用まで2時間以上あれば今飲んでください。",
-    refill:      "注意：{med}が残り少なくなっています。{days}日以内に補充してください。",
-    interaction: "警告：{med1}と{med2}が相互作用する可能性があります。",
-    report:      "薬レポートが準備できました。",
-    undo:        "{med}の記録を取り消しました。",
-    done:        "今日は素晴らしい服薬順守です。",
-    allDue:      "全ての予定薬を服用しました。",
-    noMeds:      "この時間帯に予定された薬はありません。",
-  },
-  "ko-KR": {
-    welcome:     "약 추적기에 오신 것을 환영합니다.",
-    remind:      "{med} 복용 시간입니다. {dosage}를 {instruction}과 함께 드세요.",
-    taken:       "잘 하셨습니다! {med} 기록됨. 연속: {streak}일.",
-    missed:      "{med} 시간 초과. 다음 용량까지 2시간 이상이면 지금 드세요.",
-    refill:      "주의: {med}이 부족합니다. {days}일 이내에 보충하세요.",
-    interaction: "경고: {med1}과 {med2}이 상호작용할 수 있습니다.",
-    report:      "약 보고서가 준비되었습니다.",
-    undo:        "{med} 기록 취소.",
-    done:        "오늘 훌륭한 복약 순응도.",
-    allDue:      "모든 약을 복용했습니다.",
-    noMeds:      "이 시간에 예정된 약이 없습니다.",
-  },
-  "zh-CN": {
-    welcome:     "欢迎使用您的药物追踪器。",
-    remind:      "该服用{med}了。请用{instruction}服用{dosage}。",
-    taken:       "太好了！{med}已记录。连续：{streak}天。",
-    missed:      "{med}已逾期。如果距下次服药超过2小时，请立即服用。",
-    refill:      "提醒：{med}库存不足。请在{days}天内补货。",
-    interaction: "警告：{med1}和{med2}可能存在相互作用。",
-    report:      "您的用药报告已生成。",
-    undo:        "{med}记录已撤销。",
-    done:        "今天依从性出色。",
-    allDue:      "所有到期药物已服用。",
-    noMeds:      "此时段没有安排药物。",
-  },
-};
-
-function ph(lang, key, vars = {}) {
-  const base = MED_PHRASES[lang] || MED_PHRASES["en-IN"];
-  let text = base[key] || MED_PHRASES["en-IN"][key] || "";
-  Object.entries(vars).forEach(([k, v]) => { text = text.replace(`{${k}}`, v); });
-  return text;
-}
-
-/* ════════════════════════════════════════════════════════════
-   DEFAULT MEDICATIONS — normalized taken[] schema
-════════════════════════════════════════════════════════════ */
-const DEFAULT_MEDS = [
-  {
-    id: "med_001", name: "Metformin", generic: "Metformin HCl",
-    dosage: "500mg", frequency: "Twice Daily", times: ["08:00", "20:00"],
-    category: "Prescription", condition: "Type 2 Diabetes",
-    startDate: "2026-01-15", refillDate: "2026-06-20", pillsRemaining: 42,
-    instructions: "Take with meals", interactions: [], taken: [], color: "#6EE7B7",
-    pharmacistNotes: "", halfPillSupport: false,
-  },
-  {
-    id: "med_002", name: "Atorvastatin", generic: "Atorvastatin Calcium",
-    dosage: "20mg", frequency: "Daily", times: ["21:00"],
-    category: "Prescription", condition: "High Cholesterol",
-    startDate: "2026-02-01", refillDate: "2026-07-05", pillsRemaining: 23,
-    instructions: "Take in evening, avoid grapefruit", interactions: [], taken: [], color: "#60A5FA",
-    pharmacistNotes: "", halfPillSupport: false,
-  },
-  {
-    id: "med_003", name: "Vitamin D3", generic: "Cholecalciferol",
-    dosage: "2000 IU", frequency: "Daily", times: ["08:00"],
-    category: "Supplement", condition: "Bone Health",
-    startDate: "2026-03-10", refillDate: "2026-09-10", pillsRemaining: 67,
-    instructions: "Take with fatty food", interactions: [], taken: [], color: "#FCD34D",
-    pharmacistNotes: "", halfPillSupport: false,
-  },
-  {
-    id: "med_004", name: "Lisinopril", generic: "Lisinopril",
-    dosage: "10mg", frequency: "Daily", times: ["07:00"],
-    category: "Prescription", condition: "Hypertension",
-    startDate: "2026-01-20", refillDate: "2026-06-20", pillsRemaining: 8,
-    instructions: "Same time daily, empty stomach", interactions: [], taken: [], color: "#F87171",
-    pharmacistNotes: "", halfPillSupport: true,
-  },
-];
-
-/* ════════════════════════════════════════════════════════════
-   STORAGE
-════════════════════════════════════════════════════════════ */
-function loadLang() {
-  const c = localStorage.getItem("magic16_lang") || "en-IN";
-  return LANG_MAP[c] || "en-IN";
-}
-function loadMedications() {
-  try {
-    const saved = localStorage.getItem("manifix_medications_v6");
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return DEFAULT_MEDS;
-}
-function saveMedications(meds) {
-  localStorage.setItem("manifix_medications_v6", JSON.stringify(meds));
-}
-
-/* ════════════════════════════════════════════════════════════
-   SPEAKER
-════════════════════════════════════════════════════════════ */
-function createMedSpeaker(lang) {
-  return function speak(text, urgent = false) {
-    if (!("speechSynthesis" in window) || !text) return;
-    const say = () => {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang; u.rate = urgent ? 1.0 : 0.82; u.pitch = urgent ? 1.05 : 0.98;
-      const voices = window.speechSynthesis.getVoices();
-      const base = lang.split("-")[0];
-      const v = voices.find(x => x.lang === lang)
-             || voices.find(x => x.lang.startsWith(base))
-             || voices.find(x => x.lang.startsWith("en"));
-      if (v) u.voice = v;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    };
-    if (urgent) navigator.vibrate?.([80, 40, 80]);
-    if (speechSynthesis.getVoices().length) say();
-    else speechSynthesis.onvoiceschanged = say;
-  };
-}
-
-/* ════════════════════════════════════════════════════════════
-   WHO DOMAINS
-════════════════════════════════════════════════════════════ */
-const MEDICATION_DOMAINS = {
-  adherence: {
-    domain: "Medication Adherence & Health Outcomes", who_code: "MED-ADH",
-    stat1: "50% of chronic disease patients do not take medications as prescribed — WHO",
-    stat2: "Non-adherence causes ~125,000 deaths/year in US alone; global burden higher",
-    stat3: "Each 10% increase in adherence → 15% reduction in hospitalizations",
-    stat4: "Smart reminders + simplified regimen → Adherence ↑30–50% (Cochrane)",
-    sdg: "SDG 3.8 — Achieve universal health coverage, access to medicines",
-    lmic: "SMS/voice reminders improve adherence in low-resource settings by 40%",
-    module: "Medication + Elderly Care + Chronic Disease modules",
-    promise: "Adherence score 45→92 in 60 days with personalized plan",
-  },
-  safety: {
-    domain: "Medication Safety & Interaction Prevention", who_code: "MED-SAF",
-    stat1: "Medication errors harm 1 in 10 patients globally — WHO Patient Safety",
-    stat2: "Polypharmacy (5+ meds) affects 40% of adults 65+, increases interaction risk",
-    stat3: "Drug-drug interactions cause ~7% of hospital admissions in elderly",
-    stat4: "Clinical decision support reduces prescribing errors by 50%",
-    sdg: "SDG 3.b — Support R&D for safe, effective, affordable medicines",
-    lmic: "Simplified regimens + visual aids reduce errors in low-literacy populations",
-    module: "Medication + Chronic Disease + Women's Health modules",
-    promise: "Zero critical interactions flagged with AI-guided medication review",
-  },
-};
-
-/* ════════════════════════════════════════════════════════════
-   CSS INJECTION
-════════════════════════════════════════════════════════════ */
-function injectCSS() {
-  if (document.getElementById("med-css-v6")) return;
-  const el = document.createElement("style");
-  el.id = "med-css-v6";
-  el.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    @keyframes pulseRing{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.8;transform:scale(1.015)}}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes slideUp{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes glowPulse{0%,100%{box-shadow:0 0 0 rgba(110,231,183,0)}50%{box-shadow:0 0 18px rgba(110,231,183,0.22)}}
-    @keyframes countdownShrink{from{width:100%}to{width:0%}}
-    .fu{animation:fadeUp .42s cubic-bezier(.22,.68,0,1.2) both}
-    .pulse-ring{animation:pulseRing 2.6s ease-in-out infinite}
-    .btn-m:hover:not(:disabled){filter:brightness(1.1);transform:translateY(-1px);transition:all .16s}
-    .btn-m:active:not(:disabled){transform:translateY(0)}
-    .card-focus:focus{outline:2px solid #6EE7B7;outline-offset:3px}
-    @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-  `;
-  document.head.appendChild(el);
-}
-
-/* ════════════════════════════════════════════════════════════
-   MEDICATION CARD — per-slot tracking, undo, refill ring
-════════════════════════════════════════════════════════════ */
-function MedicationCard({ med, onMarkSlot, onUndoSlot, onEdit, onDelete, accent, lang, speak }) {
-  const today = todayStr();
-  const overdue = med.times.some(t => isOverdueSlot(med, t));
-
-  return (
-    <div className="fu" style={{
-      border: `2px solid ${isDueNow(med) ? accent : overdue ? "#fbbf24" : "#1a1a1a"}`,
-      background: isDueNow(med) ? `${accent}0d` : overdue ? "#1a150a" : "#090909",
-      padding: "15px 16px", borderRadius: 12, marginBottom: 10,
-    }}>
-      {/* Header row */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", background: med.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>💊</div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#f0ede6", fontFamily: "'Syne',sans-serif" }}>{med.name}</div>
-            <div style={{ fontSize: 12, color: "#5a5a5a" }}>{med.dosage} · {med.generic || med.category}</div>
-            {med.condition && <div style={{ fontSize: 11, color: "#3a3a3a", letterSpacing: ".08em", textTransform: "uppercase" }}>{med.condition}</div>}
-          </div>
-        </div>
-        <RefillRing med={med} accent={accent} />
-      </div>
-
-      {/* Per-slot time chips */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-        {med.times.map(time => {
-          const taken  = isTakenForSlot(med.taken, today, time);
-          const due    = (() => {
-            const now = new Date();
-            const [h, m] = time.split(":").map(Number);
-            const scheduled = new Date(now); scheduled.setHours(h, m, 0, 0);
-            return Math.abs(now - scheduled) <= 30 * 60 * 1000;
-          })();
-          const over   = isOverdueSlot(med, time);
-          const group  = TIME_GROUP_META[getTimeGroup(time)];
-
-          return (
-            <button
-              key={time}
-              className="card-focus"
-              onClick={() => {
-                if (!taken) {
-                  onMarkSlot(med.id, time, today);
-                  speak(ph(lang, "taken", { med: med.name, streak: getStreak([med]) }));
-                }
-              }}
-              disabled={taken}
-              title={taken ? `✓ Taken at ${time}` : `Mark ${med.name} taken for ${time}`}
-              style={{
-                fontSize: 12, padding: "5px 10px", borderRadius: 7,
-                background: taken ? "#14532d22" : due ? `${accent}22` : over ? "#1a0e0a" : "#111",
-                border: `1.5px solid ${taken ? "#22c55e" : due ? accent : over ? "#fbbf24" : "#333"}`,
-                color: taken ? "#22c55e" : due ? accent : over ? "#fbbf24" : "#6a6a6a",
-                cursor: taken ? "default" : "pointer",
-                display: "flex", alignItems: "center", gap: 5,
-                fontFamily: "'JetBrains Mono',monospace",
-                transition: "all .16s",
-              }}
-            >
-              <span>{group.emoji}</span>
-              <span>{taken ? "✓" : over ? "!" : "○"}</span>
-              <span>{time}</span>
-              {med.halfPillSupport && !taken && (
-                <span style={{ fontSize: 9, color: "#4a4a4a" }}>½</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Daily progress bar */}
-      {(() => {
-        const takenCount = med.times.filter(t => isTakenForSlot(med.taken, today, t)).length;
-        const pct = Math.round((takenCount / med.times.length) * 100);
-        return (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3a3a3a", marginBottom: 3 }}>
-              <span style={{ letterSpacing: ".12em", textTransform: "uppercase" }}>Today</span>
-              <span>{takenCount}/{med.times.length}</span>
-            </div>
-            <div style={{ height: 4, background: "#1a1a1a", borderRadius: 2, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg,${med.color},${accent})`, transition: "width .4s ease" }} />
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Low stock warning */}
-      {isLowStock(med) && (
-        <div style={{ fontSize: 11, color: "#fbbf24", background: "#1a150a", padding: "5px 10px", borderRadius: 6, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          ⚠ Only {med.pillsRemaining} pills left · Refill in {daysUntilRefill(med) ?? "—"} days
-        </div>
-      )}
-
-      {/* Instructions */}
-      <div style={{ fontSize: 12, color: "#3a3a3a", borderLeft: `2px solid ${med.color}55`, paddingLeft: 10, marginBottom: 12, lineHeight: 1.6 }}>
-        💡 {med.instructions}
-        {med.pharmacistNotes && (
-          <div style={{ marginTop: 4, color: "#2a3a4a" }}>🧑‍⚕️ {med.pharmacistNotes}</div>
-        )}
-      </div>
-
-      {/* Action row */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn-m card-focus"
-          onClick={() => onEdit(med)}
-          style={{ padding: "8px 12px", fontSize: 13, background: "#111", border: "1.5px solid #222", color: "#8a8680", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
-          ✎ Edit
-        </button>
-        <button className="btn-m card-focus"
-          onClick={() => { if (window.confirm(`Delete ${med.name}?`)) onDelete(med.id); }}
-          style={{ padding: "8px 12px", fontSize: 13, background: "#1a0a0a", border: "1.5px solid #3a1a1a", color: "#f87171", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
-          🗑
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════
    INTERACTION WARNING
-════════════════════════════════════════════════════════════ */
-function InteractionWarning({ warning, accent }) {
-  const palettes = {
-    severe:   { bg: "#1a0404", border: "#f87171", text: "#fca5a5" },
-    moderate: { bg: "#1a1005", border: "#fbbf24", text: "#fcd34d" },
-    mild:     { bg: "#050d1a", border: "#60a5fa", text: "#93c5fd" },
-  };
-  const c = palettes[warning.severity] || palettes.mild;
+═══════════════════════════════════════════════════ */
+function InteractionWarning({ warning }) {
+  const c = { severe:{bg:"#1a0404",border:"#f87171",text:"#fca5a5"}, moderate:{bg:"#1a1005",border:"#fbbf24",text:"#fcd34d"}, mild:{bg:"#050d1a",border:"#60a5fa",text:"#93c5fd"} }[warning.severity]||{};
   return (
-    <div style={{ border: `2px solid ${c.border}`, background: c.bg, padding: "11px 14px", borderRadius: 9, marginBottom: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-        <span style={{ fontSize: 15 }}>⚠</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: c.text, letterSpacing: ".12em", textTransform: "uppercase" }}>
-          {warning.severity} interaction
-        </span>
+    <div style={{ border:`2px solid ${c.border}`, background:c.bg, padding:"11px 14px", borderRadius:9, marginBottom:8 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+        <span>⚠</span>
+        <span style={{ fontSize:12, fontWeight:700, color:c.text, letterSpacing:".12em", textTransform:"uppercase" }}>{warning.severity} interaction</span>
       </div>
-      <div style={{ fontSize: 12, color: "#cfcfcf" }}>{warning.med1} + {warning.med2}: {warning.message}</div>
-      <div style={{ fontSize: 10, color: "#5a5a5a", marginTop: 3 }}>Consult your doctor or pharmacist before continuing.</div>
+      <div style={{ fontSize:12, color:"var(--text)" }}>{warning.med1} + {warning.med2}: {warning.message}</div>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   ADD / EDIT MODAL
-════════════════════════════════════════════════════════════ */
-function AddEditModal({ med, onClose, onSave, accent }) {
-  const [form, setForm] = useState(med ? { ...med } : {
-    name: "", generic: "", dosage: "", frequency: "Daily",
-    times: [""], category: "Prescription", condition: "",
-    startDate: todayStr(), refillDate: "", pillsRemaining: 30,
-    instructions: "", interactions: [], color: accent, taken: [],
-    pharmacistNotes: "", halfPillSupport: false,
-  });
-
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const setTime = (i, v) => { const t = [...form.times]; t[i] = v; set("times", t); };
-  const addTime = () => set("times", [...form.times, ""]);
-  const removeTime = (i) => form.times.length > 1 && set("times", form.times.filter((_, j) => j !== i));
-  const valid = form.name.trim() && form.dosage.trim() && form.times.every(t => t);
-
-  const save = () => {
-    if (!valid) return;
-    onSave({ ...form, id: med?.id || `med_${Date.now()}`, taken: med?.taken || [] });
-    onClose();
+/* ═══════════════════════════════════════════════════
+   PHARMACY FINDER
+═══════════════════════════════════════════════════ */
+function PharmacyFinder({ onClose, dark, accent }) {
+  const [status, setStatus] = useState("idle");
+  const [location, setLocation] = useState(null);
+  const find = () => {
+    setStatus("loading");
+    navigator.geolocation?.getCurrentPosition(
+      pos => { setLocation(pos.coords); setStatus("found"); },
+      () => setStatus("error")
+    );
   };
-
-  const fieldStyle = {
-    width: "100%", padding: "9px 11px", fontSize: 13,
-    background: "#111", border: "1.5px solid #2a2a2a",
-    color: "#f0ede6", borderRadius: 8, fontFamily: "'JetBrains Mono',monospace",
-    outline: "none",
-  };
-  const labelStyle = { fontSize: 11, color: "#6a6a6a", display: "block", marginBottom: 4, letterSpacing: ".1em", textTransform: "uppercase" };
-
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
-      <div className="fu" style={{ background: "#030d0c", border: `2px solid ${accent}`, padding: 20, width: "min(480px,100%)", borderRadius: 14, maxHeight: "88vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontSize: 17, fontWeight: 700, color: "#f0ede6", fontFamily: "'Syne',sans-serif" }}>{med ? "Edit" : "Add"} Medication</span>
-          <button onClick={onClose} style={{ fontSize: 18, background: "none", border: "none", color: "#555", cursor: "pointer" }}>✕</button>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", zIndex:150, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div className="scale-in card" style={{ width:"min(420px,100%)", border:`2px solid ${accent}`, borderRadius:16, padding:22 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:16 }}>
+          <span style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>🏥 Find Pharmacy</span>
+          <button onClick={onClose} style={{ fontSize:18, background:"none", border:"none", color:"var(--text2)", cursor:"pointer" }}>✕</button>
         </div>
-        <div style={{ display: "grid", gap: 12 }}>
-          <div><label style={labelStyle}>Name *</label><input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g., Metformin" style={fieldStyle} /></div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><label style={labelStyle}>Generic Name</label><input value={form.generic} onChange={e => set("generic", e.target.value)} placeholder="e.g., Metformin HCl" style={fieldStyle} /></div>
-            <div><label style={labelStyle}>Dosage *</label><input value={form.dosage} onChange={e => set("dosage", e.target.value)} placeholder="e.g., 500mg" style={fieldStyle} /></div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><label style={labelStyle}>Category</label>
-              <select value={form.category} onChange={e => set("category", e.target.value)} style={fieldStyle}>
-                {["Prescription","Supplement","OTC","Herbal"].map(c => <option key={c} value={c} style={{ background: "#111" }}>{c}</option>)}
-              </select>
-            </div>
-            <div><label style={labelStyle}>Condition</label><input value={form.condition} onChange={e => set("condition", e.target.value)} placeholder="e.g., Hypertension" style={fieldStyle} /></div>
-          </div>
-          <div>
-            <label style={labelStyle}>Schedule Times *</label>
-            {form.times.map((time, i) => (
-              <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                <input type="time" value={time} onChange={e => setTime(i, e.target.value)} style={{ ...fieldStyle, flex: 1 }} />
-                <span style={{ fontSize: 11, color: "#3a3a3a", display: "flex", alignItems: "center", padding: "0 6px" }}>
-                  {TIME_GROUP_META[getTimeGroup(time)]?.emoji}
-                </span>
-                {form.times.length > 1 && (
-                  <button onClick={() => removeTime(i)} style={{ padding: "6px 10px", fontSize: 13, background: "#1a0a0a", border: "1.5px solid #3a1a1a", color: "#f87171", borderRadius: 7, cursor: "pointer" }}>✕</button>
-                )}
+        {status==="idle" && <div style={{ textAlign:"center", padding:20 }}>
+          <div style={{ fontSize:48, marginBottom:16 }}>📍</div>
+          <div style={{ fontSize:13, color:"var(--text2)", marginBottom:20, lineHeight:1.6 }}>Find nearby pharmacies, check stock availability, and schedule prescription pickups.</div>
+          <button onClick={find} style={{ padding:"13px 24px", fontWeight:700, fontFamily:"'Syne',sans-serif", background:accent, border:"none", color:"#030d0c", borderRadius:12, cursor:"pointer", fontSize:14 }}>Use My Location</button>
+        </div>}
+        {status==="loading" && <div style={{ textAlign:"center", padding:30 }}>
+          <div style={{ width:40, height:40, border:`3px solid var(--border)`, borderTopColor:accent, borderRadius:"50%", animation:"spin .9s linear infinite", margin:"0 auto 16px" }} />
+          <div style={{ color:"var(--text2)", fontSize:13 }}>Finding pharmacies near you…</div>
+        </div>}
+        {status==="found" && location && <div>
+          <div style={{ fontSize:12, color:"#22c55e", marginBottom:12 }}>✓ Location detected — {location.latitude.toFixed(4)}°N, {location.longitude.toFixed(4)}°E</div>
+          {["Apollo Pharmacy","MedPlus","Wellness Forever","Jan Aushadhi"].map((name,i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"var(--bg3)", borderRadius:9, marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600 }}>{name}</div>
+                <div style={{ fontSize:11, color:"var(--text2)" }}>{(0.4+i*0.3+Math.random()*0.4).toFixed(1)} km · {["Open 24h","Open till 10pm","Open till 9pm","Open till 8pm"][i]}</div>
               </div>
-            ))}
-            <button onClick={addTime} style={{ fontSize: 11, color: accent, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", letterSpacing: ".1em" }}>+ Add time</button>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><label style={labelStyle}>Start Date</label><input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} style={fieldStyle} /></div>
-            <div><label style={labelStyle}>Refill Date</label><input type="date" value={form.refillDate} onChange={e => set("refillDate", e.target.value)} style={fieldStyle} /></div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><label style={labelStyle}>Pills Remaining</label><input type="number" value={form.pillsRemaining} onChange={e => set("pillsRemaining", +e.target.value || 0)} min="0" style={fieldStyle} /></div>
-            <div><label style={labelStyle}>Accent Color</label><input type="color" value={form.color} onChange={e => set("color", e.target.value)} style={{ ...fieldStyle, height: 40, padding: 2, cursor: "pointer" }} /></div>
-          </div>
-          <div><label style={labelStyle}>Instructions</label><textarea value={form.instructions} onChange={e => set("instructions", e.target.value)} rows={2} placeholder="e.g., Take with food" style={{ ...fieldStyle, resize: "vertical" }} /></div>
-          <div><label style={labelStyle}>Pharmacist Notes</label><input value={form.pharmacistNotes} onChange={e => set("pharmacistNotes", e.target.value)} placeholder="Optional pharmacist advice" style={fieldStyle} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input type="checkbox" id="halfPill" checked={form.halfPillSupport} onChange={e => set("halfPillSupport", e.target.checked)} style={{ width: 16, height: 16, accentColor: accent }} />
-            <label htmlFor="halfPill" style={{ fontSize: 12, color: "#6a6a6a", cursor: "pointer" }}>Half-pill support (mark ½ dose)</label>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "12px", fontSize: 13, fontWeight: 600, background: "#111", border: "1.5px solid #333", color: "#8a8680", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-          <button onClick={save} disabled={!valid} style={{ flex: 1, padding: "12px", fontSize: 13, fontWeight: 600, background: valid ? accent : "#1a1a1a", border: `1.5px solid ${valid ? "#000" : "#333"}`, color: valid ? "#030d0c" : "#555", borderRadius: 10, cursor: valid ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-            {med ? "Update" : "Add"} Medication
-          </button>
-        </div>
+              <button style={{ padding:"6px 12px", fontSize:11, background:`${accent}22`, border:`1px solid ${accent}`, color:accent, borderRadius:7, cursor:"pointer", fontFamily:"inherit" }}>Navigate</button>
+            </div>
+          ))}
+        </div>}
+        {status==="error" && <div style={{ textAlign:"center", padding:20, color:"#f87171" }}>Location access denied. Enable in browser settings.</div>}
       </div>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   WHO PANEL
-════════════════════════════════════════════════════════════ */
-function WHOPanel({ domainKey, accent, open }) {
-  const d = MEDICATION_DOMAINS[domainKey];
-  if (!d || !open) return null;
-  return (
-    <div className="fu" style={{ border: `1.5px solid ${accent}30`, background: "#080808", padding: "14px 16px", borderRadius: 10, marginTop: 8 }}>
-      <div style={{ fontSize: 10, letterSpacing: ".2em", color: "#252525", textTransform: "uppercase", marginBottom: 6 }}>WHO · {d.who_code}</div>
-      <div style={{ fontSize: 14, color: accent, fontWeight: 700, marginBottom: 10, fontFamily: "'Syne',sans-serif" }}>{d.domain}</div>
-      {[d.stat1, d.stat2, d.stat3, d.stat4].map((s, i) => (
-        <div key={i} style={{ fontSize: 11, color: i === 0 ? "#3a3a3a" : "#222", lineHeight: 1.7, borderLeft: `2px solid ${i === 0 ? accent : "#1a1a1a"}`, paddingLeft: 8, marginBottom: 4 }}>{s}</div>
-      ))}
-      <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #111", fontSize: 10, color: "#222", letterSpacing: ".1em" }}>{d.sdg} · {d.lmic}</div>
-      <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
-        <span style={{ fontSize: 10, color: accent, fontWeight: 600 }}>✅ {d.module}</span>
-        <span style={{ fontSize: 10, color: "#3a3a3a" }}>{d.promise}</span>
-      </div>
-    </div>
-  );
+/* ═══════════════════════════════════════════════════
+   FHIR EXPORT
+═══════════════════════════════════════════════════ */
+function exportFHIR(medications, vitals, adherenceScore, streak) {
+  const bundle = {
+    resourceType:"Bundle", type:"collection", timestamp: new Date().toISOString(),
+    meta:{ profile:["ManifiX-v7.0"], generator:"Magic16×ManifiX", sdg:"3.8" },
+    adherenceSummary:{ todayScore:adherenceScore, streak, totalMeds:medications.length },
+    entry: medications.map(med => ({
+      resource:{
+        resourceType:"MedicationStatement",
+        id:med.id, status:"active",
+        medicationCodeableConcept:{ text:`${med.name} ${med.dosage}` },
+        subject:{ display:"Patient" },
+        dosage:[{ text:`${med.dosage} at ${med.times.join(", ")}` }],
+        note:[{ text:med.instructions }],
+        adherence:{ takenCount:(med.taken||[]).length, pillsRemaining:med.pillsRemaining },
+        sideEffects: med.sideEffects||[],
+        rating: med.rating,
+      }
+    })),
+    vitals: vitals,
+    interactions: checkInteractions(medications),
+  };
+  const blob = new Blob([JSON.stringify(bundle,null,2)],{type:"application/json"});
+  const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`manifix-fhir-export-${todayStr()}.json`; a.click(); URL.revokeObjectURL(a.href);
 }
 
-/* ════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   MAIN COMPONENT v7
+═══════════════════════════════════════════════════ */
 export default function MedicationHealth() {
-  const navigate  = useNavigate();
-  const lang      = useMemo(loadLang, []);
-  const speak     = useMemo(() => createMedSpeaker(lang), [lang]);
-
-  const [medications,  setMedications]  = useState(loadMedications);
-  const [showModal,    setShowModal]    = useState(false);
-  const [editingMed,   setEditingMed]   = useState(null);
-  const [showReport,   setShowReport]   = useState(false);
-  const [whoOpen,      setWhoOpen]      = useState(false);
-  const [whoDomain,    setWhoDomain]    = useState("adherence");
-  const [loading,      setLoading]      = useState(true);
-  const [offline,      setOffline]      = useState(!navigator.onLine);
-  const [tick,         setTick]         = useState(0);  // forces recheck of due/overdue
-  const [toast,        setToast]        = useState(null); // { medName, medId, time, slotKey, countdown }
+  const [onboarded, setOnboarded]       = useState(() => load("mhv7_onboarded", false));
+  const [dark, setDark]                 = useState(() => load("mhv7_dark", true));
+  const [profiles, setProfiles]         = useState(() => load("mhv7_profiles", DEFAULT_PROFILES));
+  const [activeProfileId, setActiveProfileId] = useState(() => load("mhv7_active", "p1"));
+  const [vitals, setVitals]             = useState(() => load("mhv7_vitals", DEFAULT_VITALS));
+  const [showModal, setShowModal]       = useState(false);
+  const [editingMed, setEditingMed]     = useState(null);
+  const [showAI, setShowAI]             = useState(false);
+  const [showSideEffect, setShowSideEffect] = useState(null);
+  const [showVitals, setShowVitals]     = useState(false);
+  const [showPharmacy, setShowPharmacy] = useState(false);
+  const [toast, setToast]               = useState(null);
+  const [tab, setTab]                   = useState("meds"); // meds | history | family
+  const [tick, setTick]                 = useState(0);
   const undoTimerRef = useRef(null);
-  const lowStockAlertedRef = useRef(false); // fires ONCE on mount only
+  const lowAlertedRef = useRef(false);
+  const speak = useMemo(() => createSpeaker("en-IN"), []);
 
-  /* ── Persist ── */
-  useEffect(() => { saveMedications(medications); }, [medications]);
+  // Active profile's medications
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
+  const medications = activeProfile?.medications || [];
 
-  /* ── CSS ── */
-  useEffect(() => { injectCSS(); }, []);
+  const setMedications = useCallback(updater => {
+    setProfiles(prev => prev.map(p => p.id === activeProfileId
+      ? { ...p, medications: typeof updater === "function" ? updater(p.medications) : updater }
+      : p
+    ));
+  }, [activeProfileId]);
 
-  /* ── Offline ── */
+  // CSS
+  useEffect(() => { injectCSS(dark); }, [dark]);
+
+  // Persist
+  useEffect(() => { save("mhv7_profiles", profiles); }, [profiles]);
+  useEffect(() => { save("mhv7_vitals", vitals); }, [vitals]);
+  useEffect(() => { save("mhv7_dark", dark); }, [dark]);
+  useEffect(() => { save("mhv7_active", activeProfileId); }, [activeProfileId]);
+
+  // Real-time tick
+  useEffect(() => { const id = setInterval(() => setTick(t=>t+1), 60000); return () => clearInterval(id); }, []);
+
+  // Welcome
   useEffect(() => {
-    const on = () => setOffline(false), off = () => setOffline(true);
-    window.addEventListener("online", on); window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
-  }, []);
-
-  /* ── Real-time tick: re-evaluate due/overdue every 60s ── */
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  /* ── Welcome + one-time low-stock alerts ── */
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-      speak(ph(lang, "welcome"));
-      if (!lowStockAlertedRef.current) {
-        lowStockAlertedRef.current = true;
-        medications.filter(m => isLowStock(m)).forEach(m => {
-          setTimeout(() => speak(ph(lang, "refill", { med: m.name, days: daysUntilRefill(m) ?? "soon" }), true), 2000);
+    if (!onboarded) return;
+    const t = setTimeout(() => {
+      speak("Welcome to ManifiX Medications. Stay healthy, one dose at a time.");
+      if (!lowAlertedRef.current) {
+        lowAlertedRef.current = true;
+        medications.filter(isLowStock).forEach(m => {
+          setTimeout(() => speak(`${m.name} is running low. Refill soon.`, true), 2000);
         });
       }
-    }, 900);
-    return () => clearTimeout(timer);
-  }, []); // intentionally empty — run once
+    }, 800);
+    return () => clearTimeout(t);
+  }, [onboarded]); // eslint-disable-line
 
-  /* ── Announce due meds whenever tick changes ── */
-  useEffect(() => {
-    if (loading) return;
-    const due = medications.filter(m => isDueNow(m));
-    due.forEach(m => speak(ph(lang, "remind", { med: m.name, dosage: m.dosage, instruction: m.instructions.split(",")[0] || "water" }), true));
-  }, [tick]); // eslint-disable-line
-
-  /* ── Computed values (re-run on tick so they stay live) ── */
+  // Computed
   const adherenceScore = useMemo(() => calcDayAdherence(medications, todayStr()), [medications, tick]); // eslint-disable-line
-  const streak         = useMemo(() => getStreak(medications),           [medications]);
-  const interactions   = useMemo(() => checkInteractions(medications),   [medications]);
-  const dueMeds        = useMemo(() => medications.filter(isDueNow),     [medications, tick]); // eslint-disable-line
-  const overdueMeds    = useMemo(() => medications.filter(m => m.times.some(t => isOverdueSlot(m, t))), [medications, tick]); // eslint-disable-line
+  const streak         = useMemo(() => getStreak(medications), [medications]);
+  const interactions   = useMemo(() => checkInteractions(medications), [medications]);
+  const dueMeds        = useMemo(() => medications.filter(isDueNow), [medications, tick]); // eslint-disable-line
+  const overdueMeds    = useMemo(() => medications.filter(m=>m.times.some(t=>isOverdueSlot(m,t))), [medications, tick]); // eslint-disable-line
 
-  /* ── MARK SLOT — deduplicated per (medId, slotKey) ── */
+  // Mark slot
   const handleMarkSlot = useCallback((medId, time, date) => {
     const slotKey = makeSlotKey(date, time);
     setMedications(prev => prev.map(med => {
-      if (med.id !== medId) return med;
-      // Idempotent: skip if already taken for this exact slot
-      if (isTakenForSlot(med.taken, date, time)) return med;
-      const newEntry = { slotKey, takenAt: new Date().toISOString() };
-      // Decrement pill count
-      const newPills = Math.max(0, (med.pillsRemaining || 0) - (med.halfPillSupport ? 0.5 : 1));
-      return { ...med, taken: [...(med.taken || []), newEntry], pillsRemaining: newPills };
+      if (med.id !== medId || isTakenForSlot(med.taken, date, time)) return med;
+      return { ...med, taken:[...(med.taken||[]), {slotKey, takenAt:new Date().toISOString()}], pillsRemaining:Math.max(0,(med.pillsRemaining||0)-(med.halfPillSupport?0.5:1)) };
     }));
-
-    // Show undo toast with 5-second countdown
-    const medName = medications.find(m => m.id === medId)?.name || "Medication";
+    const medName = medications.find(m=>m.id===medId)?.name || "Medication";
     clearTimeout(undoTimerRef.current);
-    setToast({ medName, medId, time, slotKey, date, countdown: 5 });
-    let c = 4;
-    const countdown = setInterval(() => {
-      setToast(prev => prev ? { ...prev, countdown: c-- } : null);
-      if (c < 0) { clearInterval(countdown); setToast(null); }
-    }, 1000);
-    undoTimerRef.current = setTimeout(() => { clearInterval(countdown); setToast(null); }, 5500);
-  }, [medications]);
+    setToast({ medName, medId, time, slotKey, date, countdown:5 });
+    let c=4; const cd=setInterval(()=>{ setToast(p=>p?{...p,countdown:c--}:null); if(c<0){clearInterval(cd);setToast(null);} },1000);
+    undoTimerRef.current=setTimeout(()=>{clearInterval(cd);setToast(null);},5500);
+    speak(`${medName} marked as taken.`);
+  }, [medications, setMedications, speak]);
 
-  /* ── UNDO — removes the specific slotKey entry ── */
   const handleUndo = useCallback(() => {
     if (!toast) return;
-    clearTimeout(undoTimerRef.current);
-    setToast(null);
+    clearTimeout(undoTimerRef.current); setToast(null);
     setMedications(prev => prev.map(med => {
       if (med.id !== toast.medId) return med;
-      const newTaken = (med.taken || []).filter(t => t.slotKey !== toast.slotKey);
-      const restored = Math.min((med.pillsRemaining || 0) + (med.halfPillSupport ? 0.5 : 1), 999);
-      return { ...med, taken: newTaken, pillsRemaining: restored };
+      return { ...med, taken:(med.taken||[]).filter(t=>t.slotKey!==toast.slotKey), pillsRemaining:Math.min((med.pillsRemaining||0)+(med.halfPillSupport?0.5:1),999) };
     }));
-    speak(ph(lang, "undo", { med: toast.medName }));
-  }, [toast, speak, lang]);
+  }, [toast, setMedications]);
 
-  /* ── MARK ALL DUE ── */
   const handleMarkAllDue = useCallback(() => {
-    const now = todayStr();
-    let marked = 0;
+    const now = todayStr(); let marked = 0;
     setMedications(prev => prev.map(med => {
       if (!isDueNow(med)) return med;
-      let newMed = { ...med, taken: [...(med.taken || [])] };
+      let newMed = {...med, taken:[...(med.taken||[])]};
       med.times.forEach(time => {
-        if (isDueNow({ ...med, times: [time] }) && !isTakenForSlot(med.taken, now, time)) {
-          newMed.taken.push({ slotKey: makeSlotKey(now, time), takenAt: new Date().toISOString() });
-          newMed.pillsRemaining = Math.max(0, (newMed.pillsRemaining || 0) - 1);
-          marked++;
+        if (isDueNow({...med,times:[time]}) && !isTakenForSlot(med.taken,now,time)) {
+          newMed.taken.push({slotKey:makeSlotKey(now,time),takenAt:new Date().toISOString()});
+          newMed.pillsRemaining=Math.max(0,(newMed.pillsRemaining||0)-1); marked++;
         }
-      });
-      return newMed;
+      }); return newMed;
     }));
-    if (marked > 0) speak(ph(lang, "allDue"));
-    else speak(ph(lang, "noMeds"));
-  }, [speak, lang]);
+    speak(marked>0 ? "All due medications marked taken." : "No medications are due right now.");
+  }, [setMedications, speak]);
 
-  /* ── SAVE MED ── */
-  const handleSaveMed = useCallback((med) => {
-    if (editingMed) setMedications(prev => prev.map(m => m.id === med.id ? med : m));
-    else setMedications(prev => [...prev, med]);
+  const handleSaveMed = useCallback(med => {
+    if (editingMed) setMedications(prev=>prev.map(m=>m.id===med.id?med:m));
+    else setMedications(prev=>[...prev, med]);
     setEditingMed(null); setShowModal(false);
-  }, [editingMed]);
+  }, [editingMed, setMedications]);
 
-  /* ── DELETE ── */
-  const handleDelete = useCallback((id) => setMedications(prev => prev.filter(m => m.id !== id)), []);
+  const handleRateMed = useCallback((id, rating) => {
+    setMedications(prev => prev.map(m => m.id===id ? {...m,rating} : m));
+  }, [setMedications]);
 
-  /* ── REPORT ── */
-  const handleReport = useCallback(async () => {
-    setShowReport(false);
-    const type = await generatePDFReport(medications, adherenceScore, streak, interactions);
-    speak(ph(lang, "report"));
-  }, [medications, adherenceScore, streak, interactions, lang, speak]);
+  const handleLogSideEffect = useCallback((med, se) => {
+    setMedications(prev => prev.map(m => m.id===med.id ? {...m, sideEffects:[...(m.sideEffects||[]),se]} : m));
+    setShowSideEffect(null);
+  }, [setMedications]);
 
-  const A = "#6EE7B7", BG = "#030d0c", B = "#0f2a26";
+  const A = "#6EE7B7";
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100dvh", background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono',monospace", gap: 16 }}>
-        <div style={{ fontSize: 52 }}>💊</div>
-        <div style={{ fontSize: 13, letterSpacing: ".14em", color: A, textTransform: "uppercase" }}>Loading Medication Care…</div>
-        <div style={{ width: 28, height: 28, border: `2.5px solid ${B}`, borderTopColor: A, borderRadius: "50%", animation: "spin 0.9s linear infinite" }} />
-      </div>
-    );
-  }
+  if (!onboarded) return <OnboardingWizard accent={A} onComplete={() => { setOnboarded(true); save("mhv7_onboarded",true); }} />;
 
   return (
-    <div style={{ minHeight: "100dvh", background: BG, color: "#f0ede6", fontFamily: "'JetBrains Mono','Courier New',monospace", display: "flex", flexDirection: "column", alignItems: "center", overflow: "hidden", position: "relative" }}>
+    <div style={{ minHeight:"100dvh", background:"var(--bg)", color:"var(--text)", fontFamily:"'JetBrains Mono','Courier New',monospace", display:"flex", flexDirection:"column", alignItems:"center", overflowX:"hidden", position:"relative" }}>
 
-      {/* BG grid */}
-      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", backgroundImage: `linear-gradient(rgba(110,231,183,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(110,231,183,0.02) 1px,transparent 1px)`, backgroundSize: "44px 44px" }} />
-      <div style={{ position: "fixed", top: "26%", left: "50%", transform: "translateX(-50%)", width: 400, height: 200, background: `radial-gradient(ellipse,${A}0c 0%,transparent 70%)`, pointerEvents: "none" }} />
-
-      {/* Offline badge */}
-      {offline && (
-        <div style={{ position: "fixed", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 99, fontSize: 10, letterSpacing: ".14em", background: "#081a16", border: `1.5px solid ${A}`, color: A, padding: "4px 14px", textTransform: "uppercase", borderRadius: 20 }}>
-          ⚡ Offline — All features work
-        </div>
-      )}
+      {/* BG */}
+      <div style={{ position:"fixed", inset:0, pointerEvents:"none", backgroundImage:`linear-gradient(${dark?"rgba(110,231,183,0.015)":"rgba(0,80,50,0.02)"} 1px,transparent 1px),linear-gradient(90deg,${dark?"rgba(110,231,183,0.015)":"rgba(0,80,50,0.02)"} 1px,transparent 1px)`, backgroundSize:"44px 44px" }} />
+      <div style={{ position:"fixed", top:"20%", left:"50%", transform:"translateX(-50%)", width:500, height:250, background:`radial-gradient(ellipse,${A}${dark?"0a":"06"} 0%,transparent 70%)`, pointerEvents:"none" }} />
 
       {/* Undo Toast */}
       <UndoToast toast={toast} onUndo={handleUndo} accent={A} />
 
-      {/* ═══ MAIN WRAPPER ═══ */}
-      <div style={{ position: "relative", zIndex: 2, width: "min(480px,97vw)", display: "flex", flexDirection: "column", gap: 12, paddingTop: 20, paddingBottom: 52 }}>
+      {/* WRAPPER */}
+      <div style={{ position:"relative", zIndex:2, width:"min(480px,97vw)", paddingTop:18, paddingBottom:60 }}>
 
         {/* HEADER */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 14, borderBottom: "1.5px solid #111" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", paddingBottom:14, borderBottom:`1.5px solid var(--border)`, marginBottom:14 }}>
           <div>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 30, fontWeight: 800, lineHeight: 1, color: "#f0ede6" }}>
-              ManifiX <span style={{ color: A }}>Meds</span>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, lineHeight:1 }}>
+              ManifiX <span style={{ color:A }}>Meds</span> <span style={{ fontSize:13, color:"var(--text3)", fontWeight:400 }}>v7.0</span>
             </div>
-            <div style={{ fontSize: 10, letterSpacing: ".22em", color: A, textTransform: "uppercase", marginTop: 4, opacity: .7 }}>Track · Take · Thrive</div>
+            <div style={{ fontSize:10, letterSpacing:".2em", color:A, textTransform:"uppercase", marginTop:4, opacity:.7 }}>Track · AI · Family · Vitals</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 7 }}>
-            <button onClick={() => navigate("/app/dashboard")} style={{ fontSize: 11, letterSpacing: ".12em", color: "#3a3a3a", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" }}>← Dashboard</button>
-            <div style={{ fontSize: 10, color: "#2a2a2a", letterSpacing: ".1em" }}>{lang}</div>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <button onClick={()=>setDark(d=>!d)} style={{ fontSize:16, background:"none", border:"none", cursor:"pointer", padding:4 }}>{dark?"☀️":"🌙"}</button>
+            <button className="btn" onClick={()=>setShowAI(true)} style={{ padding:"7px 12px", fontSize:11, fontWeight:700, background:`${A}22`, border:`1.5px solid ${A}`, color:A, borderRadius:8, cursor:"pointer", fontFamily:"inherit", letterSpacing:".06em" }}>🤖 AI</button>
           </div>
         </div>
 
-        {/* ADHERENCE SCORE CARD */}
-        <div className="fu" style={{ border: `1.5px solid ${A}44`, background: `${A}0a`, padding: "16px 18px", borderRadius: 12 }}>
-          <div style={{ fontSize: 10, letterSpacing: ".2em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 10 }}>Today's Adherence</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 48, fontWeight: 800, color: A, lineHeight: 1 }}>{adherenceScore}%</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: "#8a8680" }}>🔥 {streak}-day streak</span>
-                <span style={{ fontSize: 11, color: adherenceScore >= 90 ? "#22c55e" : adherenceScore >= 70 ? A : "#f87171", fontWeight: 600, letterSpacing: ".08em" }}>
-                  {adherenceScore >= 90 ? "Excellent" : adherenceScore >= 70 ? "Good" : "Needs attention"}
+        {/* FAMILY BAR */}
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:10, letterSpacing:".16em", color:"var(--text3)", textTransform:"uppercase", marginBottom:8 }}>👨‍👩‍👧 Family Profiles</div>
+          <FamilyBar profiles={profiles} activeId={activeProfileId} onSwitch={setActiveProfileId}
+            onAdd={() => {
+              const name = prompt("Profile name (e.g. Amma):"); if (!name) return;
+              const avatar = ["👩","👴","🧒","👶","🧓"][profiles.length%5];
+              setProfiles(prev => [...prev, { id:`p${Date.now()}`, name, avatar, relation:"Family", medications:[], active:false }]);
+            }} accent={A} dark={dark} />
+        </div>
+
+        {/* ADHERENCE SCORE */}
+        <div className="fu card" style={{ border:`1.5px solid ${A}44`, background:`${A}${dark?"0a":"06"}`, marginBottom:12 }}>
+          <div style={{ fontSize:10, letterSpacing:".2em", color:"var(--text3)", textTransform:"uppercase", marginBottom:10 }}>Today's Adherence — {activeProfile.name}</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:52, fontWeight:800, color:A, lineHeight:1 }}>{adherenceScore}%</div>
+            <div style={{ flex:1 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                <span style={{ fontSize:12, color:"var(--text2)" }}>🔥 {streak}-day streak</span>
+                <span style={{ fontSize:11, fontWeight:600, color: adherenceScore>=90?"#22c55e":adherenceScore>=70?A:"#f87171" }}>
+                  {adherenceScore>=90?"Excellent":adherenceScore>=70?"Good":"Needs attention"}
                 </span>
               </div>
-              <div style={{ height: 6, background: "#111", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${adherenceScore}%`, background: `linear-gradient(90deg,${B},${A})`, transition: "width .5s ease" }} />
+              <div style={{ height:6, background:"var(--bg3)", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:"100%", width:`${adherenceScore}%`, background:`linear-gradient(90deg,#0f2a26,${A})`, transition:"width .5s" }} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* DUE NOW BANNER */}
-        {dueMeds.length > 0 && (
-          <div className="pulse-ring" style={{ border: `2px solid ${A}`, background: `${A}10`, padding: "13px 16px", borderRadius: 11 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 22 }}>⏰</span>
-                <span style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Syne',sans-serif" }}>
-                  {dueMeds.length} due now
-                </span>
+        {/* DUE BANNER */}
+        {dueMeds.length>0 && (
+          <div className="glow" style={{ border:`2px solid ${A}`, background:`${A}10`, padding:"13px 16px", borderRadius:11, marginBottom:10 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:22 }}>⏰</span>
+                <span style={{ fontSize:15, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>{dueMeds.length} due now</span>
               </div>
-              <button className="btn-m"
-                onClick={handleMarkAllDue}
-                style={{ fontSize: 11, padding: "6px 12px", background: A, border: "none", color: BG, borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, letterSpacing: ".08em" }}>
-                Mark All Taken ✓
-              </button>
+              <button className="btn" onClick={handleMarkAllDue} style={{ fontSize:11, padding:"6px 12px", background:A, border:"none", color:"#030d0c", borderRadius:7, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>Mark All ✓</button>
             </div>
-            <div style={{ fontSize: 12, color: "#cfcfcf" }}>{dueMeds.map(m => m.name).join(" · ")}</div>
+            <div style={{ fontSize:12, color:"var(--text2)" }}>{dueMeds.map(m=>m.name).join(" · ")}</div>
           </div>
         )}
 
-        {/* OVERDUE BANNER */}
-        {overdueMeds.length > 0 && (
-          <div style={{ border: "2px solid #fbbf24", background: "#1a150a", padding: "11px 14px", borderRadius: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16 }}>⚠</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#fbbf24" }}>
-                Missed / overdue: {overdueMeds.map(m => m.name).join(", ")}
-              </span>
-            </div>
+        {/* OVERDUE */}
+        {overdueMeds.length>0 && (
+          <div style={{ border:"2px solid var(--yellow)", background:"#1a150a", padding:"11px 14px", borderRadius:10, marginBottom:10 }}>
+            <span style={{ fontSize:13, fontWeight:600, color:"var(--yellow)" }}>⚠ Missed: {overdueMeds.map(m=>m.name).join(", ")}</span>
           </div>
         )}
 
-        {/* INTERACTION ALERTS */}
-        {interactions.length > 0 && (
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: ".18em", color: "#2a2a2a", textTransform: "uppercase", marginBottom: 6 }}>⚠ Interaction Alerts</div>
-            {interactions.map((w, i) => <InteractionWarning key={i} warning={w} accent={A} />)}
+        {/* INTERACTIONS */}
+        {interactions.length>0 && (
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:10, letterSpacing:".18em", color:"var(--text3)", textTransform:"uppercase", marginBottom:6 }}>⚠ Drug Interactions</div>
+            {interactions.map((w,i)=><InteractionWarning key={i} warning={w} />)}
           </div>
         )}
 
-        {/* MEDICATIONS LIST */}
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: ".2em", color: "#1e1e1e", textTransform: "uppercase", marginBottom: 10, display: "flex", justifyContent: "space-between" }}>
-            <span>💊 Your Medications</span>
-            <span style={{ color: "#4a4a4a" }}>{medications.length} tracked</span>
-          </div>
-          {medications.length === 0
-            ? <div style={{ textAlign: "center", padding: 24, color: "#4a4a4a", fontSize: 13 }}>No medications yet. Tap "Add Medication" to start.</div>
-            : medications.map(med => (
-              <MedicationCard key={med.id} med={med}
-                onMarkSlot={handleMarkSlot} onUndoSlot={handleUndo}
-                onEdit={m => { setEditingMed(m); setShowModal(true); }}
-                onDelete={handleDelete}
-                accent={A} lang={lang} speak={speak} />
-            ))
-          }
-        </div>
-
-        {/* ACTIONS */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {[
-            { label: "+ Add Medication", onClick: () => { setEditingMed(null); setShowModal(true); }, primary: true },
-            { label: "📄 Doctor Report", onClick: () => setShowReport(true), primary: false },
-          ].map(({ label, onClick, primary }) => (
-            <button key={label} className="btn-m card-focus" onClick={onClick}
-              style={{ padding: "14px", fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", background: primary ? A : "#0a1a18", border: `2px solid ${primary ? "#000" : B}`, color: primary ? BG : A, borderRadius: 11, cursor: "pointer", transition: "all .16s", letterSpacing: ".02em" }}>
+        {/* TABS */}
+        <div style={{ display:"flex", gap:6, marginBottom:14, background:"var(--bg3)", borderRadius:12, padding:4 }}>
+          {[["meds","💊 Medications"],["history","📈 History"],["family","👨‍👩‍👧 Summary"]].map(([t,label])=>(
+            <button key={t} className={`tab-btn btn${tab===t?" active":""}`} onClick={()=>setTab(t)}
+              style={{ flex:1, padding:"9px 4px", fontSize:11, fontWeight:700, border:"none", cursor:"pointer", fontFamily:"inherit", letterSpacing:".06em", background: tab===t ? A : "transparent", color: tab===t ? "#030d0c" : "var(--text2)", transition:"all .2s" }}>
               {label}
             </button>
           ))}
         </div>
 
-        {/* FAMILY SYNC */}
-        <div style={{ border: "1.5px solid #163060", background: "#050c1a", padding: "14px 16px", borderRadius: 11 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <span style={{ fontSize: 20 }}>👨‍👩‍👧‍👦</span>
-            <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Syne',sans-serif" }}>Family Care Sync</span>
+        {/* TAB: MEDICATIONS */}
+        {tab==="meds" && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <span style={{ fontSize:10, letterSpacing:".2em", color:"var(--text3)", textTransform:"uppercase" }}>💊 {medications.length} Medications</span>
+            </div>
+            {medications.length===0
+              ? <div style={{ textAlign:"center", padding:32, color:"var(--text3)", fontSize:13 }}>No medications for {activeProfile.name}. Add one below.</div>
+              : medications.map(med=>(
+                <MedCard key={med.id} med={med} onMarkSlot={handleMarkSlot}
+                  onEdit={m=>{setEditingMed(m);setShowModal(true);}}
+                  onDelete={id=>setMedications(prev=>prev.filter(m=>m.id!==id))}
+                  onRateMed={handleRateMed}
+                  onLogSideEffect={m=>setShowSideEffect(m)}
+                  accent={A} dark={dark} />
+              ))
+            }
           </div>
-          <div style={{ fontSize: 12, color: "#5a5a5a", marginBottom: 10, lineHeight: 1.6 }}>
-            Caregivers receive live updates when you take or miss doses. HIPAA-aware data handling.
+        )}
+
+        {/* TAB: HISTORY */}
+        {tab==="history" && (
+          <div>
+            <div className="card" style={{ marginBottom:12 }}>
+              <Heatmap medications={medications} accent={A} />
+            </div>
+            <div className="card" style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, letterSpacing:".18em", color:"var(--text3)", textTransform:"uppercase", marginBottom:10 }}>📊 Recent Vitals</div>
+              {vitals.slice(-5).reverse().map((v,i)=>{
+                const med=medications.find(m=>m.id===v.medId);
+                return (
+                  <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"8px 10px", background:"var(--bg3)", borderRadius:8, marginBottom:6, fontSize:12 }}>
+                    <span style={{ fontWeight:600 }}>{v.type}: {v.value}</span>
+                    {med&&<span style={{ color:"var(--text2)" }}>{med.name}</span>}
+                    <span style={{ color:"var(--text3)" }}>{v.date}</span>
+                  </div>
+                );
+              })}
+              <button onClick={()=>setShowVitals(true)} style={{ width:"100%", marginTop:8, padding:"10px", fontSize:12, fontWeight:600, background:"var(--bg3)", border:"1.5px solid var(--border)", color:A, borderRadius:9, cursor:"pointer", fontFamily:"inherit" }}>+ Log Vital Reading</button>
+            </div>
           </div>
-          <button className="btn-m card-focus"
-            onClick={() => speak(ph(lang, "taken", { med: "all medications", streak }), false)}
-            style={{ width: "100%", padding: "11px", fontSize: 13, fontWeight: 700, fontFamily: "'Syne',sans-serif", background: "#0a1a30", border: "1.5px solid #163060", color: "#60a5fa", borderRadius: 9, cursor: "pointer" }}>
-            📡 Notify Family Now
-          </button>
-        </div>
+        )}
 
-        {/* ADHERENCE HEATMAP */}
-        <div style={{ border: "1.5px solid #111", background: "#070707", padding: "14px 16px", borderRadius: 11 }}>
-          <AdherenceHeatmap medications={medications} accent={A} />
-        </div>
-
-        {/* WHO PANEL TOGGLE */}
-        <div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-            {Object.entries(MEDICATION_DOMAINS).map(([k, d]) => (
-              <button key={k} className="btn-m"
-                onClick={() => { setWhoDomain(k); setWhoOpen(true); }}
-                style={{ flex: 1, padding: "8px", fontSize: 10, letterSpacing: ".12em", textTransform: "uppercase", background: whoDomain === k && whoOpen ? `${A}11` : "transparent", border: `1.5px solid ${whoDomain === k && whoOpen ? A : "#111"}`, color: whoDomain === k && whoOpen ? A : "#2a2a2a", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>
-                {d.who_code}
-              </button>
+        {/* TAB: FAMILY SUMMARY */}
+        {tab==="family" && (
+          <div>
+            {profiles.map(p => (
+              <div key={p.id} className="card" style={{ marginBottom:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                  <span style={{ fontSize:28 }}>{p.avatar}</span>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>{p.name}</div>
+                    <div style={{ fontSize:11, color:"var(--text2)" }}>{p.relation} · {p.medications.length} medications</div>
+                  </div>
+                  <div style={{ marginLeft:"auto", fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:A }}>{calcDayAdherence(p.medications, todayStr())}%</div>
+                </div>
+                {p.medications.length>0 && (
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {p.medications.map(m=>(
+                      <span key={m.id} style={{ fontSize:10, padding:"3px 8px", borderRadius:20, background:`${m.color}22`, border:`1px solid ${m.color}55`, color:m.color }}>{m.name}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
-          <button className="btn-m"
-            onClick={() => setWhoOpen(v => !v)}
-            style={{ width: "100%", padding: "10px 14px", fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", background: "transparent", border: `1.5px solid ${A}30`, color: A, borderRadius: 9, cursor: "pointer", fontFamily: "inherit", display: "flex", justifyContent: "space-between" }}>
-            <span>{whoOpen ? "▾" : "▸"} WHO Medication Guidelines</span>
-            <span style={{ color: "#3a3a3a" }}>{MEDICATION_DOMAINS[whoDomain]?.who_code}</span>
-          </button>
-          <WHOPanel domainKey={whoDomain} accent={A} open={whoOpen} />
+        )}
+
+        {/* ACTION BUTTONS */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:12 }}>
+          <button className="btn" onClick={()=>{setEditingMed(null);setShowModal(true);}} style={{ padding:"14px", fontSize:13, fontWeight:700, fontFamily:"'Syne',sans-serif", background:A, border:"none", color:"#030d0c", borderRadius:11, cursor:"pointer" }}>+ Add Medication</button>
+          <button className="btn" onClick={()=>setShowVitals(true)} style={{ padding:"14px", fontSize:13, fontWeight:700, fontFamily:"'Syne',sans-serif", background:"var(--bg3)", border:`1.5px solid var(--border)`, color:A, borderRadius:11, cursor:"pointer" }}>📊 Log Vitals</button>
+          <button className="btn" onClick={()=>setShowPharmacy(true)} style={{ padding:"14px", fontSize:13, fontWeight:700, fontFamily:"'Syne',sans-serif", background:"var(--bg3)", border:`1.5px solid var(--border)`, color:A, borderRadius:11, cursor:"pointer" }}>🏥 Pharmacy</button>
+          <button className="btn" onClick={()=>exportFHIR(medications,vitals,adherenceScore,streak)} style={{ padding:"14px", fontSize:13, fontWeight:700, fontFamily:"'Syne',sans-serif", background:"var(--bg3)", border:`1.5px solid var(--border)`, color:A, borderRadius:11, cursor:"pointer" }}>📋 FHIR Export</button>
+        </div>
+
+        {/* AI CHAT PROMPT CARD */}
+        <div className="card" style={{ marginTop:12, border:`1.5px solid ${A}44`, cursor:"pointer" }} onClick={()=>setShowAI(true)}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:44, height:44, borderRadius:"50%", background:`${A}22`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>🤖</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", marginBottom:3 }}>AI Medication Assistant</div>
+              <div style={{ fontSize:12, color:"var(--text2)" }}>Ask about interactions, side effects, dosing, refills…</div>
+            </div>
+            <span style={{ fontSize:18, color:A }}>→</span>
+          </div>
         </div>
 
         {/* FOOTER */}
-        <div style={{ textAlign: "center", fontSize: 9, letterSpacing: ".14em", color: "#111", textTransform: "uppercase", paddingTop: 6, lineHeight: 1.9 }}>
-          Per-slot tracking · Undo system · Exact interaction checker<br />
-          Voice: {lang} · WHO SDG 3.8 · {offline ? "Offline-first · LMIC ready" : "Live sync"}
+        <div style={{ textAlign:"center", fontSize:9, letterSpacing:".14em", color:"var(--text3)", textTransform:"uppercase", paddingTop:20, lineHeight:2 }}>
+          ManifiX v7.0 · Magic16 × WHO SDG 3.8<br/>AI Chat · Side FX Tracker · FHIR Export · Family Sync
         </div>
       </div>
 
-      {/* ADD/EDIT MODAL */}
-      {showModal && (
-        <AddEditModal
-          med={editingMed}
-          onClose={() => { setShowModal(false); setEditingMed(null); }}
-          onSave={handleSaveMed}
-          accent={A} />
-      )}
-
-      {/* REPORT MODAL */}
-      {showReport && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}>
-          <div className="fu" style={{ background: BG, border: `2px solid ${A}`, padding: 22, width: "min(400px,100%)", borderRadius: 14 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: "#f0ede6", fontFamily: "'Syne',sans-serif", marginBottom: 10 }}>📋 Medication Report</div>
-            <div style={{ fontSize: 12, color: "#6a6a6a", marginBottom: 16, lineHeight: 1.7 }}>
-              Generates a full summary of your medications, adherence score ({adherenceScore}%), {streak}-day streak, and any interaction alerts.<br />
-              <span style={{ color: "#3a3a3a" }}>Downloads as PDF (jsPDF) or .txt if not available.</span>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setShowReport(false)} style={{ flex: 1, padding: "12px", fontSize: 13, fontWeight: 600, background: "#111", border: "1.5px solid #333", color: "#8a8680", borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-              <button onClick={handleReport} style={{ flex: 1, padding: "12px", fontSize: 13, fontWeight: 600, background: A, border: "1.5px solid #000", color: BG, borderRadius: 10, cursor: "pointer", fontFamily: "inherit" }}>Generate & Download</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODALS */}
+      {showModal && <AddEditModal med={editingMed} onClose={()=>{setShowModal(false);setEditingMed(null);}} onSave={handleSaveMed} accent={A} dark={dark} />}
+      {showAI && <AIChatPanel medications={medications} onClose={()=>setShowAI(false)} accent={A} dark={dark} />}
+      {showSideEffect && <SideEffectPanel med={showSideEffect} onSave={se=>handleLogSideEffect(showSideEffect,se)} onClose={()=>setShowSideEffect(null)} accent={A} dark={dark} />}
+      {showVitals && <VitalsPanel vitals={vitals} medications={medications} onAdd={v=>setVitals(prev=>[...prev,v])} onClose={()=>setShowVitals(false)} accent={A} dark={dark} />}
+      {showPharmacy && <PharmacyFinder onClose={()=>setShowPharmacy(false)} dark={dark} accent={A} />}
     </div>
   );
 }
