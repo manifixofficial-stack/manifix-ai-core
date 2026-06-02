@@ -241,13 +241,13 @@ const Card = ({ children, style = {}, className = "" }) => (
   </div>
 );
 
-const Label = ({ children, color = MUTED }: { children: React.ReactNode; color?: string }) => (
+const Label = ({ children, color = MUTED }) => (
   <div style={{ fontSize: 7, letterSpacing: ".2em", color, textTransform: "uppercase", marginBottom: 6 }}>
     {children}
   </div>
 );
 
-const Badge = ({ children, color = GOLD }: { children: React.ReactNode; color?: string }) => (
+const Badge = ({ children, color = GOLD }) => (
   <span style={{
     fontSize: 6, letterSpacing: ".16em", padding: "2px 7px",
     background: `${color}22`, color, border: `1px solid ${color}44`,
