@@ -170,8 +170,8 @@ const MEDITATION_PROGRAMS = [
     icon: "🫁",
     description: "Clinically validated techniques. Combines MBSR, CBT, and somatic methods for anxiety and panic.",
     sessions: [
-      { day: 1, title: "Physiological Sigh",   duration: "5 min",  focus: "Nervous System", done: false, desc: "Double-inhale through nose, slow exhale. Fastest cortisol drop." },
-      { day: 2, title: "Box Breathing 4-4-4-4", duration: "8 min", focus: "Regulation",     done: false, desc: "Navy SEAL technique for immediate calm under stress." },
+      { day: 1, title: "Physiological Sigh",    duration: "5 min",  focus: "Nervous System", done: false, desc: "Double-inhale through nose, slow exhale. Fastest cortisol drop." },
+      { day: 2, title: "Box Breathing 4-4-4-4", duration: "8 min",  focus: "Regulation",     done: false, desc: "Navy SEAL technique for immediate calm under stress." },
       { day: 3, title: "5-4-3-2-1 Grounding",  duration: "6 min",  focus: "Grounding",      done: false, desc: "Sensory grounding to stop a panic spiral." },
       { day: 4, title: "RAIN Technique",        duration: "10 min", focus: "Emotion",        done: false, desc: "Recognize, Allow, Investigate, Nurture — anxiety antidote." },
       { day: 5, title: "Vagus Nerve Hum",       duration: "7 min",  focus: "Vagal Tone",     done: false, desc: "Humming activates vagus nerve to shut off fight-or-flight." },
@@ -208,11 +208,11 @@ const MEDITATION_PROGRAMS = [
     icon: "🌙",
     description: "AI-narrated sleep stories combined with guided body scans. Fall asleep faster — clinically proven.",
     sessions: [
-      { day: 1, title: "Forest Path",       duration: "15 min", focus: "Sleep story",  done: false, desc: "Walk through an ancient forest as your body releases tension layer by layer." },
-      { day: 2, title: "Ocean Drift",       duration: "18 min", focus: "Sleep story",  done: false, desc: "Float on warm ocean waves as each breath carries you deeper into rest." },
-      { day: 3, title: "Mountain Descent",  duration: "20 min", focus: "Body scan",    done: false, desc: "A progressive body scan descending from mountain peak to valley floor." },
-      { day: 4, title: "Starfield",         duration: "12 min", focus: "Visualization",done: false, desc: "Drift through a silent starfield — consciousness expands, body dissolves." },
-      { day: 5, title: "Rain on Leaves",    duration: "16 min", focus: "Sleep story",  done: false, desc: "Settle into a forest cabin as rain falls and every muscle releases." },
+      { day: 1, title: "Forest Path",      duration: "15 min", focus: "Sleep story",   done: false, desc: "Walk through an ancient forest as your body releases tension layer by layer." },
+      { day: 2, title: "Ocean Drift",      duration: "18 min", focus: "Sleep story",   done: false, desc: "Float on warm ocean waves as each breath carries you deeper into rest." },
+      { day: 3, title: "Mountain Descent", duration: "20 min", focus: "Body scan",     done: false, desc: "A progressive body scan descending from mountain peak to valley floor." },
+      { day: 4, title: "Starfield",        duration: "12 min", focus: "Visualization", done: false, desc: "Drift through a silent starfield — consciousness expands, body dissolves." },
+      { day: 5, title: "Rain on Leaves",   duration: "16 min", focus: "Sleep story",   done: false, desc: "Settle into a forest cabin as rain falls and every muscle releases." },
     ],
   },
 ];
@@ -225,11 +225,11 @@ const DISTORTIONS = [
 ];
 
 const CBT_EXERCISES = [
-  { id: "thought-record",         title: "Thought Record",        icon: "📋", desc: "Identify & challenge automatic negative thoughts",           steps: ["Situation", "Automatic Thought", "Emotions (0–100%)", "Cognitive Distortions", "Evidence FOR", "Evidence AGAINST", "Balanced Thought", "Outcome Emotions"] },
-  { id: "behavioral-experiment",  title: "Behavioral Experiment", icon: "🔬", desc: "Test anxious predictions against reality",                   steps: ["Prediction", "Fear Rating", "Action Plan", "Actual Outcome", "What Learned"] },
-  { id: "worry-time",             title: "Scheduled Worry",       icon: "⏰", desc: "Contain worry to 15 min daily — proven to cut anxiety 40%", steps: ["Worry Topic", "Postpone Until", "Productive Action Now", "Worry Resolved?"] },
-  { id: "activity-scheduling",    title: "Activity Scheduling",   icon: "📅", desc: "Behavioral activation for depression — plan mastery + pleasure", steps: ["Activity", "Mastery Rating", "Pleasure Rating", "Scheduled Time", "Completed?"] },
-  { id: "core-beliefs",           title: "Core Belief Audit",     icon: "🔑", desc: "Uncover deep beliefs driving your patterns",                 steps: ["Surface Belief", "Downward Arrow (Why?×5)", "Core Belief Found", "Evidence Against It", "New Adaptive Belief"] },
+  { id: "thought-record",        title: "Thought Record",        icon: "📋", desc: "Identify & challenge automatic negative thoughts",            steps: ["Situation", "Automatic Thought", "Emotions (0–100%)", "Cognitive Distortions", "Evidence FOR", "Evidence AGAINST", "Balanced Thought", "Outcome Emotions"] },
+  { id: "behavioral-experiment", title: "Behavioral Experiment", icon: "🔬", desc: "Test anxious predictions against reality",                    steps: ["Prediction", "Fear Rating", "Action Plan", "Actual Outcome", "What Learned"] },
+  { id: "worry-time",            title: "Scheduled Worry",       icon: "⏰", desc: "Contain worry to 15 min daily — proven to cut anxiety 40%",  steps: ["Worry Topic", "Postpone Until", "Productive Action Now", "Worry Resolved?"] },
+  { id: "activity-scheduling",   title: "Activity Scheduling",   icon: "📅", desc: "Behavioral activation for depression — plan mastery + pleasure", steps: ["Activity", "Mastery Rating", "Pleasure Rating", "Scheduled Time", "Completed?"] },
+  { id: "core-beliefs",          title: "Core Belief Audit",     icon: "🔑", desc: "Uncover deep beliefs driving your patterns",                  steps: ["Surface Belief", "Downward Arrow (Why?×5)", "Core Belief Found", "Evidence Against It", "New Adaptive Belief"] },
 ];
 
 /* ════════════════════════════════════════════════════════════
@@ -260,7 +260,7 @@ const Badge = ({ children, color = GOLD }) => (
 ════════════════════════════════════════════════════════════ */
 function useStreak() {
   const today = new Date().toDateString();
- const data = store.get("mh_streak", { lastDate: "", streak: 0, longest: 0 });
+  const data = store.get("mh_streak", { lastDate: "", streak: 0, longest: 0 });
 
   const checkIn = useCallback(() => {
     const yesterday = new Date(Date.now() - 86400000).toDateString();
@@ -276,7 +276,7 @@ function useStreak() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   CRISIS BANNER (Teladoc feature — safety net)
+   CRISIS BANNER
 ════════════════════════════════════════════════════════════ */
 function CrisisBanner() {
   const [open, setOpen] = useState(false);
@@ -326,31 +326,30 @@ function CrisisBanner() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   SOUNDSCAPES (Beats Calm's ambient audio)
+   SOUNDSCAPES
 ════════════════════════════════════════════════════════════ */
 function SoundscapesTab() {
-  const [active, setActive] = useState<string | null>(null);
+  const [active, setActive] = useState(null);
   const [vol, setVol] = useState(60);
-  const ctxRef = useRef<AudioContext | null>(null);
-  const nodesRef = useRef<{ src: AudioBufferSourceNode; gain: GainNode } | null>(null);
+  const ctxRef = useRef(null);
+  const nodesRef = useRef(null);
 
   const stopSound = useCallback(() => {
     if (nodesRef.current) {
-      try { nodesRef.current.src.stop(); } catch {}
+      try { nodesRef.current.src.stop(); } catch (e) {}
       nodesRef.current = null;
     }
     setActive(null);
   }, []);
 
-  const playSound = useCallback((s: typeof SOUNDSCAPES[0]) => {
+  const playSound = useCallback((s) => {
     if (active === s.id) { stopSound(); return; }
     stopSound();
-    if (!ctxRef.current) ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
     const ctx = ctxRef.current;
     const bufLen = ctx.sampleRate * 2;
     const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    // Generate noise type
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < bufLen; i++) {
       const white = Math.random() * 2 - 1;
@@ -441,7 +440,6 @@ function SoundscapesTab() {
         </Card>
       )}
 
-      {/* Sleep + sound tip */}
       <div style={{ background: "#0a0d14", border: `1px solid ${BLUE}22`, padding: "12px 14px" }}>
         <Label color={`${BLUE}88`}>Sleep Science Tip</Label>
         <div style={{ fontSize: 9, color: SUB, lineHeight: 1.8 }}>
@@ -455,33 +453,29 @@ function SoundscapesTab() {
 /* ════════════════════════════════════════════════════════════
    MEDITATION TIMER
 ════════════════════════════════════════════════════════════ */
-function MeditationTimer({ session, onClose, onComplete }: {
-  session: { title: string; duration: string; focus: string; desc: string; day: number; done: boolean };
-  onClose: () => void;
-  onComplete: (s: typeof session) => void;
-}) {
-  const [phase, setPhase]     = useState<"ready" | "running" | "paused" | "done">("ready");
+function MeditationTimer({ session, onClose, onComplete }) {
+  const [phase, setPhase]     = useState("ready");
   const [elapsed, setElapsed] = useState(0);
   const totalSec = parseInt(session.duration) * 60;
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef(null);
 
   const start = () => {
     setPhase("running");
     timerRef.current = setInterval(() => {
       setElapsed(e => {
-        if (e + 1 >= totalSec) { clearInterval(timerRef.current!); setPhase("done"); return totalSec; }
+        if (e + 1 >= totalSec) { clearInterval(timerRef.current); setPhase("done"); return totalSec; }
         return e + 1;
       });
     }, 1000);
   };
 
-  const pause = () => { clearInterval(timerRef.current!); setPhase("paused"); };
+  const pause = () => { clearInterval(timerRef.current); setPhase("paused"); };
 
   const resume = () => {
     setPhase("running");
     timerRef.current = setInterval(() => {
       setElapsed(e => {
-        if (e + 1 >= totalSec) { clearInterval(timerRef.current!); setPhase("done"); return totalSec; }
+        if (e + 1 >= totalSec) { clearInterval(timerRef.current); setPhase("done"); return totalSec; }
         return e + 1;
       });
     }, 1000);
@@ -497,7 +491,6 @@ function MeditationTimer({ session, onClose, onComplete }: {
   const circ = 2 * Math.PI * r;
   const dash = circ * (1 - pct);
 
-  // Breathing phase label
   const breathCycle = elapsed % 16;
   const breathLabel = breathCycle < 4 ? "Inhale..." : breathCycle < 8 ? "Hold..." : breathCycle < 12 ? "Exhale..." : "Hold...";
 
@@ -556,7 +549,7 @@ function MeditationTimer({ session, onClose, onComplete }: {
       )}
 
       <div style={{ display: "flex", gap: 10 }}>
-        {phase === "ready"   && <button className="mh-btn" onClick={start}  style={{ padding: "13px 32px", background: GOLD,        color: "#080808", border: "none",               fontFamily: FONT, fontSize: 11, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase" }}>▶ Begin</button>}
+        {phase === "ready"   && <button className="mh-btn" onClick={start}  style={{ padding: "13px 32px", background: GOLD,          color: "#080808", border: "none",               fontFamily: FONT, fontSize: 11, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase" }}>▶ Begin</button>}
         {phase === "running" && <button className="mh-btn" onClick={pause}  style={{ padding: "13px 32px", background: "transparent", color: GOLD,      border: `1px solid ${GOLD}44`, fontFamily: FONT, fontSize: 11,               letterSpacing: ".18em", textTransform: "uppercase" }}>⏸ Pause</button>}
         {phase === "paused"  && <button className="mh-btn" onClick={resume} style={{ padding: "13px 32px", background: GOLD,          color: "#080808", border: "none",               fontFamily: FONT, fontSize: 11, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase" }}>▶ Resume</button>}
         {phase === "done"    && <button className="mh-btn" onClick={() => { onComplete(session); onClose(); }} style={{ padding: "13px 32px", background: GREEN, color: "#080808", border: "none", fontFamily: FONT, fontSize: 11, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase" }}>✓ Complete</button>}
@@ -571,18 +564,18 @@ function MeditationTimer({ session, onClose, onComplete }: {
 ════════════════════════════════════════════════════════════ */
 function GuidedMeditationTab() {
   const [programs, setPrograms] = useState(() => store.get("mh_programs", MEDITATION_PROGRAMS));
-  const [selected, setSelected] = useState<string | null>(null);
-  const [timerSess, setTimerSess] = useState<any>(null);
-  const [view, setView] = useState<"list" | "detail">("list");
+  const [selected, setSelected] = useState(null);
+  const [timerSess, setTimerSess] = useState(null);
+  const [view, setView] = useState("list");
   const { checkIn } = useStreak();
 
-  const prog = programs.find((p: any) => p.id === selected);
+  const prog = programs.find((p) => p.id === selected);
 
-  const completeSession = useCallback((session: any) => {
-    setPrograms((prev: any[]) => {
-      const updated = prev.map((p: any) => {
+  const completeSession = useCallback((session) => {
+    setPrograms((prev) => {
+      const updated = prev.map((p) => {
         if (p.id !== selected) return p;
-        return { ...p, sessions: p.sessions.map((s: any) => s.day === session.day ? { ...s, done: true } : s) };
+        return { ...p, sessions: p.sessions.map((s) => s.day === session.day ? { ...s, done: true } : s) };
       });
       store.set("mh_programs", updated);
       return updated;
@@ -590,8 +583,8 @@ function GuidedMeditationTab() {
     checkIn();
   }, [selected, checkIn]);
 
-  const getProgress = (p: any) => {
-    const done = p.sessions.filter((s: any) => s.done).length;
+  const getProgress = (p) => {
+    const done = p.sessions.filter((s) => s.done).length;
     return { done, total: p.sessions.length, pct: Math.round((done / p.sessions.length) * 100) };
   };
 
@@ -601,7 +594,7 @@ function GuidedMeditationTab() {
 
   if (view === "detail" && prog) {
     const { done, total, pct } = getProgress(prog);
-    const nextSession = prog.sessions.find((s: any) => !s.done);
+    const nextSession = prog.sessions.find((s) => !s.done);
     return (
       <div className="mh-up" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: 12, borderBottom: `1px solid ${BOR}` }}>
@@ -649,7 +642,7 @@ function GuidedMeditationTab() {
 
         <Label>All Sessions</Label>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {prog.sessions.map((s: any) => (
+          {prog.sessions.map((s) => (
             <div key={s.day} className="mh-card-h" onClick={() => !s.done && setTimerSess(s)} style={{
               background: s.done ? "#0a140a" : CARD,
               border: `1px solid ${s.done ? "#1e4d1e" : BOR}`,
@@ -687,7 +680,7 @@ function GuidedMeditationTab() {
         ✦ 7-day · 21-day · Anxiety pack · Depression pack · Sleep stories (NEW) · Timer + breathing guide
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {programs.map((p: any) => {
+        {programs.map((p) => {
           const { done, total, pct } = getProgress(p);
           return (
             <div key={p.id} className="mh-card-h" onClick={() => { setSelected(p.id); setView("detail"); }} style={{ background: CARD, border: `1px solid ${BOR}`, padding: "16px 18px", cursor: "pointer" }}>
@@ -718,25 +711,24 @@ function GuidedMeditationTab() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   CBT TAB — now with Core Belief Audit + weekly analytics
+   CBT TAB
 ════════════════════════════════════════════════════════════ */
 function CBTTab() {
-  const [activeEx, setActiveEx]   = useState<string | null>(null);
+  const [activeEx, setActiveEx]   = useState(null);
   const [step, setStep]           = useState(0);
-  const [answers, setAnswers]     = useState<Record<string, string>>({});
-  const [distorts, setDistorts]   = useState<string[]>([]);
+  const [answers, setAnswers]     = useState({});
+  const [distorts, setDistorts]   = useState([]);
   const [saved, setSaved]         = useState(false);
-  const [history, setHistory]     = useState<any[]>(() => store.get("mh_cbt", []));
+  const [history, setHistory]     = useState(() => store.get("mh_cbt", []));
   const [aiReframe, setAiReframe] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
 
   const ex = CBT_EXERCISES.find(e => e.id === activeEx);
 
-  // Weekly distortion analytics
   const distortionCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    history.forEach((r: any) => {
-      (r.distortions || []).forEach((d: string) => { counts[d] = (counts[d] || 0) + 1; });
+    const counts = {};
+    history.forEach((r) => {
+      (r.distortions || []).forEach((d) => { counts[d] = (counts[d] || 0) + 1; });
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [history]);
@@ -763,8 +755,8 @@ function CBTTab() {
           }),
         });
         const data = await resp.json();
-        setAiReframe(data.content?.find((c: any) => c.type === "text")?.text || "");
-      } catch {
+        setAiReframe(data.content?.find((c) => c.type === "text")?.text || "");
+      } catch (e) {
         setAiReframe("Great work completing this. Challenging negative thoughts takes courage — you're building real cognitive resilience.");
       }
       setAiLoading(false);
@@ -792,7 +784,6 @@ function CBTTab() {
         ))}
       </div>
 
-      {/* Distortion Analytics */}
       {distortionCounts.length > 0 && (
         <Card>
           <Label>Your Top Cognitive Distortions</Label>
@@ -817,7 +808,7 @@ function CBTTab() {
         <>
           <Label>Recent Records</Label>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {history.slice(0, 4).map((r: any) => (
+            {history.slice(0, 4).map((r) => (
               <div key={r.id} style={{ background: CARD, border: `1px solid ${BOR}`, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <div style={{ fontSize: 9, color: TEXT, marginBottom: 2 }}>{r.exercise}</div>
@@ -832,7 +823,7 @@ function CBTTab() {
     </div>
   );
 
-  const currentStep = ex!.steps[step];
+  const currentStep = ex.steps[step];
   const isDistortStep = currentStep === "Cognitive Distortions";
 
   return (
@@ -840,13 +831,13 @@ function CBTTab() {
       <div style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: 12, borderBottom: `1px solid ${BOR}` }}>
         <button className="mh-btn" onClick={() => setActiveEx(null)} style={{ background: "transparent", border: `1px solid ${BOR}`, color: SUB, fontFamily: FONT, fontSize: 8, letterSpacing: ".14em", padding: "6px 12px", textTransform: "uppercase" }}>← Back</button>
         <div>
-          <div style={{ fontFamily: HEAD, fontSize: 18, color: TEXT }}>{ex!.icon} {ex!.title}</div>
-          <div style={{ fontSize: 7, color: SUB, letterSpacing: ".12em", textTransform: "uppercase" }}>Step {step + 1} of {ex!.steps.length}</div>
+          <div style={{ fontFamily: HEAD, fontSize: 18, color: TEXT }}>{ex.icon} {ex.title}</div>
+          <div style={{ fontSize: 7, color: SUB, letterSpacing: ".12em", textTransform: "uppercase" }}>Step {step + 1} of {ex.steps.length}</div>
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 4 }}>
-        {ex!.steps.map((_, i) => (
+        {ex.steps.map((_, i) => (
           <div key={i} style={{ flex: 1, height: 3, background: i <= step ? GOLD : BOR, borderRadius: 2, transition: "background .3s" }} />
         ))}
       </div>
@@ -898,7 +889,7 @@ function CBTTab() {
           {step > 0 && (
             <button className="mh-btn" onClick={() => setStep(s => s - 1)} style={{ flex: 1, padding: "12px 0", background: "transparent", border: `1px solid ${BOR}`, color: SUB, fontFamily: FONT, fontSize: 9, letterSpacing: ".16em", textTransform: "uppercase" }}>← Previous</button>
           )}
-          {step < ex!.steps.length - 1 ? (
+          {step < ex.steps.length - 1 ? (
             <button className="mh-btn" onClick={() => setStep(s => s + 1)} style={{ flex: 2, padding: "12px 0", background: GOLD, color: "#080808", border: "none", fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: ".16em", textTransform: "uppercase" }}>Next Step →</button>
           ) : (
             <button className="mh-btn" onClick={saveRecord} style={{ flex: 2, padding: "12px 0", background: GREEN, color: "#080808", border: "none", fontFamily: FONT, fontSize: 9, fontWeight: 700, letterSpacing: ".16em", textTransform: "uppercase" }}>✓ Save Record</button>
@@ -916,21 +907,21 @@ function CBTTab() {
    MOOD JOURNAL TAB
 ════════════════════════════════════════════════════════════ */
 function MoodJournalTab() {
-  const [moodLog, setMoodLog]    = useState<any[]>(() => store.get("mh_moods2", []));
-  const [selMood, setSelMood]    = useState<any>(null);
+  const [moodLog, setMoodLog]    = useState(() => store.get("mh_moods2", []));
+  const [selMood, setSelMood]    = useState(null);
   const [note, setNote]          = useState("");
   const [saved, setSaved]        = useState(false);
-  const [emotions, setEmotions]  = useState<string[]>([]);
+  const [emotions, setEmotions]  = useState([]);
   const [energy, setEnergy]      = useState(5);
   const [aiInsight, setAiInsight]= useState("");
   const [aiLoading, setAiLoading]= useState(false);
   const { streak, checkIn }      = useStreak();
 
   const MOODS = [
-    { emoji: "😭", label: "Terrible", score: 1 }, { emoji: "😢", label: "Sad",     score: 2 },
-    { emoji: "😕", label: "Low",      score: 3 }, { emoji: "😐", label: "Meh",     score: 5 },
-    { emoji: "🙂", label: "Okay",     score: 6 }, { emoji: "😊", label: "Good",    score: 7 },
-    { emoji: "😄", label: "Happy",    score: 8 }, { emoji: "🤩", label: "Great",   score: 10 },
+    { emoji: "😭", label: "Terrible", score: 1 }, { emoji: "😢", label: "Sad",   score: 2 },
+    { emoji: "😕", label: "Low",      score: 3 }, { emoji: "😐", label: "Meh",   score: 5 },
+    { emoji: "🙂", label: "Okay",     score: 6 }, { emoji: "😊", label: "Good",  score: 7 },
+    { emoji: "😄", label: "Happy",    score: 8 }, { emoji: "🤩", label: "Great", score: 10 },
   ];
 
   const EMOTION_CHIPS = [
@@ -964,8 +955,8 @@ function MoodJournalTab() {
         }),
       });
       const data = await resp.json();
-      setAiInsight(data.content?.find((c: any) => c.type === "text")?.text || "");
-    } catch {
+      setAiInsight(data.content?.find((c) => c.type === "text")?.text || "");
+    } catch (e) {
       setAiInsight("Thank you for checking in. Awareness of your emotional state is a powerful act of self-care.");
     }
     setAiLoading(false);
@@ -973,14 +964,12 @@ function MoodJournalTab() {
   }, [selMood, note, emotions, energy, moodLog, checkIn]);
 
   const weekMoods = moodLog.slice(0, 7);
-  const avgScore  = weekMoods.length ? (weekMoods.reduce((a: number, m: any) => a + m.score, 0) / weekMoods.length).toFixed(1) : "—";
+  const avgScore  = weekMoods.length ? (weekMoods.reduce((a, m) => a + m.score, 0) / weekMoods.length).toFixed(1) : "—";
   const mhScore   = weekMoods.length ? Math.min(100, Math.round((Number(avgScore) / 10) * 70 + weekMoods.length * 4)) : 0;
-  const mhColor   = mhScore >= 70 ? GREEN : mhScore >= 50 ? GOLD : RED;
 
-  // 30-day weekly averages for trend chart
   const weeklyTrend = useMemo(() => {
-    const weeks: number[][] = [[], [], [], []];
-    moodLog.slice(0, 28).forEach((m: any, i: number) => { weeks[Math.floor(i / 7)].push(m.score); });
+    const weeks = [[], [], [], []];
+    moodLog.slice(0, 28).forEach((m, i) => { weeks[Math.floor(i / 7)].push(m.score); });
     return weeks.map(w => w.length ? +(w.reduce((a, b) => a + b, 0) / w.length).toFixed(1) : 0).filter(v => v > 0);
   }, [moodLog]);
 
@@ -991,7 +980,6 @@ function MoodJournalTab() {
         <Badge color="#f87171">BEATS BETTERHELP</Badge>
       </div>
 
-      {/* Streak display */}
       {streak > 0 && (
         <div style={{ background: `${GOLD}11`, border: `1px solid ${GOLD}22`, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ fontSize: 28, animation: "mh-streak .5s ease" }}>🔥</div>
@@ -1068,9 +1056,9 @@ function MoodJournalTab() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         {[
-          { label: "7-Day Avg",   value: avgScore },
+          { label: "7-Day Avg",    value: avgScore },
           { label: "Days Tracked", value: moodLog.length },
-          { label: "MH Score",   value: mhScore > 0 ? `${mhScore}/100` : "—" },
+          { label: "MH Score",     value: mhScore > 0 ? `${mhScore}/100` : "—" },
         ].map(({ label, value }) => (
           <div key={label} style={{ background: CARD, border: `1px solid ${BOR}`, padding: "12px 14px" }}>
             <Label>{label}</Label>
@@ -1083,7 +1071,7 @@ function MoodJournalTab() {
         <Card>
           <Label>7-Day Mood Chart</Label>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80 }}>
-            {[...weekMoods].reverse().map((m: any, i: number) => (
+            {[...weekMoods].reverse().map((m, i) => (
               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                 <div style={{ fontSize: 7, color: SUB }}>{m.score}</div>
                 <div style={{ width: "100%", height: `${(m.score / 10) * 60}px`, borderRadius: "2px 2px 0 0", background: m.score >= 7 ? GREEN : m.score >= 5 ? GOLD : RED, transition: "height .5s" }} />
@@ -1094,7 +1082,6 @@ function MoodJournalTab() {
         </Card>
       )}
 
-      {/* 4-week trend — Headspace-level analytics */}
       {weeklyTrend.length >= 2 && (
         <Card>
           <Label>Weekly Trend (last {weeklyTrend.length} weeks)</Label>
@@ -1126,7 +1113,7 @@ function MoodJournalTab() {
         <Card>
           <Label>Recent Check-Ins</Label>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {moodLog.slice(0, 5).map((m: any, i: number) => (
+            {moodLog.slice(0, 5).map((m, i) => (
               <div key={m.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: `1px solid #111`, paddingBottom: 8 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                   <span style={{ fontSize: 20 }}>{m.emoji}</span>
@@ -1135,7 +1122,7 @@ function MoodJournalTab() {
                     <div style={{ fontSize: 7, color: MUTED }}>{m.date} {m.time}</div>
                     {m.emotions?.length > 0 && (
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
-                        {m.emotions.slice(0, 3).map((e: string) => (
+                        {m.emotions.slice(0, 3).map((e) => (
                           <span key={e} style={{ fontSize: 6, color: SUB, border: `1px solid ${BOR}`, padding: "1px 5px", letterSpacing: ".08em" }}>{e}</span>
                         ))}
                       </div>
@@ -1153,14 +1140,14 @@ function MoodJournalTab() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   AI THERAPY TAB — system prompt upgraded, crisis detection
+   AI THERAPY TAB
 ════════════════════════════════════════════════════════════ */
 function AITherapyTab() {
-  const [chat, setChat]     = useState<any[]>(() => store.get("mh_chat2", []));
+  const [chat, setChat]     = useState(() => store.get("mh_chat2", []));
   const [msg, setMsg]       = useState("");
   const [aiLoad, setAiLoad] = useState(false);
   const [crisis, setCrisis] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef(null);
 
   useEffect(() => { chatRef.current?.scrollTo({ top: 9999, behavior: "smooth" }); }, [chat]);
 
@@ -1181,15 +1168,15 @@ function AITherapyTab() {
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
           system: `You are ManifiX AI Therapist — an empathetic, evidence-based mental health support assistant. Use CBT, ACT, DBT, and mindfulness techniques. Be warm, specific, and practical. Responses 60–100 words max. Never diagnose. If user shows signs of crisis or self-harm, always gently encourage professional help and mention crisis hotlines (iCall: 9152987821 in India). You are not a replacement for professional therapy.`,
-          messages: newChat.map((m: any) => ({ role: m.role, content: m.content })),
+          messages: newChat.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
       const data = await resp.json();
-      const reply = data.content?.find((c: any) => c.type === "text")?.text || "I'm here with you. Please try again.";
+      const reply = data.content?.find((c) => c.type === "text")?.text || "I'm here with you. Please try again.";
       const final = [...newChat, { role: "assistant", content: reply }];
       setChat(final);
       store.set("mh_chat2", final.slice(-20));
-    } catch {
+    } catch (e) {
       setChat([...newChat, { role: "assistant", content: "I'm here to support you. There was a connection issue — please try again." }]);
     }
     setAiLoad(false);
@@ -1221,7 +1208,7 @@ function AITherapyTab() {
             I am here to listen and support you.<br />Share what's on your mind.
           </div>
         )}
-        {chat.map((m: any, i: number) => (
+        {chat.map((m, i) => (
           <div key={i} style={{
             alignSelf: m.role === "user" ? "flex-end" : "flex-start",
             maxWidth: "86%",
@@ -1267,12 +1254,12 @@ export default function MentalHealth() {
   const navigate = useNavigate();
   const [tipIdx, setTipIdx] = useState(0);
   const [tab, setTab]       = useState("overview");
-  const tipRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tipRef = useRef(null);
   const { streak, todayDone } = useStreak();
 
-  const moodLog = useMemo(() => store.get<any[]>("mh_moods2", []), [tab]);
+  const moodLog = useMemo(() => store.get("mh_moods2", []), [tab]);
   const weekMoods = moodLog.slice(0, 7);
-  const avgScore  = weekMoods.length ? (weekMoods.reduce((a: number, m: any) => a + m.score, 0) / weekMoods.length).toFixed(1) : null;
+  const avgScore  = weekMoods.length ? (weekMoods.reduce((a, m) => a + m.score, 0) / weekMoods.length).toFixed(1) : null;
   const mhScore   = avgScore ? Math.min(100, Math.round((Number(avgScore) / 10) * 70 + weekMoods.length * 4)) : 0;
   const mhColor   = mhScore >= 70 ? GREEN : mhScore >= 50 ? GOLD : RED;
 
@@ -1302,9 +1289,9 @@ export default function MentalHealth() {
 
       {/* Corner brackets */}
       {[
-        { top: 13, left: 13,   borderTopWidth: 2, borderLeftWidth: 2 },
-        { top: 13, right: 13,  borderTopWidth: 2, borderRightWidth: 2 },
-        { bottom: 13, left: 13,  borderBottomWidth: 2, borderLeftWidth: 2 },
+        { top: 13, left: 13,    borderTopWidth: 2,    borderLeftWidth: 2  },
+        { top: 13, right: 13,   borderTopWidth: 2,    borderRightWidth: 2 },
+        { bottom: 13, left: 13,  borderBottomWidth: 2, borderLeftWidth: 2  },
         { bottom: 13, right: 13, borderBottomWidth: 2, borderRightWidth: 2 },
       ].map((pos, i) => (
         <div key={i} style={{ position: "fixed", width: 20, height: 20, borderColor: GOLD, borderStyle: "solid", borderWidth: 0, opacity: .18, pointerEvents: "none", ...pos }} />
@@ -1403,16 +1390,15 @@ export default function MentalHealth() {
               </div>
             </div>
 
-            {/* Competitor comparison — now includes Sounds */}
             <div>
               <Label>How ManifiX Beats the Competition</Label>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {[
-                  { app: "Headspace",  feature: "7-day, 21-day, sleep story programs", badge: "MEDITATION", color: GREEN,   tab: "meditation" },
-                  { app: "Calm",       feature: "Ambient soundscapes (rain, ocean, fire)", badge: "SOUNDS",    color: BLUE,    tab: "sounds"     },
-                  { app: "BetterHelp", feature: "Mood journal + AI insights + streak",    badge: "MOOD",      color: "#f87171",tab: "mood"       },
-                  { app: "BetterHelp", feature: "CBT with distortion analytics",           badge: "CBT",       color: BLUE,    tab: "cbt"        },
-                  { app: "Teladoc",    feature: "24/7 AI therapist + crisis detection",    badge: "THERAPY",   color: PURPLE,  tab: "therapy"    },
+                  { app: "Headspace",  feature: "7-day, 21-day, sleep story programs",      badge: "MEDITATION", color: GREEN,    tab: "meditation" },
+                  { app: "Calm",       feature: "Ambient soundscapes (rain, ocean, fire)",   badge: "SOUNDS",     color: BLUE,     tab: "sounds"     },
+                  { app: "BetterHelp", feature: "Mood journal + AI insights + streak",       badge: "MOOD",       color: "#f87171",tab: "mood"       },
+                  { app: "BetterHelp", feature: "CBT with distortion analytics",             badge: "CBT",        color: BLUE,     tab: "cbt"        },
+                  { app: "Teladoc",    feature: "24/7 AI therapist + crisis detection",      badge: "THERAPY",    color: PURPLE,   tab: "therapy"    },
                 ].map((c, i) => (
                   <button key={i} className="mh-btn mh-card-h" onClick={() => setTab(c.tab)} style={{ background: CARD, border: `1px solid ${BOR}`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
                     <div style={{ flex: 1 }}>
