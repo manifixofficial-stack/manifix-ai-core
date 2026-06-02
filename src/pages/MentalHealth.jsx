@@ -260,7 +260,7 @@ const Badge = ({ children, color = GOLD }) => (
 ════════════════════════════════════════════════════════════ */
 function useStreak() {
   const today = new Date().toDateString();
-  const data = store.get<{ lastDate: string; streak: number; longest: number }>("mh_streak", { lastDate: "", streak: 0, longest: 0 });
+ const data = store.get("mh_streak", { lastDate: "", streak: 0, longest: 0 });
 
   const checkIn = useCallback(() => {
     const yesterday = new Date(Date.now() - 86400000).toDateString();
