@@ -235,7 +235,7 @@ const CBT_EXERCISES = [
 /* ════════════════════════════════════════════════════════════
    SHARED COMPONENTS
 ════════════════════════════════════════════════════════════ */
-const Card = ({ children, style = {}, className = "" }: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) => (
+const Card = ({ children, style = {}, className = "" }) => (
   <div className={`mh-card-h ${className}`} style={{ background: CARD, border: `1px solid ${BOR}`, padding: 18, ...style }}>
     {children}
   </div>
