@@ -377,19 +377,67 @@ function SideEffectPanel({ med, onSave, onClose, accent, dark }) {
           <span style={{ fontSize:16, fontWeight:700, fontFamily:"'Syne',sans-serif" }}>⚡ Side Effects — {med.name}</span>
           <button onClick={onClose} style={{ fontSize:18, background:"none", border:"none", color:dark?"#555":"#8ab8a8", cursor:"pointer" }}>✕</button>
         </div>
-        {/* History */}
-        {(med.sideEffects||[]).length > 0 && (
-          <div style={{ marginBottom:14 }}>
-            <div style={{ fontSize:10, letterSpacing:".16em", color:dark?"#3a3a3a":"#8ab8a8", textTransform:"uppercase", marginBottom:8 }}>Logged Effects</div>
-            {(med.sideEffects||[]).map((se,i) => (
-              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 10px", background: dark?"#0d1a18":"#e0f5ee", borderRadius:8, marginBottom:5, fontSize:12 }}>
-                <span>{se.symptom}</span>
-                <span style={{ display:"flex", gap:2 }}>{Array.from({length:5},(_,j)=><span key={j} style={{color: j<se.severity ? "#f87171":"dark?"#222":"#c0d0cc"}}>●</span>)}</span>
-                <span style={{ fontSize:10, color:dark?"#4a4a4a":"#8ab8a8" }}>{se.date}</span>
-              </div>
-            ))}
-          </div>
-        )}
+       {/* History */}
+{(med.sideEffects || []).length > 0 && (
+  <div style={{ marginBottom: 14 }}>
+    <div
+      style={{
+        fontSize: 10,
+        letterSpacing: ".16em",
+        color: dark ? "#3a3a3a" : "#8ab8a8",
+        textTransform: "uppercase",
+        marginBottom: 8,
+      }}
+    >
+      Logged Effects
+    </div>
+
+    {(med.sideEffects || []).map((se, i) => (
+      <div
+        key={i}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "7px 10px",
+          background: dark ? "#0d1a18" : "#e0f5ee",
+          borderRadius: 8,
+          marginBottom: 5,
+          fontSize: 12,
+        }}
+      >
+        <span>{se.symptom}</span>
+
+        <span style={{ display: "flex", gap: 2 }}>
+          {Array.from({ length: 5 }, (_, j) => (
+            <span
+              key={j}
+              style={{
+                color:
+                  j < se.severity
+                    ? "#f87171"
+                    : dark
+                    ? "#222"
+                    : "#c0d0cc",
+              }}
+            >
+              ●
+            </span>
+          ))}
+        </span>
+
+        <span
+          style={{
+            fontSize: 10,
+            color: dark ? "#4a4a4a" : "#8ab8a8",
+          }}
+        >
+          {se.date}
+        </span>
+      </div>
+    ))}
+  </div>
+)}
         {/* Quick pick */}
         <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:12 }}>
           {COMMON.map(c => (
