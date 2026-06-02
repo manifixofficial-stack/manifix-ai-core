@@ -60,10 +60,10 @@ function injectCSS() {
    STORAGE HELPERS
 ════════════════════════════════════════════════════════════ */
 const store = {
-  get: <T>(key: string, fallback: T): T => {
+  get: (key, fallback) => {
     try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; } catch { return fallback; }
   },
-  set: (key: string, val: unknown) => {
+  set: (key, val) => {
     try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
   },
 };
