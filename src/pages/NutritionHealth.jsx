@@ -310,7 +310,7 @@ RESPOND WITH VALID JSON ONLY. No text before or after JSON:
 }`;
 
 async function analyzePhotoWithAI(base64) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+ const response = await fetch("https://manifix-ai-proxy.manifixapp.workers.dev", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
