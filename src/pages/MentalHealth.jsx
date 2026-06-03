@@ -1140,114 +1140,6 @@ function MoodJournalTab() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   AI THERAPY TAB
-════════════════════════════════════════════════════════════ */
-function AITherapyTab() {
-  const [chat, setChat]     = useState(() => store.get("mh_chat2", []));
-  const [msg, setMsg]       = useState("");
-  const [aiLoad, setAiLoad] = useState(false);
-  const [crisis, setCrisis] = useState(false);
-  const chatRef = useRef(null);
-
-  useEffect(() => { chatRef.current?.scrollTo({ top: 9999, behavior: "smooth" }); }, [chat]);
-
-  const CRISIS_WORDS = ["suicide", "kill myself", "end my life", "don't want to live", "self harm", "hurt myself", "no reason to live"];
-
-  const sendMsg = useCallback(async () => {
-    if (!msg.trim() || aiLoad) return;
-    const lowerMsg = msg.toLowerCase();
-    if (CRISIS_WORDS.some(w => lowerMsg.includes(w))) { setCrisis(true); }
-    const userMsg = { role: "user", content: msg };
-    const newChat = [...chat, userMsg];
-    setChat(newChat); setMsg(""); setAiLoad(true);
-    try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `You are ManifiX AI Therapist — an empathetic, evidence-based mental health support assistant. Use CBT, ACT, DBT, and mindfulness techniques. Be warm, specific, and practical. Responses 60–100 words max. Never diagnose. If user shows signs of crisis or self-harm, always gently encourage professional help and mention crisis hotlines (iCall: 9152987821 in India). You are not a replacement for professional therapy.`,
-          messages: newChat.map((m) => ({ role: m.role, content: m.content })),
-        }),
-      });
-      const data = await resp.json();
-      const reply = data.content?.find((c) => c.type === "text")?.text || "I'm here with you. Please try again.";
-      const final = [...newChat, { role: "assistant", content: reply }];
-      setChat(final);
-      store.set("mh_chat2", final.slice(-20));
-    } catch (e) {
-      setChat([...newChat, { role: "assistant", content: "I'm here to support you. There was a connection issue — please try again." }]);
-    }
-    setAiLoad(false);
-  }, [msg, chat, aiLoad]);
-
-  return (
-    <div className="mh-up" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card>
-        <Label>ManifiX AI Therapist — 24/7 Support</Label>
-        <div style={{ fontSize: 9, color: SUB, lineHeight: 1.7 }}>CBT · ACT · DBT · Mindfulness · Evidence-based · Not a replacement for professional therapy</div>
-      </Card>
-
-      {crisis && (
-        <div style={{ background: "#140808", border: `1px solid ${RED}55`, padding: "12px 16px" }}>
-          <div style={{ fontSize: 9, color: RED, fontWeight: 700, marginBottom: 6, letterSpacing: ".08em" }}>⚠ Your wellbeing matters</div>
-          <div style={{ fontSize: 9, color: "#f87171", lineHeight: 1.8, marginBottom: 8 }}>
-            It sounds like you might be going through something very difficult. Please reach out to a professional right away — you deserve real support.
-          </div>
-          <a href="tel:9152987821" style={{ display: "inline-block", padding: "8px 14px", background: `${RED}22`, border: `1px solid ${RED}44`, color: RED, fontFamily: FONT, fontSize: 8, letterSpacing: ".14em", textDecoration: "none" }}>
-            📞 Call iCall: 9152987821
-          </a>
-        </div>
-      )}
-
-      <div ref={chatRef} style={{ height: 340, overflowY: "auto", border: `1px solid ${BOR}`, background: "#070707", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-        {chat.length === 0 && (
-          <div style={{ margin: "auto", textAlign: "center", color: MUTED, fontSize: 9, letterSpacing: ".12em", textTransform: "uppercase", lineHeight: 2.5 }}>
-            <div style={{ fontSize: 40, marginBottom: 12, animation: "mh-float 3s ease-in-out infinite" }}>🧠</div>
-            I am here to listen and support you.<br />Share what's on your mind.
-          </div>
-        )}
-        {chat.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-            maxWidth: "86%",
-            background: m.role === "user" ? `${GOLD}18` : "#0f0f0f",
-            border: `1px solid ${m.role === "user" ? `${GOLD}33` : BOR}`,
-            padding: "10px 13px",
-          }}>
-            <div style={{ fontSize: 10, color: m.role === "user" ? GOLD : TEXT, lineHeight: 1.8 }}>{m.content}</div>
-          </div>
-        ))}
-        {aiLoad && (
-          <div style={{ alignSelf: "flex-start", background: "#0f0f0f", border: `1px solid ${BOR}`, padding: "10px 13px", display: "flex", gap: 4, alignItems: "center" }}>
-            {[0, 1, 2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: GOLD, animation: `mh-blink .8s ${i * 0.2}s infinite` }} />)}
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMsg()}
-          placeholder="How are you feeling? What's on your mind?"
-          style={{ flex: 1, background: CARD, border: `1px solid ${BOR}`, color: TEXT, fontFamily: FONT, fontSize: 11, padding: "11px 14px", outline: "none" }}
-        />
-        <button className="mh-btn" onClick={sendMsg} disabled={aiLoad} style={{ padding: "11px 18px", background: aiLoad ? "#222" : GOLD, color: "#080808", border: "none", fontFamily: FONT, fontSize: 14, fontWeight: 700 }}>→</button>
-      </div>
-
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["I feel anxious", "I can't sleep", "I feel overwhelmed", "I need motivation", "I'm struggling", "I feel lonely"].map(p => (
-          <button key={p} className="mh-btn" onClick={() => setMsg(p)} style={{ fontSize: 7, letterSpacing: ".1em", padding: "5px 10px", background: "transparent", border: `1px solid ${BOR}`, color: MUTED, fontFamily: FONT, textTransform: "uppercase" }}>{p}</button>
-        ))}
-      </div>
-
-      {chat.length > 0 && (
-        <button className="mh-btn" onClick={() => { setChat([]); store.set("mh_chat2", []); setCrisis(false); }} style={{ background: "transparent", border: `1px solid ${BOR}`, color: MUTED, fontFamily: FONT, fontSize: 8, letterSpacing: ".14em", padding: "8px 0", textTransform: "uppercase", width: "100%" }}>↺ Clear Chat</button>
-      )}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ════════════════════════════════════════════════════════════ */
 export default function MentalHealth() {
@@ -1272,10 +1164,9 @@ export default function MentalHealth() {
   const TABS = [
     { id: "overview",   label: "Overview" },
     { id: "meditation", label: "Meditate" },
-    { id: "sounds",     label: "Sounds" },
+    { id: "sounds",     label: "Sounds"   },
     { id: "mood",       label: "Mood Log" },
-    { id: "cbt",        label: "CBT" },
-    { id: "therapy",    label: "AI Therapy" },
+    { id: "cbt",        label: "CBT"      },
   ];
 
   return (
@@ -1315,7 +1206,7 @@ export default function MentalHealth() {
           <div>
             <div style={{ fontFamily: HEAD, fontSize: 32, letterSpacing: ".04em", lineHeight: 1, color: TEXT }}>🧠 MENTAL HEALTH</div>
             <div style={{ fontSize: 7, letterSpacing: ".2em", color: MUTED, textTransform: "uppercase", marginTop: 3 }}>
-              AI Therapy · Mood Journal · Meditation · CBT · Sounds
+              Mood Journal · Meditation · CBT · Sounds
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1382,7 +1273,7 @@ export default function MentalHealth() {
                 <br /><span style={{ fontSize: 26, color: `${GOLD}90` }}>NEED SUPPORT</span>
               </div>
               <div style={{ fontSize: 10, lineHeight: 1.8, color: SUB, maxWidth: 380, marginBottom: 18 }}>
-                ManifiX delivers guided meditation, ambient soundscapes, clinical CBT tools, AI therapy, mood journaling — and beats Calm, Headspace, and Teladoc.
+                ManifiX delivers guided meditation, ambient soundscapes, clinical CBT tools, mood journaling — and beats Calm, Headspace, and Teladoc.
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button className="mh-btn" onClick={() => setTab("meditation")} style={{ background: GOLD, color: "#080808", border: "none", padding: "13px 20px", fontFamily: FONT, fontSize: 10, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase" }}>🧘 Start Meditating</button>
@@ -1398,7 +1289,6 @@ export default function MentalHealth() {
                   { app: "Calm",       feature: "Ambient soundscapes (rain, ocean, fire)",   badge: "SOUNDS",     color: BLUE,     tab: "sounds"     },
                   { app: "BetterHelp", feature: "Mood journal + AI insights + streak",       badge: "MOOD",       color: "#f87171",tab: "mood"       },
                   { app: "BetterHelp", feature: "CBT with distortion analytics",             badge: "CBT",        color: BLUE,     tab: "cbt"        },
-                  { app: "Teladoc",    feature: "24/7 AI therapist + crisis detection",      badge: "THERAPY",    color: PURPLE,   tab: "therapy"    },
                 ].map((c, i) => (
                   <button key={i} className="mh-btn mh-card-h" onClick={() => setTab(c.tab)} style={{ background: CARD, border: `1px solid ${BOR}`, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
                     <div style={{ flex: 1 }}>
@@ -1431,7 +1321,6 @@ export default function MentalHealth() {
         {tab === "sounds"     && <SoundscapesTab />}
         {tab === "mood"       && <MoodJournalTab />}
         {tab === "cbt"        && <CBTTab />}
-        {tab === "therapy"    && <AITherapyTab />}
 
         <div style={{ textAlign: "center", fontSize: 7, letterSpacing: ".18em", color: "#1a1a1a", textTransform: "uppercase", paddingTop: 6 }}>
           ManifiX AI · Mental Health · WHO SDG 3.4 · 20 Languages · Offline-first
