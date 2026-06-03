@@ -1,15 +1,5 @@
-/**
- * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Nutrition Health Module v8.1                   ║
- * ║  AI Coach removed · All other features 100% working                    ║
- * ╚══════════════════════════════════════════════════════════════════════════╝
- */
-
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 
-/* ════════════════════════════════════════════════════════════
-   THEME
-════════════════════════════════════════════════════════════ */
 const T = {
   accent:     "#22c55e",
   accentDim:  "#15803d",
@@ -33,18 +23,12 @@ const T = {
   voicePitch: 0.96,
 };
 
-/* ════════════════════════════════════════════════════════════
-   TRAFFIC LIGHT SYSTEM
-════════════════════════════════════════════════════════════ */
 const LIGHT_CONFIG = {
   green:  { label:"Go",      color:"#22c55e", bg:"rgba(34,197,94,0.12)",  desc:"Eat freely — nutrient-dense, low calorie density" },
   yellow: { label:"Slow",    color:"#fbbf24", bg:"rgba(251,191,36,0.12)", desc:"Eat mindfully — moderate calorie density" },
   red:    { label:"Careful", color:"#f87171", bg:"rgba(248,113,113,0.12)",desc:"Limit — high calorie density, low nutrients" },
 };
 
-/* ════════════════════════════════════════════════════════════
-   CBT LESSONS
-════════════════════════════════════════════════════════════ */
 const CBT_LESSONS = [
   { id:1, day:1, title:"The Why Behind Your Plate",            content:"Before eating, pause 3 seconds and ask: Am I physically hungry, emotionally hungry, or just bored? This tiny habit rewires your relationship with food.", exercise:"For your next meal, rate your hunger 1-10 before and after eating.",          category:"mindfulness", icon:"🧠", duration:"3 min" },
   { id:2, day:2, title:"Cognitive Restructuring for Cravings", content:"Cravings last 15-20 minutes. Acknowledge the craving, name it, then delay action by 10 minutes.",                                                      exercise:"Next craving: write it down + time. Wait 10 mins. Did it pass?",           category:"cbt",         icon:"💭", duration:"4 min" },
@@ -55,9 +39,6 @@ const CBT_LESSONS = [
   { id:7, day:7, title:"Food as Fuel vs. Reward",              content:"Using food as the primary reward creates a problematic loop. Build a reward menu with non-food items.",                                                   exercise:"Create your personal 10-item non-food reward list.",                       category:"habit",       icon:"🎯", duration:"5 min" },
 ];
 
-/* ════════════════════════════════════════════════════════════
-   FOOD DATABASE
-════════════════════════════════════════════════════════════ */
 const FOOD_DB = {
   rice:    { name:"Rice (cooked)",            calories:130, protein:2.7,  carbs:28,   fat:0.3,  fiber:0.4, icon:"🍚", iron:0.2, calcium:10,  vitC:0,   vitD:0,   light:"yellow", satiety:55 },
   roti:    { name:"Roti/Chapati",             calories:104, protein:3.3,  carbs:18,   fat:2.1,  fiber:2.5, icon:"🫓", iron:1.5, calcium:20,  vitC:0,   vitD:0,   light:"yellow", satiety:68 },
@@ -82,12 +63,9 @@ const FOOD_DB = {
   cheese:  { name:"Cheese (cheddar)",         calories:113, protein:7,    carbs:0.4,  fat:9.3,  fiber:0,   icon:"🧀", iron:0.2, calcium:200, vitC:0,   vitD:0.2, light:"red",    satiety:70 },
 };
 
-const FOOD_KEYS  = Object.keys(FOOD_DB);
-const QUICK_ADD  = ["oats","egg","dal","chicken","spinach","banana","apple","curd","fish","nuts"];
+const FOOD_KEYS = Object.keys(FOOD_DB);
+const QUICK_ADD = ["oats","egg","dal","chicken","spinach","banana","apple","curd","fish","nuts"];
 
-/* ════════════════════════════════════════════════════════════
-   ACTIVITIES
-════════════════════════════════════════════════════════════ */
 const ACTIVITIES = [
   { id:"walk",    name:"Walking",     icon:"🚶", calPerMin:4  },
   { id:"run",     name:"Running",     icon:"🏃", calPerMin:10 },
@@ -104,43 +82,43 @@ const ACTIVITIES = [
 ════════════════════════════════════════════════════════════ */
 function loadData() {
   try {
-    const s = localStorage.getItem("manifix_nutrition_v8");
+    const s = localStorage.getItem("manifix_nutrition_v82");
     if (s) return JSON.parse(s);
   } catch {}
   return {
-    dailyGoal:       { calories:2000, protein:50, carbs:250, fat:65, water:8 },
-    logged:          [],
-    water:           [],
-    activities:      [],
-    groceryChecked:  [],
-    streakDays:      0,
-    lastActiveDate:  null,
-    weeklyScores:    [],
-    cbtProgress:     [],
-    userProfile:     { weight:70, height:170, age:25, gender:"other" },
-    lastUpdated:     Date.now(),
+    dailyGoal:      { calories:2000, protein:50, carbs:250, fat:65, water:8 },
+    logged:         [],
+    water:          [],
+    activities:     [],
+    groceryChecked: [],
+    streakDays:     0,
+    lastActiveDate: null,
+    weeklyScores:   [],
+    cbtProgress:    [],
+    userProfile:    { weight:70, height:170, age:25, gender:"other" },
+    lastUpdated:    Date.now(),
   };
 }
 
 function saveData(d) {
-  try { localStorage.setItem("manifix_nutrition_v8", JSON.stringify({ ...d, lastUpdated: Date.now() })); } catch {}
+  try { localStorage.setItem("manifix_nutrition_v82", JSON.stringify({ ...d, lastUpdated: Date.now() })); } catch {}
 }
 
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 
 function calcTotals(logged, water) {
-  const today    = todayStr();
+  const today     = todayStr();
   const todayLogs = logged.filter(l => l.time.startsWith(today));
-  const totals   = { calories:0, protein:0, carbs:0, fat:0, fiber:0, iron:0, calcium:0, vitC:0, vitD:0, greenCount:0, yellowCount:0, redCount:0 };
+  const totals    = { calories:0, protein:0, carbs:0, fat:0, fiber:0, iron:0, calcium:0, vitC:0, vitD:0, greenCount:0, yellowCount:0, redCount:0 };
 
   todayLogs.forEach(log => {
-    if (log._aiScan) {
-      totals.calories  += log._aiScan.totalCalories || 0;
-      totals.protein   += log._aiScan.totalProtein  || 0;
-      totals.carbs     += log._aiScan.totalCarbs    || 0;
-      totals.fat       += log._aiScan.totalFat      || 0;
-      totals.fiber     += log._aiScan.totalFiber    || 0;
-      const light = log._aiScan.overallLight || "yellow";
+    if (log._barcode) {
+      totals.calories  += log._barcode.calories || 0;
+      totals.protein   += log._barcode.protein  || 0;
+      totals.carbs     += log._barcode.carbs    || 0;
+      totals.fat       += log._barcode.fat      || 0;
+      totals.fiber     += log._barcode.fiber    || 0;
+      const light = log._barcode.light || "yellow";
       if (light === "green")  totals.greenCount++;
       if (light === "yellow") totals.yellowCount++;
       if (light === "red")    totals.redCount++;
@@ -149,15 +127,15 @@ function calcTotals(logged, water) {
     const f = FOOD_DB[log.foodId];
     if (!f) return;
     const p = log.portion || 1;
-    totals.calories  += f.calories  * p;
-    totals.protein   += f.protein   * p;
-    totals.carbs     += f.carbs     * p;
-    totals.fat       += f.fat       * p;
-    totals.fiber     += f.fiber     * p;
-    totals.iron      += (f.iron    || 0) * p;
-    totals.calcium   += (f.calcium || 0) * p;
-    totals.vitC      += (f.vitC    || 0) * p;
-    totals.vitD      += (f.vitD    || 0) * p;
+    totals.calories += f.calories * p;
+    totals.protein  += f.protein  * p;
+    totals.carbs    += f.carbs    * p;
+    totals.fat      += f.fat      * p;
+    totals.fiber    += f.fiber    * p;
+    totals.iron     += (f.iron    || 0) * p;
+    totals.calcium  += (f.calcium || 0) * p;
+    totals.vitC     += (f.vitC    || 0) * p;
+    totals.vitD     += (f.vitD    || 0) * p;
     if (f.light === "green")  totals.greenCount++;
     if (f.light === "yellow") totals.yellowCount++;
     if (f.light === "red")    totals.redCount++;
@@ -195,16 +173,49 @@ function updateStreak(data) {
 }
 
 /* ════════════════════════════════════════════════════════════
+   OPEN FOOD FACTS API — 100% FREE
+════════════════════════════════════════════════════════════ */
+async function fetchBarcodeNutrition(barcode) {
+  const response = await fetch(
+    `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`
+  );
+  if (!response.ok) throw new Error("Network error — check your connection");
+  const data = await response.json();
+  if (data.status !== 1) throw new Error("Product not found — try another barcode");
+  const p = data.product;
+  const n = p.nutriments || {};
+  const kcal = n["energy-kcal_100g"] || 0;
+  return {
+    name:       p.product_name || p.product_name_en || "Unknown Product",
+    brand:      p.brands || "",
+    image:      p.image_url || null,
+    quantity:   p.quantity || "",
+    calories:   Math.round(kcal),
+    protein:    Math.round((n.proteins_100g       || 0) * 10) / 10,
+    carbs:      Math.round((n.carbohydrates_100g  || 0) * 10) / 10,
+    fat:        Math.round((n.fat_100g            || 0) * 10) / 10,
+    fiber:      Math.round((n.fiber_100g          || 0) * 10) / 10,
+    sodium:     Math.round((n.sodium_100g         || 0) * 1000),
+    sugar:      Math.round((n["sugars_100g"]      || 0) * 10) / 10,
+    light:      kcal < 100 ? "green" : kcal < 250 ? "yellow" : "red",
+    nutriscore: p.nutriscore_grade || "",
+    serving:    p.serving_size || "100g",
+    countries:  p.countries_tags?.[0]?.replace("en:","") || "",
+    categories: p.categories || "",
+  };
+}
+
+/* ════════════════════════════════════════════════════════════
    VOICE
 ════════════════════════════════════════════════════════════ */
 function makeSpeaker() {
   return function speak(text, urgent = false) {
     if (!("speechSynthesis" in window) || !text) return;
     const say = () => {
-      const u     = new SpeechSynthesisUtterance(text);
-      u.lang      = "en-IN";
-      u.rate      = urgent ? 1.0 : T.voiceRate;
-      u.pitch     = T.voicePitch;
+      const u      = new SpeechSynthesisUtterance(text);
+      u.lang       = "en-IN";
+      u.rate       = urgent ? 1.0 : T.voiceRate;
+      u.pitch      = T.voicePitch;
       const voices = window.speechSynthesis.getVoices();
       const v      = voices.find(x => x.lang === "en-IN") || voices.find(x => x.lang.startsWith("en"));
       if (v) u.voice = v;
@@ -221,123 +232,31 @@ function makeSpeaker() {
    CSS
 ════════════════════════════════════════════════════════════ */
 function injectCSS() {
-  if (document.getElementById("nut-v81-css")) return;
-  const el    = document.createElement("style");
-  el.id       = "nut-v81-css";
+  if (document.getElementById("nut-v82-css")) return;
+  const el      = document.createElement("style");
+  el.id         = "nut-v82-css";
   el.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     @keyframes spin    {to{transform:rotate(360deg)}}
     @keyframes fadeUp  {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes pulse   {0%,100%{opacity:1}50%{opacity:.4}}
-    @keyframes scanLine{0%{top:-4px}100%{top:100%}}
     @keyframes pop     {0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
     @keyframes confetti{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(120px) rotate(720deg);opacity:0}}
     @keyframes glow    {0%,100%{box-shadow:0 0 8px rgba(34,197,94,.2)}50%{box-shadow:0 0 20px rgba(34,197,94,.5)}}
+    @keyframes scanBar {0%{top:0}100%{top:calc(100% - 3px)}}
     .fade-up  {animation:fadeUp .35s cubic-bezier(.22,.68,0,1.2) both}
     .pop      {animation:pop .3s ease both}
     .btn      {transition:all .15s ease;cursor:pointer}
     .btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
     .btn:active{transform:scale(.97)}
     .ring:focus{outline:2px solid #22c55e;outline-offset:2px}
-    .ai-glow  {animation:glow 2s ease-in-out infinite}
+    .barcode-glow{animation:glow 2s ease-in-out infinite}
     .hide-scroll::-webkit-scrollbar{display:none}
     .hide-scroll{-ms-overflow-style:none;scrollbar-width:none}
     @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   `;
   document.head.appendChild(el);
-}
-
-/* ════════════════════════════════════════════════════════════
-   AI PHOTO SCANNER — Claude Vision
-════════════════════════════════════════════════════════════ */
-const PHOTO_SYSTEM_PROMPT = `You are CalAI — the world's most accurate AI nutritionist and food vision system. Analyze food photos with clinical precision.
-
-DETECTION RULES:
-1. Identify EVERY food item visible, including garnishes, sauces, oils, drinks
-2. Estimate portion size using visual context clues: plate diameter (~25cm standard), utensils, hand size if visible, container size, food density
-3. Account for cooking method: fried adds ~50-100 cal/100g oil, sautéed adds ~20-40 cal, grilled adds 0
-4. For Indian/South Asian food: recognize dal, sabzi, roti, rice, curry, biryani, idli, dosa, paratha, samosa, chaat, etc.
-5. Estimate moisture content — cooked vs raw weight matters significantly
-6. If multiple items on plate, list each separately with individual calories
-
-ACCURACY STANDARDS:
-- Calories: ±10% target accuracy
-- If uncertain about portion, give range e.g. "calories_min":280,"calories_max":340
-- Never round to multiples of 50 — real estimates like 127, 284, 413 are more trustworthy
-
-RESPOND WITH VALID JSON ONLY. No text before or after JSON:
-{
-  "meal_name": "descriptive name of overall meal",
-  "meal_type": "breakfast|lunch|dinner|snack",
-  "cuisine": "Indian|South Asian|Mediterranean|Western|etc",
-  "items": [
-    {
-      "name": "specific food name",
-      "description": "how it appears/cooked method",
-      "estimated_weight_g": 150,
-      "calories": 284,
-      "calories_min": 260,
-      "calories_max": 310,
-      "protein_g": 12.4,
-      "carbs_g": 38.2,
-      "fat_g": 8.1,
-      "fiber_g": 3.2,
-      "sodium_mg": 280,
-      "sugar_g": 4.1,
-      "confidence": 88,
-      "light": "green|yellow|red",
-      "notes": "appears fried in oil, extra 60 cal estimated"
-    }
-  ],
-  "totals": {
-    "calories": 420,
-    "calories_min": 380,
-    "calories_max": 460,
-    "protein_g": 18.5,
-    "carbs_g": 52.0,
-    "fat_g": 14.2,
-    "fiber_g": 6.8,
-    "sodium_mg": 520,
-    "sugar_g": 9.2
-  },
-  "overall_light": "green|yellow|red",
-  "health_score": 72,
-  "overall_confidence": 85,
-  "ai_tips": ["specific actionable tip about this meal", "swap suggestion"],
-  "portion_context": "explanation of how portion was estimated",
-  "missing_items": "any items that may be cut off/hidden"
-}`;
-
-async function analyzePhotoWithAI(base64) {
- const response = await fetch("https://manifix-ai-proxy.manifixapp.workers.dev", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: PHOTO_SYSTEM_PROMPT,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
-          { type: "text",  text:  "Analyze this food photo precisely. All numeric values in standard format. Focus on accurate portion estimation." },
-        ],
-      }],
-    }),
-  });
-  if (!response.ok) throw new Error(`API ${response.status}`);
-  const data  = await response.json();
-  const text  = data.content?.map(b => b.text || "").join("") || "{}";
-  const clean = text.replace(/```json|```/g, "").trim();
-  const parsed = JSON.parse(clean);
-  if (!parsed.items || !parsed.totals) throw new Error("Invalid response structure");
-  parsed.totals.calories  = Math.round(parsed.totals.calories  || 0);
-  parsed.totals.protein_g = Math.round((parsed.totals.protein_g || 0) * 10) / 10;
-  parsed.totals.carbs_g   = Math.round((parsed.totals.carbs_g   || 0) * 10) / 10;
-  parsed.totals.fat_g     = Math.round((parsed.totals.fat_g     || 0) * 10) / 10;
-  parsed.totals.fiber_g   = Math.round((parsed.totals.fiber_g   || 0) * 10) / 10;
-  return parsed;
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -480,72 +399,55 @@ function Confetti({ show }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   AI PHOTO SCANNER COMPONENT
+   BARCODE SCANNER — Open Food Facts (FREE)
 ════════════════════════════════════════════════════════════ */
-function AIPhotoScanner({ onFoodLogged, onClose }) {
-  const [phase,      setPhase]      = useState("upload");
-  const [preview,    setPreview]    = useState(null);
-  const [base64,     setBase64]     = useState(null);
-  const [scanResult, setScanResult] = useState(null);
-  const [errMsg,     setErrMsg]     = useState("");
-  const [scanStep,   setScanStep]   = useState(0);
-  const fileRef      = useRef();
-  const scanTimer    = useRef();
+function BarcodeScanner({ onFoodLogged, onClose }) {
+  const [phase,   setPhase]   = useState("scan");
+  const [barcode, setBarcode] = useState("");
+  const [result,  setResult]  = useState(null);
+  const [errMsg,  setErrMsg]  = useState("");
+  const [loading, setLoading] = useState(false);
+  const [portion, setPortion] = useState(100);
+  const [meal,    setMeal]    = useState("snack");
+  const inputRef = useRef();
 
-  const SCAN_STEPS = [
-    "Detecting food items in frame…",
-    "Estimating portion sizes…",
-    "Calculating macro breakdown…",
-    "Cross-referencing nutrition database…",
-    "Applying cooking method corrections…",
-    "Finalizing calorie count…",
-  ];
+  useEffect(() => {
+    if (phase === "scan") setTimeout(() => inputRef.current?.focus(), 100);
+  }, [phase]);
 
-  const handleFile = (file) => {
-    const canvas = document.createElement("canvas");
-    const img    = new Image();
-    img.onload   = () => {
-      const MAX = 1200;
-      let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else        { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      canvas.width  = w;
-      canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      const dataURL = canvas.toDataURL("image/jpeg", 0.88);
-      setPreview(dataURL);
-      setBase64(dataURL.split(",")[1]);
-      setPhase("ready");
-    };
-    img.src = URL.createObjectURL(file);
-  };
-
-  const analyze = async () => {
-    if (!base64) return;
-    setPhase("scanning");
-    setScanStep(0);
+  const search = async (code) => {
+    const clean = code.trim();
+    if (!clean) return;
+    setLoading(true);
     setErrMsg("");
-    scanTimer.current = setInterval(() => {
-      setScanStep(prev => Math.min(prev + 1, SCAN_STEPS.length - 1));
-    }, 700);
     try {
-      const result = await analyzePhotoWithAI(base64);
-      clearInterval(scanTimer.current);
-      setScanResult(result);
+      const data = await fetchBarcodeNutrition(clean);
+      setResult(data);
+      setPortion(100);
       setPhase("result");
     } catch (e) {
-      clearInterval(scanTimer.current);
-      setErrMsg(e.message || "Analysis failed — try a clearer, well-lit photo");
+      setErrMsg(e.message || "Product not found. Try another barcode.");
       setPhase("error");
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => () => clearInterval(scanTimer.current), []);
+  const cal     = result ? Math.round((result.calories * portion) / 100) : 0;
+  const protein = result ? Math.round((result.protein  * portion) / 100 * 10) / 10 : 0;
+  const carbs   = result ? Math.round((result.carbs    * portion) / 100 * 10) / 10 : 0;
+  const fat     = result ? Math.round((result.fat      * portion) / 100 * 10) / 10 : 0;
+  const fiber   = result ? Math.round((result.fiber    * portion) / 100 * 10) / 10 : 0;
+  const lcfg    = result ? (LIGHT_CONFIG[result.light] || LIGHT_CONFIG.yellow) : LIGHT_CONFIG.yellow;
 
-  const cfg    = scanResult ? (LIGHT_CONFIG[scanResult.overall_light] || LIGHT_CONFIG.yellow) : LIGHT_CONFIG.yellow;
-  const totals = scanResult?.totals || {};
+  const handleLog = () => {
+    onFoodLogged({
+      name: result.name, brand: result.brand,
+      calories: cal, protein, carbs, fat, fiber,
+      light: result.light, portion, barcode, meal,
+    });
+    onClose();
+  };
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.97)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:16 }}>
@@ -553,194 +455,166 @@ function AIPhotoScanner({ onFoodLogged, onClose }) {
 
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div>
-            <div style={{ fontSize:16, fontWeight:700, color:T.textPrimary }}>📸 AI Food Scanner</div>
-            <div style={{ fontSize:11, color:T.textDim }}>Real Claude Vision · Cal AI accuracy</div>
+            <div style={{ fontSize:16, fontWeight:700, color:T.textPrimary }}>📷 Barcode Scanner</div>
+            <div style={{ fontSize:11, color:T.textDim }}>Open Food Facts · 2.9M+ world products · 100% Free</div>
           </div>
           <button onClick={onClose} style={{ fontSize:20, background:"none", border:"none", color:"#444", cursor:"pointer" }}>✕</button>
         </div>
 
-        {/* UPLOAD / READY */}
-        {(phase === "upload" || phase === "ready") && (
+        {/* SCAN PHASE */}
+        {phase === "scan" && (
           <div className="fade-up">
-            <div onClick={() => fileRef.current?.click()}
-              style={{ border:`2px dashed ${preview ? T.teal : T.border}`, borderRadius:12, padding:"20px", textAlign:"center", cursor:"pointer", marginBottom:14, background:`${T.teal}04`, minHeight:200, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-              {preview ? (
-                <img src={preview} alt="food" style={{ maxWidth:"100%", maxHeight:240, borderRadius:8, objectFit:"cover" }}/>
-              ) : (
-                <>
-                  <div style={{ fontSize:48, marginBottom:12 }}>📷</div>
-                  <div style={{ fontSize:14, color:T.textMid, marginBottom:4 }}>Tap to upload food photo</div>
-                  <div style={{ fontSize:11, color:T.textDim }}>Camera or gallery · JPG, PNG, HEIC</div>
-                  <div style={{ fontSize:10, color:T.textDim, marginTop:8, padding:"6px 12px", border:`1px solid ${T.border}`, borderRadius:6 }}>
-                    📊 Works with: thali, plate meals, snacks, drinks, packaged food
-                  </div>
-                </>
-              )}
+            <div style={{ border:`2px dashed ${T.teal}`, borderRadius:12, padding:20, textAlign:"center", marginBottom:14, background:`${T.teal}04` }}>
+              <div style={{ fontSize:44, marginBottom:8 }}>📦</div>
+              <div style={{ fontSize:13, color:T.textMid, marginBottom:4 }}>Enter barcode number</div>
+              <div style={{ fontSize:11, color:T.textDim }}>Found on the back or bottom of any packaged food</div>
             </div>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
-              onChange={e => e.target.files[0] && handleFile(e.target.files[0])}/>
 
-            {!preview && (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-                {[["📐","Show whole plate","Better portion estimate"],["💡","Good lighting","Clearer detection"],["📏","Include utensils","Size reference helps"],["🍽️","Top-down angle","Best for Indian meals"]].map(([icon,t,d]) => (
-                  <div key={t} style={{ padding:"8px 10px", background:T.card, border:`1px solid ${T.border}`, borderRadius:8 }}>
-                    <div style={{ fontSize:16, marginBottom:3 }}>{icon}</div>
-                    <div style={{ fontSize:11, fontWeight:600, color:T.textPrimary }}>{t}</div>
-                    <div style={{ fontSize:10, color:T.textDim }}>{d}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+              {[
+                ["🍫","Chocolates & Snacks","Maggi, Parle-G, KitKat"],
+                ["🥛","Dairy Products","Amul, Mother Dairy"],
+                ["🍞","Breads & Cereals","Britannia, Kellogg's"],
+                ["🧃","Drinks & Juices","Tropicana, Real"],
+                ["🍜","Instant Foods","Yippee, Top Ramen"],
+                ["🥫","Canned & Packaged","All world brands"],
+              ].map(([icon,label,sub]) => (
+                <div key={label} style={{ padding:"8px 10px", background:T.card, border:`1px solid ${T.border}`, borderRadius:8 }}>
+                  <div style={{ fontSize:18, marginBottom:2 }}>{icon}</div>
+                  <div style={{ fontSize:11, fontWeight:600, color:T.textPrimary }}>{label}</div>
+                  <div style={{ fontSize:9, color:T.textDim }}>{sub}</div>
+                </div>
+              ))}
+            </div>
 
-            <div style={{ display:"flex", gap:10 }}>
+            <input
+              ref={inputRef}
+              value={barcode}
+              onChange={e => setBarcode(e.target.value.replace(/\D/g,""))}
+              onKeyDown={e => e.key === "Enter" && search(barcode)}
+              placeholder="e.g. 8901058851201"
+              inputMode="numeric"
+              style={{ width:"100%", padding:"13px 14px", fontSize:16, background:"#0a1a0a", border:`2px solid ${T.teal}`, color:T.textPrimary, borderRadius:10, fontFamily:"'Space Mono',monospace", marginBottom:10, outline:"none", textAlign:"center", letterSpacing:".12em" }}
+            />
+
+            <div style={{ fontSize:10, color:T.textDim, textAlign:"center", marginBottom:12 }}>
+              💡 Tip: Type the barcode number exactly as shown on the package
+            </div>
+
+            <div style={{ display:"flex", gap:8 }}>
               <button onClick={onClose} style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-              <button onClick={analyze} disabled={!base64} className="btn ring"
-                style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background: base64 ? T.teal : "#111", border:`2px solid ${base64 ? T.teal : "#333"}`, color: base64 ? "#020906" : T.textDim, borderRadius:10, cursor: base64 ? "pointer" : "not-allowed", fontFamily:"inherit" }}>
-                {base64 ? "🔍 Analyze Food" : "Upload Photo First"}
+              <button onClick={() => search(barcode)} disabled={!barcode || loading} className="btn ring"
+                style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background:barcode && !loading ? T.teal : "#111", border:`2px solid ${barcode && !loading ? T.teal : "#333"}`, color:barcode && !loading ? "#020906" : T.textDim, borderRadius:10, cursor:barcode && !loading ? "pointer" : "not-allowed", fontFamily:"inherit" }}>
+                {loading ? "🔍 Searching…" : "🔍 Search Product"}
               </button>
             </div>
           </div>
         )}
 
-        {/* SCANNING */}
-        {phase === "scanning" && (
-          <div style={{ textAlign:"center", padding:"20px 0" }}>
-            <div style={{ position:"relative", width:"100%", maxHeight:220, borderRadius:10, overflow:"hidden", border:`2px solid ${T.teal}33`, marginBottom:20 }}>
-              {preview && <img src={preview} alt="" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>}
-              <div style={{ position:"absolute", left:0, right:0, height:3, background:`linear-gradient(90deg,transparent,${T.teal},transparent)`, animation:"scanLine 1.2s linear infinite", top:0 }}/>
-              <div style={{ position:"absolute", inset:0, backgroundImage:`linear-gradient(${T.teal}22 1px,transparent 1px),linear-gradient(90deg,${T.teal}22 1px,transparent 1px)`, backgroundSize:"40px 40px" }}/>
-            </div>
-            <div style={{ fontSize:13, color:T.teal, marginBottom:8, animation:"pulse 1s ease-in-out infinite", fontFamily:"'Space Mono',monospace" }}>
-              {SCAN_STEPS[scanStep]}
-            </div>
-            <div style={{ display:"flex", gap:4, justifyContent:"center" }}>
-              {SCAN_STEPS.map((_,i) => (
-                <div key={i} style={{ width:6, height:6, borderRadius:"50%", background: i <= scanStep ? T.teal : T.border, transition:"background .3s" }}/>
-              ))}
-            </div>
-            <div style={{ fontSize:10, color:T.textDim, marginTop:12 }}>Powered by Claude Vision AI · ±10% accuracy target</div>
-          </div>
-        )}
-
-        {/* ERROR */}
+        {/* ERROR PHASE */}
         {phase === "error" && (
           <div className="fade-up" style={{ textAlign:"center", padding:"20px 0" }}>
             <div style={{ fontSize:48, marginBottom:12 }}>⚠️</div>
-            <div style={{ fontSize:14, fontWeight:700, color:T.red, marginBottom:8 }}>Scan Failed</div>
-            <div style={{ fontSize:12, color:T.textMid, marginBottom:16 }}>{errMsg}</div>
-            <div style={{ fontSize:11, color:T.textDim, marginBottom:20, lineHeight:1.6 }}>Tips: ensure good lighting, whole plate visible, food not blurry</div>
+            <div style={{ fontSize:14, fontWeight:700, color:T.red, marginBottom:8 }}>Product Not Found</div>
+            <div style={{ fontSize:12, color:T.textMid, marginBottom:10 }}>{errMsg}</div>
+            <div style={{ fontSize:11, color:T.textDim, marginBottom:20, lineHeight:1.7, padding:"10px 14px", background:T.card, borderRadius:8, border:`1px solid ${T.border}`, textAlign:"left" }}>
+              💡 Tips:<br/>
+              • Check the barcode number carefully<br/>
+              • Some local/fresh foods may not be in database<br/>
+              • Try the manual food log for fresh Indian food
+            </div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => { setPhase("ready"); setErrMsg(""); }} className="btn ring"
+              <button onClick={() => { setPhase("scan"); setErrMsg(""); setBarcode(""); }} className="btn ring"
                 style={{ flex:1, padding:11, fontSize:12, background:`${T.teal}15`, border:`2px solid ${T.teal}`, color:T.teal, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
-                📷 Try Again
+                Try Again
               </button>
               <button onClick={onClose} style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Close</button>
             </div>
           </div>
         )}
 
-        {/* RESULT */}
-        {phase === "result" && scanResult && (
+        {/* RESULT PHASE */}
+        {phase === "result" && result && (
           <div className="fade-up">
-            {preview && <img src={preview} alt="food" style={{ width:"100%", maxHeight:180, objectFit:"cover", borderRadius:8, marginBottom:14 }}/>}
+            {result.image && (
+              <img src={result.image} alt={result.name}
+                style={{ width:"100%", maxHeight:160, objectFit:"contain", borderRadius:8, marginBottom:12, background:"#0a1a0a", padding:8 }}
+                onError={e => e.target.style.display = "none"}
+              />
+            )}
 
-            <div style={{ border:`2px solid ${cfg.color}44`, background:cfg.bg, padding:"14px 16px", borderRadius:12, marginBottom:12 }}>
+            <div style={{ border:`2px solid ${lcfg.color}44`, background:lcfg.bg, padding:"14px 16px", borderRadius:12, marginBottom:12 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                <div>
-                  <div style={{ fontSize:16, fontWeight:700, color:T.textPrimary }}>{scanResult.meal_name}</div>
-                  <div style={{ fontSize:11, color:T.textDim, marginTop:2 }}>
-                    {scanResult.cuisine} {scanResult.meal_type} · {scanResult.overall_confidence}% confidence
-                  </div>
+                <div style={{ flex:1, marginRight:10 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:T.textPrimary, lineHeight:1.3 }}>{result.name}</div>
+                  {result.brand && <div style={{ fontSize:11, color:T.textMid, marginTop:3 }}>{result.brand}</div>}
+                  {result.countries && <div style={{ fontSize:10, color:T.textDim, marginTop:2 }}>🌍 {result.countries}</div>}
                 </div>
                 <div style={{ textAlign:"right" }}>
-                  <div style={{ fontSize:24, fontWeight:700, color:cfg.color, fontFamily:"'Space Mono',monospace" }}>{totals.calories}</div>
+                  <div style={{ fontSize:26, fontWeight:700, color:lcfg.color, fontFamily:"'Space Mono',monospace" }}>{cal}</div>
                   <div style={{ fontSize:10, color:T.textDim }}>calories</div>
-                  {totals.calories_min && (
-                    <div style={{ fontSize:9, color:T.textDim }}>range: {totals.calories_min}–{totals.calories_max}</div>
-                  )}
                 </div>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:10 }}>
-                {[["Protein",totals.protein_g,"g",T.blue],["Carbs",totals.carbs_g,"g",T.yellow],["Fat",totals.fat_g,"g",T.red],["Fiber",totals.fiber_g,"g",T.teal]].map(([l,v,u,c]) => (
-                  <div key={l} style={{ textAlign:"center", padding:"6px 4px", background:"rgba(0,0,0,.3)", borderRadius:6 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:12 }}>
+                {[["Protein",protein,"g",T.blue],["Carbs",carbs,"g",T.yellow],["Fat",fat,"g",T.red],["Fiber",fiber,"g",T.teal]].map(([l,v,u,c]) => (
+                  <div key={l} style={{ textAlign:"center", padding:"7px 4px", background:"rgba(0,0,0,.3)", borderRadius:6 }}>
                     <div style={{ fontSize:13, fontWeight:700, color:c, fontFamily:"'Space Mono',monospace" }}>{v}{u}</div>
                     <div style={{ fontSize:9, color:T.textDim }}>{l}</div>
                   </div>
                 ))}
               </div>
 
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
-                <TrafficLight light={scanResult.overall_light}/>
-                <span style={{ fontSize:10, color:T.textDim }}>Health score: {scanResult.health_score}/100</span>
-                {totals.sodium_mg && <span style={{ fontSize:10, color:T.textDim }}>Na: {totals.sodium_mg}mg</span>}
+              {/* Portion slider */}
+              <div style={{ marginBottom:12 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.textDim, marginBottom:6 }}>
+                  <span>Portion size</span>
+                  <span style={{ color:T.teal, fontWeight:700 }}>{portion}g → {cal} cal</span>
+                </div>
+                <input type="range" min={10} max={500} step={10} value={portion}
+                  onChange={e => setPortion(+e.target.value)}
+                  style={{ width:"100%", accentColor:T.teal }}/>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:9, color:T.textDim, marginTop:3 }}>
+                  <span>10g (small)</span>
+                  <span>100g (base)</span>
+                  <span>500g (large)</span>
+                </div>
               </div>
 
-              {scanResult.portion_context && (
-                <div style={{ fontSize:10, color:T.textDim, borderLeft:`2px solid ${T.teal}44`, paddingLeft:8, marginBottom:8 }}>
-                  📐 {scanResult.portion_context}
+              {/* Meal selector */}
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:10, color:T.textDim, marginBottom:6 }}>Meal type</div>
+                <div style={{ display:"flex", gap:6 }}>
+                  {["breakfast","lunch","dinner","snack"].map(m => (
+                    <button key={m} onClick={() => setMeal(m)}
+                      style={{ flex:1, padding:"6px 4px", fontSize:10, fontWeight:600, textTransform:"capitalize", borderRadius:6, background:meal===m?`${T.accent}22`:"#0a1a0a", border:`1.5px solid ${meal===m?T.accent:T.border}`, color:meal===m?T.accent:T.textDim, cursor:"pointer", fontFamily:"inherit" }}>
+                      {m}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <TrafficLight light={result.light}/>
+                {result.nutriscore && (
+                  <span style={{ fontSize:11, fontWeight:700, color:T.textMid, background:"#0a1a0a", padding:"2px 8px", borderRadius:6, border:`1px solid ${T.border}` }}>
+                    Nutri-Score: {result.nutriscore.toUpperCase()}
+                  </span>
+                )}
+                {result.sodium > 0 && (
+                  <span style={{ fontSize:10, color:T.textDim }}>Na: {result.sodium}mg</span>
+                )}
+              </div>
             </div>
 
-            {/* Per-item breakdown */}
-            {scanResult.items?.length > 0 && (
-              <div style={{ marginBottom:12 }}>
-                <div style={{ fontSize:10, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 }}>
-                  Item Breakdown ({scanResult.items.length} items detected)
-                </div>
-                <div style={{ display:"grid", gap:6 }}>
-                  {scanResult.items.map((item, i) => {
-                    const icfg = LIGHT_CONFIG[item.light] || LIGHT_CONFIG.yellow;
-                    return (
-                      <div key={i} style={{ padding:"10px 12px", background:T.card, border:`1.5px solid ${icfg.color}22`, borderRadius:8 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                          <span style={{ fontSize:12, fontWeight:700, color:T.textPrimary }}>{item.name}</span>
-                          <div style={{ textAlign:"right" }}>
-                            <span style={{ fontSize:13, fontWeight:700, color:icfg.color, fontFamily:"'Space Mono',monospace" }}>{item.calories}</span>
-                            <span style={{ fontSize:9, color:T.textDim }}> cal</span>
-                          </div>
-                        </div>
-                        <div style={{ fontSize:10, color:T.textDim, marginBottom:4 }}>~{item.estimated_weight_g}g · {item.description}</div>
-                        <div style={{ display:"flex", gap:8, fontSize:10, color:T.textDim, marginBottom:4 }}>
-                          <span style={{ color:T.blue }}>P:{item.protein_g}g</span>
-                          <span style={{ color:T.yellow }}>C:{item.carbs_g}g</span>
-                          <span style={{ color:T.red }}>F:{item.fat_g}g</span>
-                        </div>
-                        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                          <TrafficLight light={item.light}/>
-                          <span style={{ fontSize:9, color:T.textDim }}>{item.confidence}% confident</span>
-                        </div>
-                        {item.notes && <div style={{ fontSize:9, color:T.yellow, marginTop:4 }}>⚡ {item.notes}</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* AI tips */}
-            {scanResult.ai_tips?.length > 0 && (
-              <div style={{ border:`1px solid ${T.purple}33`, background:`${T.purple}06`, padding:"10px 12px", borderRadius:10, marginBottom:12 }}>
-                <div style={{ fontSize:10, color:T.purple, textTransform:"uppercase", letterSpacing:".1em", marginBottom:6 }}>AI Tips</div>
-                {scanResult.ai_tips.map((tip, i) => (
-                  <div key={i} style={{ fontSize:11, color:T.textMid, marginBottom:4, paddingLeft:12, borderLeft:`2px solid ${T.purple}44` }}>💡 {tip}</div>
-                ))}
-              </div>
-            )}
-
-            {scanResult.missing_items && (
-              <div style={{ fontSize:10, color:T.yellow, marginBottom:12 }}>⚠️ {scanResult.missing_items}</div>
-            )}
-
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={() => { setPhase("ready"); setScanResult(null); setPreview(null); setBase64(null); }}
+              <button onClick={() => { setPhase("scan"); setResult(null); setBarcode(""); setPortion(100); }}
                 style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
                 📷 Scan Again
               </button>
-              <button onClick={() => { onFoodLogged(scanResult); onClose(); }} className="btn ring"
+              <button onClick={handleLog} className="btn ring"
                 style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background:T.accent, border:`2px solid ${T.accent}`, color:"#020906", borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
-                + Log {totals.calories} cal
+                + Log {cal} cal
               </button>
             </div>
           </div>
@@ -756,9 +630,9 @@ function AIPhotoScanner({ onFoodLogged, onClose }) {
 function CBTModule({ cbtProgress, onComplete, onClose }) {
   const completedIds   = cbtProgress || [];
   const nextLesson     = CBT_LESSONS.find(l => !completedIds.includes(l.id)) || CBT_LESSONS[0];
-  const [activeLesson, setActiveLesson]     = useState(nextLesson);
-  const [phase,        setPhase]            = useState("read");
-  const [exerciseInput,setExerciseInput]    = useState("");
+  const [activeLesson, setActiveLesson]  = useState(nextLesson);
+  const [phase,        setPhase]         = useState("read");
+  const [exerciseInput,setExerciseInput] = useState("");
   const catColor = { mindfulness:T.teal, cbt:T.purple, environment:T.blue, habit:T.orange };
 
   return (
@@ -772,7 +646,6 @@ function CBTModule({ cbtProgress, onComplete, onClose }) {
           <button onClick={onClose} style={{ fontSize:20, background:"none", border:"none", color:"#444", cursor:"pointer" }}>✕</button>
         </div>
 
-        {/* Progress dots */}
         <div style={{ display:"flex", gap:5, marginBottom:16 }}>
           {CBT_LESSONS.map(l => (
             <button key={l.id} onClick={() => { setActiveLesson(l); setPhase("read"); setExerciseInput(""); }}
@@ -1015,20 +888,20 @@ function ActivityModal({ onClose, onLog }) {
 export default function NutritionHealth() {
   const speak = useMemo(() => makeSpeaker(), []);
 
-  const [data,          setData]        = useState(() => loadData());
-  const [showFood,      setShowFood]    = useState(false);
-  const [showActivity,  setShowActivity]= useState(false);
-  const [showPhoto,     setShowPhoto]   = useState(false);
-  const [showCBT,       setShowCBT]     = useState(false);
-  const [loading,       setLoading]     = useState(true);
-  const [offline,       setOffline]     = useState(!navigator.onLine);
-  const [confetti,      setConfetti]    = useState(false);
-  const [activeTab,     setActiveTab]   = useState("today");
-  const [celebMsg,      setCelebMsg]    = useState("");
+  const [data,         setData]        = useState(() => loadData());
+  const [showFood,     setShowFood]    = useState(false);
+  const [showActivity, setShowActivity]= useState(false);
+  const [showBarcode,  setShowBarcode] = useState(false);
+  const [showCBT,      setShowCBT]     = useState(false);
+  const [loading,      setLoading]     = useState(true);
+  const [offline,      setOffline]     = useState(!navigator.onLine);
+  const [confetti,     setConfetti]    = useState(false);
+  const [activeTab,    setActiveTab]   = useState("today");
+  const [celebMsg,     setCelebMsg]    = useState("");
 
-  const totals     = useMemo(() => calcTotals(data.logged, data.water),    [data.logged, data.water]);
-  const burnCal    = useMemo(() => calcActivityBurn(data.activities),       [data.activities]);
-  const score      = useMemo(() => calcScore(totals, data.dailyGoal, burnCal), [totals, data.dailyGoal, burnCal]);
+  const totals     = useMemo(() => calcTotals(data.logged, data.water),          [data.logged, data.water]);
+  const burnCal    = useMemo(() => calcActivityBurn(data.activities),             [data.activities]);
+  const score      = useMemo(() => calcScore(totals, data.dailyGoal, burnCal),   [totals, data.dailyGoal, burnCal]);
   const netCal     = Math.round(totals.calories - burnCal);
   const scoreColor = score >= 80 ? T.accent : score >= 60 ? T.yellow : T.red;
 
@@ -1037,8 +910,8 @@ export default function NutritionHealth() {
     const meals = {
       breakfast:[
         { name:"Oats + Banana + Milk",  foods:["oats","banana","milk"],               calories:290 },
-        { name:"Egg + Roti + Spinach",   foods:["egg","roti","spinach"],               calories:204 },
-        { name:"Curd + Mango + Nuts",    foods:["curd","mango","nuts"],                calories:304 },
+        { name:"Egg + Roti + Spinach",  foods:["egg","roti","spinach"],               calories:204 },
+        { name:"Curd + Mango + Nuts",   foods:["curd","mango","nuts"],                calories:304 },
       ],
       lunch:[
         { name:"Dal + Rice + Chicken + Carrot",  foods:["dal","rice","chicken","carrot"],  calories:452 },
@@ -1046,14 +919,14 @@ export default function NutritionHealth() {
         { name:"Tofu + Rice + Veggies",          foods:["tofu","rice","spinach","tomato"], calories:247 },
       ],
       dinner:[
-        { name:"Dal + Roti + Curd",       foods:["dal","roti","curd"],               calories:279 },
-        { name:"Grilled Fish + Veggies",  foods:["fish","spinach","tomato","carrot"], calories:288 },
-        { name:"Egg + Roti + Salad",      foods:["egg","roti","tomato"],             calories:195 },
+        { name:"Dal + Roti + Curd",      foods:["dal","roti","curd"],                calories:279 },
+        { name:"Grilled Fish + Veggies", foods:["fish","spinach","tomato","carrot"], calories:288 },
+        { name:"Egg + Roti + Salad",     foods:["egg","roti","tomato"],              calories:195 },
       ],
       snack:[
-        { name:"Apple + Nuts",   foods:["apple","nuts"],  calories:237 },
-        { name:"Banana + Curd",  foods:["banana","curd"], calories:148 },
-        { name:"Orange + Egg",   foods:["orange","egg"],  calories:125 },
+        { name:"Apple + Nuts",  foods:["apple","nuts"],  calories:237 },
+        { name:"Banana + Curd", foods:["banana","curd"], calories:148 },
+        { name:"Orange + Egg",  foods:["orange","egg"],  calories:125 },
       ],
     };
     return Object.fromEntries(Object.entries(meals).map(([k, v]) => [k, v[day % v.length]]));
@@ -1066,7 +939,7 @@ export default function NutritionHealth() {
     if (d.streakDays !== data.streakDays) setData(d);
     const t = setTimeout(() => {
       setLoading(false);
-      speak("Welcome to ManifiX Nutrition. AI food scanning ready.");
+      speak("Welcome to ManifiX Nutrition. Barcode scanner ready.");
     }, 800);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
@@ -1099,29 +972,28 @@ export default function NutritionHealth() {
     speak("Food logged!");
   }, [speak]);
 
-  const logPhotoFood = useCallback((scanResult) => {
+  const logBarcodeFood = useCallback((scanResult) => {
     setData(p => ({
       ...p,
       logged: [...p.logged, {
-        id:   Date.now(),
-        time: new Date().toISOString(),
-        meal: scanResult.meal_type || "snack",
-        _aiScan: {
-          mealName:      scanResult.meal_name,
-          totalCalories: scanResult.totals.calories,
-          totalProtein:  scanResult.totals.protein_g,
-          totalCarbs:    scanResult.totals.carbs_g,
-          totalFat:      scanResult.totals.fat_g,
-          totalFiber:    scanResult.totals.fiber_g,
-          overallLight:  scanResult.overall_light,
-          healthScore:   scanResult.health_score,
-          confidence:    scanResult.overall_confidence,
-          itemCount:     scanResult.items?.length || 1,
-          cuisine:       scanResult.cuisine,
+        id:       Date.now(),
+        time:     new Date().toISOString(),
+        meal:     scanResult.meal || "snack",
+        _barcode: {
+          name:     scanResult.name,
+          brand:    scanResult.brand,
+          calories: scanResult.calories,
+          protein:  scanResult.protein,
+          carbs:    scanResult.carbs,
+          fat:      scanResult.fat,
+          fiber:    scanResult.fiber,
+          light:    scanResult.light,
+          portion:  scanResult.portion,
+          barcode:  scanResult.barcode,
         },
       }],
     }));
-    speak(`Logged ${scanResult.totals.calories} calories from photo scan.`);
+    speak(`Logged ${scanResult.calories} calories.`);
   }, [speak]);
 
   const addWater = useCallback(() => {
@@ -1162,7 +1034,7 @@ export default function NutritionHealth() {
   if (loading) return (
     <div style={{ minHeight:"100dvh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Space Mono',monospace", color:T.textPrimary }}>
       <div style={{ fontSize:54, marginBottom:18 }}>🥗</div>
-      <div style={{ fontSize:12, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginBottom:14 }}>ManifiX Nutrition v8.1</div>
+      <div style={{ fontSize:12, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginBottom:14 }}>ManifiX Nutrition v8.2</div>
       <div style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor:T.accent, borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
     </div>
   );
@@ -1170,16 +1042,14 @@ export default function NutritionHealth() {
   /* ════════ RENDER ════════ */
   return (
     <div style={{ minHeight:"100dvh", background:T.bg, color:T.textPrimary, fontFamily:"'Space Grotesk',sans-serif", display:"flex", flexDirection:"column", alignItems:"center", position:"relative" }}>
-      {/* BG grid */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", backgroundImage:`linear-gradient(rgba(34,197,94,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(34,197,94,0.012) 1px,transparent 1px)`, backgroundSize:"40px 40px" }}/>
-      {/* Ambient glow */}
       <div style={{ position:"fixed", top:"20%", left:"50%", transform:"translateX(-50%)", width:500, height:250, background:`radial-gradient(ellipse,${T.accentGlow} 0%,transparent 70%)`, pointerEvents:"none" }}/>
 
       <Confetti show={confetti}/>
 
       {offline && (
-        <div style={{ position:"fixed", top:10, left:"50%", transform:"translateX(-50%)", zIndex:99, fontSize:10, letterSpacing:".12em", background:T.card, border:`2px solid ${T.accent}`, color:T.accent, padding:"5px 14px", textTransform:"uppercase", borderRadius:6 }}>
-          ⚡ Offline — All features active
+        <div style={{ position:"fixed", top:10, left:"50%", transform:"translateX(-50%)", zIndex:99, fontSize:10, letterSpacing:".12em", background:T.card, border:`2px solid ${T.yellow}`, color:T.yellow, padding:"5px 14px", textTransform:"uppercase", borderRadius:6 }}>
+          ⚠️ Offline — Barcode scanner needs internet
         </div>
       )}
 
@@ -1197,7 +1067,7 @@ export default function NutritionHealth() {
             <div style={{ fontFamily:"'Space Mono',monospace", fontSize:22, fontWeight:700, lineHeight:1.1, color:T.textPrimary }}>
               ManifiX <span style={{ color:T.accent }}>Nutrition</span>
             </div>
-            <div style={{ fontSize:10, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginTop:3, opacity:.6 }}>v8.1 · Real AI Vision</div>
+            <div style={{ fontSize:10, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginTop:3, opacity:.6 }}>v8.2 · Barcode Scanner · 2.9M Foods</div>
             <div style={{ marginTop:8, display:"flex", gap:6 }}>
               <StreakBadge days={data.streakDays}/>
               {cbtDone > 0 && (
@@ -1287,9 +1157,9 @@ export default function NutritionHealth() {
             style={{ gridColumn:"span 2", padding:"12px 8px", fontSize:12, fontWeight:700, background:T.accent, border:"2px solid #000", color:"#020906", borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:5, cursor:"pointer" }}>
             🍽️ Log Food
           </button>
-          <button onClick={() => setShowPhoto(true)} className="btn ring ai-glow"
+          <button onClick={() => setShowBarcode(true)} className="btn ring barcode-glow"
             style={{ padding:"12px 6px", fontSize:11, fontWeight:700, background:`${T.teal}20`, border:`2px solid ${T.teal}`, color:T.teal, borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:4, cursor:"pointer" }}>
-            📸 AI Scan
+            📷 Scan
           </button>
           <button onClick={() => setShowActivity(true)} className="btn ring"
             style={{ padding:"12px 6px", fontSize:11, fontWeight:700, background:`${T.orange}15`, border:`2px solid ${T.orange}`, color:T.orange, borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:4, cursor:"pointer" }}>
@@ -1297,14 +1167,14 @@ export default function NutritionHealth() {
           </button>
         </div>
 
-        {/* ─── AI Scan highlight ─── */}
+        {/* ─── Barcode Scanner highlight ─── */}
         <div style={{ border:`1px solid ${T.teal}33`, background:`${T.teal}06`, padding:"10px 14px", borderRadius:10, display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ fontSize:24 }}>📸</div>
+          <div style={{ fontSize:24 }}>📷</div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:T.teal }}>AI Photo Food Scanner</div>
-            <div style={{ fontSize:10, color:T.textDim }}>Real Claude Vision · per-item breakdown · ±10% accuracy · Indian food trained</div>
+            <div style={{ fontSize:12, fontWeight:700, color:T.teal }}>World Food Barcode Scanner</div>
+            <div style={{ fontSize:10, color:T.textDim }}>Open Food Facts · 2.9M+ products · 200+ countries · 100% Free forever</div>
           </div>
-          <button onClick={() => setShowPhoto(true)} className="btn ring"
+          <button onClick={() => setShowBarcode(true)} className="btn ring"
             style={{ padding:"7px 12px", fontSize:11, fontWeight:700, background:T.teal, border:"none", color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
             Scan Now
           </button>
@@ -1336,30 +1206,28 @@ export default function NutritionHealth() {
             {todayLog.length === 0 ? (
               <div style={{ textAlign:"center", padding:"24px 0", color:T.textDim, fontSize:12, border:`1.5px dashed ${T.border}`, borderRadius:10 }}>
                 No food logged yet today.<br/>
-                <span style={{ fontSize:11, opacity:.6 }}>Use Log Food or AI Photo Scanner above</span>
+                <span style={{ fontSize:11, opacity:.6 }}>Use Log Food or Barcode Scanner above</span>
               </div>
             ) : (
               <div style={{ display:"grid", gap:6 }}>
                 {todayLog.map(log => {
-                  if (log._aiScan) {
-                    const scan = log._aiScan;
-                    const scfg = LIGHT_CONFIG[scan.overallLight] || LIGHT_CONFIG.yellow;
+                  if (log._barcode) {
+                    const b    = log._barcode;
+                    const bcfg = LIGHT_CONFIG[b.light] || LIGHT_CONFIG.yellow;
                     return (
                       <div key={log.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", background:T.card, border:`1.5px solid ${T.teal}44`, borderRadius:8 }}>
-                        <span style={{ fontSize:20 }}>📸</span>
+                        <span style={{ fontSize:20 }}>📦</span>
                         <div style={{ flex:1 }}>
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                            <div style={{ fontSize:12, fontWeight:700, color:T.teal }}>{scan.mealName}</div>
-                            <div style={{ fontSize:14, fontWeight:700, color:scfg.color, fontFamily:"'Space Mono',monospace" }}>{scan.totalCalories}</div>
+                            <div style={{ fontSize:12, fontWeight:700, color:T.teal }}>{b.name}</div>
+                            <div style={{ fontSize:14, fontWeight:700, color:bcfg.color, fontFamily:"'Space Mono',monospace" }}>{b.calories}</div>
                           </div>
-                          <div style={{ fontSize:10, color:T.textDim, marginTop:2 }}>
-                            {scan.cuisine} {log.meal} · {scan.itemCount} items · {scan.confidence}% confidence
-                          </div>
+                          {b.brand && <div style={{ fontSize:10, color:T.textDim, marginTop:1 }}>{b.brand} · {b.portion}g · {log.meal}</div>}
                           <div style={{ display:"flex", gap:8, fontSize:10, color:T.textDim, marginTop:3 }}>
-                            <span style={{ color:T.blue }}>P:{scan.totalProtein}g</span>
-                            <span style={{ color:T.yellow }}>C:{scan.totalCarbs}g</span>
-                            <span style={{ color:T.red }}>F:{scan.totalFat}g</span>
-                            <TrafficLight light={scan.overallLight}/>
+                            <span style={{ color:T.blue }}>P:{b.protein}g</span>
+                            <span style={{ color:T.yellow }}>C:{b.carbs}g</span>
+                            <span style={{ color:T.red }}>F:{b.fat}g</span>
+                            <TrafficLight light={b.light}/>
                           </div>
                         </div>
                       </div>
@@ -1451,7 +1319,6 @@ export default function NutritionHealth() {
               </div>
             </div>
 
-            {/* Activity log */}
             {(data.activities || []).filter(a => a.time.startsWith(todayStr())).length > 0 && (
               <div style={{ border:`1.5px solid ${T.border}`, background:T.card, padding:"12px 14px", borderRadius:12, marginBottom:10 }}>
                 <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 }}>Today's Activities · {burnCal} cal burned</div>
@@ -1470,7 +1337,6 @@ export default function NutritionHealth() {
               </div>
             )}
 
-            {/* CBT progress grid */}
             <div style={{ border:`1.5px solid ${T.purple}22`, background:`${T.purple}06`, padding:"12px 14px", borderRadius:12 }}>
               <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:6 }}>Psychology Progress</div>
               <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
@@ -1490,16 +1356,16 @@ export default function NutritionHealth() {
 
         {/* FOOTER */}
         <div style={{ textAlign:"center", fontSize:9, letterSpacing:".12em", color:T.textDim, textTransform:"uppercase", paddingTop:6 }}>
-          v8.1 · Real Claude Vision · CBT Coach · Traffic Light · {offline ? "Offline" : "Online"}
+          v8.2 · Open Food Facts · 2.9M Products · CBT Coach · 100% Free · {offline ? "Offline" : "Online"}
         </div>
 
       </div>
 
       {/* MODALS */}
-      {showFood     && <FoodLogModal    onClose={() => setShowFood(false)}     onLog={logFood}/>}
-      {showActivity && <ActivityModal   onClose={() => setShowActivity(false)} onLog={logActivity}/>}
-      {showPhoto    && <AIPhotoScanner  onFoodLogged={logPhotoFood}            onClose={() => setShowPhoto(false)}/>}
-      {showCBT      && <CBTModule       cbtProgress={data.cbtProgress}         onComplete={completeCBT} onClose={() => setShowCBT(false)}/>}
+      {showFood     && <FoodLogModal  onClose={() => setShowFood(false)}     onLog={logFood}/>}
+      {showActivity && <ActivityModal onClose={() => setShowActivity(false)} onLog={logActivity}/>}
+      {showBarcode  && <BarcodeScanner onFoodLogged={logBarcodeFood}         onClose={() => setShowBarcode(false)}/>}
+      {showCBT      && <CBTModule     cbtProgress={data.cbtProgress}         onComplete={completeCBT} onClose={() => setShowCBT(false)}/>}
     </div>
   );
 }
