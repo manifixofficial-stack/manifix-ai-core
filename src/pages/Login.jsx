@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../services/auth.service";
 
@@ -77,25 +77,6 @@ function injectStyles() {
       animation: lg-glitch2 3s infinite;
     }
 
-    .lg-input {
-      width:100%; padding:13px 14px;
-      background:#0e0e0e;
-      border:1px solid #1e1e1e;
-      color:#e8e4d9;
-      font-family:'DM Mono',monospace;
-      font-size:13px; letter-spacing:.08em;
-      outline:none; transition:border-color .2s;
-      caret-color:#ffc83c;
-      border-radius:0;
-    }
-    .lg-input::placeholder { color:#2a2a2a; }
-    .lg-input:focus { border-color:#ffc83c; }
-    .lg-input.error { border-color:#ff3c3c; }
-    .lg-input:-webkit-autofill {
-      -webkit-box-shadow:0 0 0 100px #0e0e0e inset !important;
-      -webkit-text-fill-color:#e8e4d9 !important;
-    }
-
     .lg-btn-primary {
       width:100%; padding:15px 0;
       background:#ffc83c; color:#080808;
@@ -135,7 +116,7 @@ function injectStyles() {
 }
 
 /* ─────────────────────────────────────────────
-   GOOGLE ICON (inline SVG — no dependency)
+   GOOGLE ICON
 ───────────────────────────────────────────── */
 const GoogleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 48 48">
@@ -147,139 +128,38 @@ const GoogleIcon = () => (
 );
 
 /* ─────────────────────────────────────────────
-   EYE ICONS
-───────────────────────────────────────────── */
-const EyeOpen = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-const EyeClosed = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-    <line x1="1" y1="1" x2="23" y2="23"/>
-  </svg>
-);
-
-/* ─────────────────────────────────────────────
-   FIELD COMPONENT
-───────────────────────────────────────────── */
-function Field({ id, label, type, value, onChange, onKeyDown,
-  placeholder, error, disabled, showToggle, showPassword, onToggle }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{
-        fontSize: 8, letterSpacing: ".22em",
-        color: "#2e2e2e", textTransform: "uppercase",
-        marginBottom: 6, display: "block",
-        fontFamily: "'DM Mono',monospace",
-      }}>{label}</div>
-      <div style={{ position: "relative" }}>
-        <input
-          id={id}
-          className={`lg-input${error ? " error" : ""}`}
-          type={showToggle ? (showPassword ? "text" : "password") : type}
-          value={value}
-          placeholder={placeholder}
-          disabled={disabled}
-          autoComplete={type === "password" ? "current-password" : "email"}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          aria-invalid={!!error}
-        />
-        {showToggle && (
-          <button
-            type="button"
-            onClick={onToggle}
-            style={{
-              position: "absolute", right: 12, top: "50%",
-              transform: "translateY(-50%)",
-              background: "none", border: "none",
-              cursor: "pointer", color: "#333",
-              display: "flex", alignItems: "center",
-              transition: "color .2s", padding: 0,
-            }}
-            tabIndex={-1}
-          >
-            {showPassword ? <EyeOpen /> : <EyeClosed />}
-          </button>
-        )}
-      </div>
-      {error && (
-        <div style={{
-          fontSize: 10, letterSpacing: ".1em",
-          color: "#ff5c5c", marginTop: 5,
-          fontFamily: "'DM Mono',monospace",
-          textTransform: "uppercase",
-        }}>{error}</div>
-      )}
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 export default function Login() {
   const navigate = useNavigate();
 
-  const [email,        setEmail]        = useState("");
-  const [password,     setPassword]     = useState("");
-  const [remember,     setRemember]     = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState("");
-  const [success,      setSuccess]      = useState("");
-  const [fieldErrors,  setFieldErrors]  = useState({ email:"", password:"" });
-
-  const emailRef = useRef(null);
+  const [remember, setRemember] = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [success,  setSuccess]  = useState("");
 
   useEffect(() => {
     injectStyles();
-    emailRef.current?.focus();
   }, []);
 
-  const isValidEmail = (v) => /\S+@\S+\.\S+/.test(v);
-
-  const validate = () => {
-    const e = { email:"", password:"" };
-    if (!email.trim())          e.email    = "Email required";
-    else if (!isValidEmail(email)) e.email = "Enter valid email";
-    if (!password)              e.password = "Password required";
-    else if (password.length < 6) e.password = "Min 6 characters";
-    setFieldErrors(e);
-    return !e.email && !e.password;
-  };
-
   const handleLogin = useCallback(async () => {
-    setError(""); setSuccess("");
-    if (!validate()) return;
+    setError("");
+    setSuccess("");
     setLoading(true);
     try {
-      await authService.login(email.trim().toLowerCase(), password, remember);
+      await authService.login(remember);
       setSuccess("Access granted. Entering system...");
       setTimeout(() => navigate("/app/dashboard"), 1000);
     } catch (err) {
       setError(
         err?.response?.status === 401
-          ? "Incorrect credentials. Try again."
+          ? "Access denied. Try again."
           : err?.message || "Authentication failed. Retry."
       );
     } finally {
       setLoading(false);
     }
-  }, [email, password, remember, navigate]);
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleLogin();
-  };
-
-  const clearField = (f) =>
-    setFieldErrors((p) => ({ ...p, [f]:"" }));
+  }, [remember, navigate]);
 
   const handleGoogle = async () => {
     try {
@@ -326,22 +206,22 @@ export default function Login() {
 
       {/* scan line */}
       <div style={{
-        position: "fixed", left:0, right:0, height:2,
+        position: "fixed", left: 0, right: 0, height: 2,
         background: "linear-gradient(90deg,transparent,rgba(255,200,60,.06),rgba(255,200,60,.12),rgba(255,200,60,.06),transparent)",
         animation: "lg-scan 3.5s linear infinite",
-        pointerEvents: "none", zIndex:0,
+        pointerEvents: "none", zIndex: 0,
       }} />
 
       {/* corner marks */}
       {[
-        { top:16,left:16,   borderTopWidth:2, borderLeftWidth:2   },
-        { top:16,right:16,  borderTopWidth:2, borderRightWidth:2  },
-        { bottom:16,left:16,  borderBottomWidth:2, borderLeftWidth:2   },
-        { bottom:16,right:16, borderBottomWidth:2, borderRightWidth:2  },
-      ].map((pos,i) => (
+        { top:16, left:16,   borderTopWidth:2, borderLeftWidth:2   },
+        { top:16, right:16,  borderTopWidth:2, borderRightWidth:2  },
+        { bottom:16, left:16,  borderBottomWidth:2, borderLeftWidth:2   },
+        { bottom:16, right:16, borderBottomWidth:2, borderRightWidth:2  },
+      ].map((pos, i) => (
         <div key={i} style={{
-          position:"fixed", width:18, height:18,
-          borderColor:"#1e1e1e", borderStyle:"solid", borderWidth:0,
+          position: "fixed", width: 18, height: 18,
+          borderColor: "#1e1e1e", borderStyle: "solid", borderWidth: 0,
           ...pos,
         }} />
       ))}
@@ -349,28 +229,28 @@ export default function Login() {
       {/* loading overlay */}
       {loading && (
         <div style={{
-          position:"fixed", inset:0,
-          background:"rgba(8,8,8,.85)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          zIndex:100, flexDirection:"column", gap:16,
+          position: "fixed", inset: 0,
+          background: "rgba(8,8,8,.85)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 100, flexDirection: "column", gap: 16,
         }}>
           <div style={{
-            width:24, height:24,
-            border:"2px solid #1e1e1e",
-            borderTopColor:"#ffc83c",
-            borderRadius:"50%",
-            animation:"lg-spin .7s linear infinite",
+            width: 24, height: 24,
+            border: "2px solid #1e1e1e",
+            borderTopColor: "#ffc83c",
+            borderRadius: "50%",
+            animation: "lg-spin .7s linear infinite",
           }} />
           <div style={{
-            fontSize:10, letterSpacing:".25em",
-            color:"#333", textTransform:"uppercase",
+            fontSize: 10, letterSpacing: ".25em",
+            color: "#333", textTransform: "uppercase",
           }}>Authenticating...</div>
         </div>
       )}
 
       {/* ── CARD ── */}
       <div className="lg-fade-up" style={{
-        position: "relative", zIndex:1,
+        position: "relative", zIndex: 1,
         width: "min(400px,96vw)",
         border: "1px solid #1a1a1a",
         background: "#0b0b0b",
@@ -379,42 +259,42 @@ export default function Login() {
 
         {/* inner scan */}
         <div style={{
-          position:"absolute", left:0, right:0, height:"25%",
-          background:"linear-gradient(180deg,transparent,rgba(200,168,75,.03),transparent)",
-          animation:"lg-scan 3s ease-in-out infinite",
-          pointerEvents:"none", top:0,
+          position: "absolute", left: 0, right: 0, height: "25%",
+          background: "linear-gradient(180deg,transparent,rgba(200,168,75,.03),transparent)",
+          animation: "lg-scan 3s ease-in-out infinite",
+          pointerEvents: "none", top: 0,
         }} />
 
-        {/* ── LOGO — pure text, no image needed ── */}
-        <div style={{ textAlign:"center", marginBottom:32 }}>
+        {/* ── LOGO ── */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
 
           {/* system status dot */}
           <div style={{
-            display:"inline-flex", alignItems:"center", gap:6,
-            border:"1px solid #1e1e1e", padding:"4px 12px",
-            marginBottom:20,
+            display: "inline-flex", alignItems: "center", gap: 6,
+            border: "1px solid #1e1e1e", padding: "4px 12px",
+            marginBottom: 20,
           }}>
             <span style={{
-              width:6, height:6, borderRadius:"50%",
-              background:"#ffc83c",
-              animation:"lg-blink 1.2s ease-in-out infinite",
-              display:"inline-block",
+              width: 6, height: 6, borderRadius: "50%",
+              background: "#ffc83c",
+              animation: "lg-blink 1.2s ease-in-out infinite",
+              display: "inline-block",
             }} />
             <span style={{
-              fontSize:8, letterSpacing:".25em",
-              color:"#3a3a3a", textTransform:"uppercase",
+              fontSize: 8, letterSpacing: ".25em",
+              color: "#3a3a3a", textTransform: "uppercase",
             }}>System online</span>
           </div>
 
-          {/* main logo — Bebas Neue, no image */}
+          {/* main logo */}
           <div
             className="lg-glitch"
             data-text="MANIFIX"
             style={{
-              fontFamily:"'Bebas Neue',sans-serif",
-              fontSize:64, letterSpacing:".08em",
-              lineHeight:1, color:"#e8e4d9",
-              marginBottom:4,
+              fontFamily: "'Bebas Neue',sans-serif",
+              fontSize: 64, letterSpacing: ".08em",
+              lineHeight: 1, color: "#e8e4d9",
+              marginBottom: 4,
             }}
           >
             MANIFIX
@@ -422,16 +302,16 @@ export default function Login() {
 
           {/* AI badge */}
           <div style={{
-            fontFamily:"'Bebas Neue',sans-serif",
-            fontSize:18, letterSpacing:".3em",
-            marginBottom:8,
+            fontFamily: "'Bebas Neue',sans-serif",
+            fontSize: 18, letterSpacing: ".3em",
+            marginBottom: 8,
           }} className="lg-shimmer">
             AI
           </div>
 
           <div style={{
-            fontSize:9, letterSpacing:".22em",
-            color:"#2a2a2a", textTransform:"uppercase",
+            fontSize: 9, letterSpacing: ".22em",
+            color: "#2a2a2a", textTransform: "uppercase",
           }}>
             Intelligence meets intention
           </div>
@@ -439,10 +319,10 @@ export default function Login() {
 
         {/* ── HEADING ── */}
         <div style={{
-          fontSize:9, letterSpacing:".22em",
-          color:"#2e2e2e", textTransform:"uppercase",
-          marginBottom:20, borderLeft:"2px solid #1e1e1e",
-          paddingLeft:10,
+          fontSize: 9, letterSpacing: ".22em",
+          color: "#2e2e2e", textTransform: "uppercase",
+          marginBottom: 20, borderLeft: "2px solid #1e1e1e",
+          paddingLeft: 10,
         }}>
           Neural access portal
         </div>
@@ -450,11 +330,11 @@ export default function Login() {
         {/* ── ERROR ── */}
         {error && (
           <div style={{
-            border:"1px solid #2a1010", background:"#0a0808",
-            padding:"10px 12px", marginBottom:14,
-            fontSize:10, letterSpacing:".1em",
-            color:"#ff5c5c", textTransform:"uppercase",
-            display:"flex", alignItems:"center", gap:8,
+            border: "1px solid #2a1010", background: "#0a0808",
+            padding: "10px 12px", marginBottom: 14,
+            fontSize: 10, letterSpacing: ".1em",
+            color: "#ff5c5c", textTransform: "uppercase",
+            display: "flex", alignItems: "center", gap: 8,
           }}>
             <span>⚠</span> {error}
           </div>
@@ -463,55 +343,26 @@ export default function Login() {
         {/* ── SUCCESS ── */}
         {success && (
           <div style={{
-            border:"1px solid #1e4d1e", background:"#0a140a",
-            padding:"10px 12px", marginBottom:14,
-            fontSize:10, letterSpacing:".1em",
-            color:"#4ade80", textTransform:"uppercase",
-            display:"flex", alignItems:"center", gap:8,
+            border: "1px solid #1e4d1e", background: "#0a140a",
+            padding: "10px 12px", marginBottom: 14,
+            fontSize: 10, letterSpacing: ".1em",
+            color: "#4ade80", textTransform: "uppercase",
+            display: "flex", alignItems: "center", gap: 8,
           }}>
             <span>✓</span> {success}
           </div>
         )}
 
-        {/* ── EMAIL ── */}
-        <Field
-          id="login-email"
-          label="Email address"
-          type="email"
-          value={email}
-          placeholder="you@example.com"
-          error={fieldErrors.email}
-          disabled={loading}
-          onChange={(e) => { setEmail(e.target.value); clearField("email"); }}
-          onKeyDown={handleKeyDown}
-        />
-
-        {/* ── PASSWORD ── */}
-        <Field
-          id="login-password"
-          label="Password"
-          type="password"
-          value={password}
-          placeholder="••••••••"
-          error={fieldErrors.password}
-          disabled={loading}
-          showToggle
-          showPassword={showPassword}
-          onToggle={() => setShowPassword(p => !p)}
-          onChange={(e) => { setPassword(e.target.value); clearField("password"); }}
-          onKeyDown={handleKeyDown}
-        />
-
         {/* ── REMEMBER + FORGOT ── */}
         <div style={{
-          display:"flex", justifyContent:"space-between",
-          alignItems:"center", marginBottom:20,
+          display: "flex", justifyContent: "space-between",
+          alignItems: "center", marginBottom: 20,
         }}>
           <label style={{
-            display:"flex", alignItems:"center", gap:8,
-            cursor:"pointer", fontSize:10,
-            letterSpacing:".12em", color:"#2a2a2a",
-            textTransform:"uppercase",
+            display: "flex", alignItems: "center", gap: 8,
+            cursor: "pointer", fontSize: 10,
+            letterSpacing: ".12em", color: "#2a2a2a",
+            textTransform: "uppercase",
           }}>
             <input
               type="checkbox"
@@ -525,11 +376,11 @@ export default function Login() {
             type="button"
             onClick={() => navigate("/forgot-password")}
             style={{
-              fontSize:10, letterSpacing:".12em",
-              color:"#ffc83c", background:"none",
-              border:"none", cursor:"pointer",
-              fontFamily:"inherit", textTransform:"uppercase",
-              padding:0,
+              fontSize: 10, letterSpacing: ".12em",
+              color: "#ffc83c", background: "none",
+              border: "none", cursor: "pointer",
+              fontFamily: "inherit", textTransform: "uppercase",
+              padding: 0,
             }}
           >
             Forgot password?
@@ -542,22 +393,22 @@ export default function Login() {
           className="lg-btn-primary"
           onClick={handleLogin}
           disabled={loading}
-          style={{ marginBottom:12 }}
+          style={{ marginBottom: 12 }}
         >
           {loading ? "Authenticating..." : "Enter System →"}
         </button>
 
         {/* ── DIVIDER ── */}
         <div style={{
-          display:"flex", alignItems:"center", gap:12,
-          margin:"16px 0",
+          display: "flex", alignItems: "center", gap: 12,
+          margin: "16px 0",
         }}>
-          <div style={{ flex:1, height:1, background:"#141414" }} />
+          <div style={{ flex: 1, height: 1, background: "#141414" }} />
           <span style={{
-            fontSize:8, letterSpacing:".2em",
-            color:"#1e1e1e", textTransform:"uppercase",
+            fontSize: 8, letterSpacing: ".2em",
+            color: "#1e1e1e", textTransform: "uppercase",
           }}>or</span>
-          <div style={{ flex:1, height:1, background:"#141414" }} />
+          <div style={{ flex: 1, height: 1, background: "#141414" }} />
         </div>
 
         {/* ── GOOGLE ── */}
@@ -566,7 +417,7 @@ export default function Login() {
           className="lg-btn-google"
           onClick={handleGoogle}
           disabled={loading}
-          style={{ marginBottom:24 }}
+          style={{ marginBottom: 24 }}
         >
           <GoogleIcon />
           Continue with Google
@@ -574,35 +425,35 @@ export default function Login() {
 
         {/* ── TRUST LINE ── */}
         <div style={{
-          border:"1px solid #111", background:"#0c0c0c",
-          padding:"8px 12px", marginBottom:20,
-          display:"flex", justifyContent:"space-between",
-          alignItems:"center",
+          border: "1px solid #111", background: "#0c0c0c",
+          padding: "8px 12px", marginBottom: 20,
+          display: "flex", justifyContent: "space-between",
+          alignItems: "center",
         }}>
-          {["256-bit encrypted","Zero data sold","SOC 2"].map((t,i) => (
+          {["256-bit encrypted", "Zero data sold", "SOC 2"].map((t, i) => (
             <span key={i} style={{
-              fontSize:8, letterSpacing:".12em",
-              color:"#222", textTransform:"uppercase",
+              fontSize: 8, letterSpacing: ".12em",
+              color: "#222", textTransform: "uppercase",
             }}>✓ {t}</span>
           ))}
         </div>
 
         {/* ── FOOTER ── */}
         <div style={{
-          textAlign:"center", fontSize:10,
-          letterSpacing:".12em", color:"#2a2a2a",
-          textTransform:"uppercase",
+          textAlign: "center", fontSize: 10,
+          letterSpacing: ".12em", color: "#2a2a2a",
+          textTransform: "uppercase",
         }}>
           No account?{" "}
           <button
             type="button"
             onClick={() => navigate("/signup")}
             style={{
-              color:"#ffc83c", background:"none",
-              border:"none", cursor:"pointer",
-              fontFamily:"inherit", fontSize:10,
-              letterSpacing:".12em", textTransform:"uppercase",
-              padding:0,
+              color: "#ffc83c", background: "none",
+              border: "none", cursor: "pointer",
+              fontFamily: "inherit", fontSize: 10,
+              letterSpacing: ".12em", textTransform: "uppercase",
+              padding: 0,
             }}
           >
             Create one free →
@@ -611,9 +462,9 @@ export default function Login() {
 
         {/* ── FOOTER BRAND ── */}
         <div style={{
-          textAlign:"center", marginTop:20,
-          fontSize:8, letterSpacing:".22em",
-          color:"#141414", textTransform:"uppercase",
+          textAlign: "center", marginTop: 20,
+          fontSize: 8, letterSpacing: ".22em",
+          color: "#141414", textTransform: "uppercase",
         }}>
           ManifiX AI · Magic16 · {new Date().getFullYear()}
         </div>
