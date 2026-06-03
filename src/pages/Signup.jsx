@@ -57,10 +57,6 @@ const CSS = `
     0%,100% { border-color: rgba(201,168,76,0.16); }
     50%      { border-color: rgba(201,168,76,0.38); }
   }
-  @keyframes su-shine {
-    from { left: -80%; }
-    to   { left: 130%; }
-  }
   @keyframes su-logoGlow {
     0%,100% { filter: drop-shadow(0 0 8px rgba(201,168,76,0.45)) drop-shadow(0 0 20px rgba(201,168,76,0.18)); }
     50%      { filter: drop-shadow(0 0 16px rgba(201,168,76,0.75)) drop-shadow(0 0 40px rgba(201,168,76,0.30)); }
@@ -90,90 +86,37 @@ const CSS = `
     border-radius: 14px;
   }
 
-  .su-input {
-    width: 100%;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(201,168,76,0.16);
-    border-radius: 6px;
-    padding: 15px 18px;
-    font-size: 14px;
-    font-family: ${G.body};
-    color: ${G.text};
-    outline: none;
-    transition: border-color 0.22s, background 0.22s, box-shadow 0.22s;
-    letter-spacing: 0.02em;
-  }
-  .su-input::placeholder { color: ${G.dim}; }
-  .su-input:focus {
-    border-color: rgba(201,168,76,0.50);
-    background: rgba(201,168,76,0.04);
-    box-shadow: 0 0 0 3px rgba(201,168,76,0.08);
-  }
-  .su-input:disabled { opacity: 0.45; cursor: not-allowed; }
-
-  .su-btn-gold {
+  .su-btn-google {
     width: 100%;
     padding: 16px;
     background: linear-gradient(135deg, ${G.gold} 0%, ${G.goldDark} 50%, ${G.gold} 100%);
     background-size: 200% auto;
     color: #05050A;
-    font-family: ${G.font};
-    font-size: 18px;
-    letter-spacing: 0.14em;
+    font-family: ${G.body};
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.06em;
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
     transition: transform 0.2s, box-shadow 0.2s, background-position 0.4s;
     animation: su-pulse 3s ease-in-out infinite;
     position: relative; overflow: hidden;
   }
-  .su-btn-gold::after {
+  .su-btn-google::after {
     content: '';
     position: absolute;
     top: 0; left: -80%; width: 50%; height: 100%;
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.20), transparent);
     transform: skewX(-18deg);
   }
-  .su-btn-gold:hover:not(:disabled) {
+  .su-btn-google:hover:not(:disabled) {
     transform: translateY(-2px);
     background-position: right center;
+    box-shadow: 0 8px 32px rgba(201,168,76,0.45);
   }
-  .su-btn-gold:hover:not(:disabled)::after {
-    animation: su-shine 0.55s ease forwards;
-  }
-  .su-btn-gold:disabled { opacity: 0.45; cursor: not-allowed; animation: none; }
-
-  .su-btn-google {
-    width: 100%;
-    padding: 14px;
-    background: rgba(255,255,255,0.035);
-    color: ${G.text};
-    font-family: ${G.body};
-    font-weight: 600;
-    font-size: 14px;
-    letter-spacing: 0.04em;
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    transition: all 0.22s ease;
-  }
-  .su-btn-google:hover:not(:disabled) {
-    background: rgba(255,255,255,0.07);
-    border-color: rgba(255,255,255,0.20);
-    transform: translateY(-2px);
-  }
-  .su-btn-google:disabled { opacity: 0.45; cursor: not-allowed; }
-
-  .su-divider {
-    display: flex; align-items: center; gap: 14px;
-    color: ${G.dim};
-    font-family: ${G.mono}; font-size: 9px; letter-spacing: 0.18em;
-  }
-  .su-divider::before, .su-divider::after {
-    content: ''; flex: 1; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(201,168,76,0.2), transparent);
-  }
+  .su-btn-google:disabled { opacity: 0.45; cursor: not-allowed; animation: none; }
 
   .su-feature-pill {
     display: flex; align-items: center; gap: 8px;
@@ -186,7 +129,6 @@ const CSS = `
   }
 `;
 
-// ── Real Manifix Logo — /public/assets/logo.png ──────────────────────────────
 const ManifixLogo = ({ size = 62 }) => {
   const [imgError, setImgError] = useState(false);
 
@@ -204,7 +146,6 @@ const ManifixLogo = ({ size = 62 }) => {
     );
   }
 
-  // SVG fallback if image fails to load
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       <defs>
@@ -226,9 +167,8 @@ const ManifixLogo = ({ size = 62 }) => {
   );
 };
 
-// ── Google Icon ─────────────────────────────────────────────────────────────
 const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+  <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
     <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
     <path d="M3.964 10.707A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
@@ -236,20 +176,6 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ── Eye icons ───────────────────────────────────────────────────────────────
-const EyeOn = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-const EyeOff = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-    <line x1="1" y1="1" x2="23" y2="23"/>
-  </svg>
-);
-
-// ── Check icon ──────────────────────────────────────────────────────────────
 const Check = () => (
   <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
     <path d="M2 6l3 3 5-5" stroke="#C9A84C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -258,10 +184,6 @@ const Check = () => (
 
 export default function Signup() {
   const navigate = useNavigate();
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
   const [gLoading, setGLoading] = useState(false);
   const [error, setError]       = useState("");
 
@@ -274,44 +196,17 @@ export default function Signup() {
     }
   }, []);
 
-  // Password strength
-  const pwStrength = (() => {
-    if (password.length === 0) return null;
-    if (password.length < 6) return { label: "Too Short", color: "#FF6B6B", w: "25%" };
-    if (password.length < 8) return { label: "Weak",      color: "#FB923C", w: "50%" };
-    if (password.length < 12) return { label: "Good",     color: G.gold,    w: "75%" };
-    return { label: "Strong", color: "#4ADE80", w: "100%" };
-  })();
-
-  const handleEmailSignup = async () => {
-    setError("");
-    if (!email.includes("@")) return setError("Enter a valid email address.");
-    if (password.length < 8)  return setError("Password must be at least 8 characters.");
-    setLoading(true);
-    try {
-      const user = await authService.signUp(email.trim().toLowerCase(), password);
-      if (!user) throw new Error("No user returned");
-      navigate("/onboarding", { replace: true });
-    } catch (err) {
-      setError(err?.message || "Signup failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleGoogleSignup = async () => {
     setError("");
     setGLoading(true);
     try {
-      await authService.loginWithGoogle(); // ✅ correct method, redirect handled by Supabase
+      await authService.loginWithGoogle();
     } catch (err) {
       setError(err?.message || "Google sign-in failed. Please try again.");
     } finally {
       setGLoading(false);
     }
   };
-
-  const isLoading = loading || gLoading;
 
   return (
     <div style={{
@@ -377,7 +272,6 @@ export default function Signup() {
 
         {/* ── BRAND HEADER ── */}
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          {/* Real logo with glowing ring container */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -388,7 +282,6 @@ export default function Signup() {
               animation: "su-float 6s ease-in-out infinite",
             }}
           >
-            {/* Gold ring wrapper */}
             <div style={{
               width: "82px", height: "82px",
               borderRadius: "20px",
@@ -417,7 +310,7 @@ export default function Signup() {
         </div>
 
         {/* ── FEATURE PILLS ── */}
-        <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", marginBottom: "28px" }}>
+        <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", marginBottom: "32px" }}>
           {[["⚡","Magic16"], ["🌍","Global Rank"], ["🤖","AI Coach"]].map(([icon, label]) => (
             <div key={label} className="su-feature-pill">
               <span>{icon}</span>
@@ -426,75 +319,16 @@ export default function Signup() {
           ))}
         </div>
 
-        {/* ── GOOGLE ── */}
-        <button className="su-btn-google" onClick={handleGoogleSignup} disabled={isLoading}>
+        {/* ── GOOGLE BUTTON ── */}
+        <button className="su-btn-google" onClick={handleGoogleSignup} disabled={gLoading}>
           {gLoading ? (
-            <span style={{ fontFamily: G.mono, fontSize: "12px", color: G.muted, letterSpacing: "0.08em" }}>
+            <span style={{ fontFamily: G.mono, fontSize: "12px", color: "#05050A", letterSpacing: "0.08em" }}>
               Connecting to Google...
             </span>
           ) : (
-            <><GoogleIcon /><span style={{ fontFamily: G.body, fontWeight: 600 }}>Continue with Google</span></>
+            <><GoogleIcon /><span>Continue with Google</span></>
           )}
         </button>
-
-        {/* ── DIVIDER ── */}
-        <div className="su-divider" style={{ margin: "22px 0" }}>OR REGISTER WITH EMAIL</div>
-
-        {/* ── FORM ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
-          <input
-            className="su-input"
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            disabled={isLoading}
-            onKeyDown={e => e.key === "Enter" && handleEmailSignup()}
-          />
-
-          <div style={{ position: "relative" }}>
-            <input
-              className="su-input"
-              type={showPw ? "text" : "password"}
-              placeholder="Create password (8+ characters)"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              disabled={isLoading}
-              style={{ paddingRight: "46px" }}
-              onKeyDown={e => e.key === "Enter" && handleEmailSignup()}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPw(v => !v)}
-              style={{
-                position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)",
-                background: "none", border: "none", cursor: "pointer",
-                color: G.dim, display: "flex", alignItems: "center", transition: "color 0.2s",
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = G.gold}
-              onMouseLeave={e => e.currentTarget.style.color = G.dim}
-            >
-              {showPw ? <EyeOff /> : <EyeOn />}
-            </button>
-          </div>
-
-          {/* Password strength bar */}
-          {pwStrength && (
-            <div>
-              <div style={{ height: "3px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", width: pwStrength.w,
-                  background: pwStrength.color, borderRadius: "2px",
-                  transition: "width 0.3s ease, background 0.3s ease",
-                  boxShadow: `0 0 8px ${pwStrength.color}55`,
-                }} />
-              </div>
-              <div style={{ fontFamily: G.mono, fontSize: "9px", color: pwStrength.color, marginTop: "5px", letterSpacing: "0.12em" }}>
-                {pwStrength.label}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* ── ERROR ── */}
         {error && (
@@ -502,7 +336,7 @@ export default function Signup() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             style={{
-              marginBottom: "14px", padding: "12px 16px",
+              marginTop: "14px", padding: "12px 16px",
               background: "rgba(255,107,107,0.07)",
               border: "1px solid rgba(255,107,107,0.22)",
               borderLeft: "3px solid #FF6B6B",
@@ -515,13 +349,8 @@ export default function Signup() {
           </motion.div>
         )}
 
-        {/* ── SUBMIT ── */}
-        <button className="su-btn-gold" onClick={handleEmailSignup} disabled={isLoading}>
-          {loading ? "CONFIGURING..." : "BEGIN EVOLUTION →"}
-        </button>
-
         {/* ── WHAT YOU GET ── */}
-        <div style={{ marginTop: "20px", padding: "14px 16px", borderRadius: "6px", background: G.goldDim, border: `1px solid rgba(201,168,76,0.16)` }}>
+        <div style={{ marginTop: "24px", padding: "14px 16px", borderRadius: "6px", background: G.goldDim, border: `1px solid rgba(201,168,76,0.16)` }}>
           <div style={{ fontFamily: G.mono, fontSize: "9px", color: G.gold, letterSpacing: "0.18em", marginBottom: "10px" }}>
             INCLUDED IN YOUR MEMBERSHIP
           </div>
