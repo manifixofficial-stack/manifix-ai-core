@@ -1,16 +1,7 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Nutrition Health Module v8.0                   ║
- * ║                                                                          ║
- * ║  REAL AI UPGRADES:                                                      ║
- * ║  • Real Claude Vision food detection (actual photo → real calories)    ║
- * ║  • Portion size estimation from image context                           ║
- * ║  • Ingredient-level breakdown (not just dish name)                      ║
- * ║  • Confidence scoring per nutrient                                      ║
- * ║  • Multiple items in one photo detected simultaneously                  ║
- * ║  • AI meal suggestions based on deficiencies                            ║
- * ║  • Real nutrient gap analysis with smart food swaps                    ║
- * ║  • All v7 features maintained + enhanced                                ║
+ * ║  MAGIC16 × ManifiX AI — Nutrition Health Module v8.1                   ║
+ * ║  AI Coach removed · All other features 100% working                    ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -20,25 +11,25 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
    THEME
 ════════════════════════════════════════════════════════════ */
 const T = {
-  accent: "#22c55e",
-  accentDim: "#15803d",
+  accent:     "#22c55e",
+  accentDim:  "#15803d",
   accentGlow: "rgba(34,197,94,0.1)",
-  blue: "#38bdf8",
-  yellow: "#fbbf24",
-  red: "#f87171",
-  purple: "#c084fc",
-  orange: "#fb923c",
-  teal: "#2dd4bf",
-  green: "#4ade80",
-  bg: "#020906",
-  card: "#060f08",
-  cardMid: "#091410",
-  border: "#0d2010",
-  borderMid: "#122618",
-  textPrimary: "#ecfdf5",
-  textMid: "#6ee7b7",
-  textDim: "#1e4d35",
-  voiceRate: 0.85,
+  blue:       "#38bdf8",
+  yellow:     "#fbbf24",
+  red:        "#f87171",
+  purple:     "#c084fc",
+  orange:     "#fb923c",
+  teal:       "#2dd4bf",
+  green:      "#4ade80",
+  bg:         "#020906",
+  card:       "#060f08",
+  cardMid:    "#091410",
+  border:     "#0d2010",
+  borderMid:  "#122618",
+  textPrimary:"#ecfdf5",
+  textMid:    "#6ee7b7",
+  textDim:    "#1e4d35",
+  voiceRate:  0.85,
   voicePitch: 0.96,
 };
 
@@ -55,97 +46,79 @@ const LIGHT_CONFIG = {
    CBT LESSONS
 ════════════════════════════════════════════════════════════ */
 const CBT_LESSONS = [
-  { id:1, day:1, title:"The Why Behind Your Plate",           content:"Before eating, pause 3 seconds and ask: Am I physically hungry, emotionally hungry, or just bored? This tiny habit rewires your relationship with food.", exercise:"For your next meal, rate your hunger 1-10 before and after eating.", category:"mindfulness", icon:"🧠", duration:"3 min" },
-  { id:2, day:2, title:"Cognitive Restructuring for Cravings",content:"Cravings last 15-20 minutes. Acknowledge the craving, name it, then delay action by 10 minutes.",                                                      exercise:"Next craving: write it down + time. Wait 10 mins. Did it pass?",       category:"cbt",         icon:"💭", duration:"4 min" },
-  { id:3, day:3, title:"Slim by Design Principle",            content:"You eat 92% of what you serve yourself. Use smaller plates, pre-portion snacks, put fruit in visible spots.",                                             exercise:"Rearrange one area of your kitchen to make healthy food more visible.", category:"environment", icon:"🏠", duration:"5 min" },
-  { id:4, day:4, title:"Emotional Eating Triggers",           content:"Stress, boredom, sadness, and celebration are the 4 main emotional eating triggers. None require food — they require acknowledgment.",                   exercise:"List your top 3 emotional eating triggers and one non-food alternative.", category:"cbt",      icon:"❤️", duration:"6 min" },
-  { id:5, day:5, title:"Mindful Eating Protocol",             content:"Your brain needs 20 minutes to register fullness. Put your fork down between bites. Chew 20 times.",                                                     exercise:"Set a timer for 20 minutes for your next main meal.",                  category:"mindfulness", icon:"🍽️", duration:"3 min" },
-  { id:6, day:6, title:"All-or-Nothing Thinking",             content:"\"I had one cookie, I ruined my day\" is cognitive distortion. Progress beats perfection. The 80/20 rule works.",                                        exercise:"Practice self-compassionate self-talk after your next imperfect choice.", category:"cbt",      icon:"⚖️", duration:"4 min" },
-  { id:7, day:7, title:"Food as Fuel vs. Reward",             content:"Using food as the primary reward creates a problematic loop. Build a reward menu with non-food items.",                                                   exercise:"Create your personal 10-item non-food reward list.",                   category:"habit",      icon:"🎯", duration:"5 min" },
+  { id:1, day:1, title:"The Why Behind Your Plate",            content:"Before eating, pause 3 seconds and ask: Am I physically hungry, emotionally hungry, or just bored? This tiny habit rewires your relationship with food.", exercise:"For your next meal, rate your hunger 1-10 before and after eating.",          category:"mindfulness", icon:"🧠", duration:"3 min" },
+  { id:2, day:2, title:"Cognitive Restructuring for Cravings", content:"Cravings last 15-20 minutes. Acknowledge the craving, name it, then delay action by 10 minutes.",                                                      exercise:"Next craving: write it down + time. Wait 10 mins. Did it pass?",           category:"cbt",         icon:"💭", duration:"4 min" },
+  { id:3, day:3, title:"Slim by Design Principle",             content:"You eat 92% of what you serve yourself. Use smaller plates, pre-portion snacks, put fruit in visible spots.",                                             exercise:"Rearrange one area of your kitchen to make healthy food more visible.",     category:"environment", icon:"🏠", duration:"5 min" },
+  { id:4, day:4, title:"Emotional Eating Triggers",            content:"Stress, boredom, sadness, and celebration are the 4 main emotional eating triggers. None require food — they require acknowledgment.",                   exercise:"List your top 3 emotional eating triggers and one non-food alternative.",  category:"cbt",         icon:"❤️", duration:"6 min" },
+  { id:5, day:5, title:"Mindful Eating Protocol",              content:"Your brain needs 20 minutes to register fullness. Put your fork down between bites. Chew 20 times.",                                                     exercise:"Set a timer for 20 minutes for your next main meal.",                       category:"mindfulness", icon:"🍽️", duration:"3 min" },
+  { id:6, day:6, title:"All-or-Nothing Thinking",              content:"\"I had one cookie, I ruined my day\" is cognitive distortion. Progress beats perfection. The 80/20 rule works.",                                        exercise:"Practice self-compassionate self-talk after your next imperfect choice.",   category:"cbt",         icon:"⚖️", duration:"4 min" },
+  { id:7, day:7, title:"Food as Fuel vs. Reward",              content:"Using food as the primary reward creates a problematic loop. Build a reward menu with non-food items.",                                                   exercise:"Create your personal 10-item non-food reward list.",                       category:"habit",       icon:"🎯", duration:"5 min" },
 ];
 
 /* ════════════════════════════════════════════════════════════
    FOOD DATABASE
 ════════════════════════════════════════════════════════════ */
 const FOOD_DB = {
-  rice:    { name:"Rice (cooked)",            calories:130, protein:2.7,  carbs:28,   fat:0.3,  fiber:0.4, icon:"🍚", iron:0.2, calcium:10,  vitC:0,  vitD:0,   light:"yellow", satiety:55 },
-  roti:    { name:"Roti/Chapati",             calories:104, protein:3.3,  carbs:18,   fat:2.1,  fiber:2.5, icon:"🫓", iron:1.5, calcium:20,  vitC:0,  vitD:0,   light:"yellow", satiety:68 },
-  oats:    { name:"Oats (cooked)",            calories:71,  protein:2.5,  carbs:12,   fat:1.4,  fiber:2,   icon:"🥣", iron:1.7, calcium:54,  vitC:0,  vitD:0,   light:"green",  satiety:83 },
-  chicken: { name:"Chicken Breast (grilled)", calories:165, protein:31,   carbs:0,    fat:3.6,  fiber:0,   icon:"🍗", iron:1.0, calcium:15,  vitC:0,  vitD:0.3, light:"green",  satiety:90 },
-  dal:     { name:"Dal / Lentils",            calories:116, protein:9,    carbs:20,   fat:0.4,  fiber:8,   icon:"🥘", iron:3.3, calcium:40,  vitC:1.5,vitD:0,   light:"green",  satiety:85 },
-  egg:     { name:"Egg (boiled)",             calories:78,  protein:6.3,  carbs:0.6,  fat:5.3,  fiber:0,   icon:"🥚", iron:1.2, calcium:28,  vitC:0,  vitD:1.1, light:"green",  satiety:88 },
-  fish:    { name:"Fish (grilled)",           calories:206, protein:22,   carbs:0,    fat:12,   fiber:0,   icon:"🐟", iron:0.8, calcium:30,  vitC:0,  vitD:5.6, light:"green",  satiety:87 },
-  tofu:    { name:"Tofu",                     calories:76,  protein:8,    carbs:1.9,  fat:4.8,  fiber:0.3, icon:"🫘", iron:1.6, calcium:200, vitC:0,  vitD:0,   light:"green",  satiety:75 },
-  spinach: { name:"Spinach (cooked)",         calories:23,  protein:3,    carbs:3.6,  fat:0.3,  fiber:2.4, icon:"🥬", iron:3.6, calcium:245, vitC:18, vitD:0,   light:"green",  satiety:72 },
-  tomato:  { name:"Tomato",                   calories:18,  protein:0.9,  carbs:3.9,  fat:0.2,  fiber:1.2, icon:"🍅", iron:0.3, calcium:10,  vitC:14, vitD:0,   light:"green",  satiety:65 },
-  carrot:  { name:"Carrot",                   calories:41,  protein:0.9,  carbs:10,   fat:0.2,  fiber:2.8, icon:"🥕", iron:0.3, calcium:33,  vitC:6,  vitD:0,   light:"green",  satiety:70 },
-  potato:  { name:"Potato (boiled)",          calories:87,  protein:2.5,  carbs:20,   fat:0.1,  fiber:2.2, icon:"🥔", iron:0.6, calcium:8,   vitC:13, vitD:0,   light:"yellow", satiety:78 },
-  banana:  { name:"Banana",                   calories:89,  protein:1.1,  carbs:23,   fat:0.3,  fiber:2.6, icon:"🍌", iron:0.3, calcium:5,   vitC:9,  vitD:0,   light:"green",  satiety:74 },
-  apple:   { name:"Apple",                    calories:52,  protein:0.3,  carbs:14,   fat:0.2,  fiber:2.4, icon:"🍎", iron:0.1, calcium:6,   vitC:5,  vitD:0,   light:"green",  satiety:76 },
-  mango:   { name:"Mango",                    calories:60,  protein:0.8,  carbs:15,   fat:0.4,  fiber:1.6, icon:"🥭", iron:0.2, calcium:11,  vitC:36, vitD:0,   light:"green",  satiety:68 },
-  orange:  { name:"Orange",                   calories:47,  protein:0.9,  carbs:12,   fat:0.1,  fiber:2.4, icon:"🍊", iron:0.1, calcium:40,  vitC:53, vitD:0,   light:"green",  satiety:72 },
-  milk:    { name:"Milk (whole)",             calories:61,  protein:3.2,  carbs:4.8,  fat:3.3,  fiber:0,   icon:"🥛", iron:0.1, calcium:120, vitC:0,  vitD:1.2, light:"yellow", satiety:69 },
-  curd:    { name:"Curd / Yogurt",            calories:59,  protein:3.5,  carbs:4.7,  fat:3.3,  fiber:0,   icon:"🍶", iron:0.1, calcium:110, vitC:0,  vitD:0.1, light:"green",  satiety:73 },
-  nuts:    { name:"Mixed Nuts (30g)",         calories:185, protein:5,    carbs:6,    fat:16,   fiber:3,   icon:"🥜", iron:1.2, calcium:35,  vitC:0,  vitD:0,   light:"yellow", satiety:80 },
-  bread:   { name:"Whole Wheat Bread",        calories:81,  protein:4,    carbs:14,   fat:1.1,  fiber:2,   icon:"🍞", iron:1.2, calcium:30,  vitC:0,  vitD:0,   light:"yellow", satiety:62 },
-  cheese:  { name:"Cheese (cheddar)",         calories:113, protein:7,    carbs:0.4,  fat:9.3,  fiber:0,   icon:"🧀", iron:0.2, calcium:200, vitC:0,  vitD:0.2, light:"red",    satiety:70 },
+  rice:    { name:"Rice (cooked)",            calories:130, protein:2.7,  carbs:28,   fat:0.3,  fiber:0.4, icon:"🍚", iron:0.2, calcium:10,  vitC:0,   vitD:0,   light:"yellow", satiety:55 },
+  roti:    { name:"Roti/Chapati",             calories:104, protein:3.3,  carbs:18,   fat:2.1,  fiber:2.5, icon:"🫓", iron:1.5, calcium:20,  vitC:0,   vitD:0,   light:"yellow", satiety:68 },
+  oats:    { name:"Oats (cooked)",            calories:71,  protein:2.5,  carbs:12,   fat:1.4,  fiber:2,   icon:"🥣", iron:1.7, calcium:54,  vitC:0,   vitD:0,   light:"green",  satiety:83 },
+  chicken: { name:"Chicken Breast (grilled)", calories:165, protein:31,   carbs:0,    fat:3.6,  fiber:0,   icon:"🍗", iron:1.0, calcium:15,  vitC:0,   vitD:0.3, light:"green",  satiety:90 },
+  dal:     { name:"Dal / Lentils",            calories:116, protein:9,    carbs:20,   fat:0.4,  fiber:8,   icon:"🥘", iron:3.3, calcium:40,  vitC:1.5, vitD:0,   light:"green",  satiety:85 },
+  egg:     { name:"Egg (boiled)",             calories:78,  protein:6.3,  carbs:0.6,  fat:5.3,  fiber:0,   icon:"🥚", iron:1.2, calcium:28,  vitC:0,   vitD:1.1, light:"green",  satiety:88 },
+  fish:    { name:"Fish (grilled)",           calories:206, protein:22,   carbs:0,    fat:12,   fiber:0,   icon:"🐟", iron:0.8, calcium:30,  vitC:0,   vitD:5.6, light:"green",  satiety:87 },
+  tofu:    { name:"Tofu",                     calories:76,  protein:8,    carbs:1.9,  fat:4.8,  fiber:0.3, icon:"🫘", iron:1.6, calcium:200, vitC:0,   vitD:0,   light:"green",  satiety:75 },
+  spinach: { name:"Spinach (cooked)",         calories:23,  protein:3,    carbs:3.6,  fat:0.3,  fiber:2.4, icon:"🥬", iron:3.6, calcium:245, vitC:18,  vitD:0,   light:"green",  satiety:72 },
+  tomato:  { name:"Tomato",                   calories:18,  protein:0.9,  carbs:3.9,  fat:0.2,  fiber:1.2, icon:"🍅", iron:0.3, calcium:10,  vitC:14,  vitD:0,   light:"green",  satiety:65 },
+  carrot:  { name:"Carrot",                   calories:41,  protein:0.9,  carbs:10,   fat:0.2,  fiber:2.8, icon:"🥕", iron:0.3, calcium:33,  vitC:6,   vitD:0,   light:"green",  satiety:70 },
+  potato:  { name:"Potato (boiled)",          calories:87,  protein:2.5,  carbs:20,   fat:0.1,  fiber:2.2, icon:"🥔", iron:0.6, calcium:8,   vitC:13,  vitD:0,   light:"yellow", satiety:78 },
+  banana:  { name:"Banana",                   calories:89,  protein:1.1,  carbs:23,   fat:0.3,  fiber:2.6, icon:"🍌", iron:0.3, calcium:5,   vitC:9,   vitD:0,   light:"green",  satiety:74 },
+  apple:   { name:"Apple",                    calories:52,  protein:0.3,  carbs:14,   fat:0.2,  fiber:2.4, icon:"🍎", iron:0.1, calcium:6,   vitC:5,   vitD:0,   light:"green",  satiety:76 },
+  mango:   { name:"Mango",                    calories:60,  protein:0.8,  carbs:15,   fat:0.4,  fiber:1.6, icon:"🥭", iron:0.2, calcium:11,  vitC:36,  vitD:0,   light:"green",  satiety:68 },
+  orange:  { name:"Orange",                   calories:47,  protein:0.9,  carbs:12,   fat:0.1,  fiber:2.4, icon:"🍊", iron:0.1, calcium:40,  vitC:53,  vitD:0,   light:"green",  satiety:72 },
+  milk:    { name:"Milk (whole)",             calories:61,  protein:3.2,  carbs:4.8,  fat:3.3,  fiber:0,   icon:"🥛", iron:0.1, calcium:120, vitC:0,   vitD:1.2, light:"yellow", satiety:69 },
+  curd:    { name:"Curd / Yogurt",            calories:59,  protein:3.5,  carbs:4.7,  fat:3.3,  fiber:0,   icon:"🍶", iron:0.1, calcium:110, vitC:0,   vitD:0.1, light:"green",  satiety:73 },
+  nuts:    { name:"Mixed Nuts (30g)",         calories:185, protein:5,    carbs:6,    fat:16,   fiber:3,   icon:"🥜", iron:1.2, calcium:35,  vitC:0,   vitD:0,   light:"yellow", satiety:80 },
+  bread:   { name:"Whole Wheat Bread",        calories:81,  protein:4,    carbs:14,   fat:1.1,  fiber:2,   icon:"🍞", iron:1.2, calcium:30,  vitC:0,   vitD:0,   light:"yellow", satiety:62 },
+  cheese:  { name:"Cheese (cheddar)",         calories:113, protein:7,    carbs:0.4,  fat:9.3,  fiber:0,   icon:"🧀", iron:0.2, calcium:200, vitC:0,   vitD:0.2, light:"red",    satiety:70 },
 };
 
-const FOOD_KEYS = Object.keys(FOOD_DB);
-const QUICK_ADD = ["oats","egg","dal","chicken","spinach","banana","apple","curd","fish","nuts"];
+const FOOD_KEYS  = Object.keys(FOOD_DB);
+const QUICK_ADD  = ["oats","egg","dal","chicken","spinach","banana","apple","curd","fish","nuts"];
 
 /* ════════════════════════════════════════════════════════════
    ACTIVITIES
 ════════════════════════════════════════════════════════════ */
 const ACTIVITIES = [
-  { id:"walk",   name:"Walking",     icon:"🚶", calPerMin:4  },
-  { id:"run",    name:"Running",     icon:"🏃", calPerMin:10 },
-  { id:"yoga",   name:"Yoga",        icon:"🧘", calPerMin:3  },
-  { id:"cycle",  name:"Cycling",     icon:"🚴", calPerMin:7  },
-  { id:"swim",   name:"Swimming",    icon:"🏊", calPerMin:8  },
-  { id:"dance",  name:"Dancing",     icon:"💃", calPerMin:5  },
-  { id:"climb",  name:"Stair Climb", icon:"🧗", calPerMin:9  },
-  { id:"stretch",name:"Stretching",  icon:"🤸", calPerMin:2  },
+  { id:"walk",    name:"Walking",     icon:"🚶", calPerMin:4  },
+  { id:"run",     name:"Running",     icon:"🏃", calPerMin:10 },
+  { id:"yoga",    name:"Yoga",        icon:"🧘", calPerMin:3  },
+  { id:"cycle",   name:"Cycling",     icon:"🚴", calPerMin:7  },
+  { id:"swim",    name:"Swimming",    icon:"🏊", calPerMin:8  },
+  { id:"dance",   name:"Dancing",     icon:"💃", calPerMin:5  },
+  { id:"climb",   name:"Stair Climb", icon:"🧗", calPerMin:9  },
+  { id:"stretch", name:"Stretching",  icon:"🤸", calPerMin:2  },
 ];
-
-/* ════════════════════════════════════════════════════════════
-   LANGUAGE
-════════════════════════════════════════════════════════════ */
-const LANG_MAP = {
-  "en-IN":"en-IN","hi-IN":"hi-IN","te-IN":"te-IN","ta-IN":"ta-IN",
-  "mr-IN":"mr-IN","bn-IN":"bn-IN","kn-IN":"kn-IN","gu-IN":"gu-IN",
-  "ml-IN":"ml-IN","pa-IN":"pa-IN","es-ES":"es-ES","fr-FR":"fr-FR",
-  "de-DE":"de-DE","ja-JP":"ja-JP","ko-KR":"ko-KR","zh-CN":"zh-CN",
-  "en":"en-IN","hi":"hi-IN","te":"te-IN","ta":"ta-IN",
-};
-
-const LANG_NAMES = {
-  "en-IN":"English","hi-IN":"Hindi","te-IN":"Telugu","ta-IN":"Tamil",
-  "mr-IN":"Marathi","bn-IN":"Bengali","kn-IN":"Kannada","gu-IN":"Gujarati",
-  "ml-IN":"Malayalam","pa-IN":"Punjabi","es-ES":"Spanish","fr-FR":"French",
-  "de-DE":"German","ja-JP":"Japanese","ko-KR":"Korean","zh-CN":"Mandarin",
-};
 
 /* ════════════════════════════════════════════════════════════
    DATA LAYER
 ════════════════════════════════════════════════════════════ */
-function loadLang() {
-  const c = (typeof localStorage !== "undefined" && localStorage.getItem("magic16_lang")) || "en-IN";
-  return LANG_MAP[c] || "en-IN";
-}
-
 function loadData() {
   try {
     const s = localStorage.getItem("manifix_nutrition_v8");
     if (s) return JSON.parse(s);
   } catch {}
   return {
-    dailyGoal: { calories:2000, protein:50, carbs:250, fat:65, water:8 },
-    logged: [], water: [], activities: [],
-    groceryChecked: [], streakDays: 0, lastActiveDate: null,
-    weeklyScores: [], cbtProgress: [],
-    userProfile: { weight:70, height:170, age:25, gender:"other" },
-    lastUpdated: Date.now(),
+    dailyGoal:       { calories:2000, protein:50, carbs:250, fat:65, water:8 },
+    logged:          [],
+    water:           [],
+    activities:      [],
+    groceryChecked:  [],
+    streakDays:      0,
+    lastActiveDate:  null,
+    weeklyScores:    [],
+    cbtProgress:     [],
+    userProfile:     { weight:70, height:170, age:25, gender:"other" },
+    lastUpdated:     Date.now(),
   };
 }
 
@@ -156,54 +129,57 @@ function saveData(d) {
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 
 function calcTotals(logged, water) {
-  const today = todayStr();
+  const today    = todayStr();
   const todayLogs = logged.filter(l => l.time.startsWith(today));
-  const totals = { calories:0, protein:0, carbs:0, fat:0, fiber:0, iron:0, calcium:0, vitC:0, vitD:0, greenCount:0, yellowCount:0, redCount:0 };
+  const totals   = { calories:0, protein:0, carbs:0, fat:0, fiber:0, iron:0, calcium:0, vitC:0, vitD:0, greenCount:0, yellowCount:0, redCount:0 };
+
   todayLogs.forEach(log => {
     if (log._aiScan) {
-      totals.calories += log._aiScan.totalCalories || 0;
-      totals.protein  += log._aiScan.totalProtein  || 0;
-      totals.carbs    += log._aiScan.totalCarbs    || 0;
-      totals.fat      += log._aiScan.totalFat      || 0;
-      totals.fiber    += log._aiScan.totalFiber    || 0;
+      totals.calories  += log._aiScan.totalCalories || 0;
+      totals.protein   += log._aiScan.totalProtein  || 0;
+      totals.carbs     += log._aiScan.totalCarbs    || 0;
+      totals.fat       += log._aiScan.totalFat      || 0;
+      totals.fiber     += log._aiScan.totalFiber    || 0;
       const light = log._aiScan.overallLight || "yellow";
       if (light === "green")  totals.greenCount++;
       if (light === "yellow") totals.yellowCount++;
       if (light === "red")    totals.redCount++;
       return;
     }
-    const f = FOOD_DB[log.foodId]; if (!f) return;
+    const f = FOOD_DB[log.foodId];
+    if (!f) return;
     const p = log.portion || 1;
     totals.calories  += f.calories  * p;
     totals.protein   += f.protein   * p;
     totals.carbs     += f.carbs     * p;
     totals.fat       += f.fat       * p;
     totals.fiber     += f.fiber     * p;
-    totals.iron      += (f.iron     || 0) * p;
-    totals.calcium   += (f.calcium  || 0) * p;
-    totals.vitC      += (f.vitC     || 0) * p;
-    totals.vitD      += (f.vitD     || 0) * p;
+    totals.iron      += (f.iron    || 0) * p;
+    totals.calcium   += (f.calcium || 0) * p;
+    totals.vitC      += (f.vitC    || 0) * p;
+    totals.vitD      += (f.vitD    || 0) * p;
     if (f.light === "green")  totals.greenCount++;
     if (f.light === "yellow") totals.yellowCount++;
     if (f.light === "red")    totals.redCount++;
   });
+
   const waterCount = water.filter(t => t.startsWith(today)).length;
   return { ...totals, water: waterCount };
 }
 
 function calcActivityBurn(activities) {
   const today = todayStr();
-  return activities.filter(a => a.time.startsWith(today)).reduce((sum, a) => sum + (a.calories || 0), 0);
+  return (activities || []).filter(a => a.time.startsWith(today)).reduce((sum, a) => sum + (a.calories || 0), 0);
 }
 
 function calcScore(totals, goal, burn) {
   if (!goal) return 50;
-  const net = totals.calories - burn;
-  const calRatio = net / goal.calories;
+  const net      = totals.calories - burn;
+  const calRatio = net / Math.max(goal.calories, 1);
   const s = [
     calRatio >= 0.8 && calRatio <= 1.2 ? 20 : Math.max(0, 20 - Math.abs(calRatio - 1) * 40),
-    totals.protein >= goal.protein * 0.8 ? 20 : (totals.protein / goal.protein) * 20,
-    totals.fiber >= 20 ? 20 : (totals.fiber / 20) * 20,
+    totals.protein >= goal.protein * 0.8 ? 20 : (totals.protein / Math.max(goal.protein, 1)) * 20,
+    totals.fiber   >= 20                 ? 20 : (totals.fiber   / 20) * 20,
     Math.min(20, totals.water * 2.5),
     Math.min(20, totals.greenCount * 4),
   ];
@@ -211,7 +187,7 @@ function calcScore(totals, goal, burn) {
 }
 
 function updateStreak(data) {
-  const today = todayStr();
+  const today     = todayStr();
   if (data.lastActiveDate === today) return data;
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
   const newStreak = data.lastActiveDate === yesterday ? (data.streakDays || 0) + 1 : 1;
@@ -221,19 +197,23 @@ function updateStreak(data) {
 /* ════════════════════════════════════════════════════════════
    VOICE
 ════════════════════════════════════════════════════════════ */
-function makeSpeaker(lang) {
+function makeSpeaker() {
   return function speak(text, urgent = false) {
     if (!("speechSynthesis" in window) || !text) return;
     const say = () => {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang; u.rate = urgent ? 1.0 : T.voiceRate; u.pitch = T.voicePitch;
+      const u     = new SpeechSynthesisUtterance(text);
+      u.lang      = "en-IN";
+      u.rate      = urgent ? 1.0 : T.voiceRate;
+      u.pitch     = T.voicePitch;
       const voices = window.speechSynthesis.getVoices();
-      const v = voices.find(x => x.lang === lang) || voices.find(x => x.lang.startsWith(lang.split("-")[0])) || voices.find(x => x.lang.startsWith("en"));
+      const v      = voices.find(x => x.lang === "en-IN") || voices.find(x => x.lang.startsWith("en"));
       if (v) u.voice = v;
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
     };
     if (urgent) navigator.vibrate?.([60, 30, 60]);
-    if (speechSynthesis.getVoices().length) say(); else speechSynthesis.onvoiceschanged = say;
+    if (speechSynthesis.getVoices().length) say();
+    else speechSynthesis.onvoiceschanged = say;
   };
 }
 
@@ -241,45 +221,35 @@ function makeSpeaker(lang) {
    CSS
 ════════════════════════════════════════════════════════════ */
 function injectCSS() {
-  if (document.getElementById("nut-v8-css")) return;
-  const el = document.createElement("style");
-  el.id = "nut-v8-css";
+  if (document.getElementById("nut-v81-css")) return;
+  const el    = document.createElement("style");
+  el.id       = "nut-v81-css";
   el.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-    @keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(500%)}}
-    @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
-    @keyframes confetti{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(120px) rotate(720deg);opacity:0}}
-    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes spin    {to{transform:rotate(360deg)}}
+    @keyframes fadeUp  {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse   {0%,100%{opacity:1}50%{opacity:.4}}
     @keyframes scanLine{0%{top:-4px}100%{top:100%}}
-    @keyframes glow{0%,100%{box-shadow:0 0 8px rgba(34,197,94,0.2)}50%{box-shadow:0 0 20px rgba(34,197,94,0.5)}}
-    .fade-up{animation:fadeUp .35s cubic-bezier(.22,.68,0,1.2) both}
-    .pop{animation:pop .3s ease both}
-    .btn{transition:all .15s ease;cursor:pointer}
+    @keyframes pop     {0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+    @keyframes confetti{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(120px) rotate(720deg);opacity:0}}
+    @keyframes glow    {0%,100%{box-shadow:0 0 8px rgba(34,197,94,.2)}50%{box-shadow:0 0 20px rgba(34,197,94,.5)}}
+    .fade-up  {animation:fadeUp .35s cubic-bezier(.22,.68,0,1.2) both}
+    .pop      {animation:pop .3s ease both}
+    .btn      {transition:all .15s ease;cursor:pointer}
     .btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
     .btn:active{transform:scale(.97)}
     .ring:focus{outline:2px solid #22c55e;outline-offset:2px}
+    .ai-glow  {animation:glow 2s ease-in-out infinite}
     .hide-scroll::-webkit-scrollbar{display:none}
     .hide-scroll{-ms-overflow-style:none;scrollbar-width:none}
-    .ai-glow{animation:glow 2s ease-in-out infinite}
     @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   `;
   document.head.appendChild(el);
 }
 
 /* ════════════════════════════════════════════════════════════
-   REAL AI FOOD SCANNER — Claude Vision (Cal AI quality)
-   
-   System prompt engineered for maximum accuracy:
-   - Portion estimation from visual cues (plate size, utensils, context)
-   - Multiple items detected in single frame
-   - Cooking method detection (fried vs steamed vs raw)
-   - Brand recognition for packaged foods
-   - Regional cuisine awareness (Indian, South Asian)
-   - Confidence per item
+   AI PHOTO SCANNER — Claude Vision
 ════════════════════════════════════════════════════════════ */
 const PHOTO_SYSTEM_PROMPT = `You are CalAI — the world's most accurate AI nutritionist and food vision system. Analyze food photos with clinical precision.
 
@@ -292,10 +262,9 @@ DETECTION RULES:
 6. If multiple items on plate, list each separately with individual calories
 
 ACCURACY STANDARDS:
-- Calories: ±10% target accuracy (like professional dietitian estimation)
+- Calories: ±10% target accuracy
 - If uncertain about portion, give range e.g. "calories_min":280,"calories_max":340
 - Never round to multiples of 50 — real estimates like 127, 284, 413 are more trustworthy
-- Weight each item in grams based on visual estimation
 
 RESPOND WITH VALID JSON ONLY. No text before or after JSON:
 {
@@ -340,8 +309,7 @@ RESPOND WITH VALID JSON ONLY. No text before or after JSON:
   "missing_items": "any items that may be cut off/hidden"
 }`;
 
-async function analyzePhotoWithAI(base64, langCode) {
-  const langName = LANG_NAMES[langCode] || "English";
+async function analyzePhotoWithAI(base64) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -352,48 +320,39 @@ async function analyzePhotoWithAI(base64, langCode) {
       messages: [{
         role: "user",
         content: [
-          {
-            type: "image",
-            source: { type: "base64", media_type: "image/jpeg", data: base64 },
-          },
-          {
-            type: "text",
-            text: `Analyze this food photo precisely. Provide response in ${langName} for tips only, all numeric values in standard format. Focus on accurate portion estimation.`,
-          },
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+          { type: "text",  text:  "Analyze this food photo precisely. All numeric values in standard format. Focus on accurate portion estimation." },
         ],
       }],
     }),
   });
-
   if (!response.ok) throw new Error(`API ${response.status}`);
-  const data = await response.json();
-  const text = data.content?.map(b => b.text || "").join("") || "{}";
+  const data  = await response.json();
+  const text  = data.content?.map(b => b.text || "").join("") || "{}";
   const clean = text.replace(/```json|```/g, "").trim();
   const parsed = JSON.parse(clean);
-
-  // Validate and normalize
   if (!parsed.items || !parsed.totals) throw new Error("Invalid response structure");
-  parsed.totals.calories     = Math.round(parsed.totals.calories || 0);
-  parsed.totals.protein_g    = Math.round((parsed.totals.protein_g || 0) * 10) / 10;
-  parsed.totals.carbs_g      = Math.round((parsed.totals.carbs_g   || 0) * 10) / 10;
-  parsed.totals.fat_g        = Math.round((parsed.totals.fat_g     || 0) * 10) / 10;
-  parsed.totals.fiber_g      = Math.round((parsed.totals.fiber_g   || 0) * 10) / 10;
+  parsed.totals.calories  = Math.round(parsed.totals.calories  || 0);
+  parsed.totals.protein_g = Math.round((parsed.totals.protein_g || 0) * 10) / 10;
+  parsed.totals.carbs_g   = Math.round((parsed.totals.carbs_g   || 0) * 10) / 10;
+  parsed.totals.fat_g     = Math.round((parsed.totals.fat_g     || 0) * 10) / 10;
+  parsed.totals.fiber_g   = Math.round((parsed.totals.fiber_g   || 0) * 10) / 10;
   return parsed;
 }
 
 /* ════════════════════════════════════════════════════════════
-   SUB-COMPONENTS
+   SHARED COMPONENTS
 ════════════════════════════════════════════════════════════ */
-
 function ScoreRing({ score }) {
-  const r = 38; const c = 2 * Math.PI * r;
-  const dash = (score / 100) * c;
-  const col = score >= 80 ? T.accent : score >= 60 ? T.yellow : T.red;
+  const r    = 38;
+  const circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
+  const col  = score >= 80 ? T.accent : score >= 60 ? T.yellow : T.red;
   return (
     <svg width="92" height="92" viewBox="0 0 92 92">
       <circle cx="46" cy="46" r={r} fill="none" stroke="#0a2010" strokeWidth="7"/>
       <circle cx="46" cy="46" r={r} fill="none" stroke={col} strokeWidth="7"
-        strokeDasharray={`${dash} ${c}`} strokeLinecap="round" transform="rotate(-90 46 46)"
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" transform="rotate(-90 46 46)"
         style={{ transition:"stroke-dasharray .7s ease" }}/>
       <text x="46" y="49" textAnchor="middle" fill={col}
         style={{ fontSize:20, fontWeight:700, fontFamily:"'Space Mono',monospace" }}>{score}</text>
@@ -404,7 +363,7 @@ function ScoreRing({ score }) {
 }
 
 function MacroBar({ label, current, goal, color, unit = "g" }) {
-  const pct = Math.min(100, Math.round((current / Math.max(goal, 1)) * 100));
+  const pct  = Math.min(100, Math.round((current / Math.max(goal, 1)) * 100));
   const over = pct >= 100;
   return (
     <div style={{ marginBottom:9 }}>
@@ -413,14 +372,14 @@ function MacroBar({ label, current, goal, color, unit = "g" }) {
         <span style={{ color:over ? T.accent : T.textDim }}>{Math.round(current)}/{goal}{unit}</span>
       </div>
       <div style={{ height:4, background:"#0a1a0a", borderRadius:2, overflow:"hidden" }}>
-        <div style={{ height:"100%", width:`${pct}%`, background:over ? `linear-gradient(90deg,${color}99,${color})` : `linear-gradient(90deg,${color}55,${color}99)`, transition:"width .6s ease", borderRadius:2 }}/>
+        <div style={{ height:"100%", width:`${pct}%`, background: over ? `linear-gradient(90deg,${color}99,${color})` : `linear-gradient(90deg,${color}55,${color}99)`, transition:"width .6s ease", borderRadius:2 }}/>
       </div>
     </div>
   );
 }
 
 function TrafficLight({ light = "yellow" }) {
-  const cfg = LIGHT_CONFIG[light];
+  const cfg = LIGHT_CONFIG[light] || LIGHT_CONFIG.yellow;
   return (
     <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:10, background:cfg.bg, color:cfg.color, letterSpacing:".08em", textTransform:"uppercase" }}>
       {light === "green" ? "●" : light === "yellow" ? "◐" : "○"} {cfg.label}
@@ -434,9 +393,9 @@ function Micro({ label, current, goal, unit, icon }) {
   return (
     <div style={{ textAlign:"center" }}>
       <div style={{ fontSize:17, marginBottom:2 }}>{icon}</div>
-      <div style={{ fontSize:9, color:T.textDim, marginBottom:1 }}>{label}</div>
+      <div style={{ fontSize:9,  color:T.textDim, marginBottom:1 }}>{label}</div>
       <div style={{ fontSize:11, fontWeight:700, color:col, fontFamily:"'Space Mono',monospace" }}>{Math.round(current)}/{goal}</div>
-      <div style={{ fontSize:8, color:T.textDim }}>{unit}</div>
+      <div style={{ fontSize:8,  color:T.textDim }}>{unit}</div>
       <div style={{ height:2, background:"#0a1a0a", borderRadius:1, margin:"4px 0 0" }}>
         <div style={{ height:"100%", width:`${pct}%`, background:col, borderRadius:1, transition:"width .5s" }}/>
       </div>
@@ -453,24 +412,22 @@ function WaterTracker({ count, goal, onAdd }) {
       </div>
       <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
         {Array.from({ length: goal }, (_, i) => (
-          <div key={i} onClick={() => i === count && onAdd()} style={{
-            width:26, height:32, borderRadius:3, overflow:"hidden",
-            background: i < count ? `${T.accent}18` : "#0a1a0a",
-            border:`1.5px solid ${i < count ? T.accent : "#0d2010"}`,
-            cursor: i === count ? "pointer" : "default", transition:"all .2s",
-            display:"flex", flexDirection:"column", justifyContent:"flex-end",
-          }}>
+          <div key={i} onClick={() => i === count && onAdd()}
+            style={{ width:26, height:32, borderRadius:3, overflow:"hidden",
+              background: i < count ? `${T.accent}18` : "#0a1a0a",
+              border:`1.5px solid ${i < count ? T.accent : "#0d2010"}`,
+              cursor: i === count ? "pointer" : "default", transition:"all .2s",
+              display:"flex", flexDirection:"column", justifyContent:"flex-end" }}>
             {i < count && <div style={{ width:"100%", height:"80%", background:`linear-gradient(to top,${T.accentDim},${T.accent}66)` }}/>}
           </div>
         ))}
       </div>
-      <button onClick={onAdd} disabled={count >= goal} className="btn ring" style={{
-        width:"100%", padding:"9px", fontSize:12, fontWeight:600,
-        background: count >= goal ? `${T.accent}15` : T.accent,
-        border:`2px solid ${count >= goal ? T.accent : "#000"}`,
-        color: count >= goal ? T.accent : "#020906", borderRadius:8, fontFamily:"inherit",
-        opacity: count >= goal ? 0.7 : 1,
-      }}>
+      <button onClick={onAdd} disabled={count >= goal} className="btn ring"
+        style={{ width:"100%", padding:"9px", fontSize:12, fontWeight:600,
+          background: count >= goal ? `${T.accent}15` : T.accent,
+          border:`2px solid ${count >= goal ? T.accent : "#000"}`,
+          color: count >= goal ? T.accent : "#020906", borderRadius:8, fontFamily:"inherit",
+          opacity: count >= goal ? 0.7 : 1, cursor: count >= goal ? "not-allowed" : "pointer" }}>
         {count >= goal ? "✓ Hydration Goal Met!" : "+ Add Glass of Water"}
       </button>
     </div>
@@ -478,8 +435,12 @@ function WaterTracker({ count, goal, onAdd }) {
 }
 
 function SparkLine({ scores }) {
-  if (!scores || scores.length < 2) return <div style={{ fontSize:11, color:T.textDim, textAlign:"center" }}>Track more days to see trend</div>;
-  const max = Math.max(...scores, 1); const w = 200; const h = 36;
+  if (!scores || scores.length < 2) return (
+    <div style={{ fontSize:11, color:T.textDim, textAlign:"center" }}>Track more days to see trend</div>
+  );
+  const max = Math.max(...scores, 1);
+  const w   = 200;
+  const h   = 36;
   const pts = scores.map((s, i) => `${(i / (scores.length - 1)) * w},${h - (s / max) * h}`).join(" ");
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ overflow:"visible" }}>
@@ -503,8 +464,11 @@ function StreakBadge({ days }) {
 function Confetti({ show }) {
   if (!show) return null;
   const pieces = Array.from({ length: 18 }, (_, i) => ({
-    id:i, left:`${Math.random()*100}%`, color:[T.accent,T.yellow,T.blue,T.orange,T.purple][i%5],
-    delay:`${Math.random()*.7}s`, dur:`${.9+Math.random()*.5}s`,
+    id:i,
+    left:`${Math.random() * 100}%`,
+    color:[T.accent, T.yellow, T.blue, T.orange, T.purple][i % 5],
+    delay:`${Math.random() * 0.7}s`,
+    dur:`${0.9 + Math.random() * 0.5}s`,
   }));
   return (
     <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:9999, overflow:"hidden" }}>
@@ -516,17 +480,17 @@ function Confetti({ show }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   REAL AI PHOTO SCANNER COMPONENT
+   AI PHOTO SCANNER COMPONENT
 ════════════════════════════════════════════════════════════ */
-function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
-  const [phase, setPhase] = useState("upload"); // upload | scanning | result | error
-  const [preview, setPreview] = useState(null);
-  const [base64, setBase64] = useState(null);
+function AIPhotoScanner({ onFoodLogged, onClose }) {
+  const [phase,      setPhase]      = useState("upload");
+  const [preview,    setPreview]    = useState(null);
+  const [base64,     setBase64]     = useState(null);
   const [scanResult, setScanResult] = useState(null);
-  const [errMsg, setErrMsg] = useState("");
-  const [scanStep, setScanStep] = useState(0);
-  const fileRef = useRef();
-  const scanTimerRef = useRef();
+  const [errMsg,     setErrMsg]     = useState("");
+  const [scanStep,   setScanStep]   = useState(0);
+  const fileRef      = useRef();
+  const scanTimer    = useRef();
 
   const SCAN_STEPS = [
     "Detecting food items in frame…",
@@ -538,17 +502,17 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
   ];
 
   const handleFile = (file) => {
-    // Resize image for faster upload
     const canvas = document.createElement("canvas");
-    const img = new Image();
-    img.onload = () => {
+    const img    = new Image();
+    img.onload   = () => {
       const MAX = 1200;
       let w = img.width, h = img.height;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
+        else        { w = Math.round(w * MAX / h); h = MAX; }
       }
-      canvas.width = w; canvas.height = h;
+      canvas.width  = w;
+      canvas.height = h;
       canvas.getContext("2d").drawImage(img, 0, 0, w, h);
       const dataURL = canvas.toDataURL("image/jpeg", 0.88);
       setPreview(dataURL);
@@ -563,34 +527,30 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
     setPhase("scanning");
     setScanStep(0);
     setErrMsg("");
-
-    // Animate scan steps
-    scanTimerRef.current = setInterval(() => {
+    scanTimer.current = setInterval(() => {
       setScanStep(prev => Math.min(prev + 1, SCAN_STEPS.length - 1));
     }, 700);
-
     try {
-      const result = await analyzePhotoWithAI(base64, lang);
-      clearInterval(scanTimerRef.current);
+      const result = await analyzePhotoWithAI(base64);
+      clearInterval(scanTimer.current);
       setScanResult(result);
       setPhase("result");
     } catch (e) {
-      clearInterval(scanTimerRef.current);
+      clearInterval(scanTimer.current);
       setErrMsg(e.message || "Analysis failed — try a clearer, well-lit photo");
       setPhase("error");
     }
   };
 
-  useEffect(() => () => clearInterval(scanTimerRef.current), []);
+  useEffect(() => () => clearInterval(scanTimer.current), []);
 
-  const cfg = scanResult ? LIGHT_CONFIG[scanResult.overall_light || "yellow"] : LIGHT_CONFIG.yellow;
+  const cfg    = scanResult ? (LIGHT_CONFIG[scanResult.overall_light] || LIGHT_CONFIG.yellow) : LIGHT_CONFIG.yellow;
   const totals = scanResult?.totals || {};
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.97)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:16 }}>
       <div style={{ background:T.bg, border:`3px solid ${T.teal}`, padding:20, width:"min(460px,100%)", borderRadius:16, maxHeight:"94vh", overflowY:"auto" }} className="hide-scroll">
 
-        {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div>
             <div style={{ fontSize:16, fontWeight:700, color:T.textPrimary }}>📸 AI Food Scanner</div>
@@ -603,7 +563,7 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
         {(phase === "upload" || phase === "ready") && (
           <div className="fade-up">
             <div onClick={() => fileRef.current?.click()}
-              style={{ border:`2px dashed ${preview ? T.teal : T.border}`, borderRadius:12, padding:"20px", textAlign:"center", cursor:"pointer", marginBottom:14, background:`${T.teal}04`, transition:"all .2s", minHeight:200, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+              style={{ border:`2px dashed ${preview ? T.teal : T.border}`, borderRadius:12, padding:"20px", textAlign:"center", cursor:"pointer", marginBottom:14, background:`${T.teal}04`, minHeight:200, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
               {preview ? (
                 <img src={preview} alt="food" style={{ maxWidth:"100%", maxHeight:240, borderRadius:8, objectFit:"cover" }}/>
               ) : (
@@ -620,15 +580,9 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
             <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }}
               onChange={e => e.target.files[0] && handleFile(e.target.files[0])}/>
 
-            {/* Tips */}
             {!preview && (
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-                {[
-                  ["📐","Show whole plate","Better portion estimate"],
-                  ["💡","Good lighting","Clearer detection"],
-                  ["📏","Include utensils","Size reference helps"],
-                  ["🍽️","Top-down angle","Best for Indian meals"],
-                ].map(([icon, t, d]) => (
+                {[["📐","Show whole plate","Better portion estimate"],["💡","Good lighting","Clearer detection"],["📏","Include utensils","Size reference helps"],["🍽️","Top-down angle","Best for Indian meals"]].map(([icon,t,d]) => (
                   <div key={t} style={{ padding:"8px 10px", background:T.card, border:`1px solid ${T.border}`, borderRadius:8 }}>
                     <div style={{ fontSize:16, marginBottom:3 }}>{icon}</div>
                     <div style={{ fontSize:11, fontWeight:600, color:T.textPrimary }}>{t}</div>
@@ -640,11 +594,8 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
 
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={onClose} style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-              <button onClick={analyze} disabled={!base64} className="btn ring" style={{
-                flex:2, padding:11, fontSize:13, fontWeight:700,
-                background: base64 ? T.teal : "#111", border:`2px solid ${base64 ? T.teal : "#333"}`,
-                color: base64 ? "#020906" : T.textDim, borderRadius:10, cursor: base64 ? "pointer" : "not-allowed", fontFamily:"inherit"
-              }}>
+              <button onClick={analyze} disabled={!base64} className="btn ring"
+                style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background: base64 ? T.teal : "#111", border:`2px solid ${base64 ? T.teal : "#333"}`, color: base64 ? "#020906" : T.textDim, borderRadius:10, cursor: base64 ? "pointer" : "not-allowed", fontFamily:"inherit" }}>
                 {base64 ? "🔍 Analyze Food" : "Upload Photo First"}
               </button>
             </div>
@@ -656,14 +607,8 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
           <div style={{ textAlign:"center", padding:"20px 0" }}>
             <div style={{ position:"relative", width:"100%", maxHeight:220, borderRadius:10, overflow:"hidden", border:`2px solid ${T.teal}33`, marginBottom:20 }}>
               {preview && <img src={preview} alt="" style={{ width:"100%", maxHeight:220, objectFit:"cover", display:"block" }}/>}
-              {/* Scan line */}
               <div style={{ position:"absolute", left:0, right:0, height:3, background:`linear-gradient(90deg,transparent,${T.teal},transparent)`, animation:"scanLine 1.2s linear infinite", top:0 }}/>
-              {/* Grid overlay */}
               <div style={{ position:"absolute", inset:0, backgroundImage:`linear-gradient(${T.teal}22 1px,transparent 1px),linear-gradient(90deg,${T.teal}22 1px,transparent 1px)`, backgroundSize:"40px 40px" }}/>
-              {/* Corner brackets */}
-              {[[0,0,"top","left"],[0,1,"top","right"],[1,0,"bottom","left"],[1,1,"bottom","right"]].map(([r,c,v,h]) => (
-                <div key={`${r}${c}`} style={{ position:"absolute", width:20, height:20, [v]:8, [h]:8, borderColor:T.teal, borderStyle:"solid", borderWidth:0, [`border${v.charAt(0).toUpperCase()+v.slice(1)}Width`]:2, [`border${h.charAt(0).toUpperCase()+h.slice(1)}Width`]:2 }}/>
-              ))}
             </div>
             <div style={{ fontSize:13, color:T.teal, marginBottom:8, animation:"pulse 1s ease-in-out infinite", fontFamily:"'Space Mono',monospace" }}>
               {SCAN_STEPS[scanStep]}
@@ -683,11 +628,10 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
             <div style={{ fontSize:48, marginBottom:12 }}>⚠️</div>
             <div style={{ fontSize:14, fontWeight:700, color:T.red, marginBottom:8 }}>Scan Failed</div>
             <div style={{ fontSize:12, color:T.textMid, marginBottom:16 }}>{errMsg}</div>
-            <div style={{ fontSize:11, color:T.textDim, marginBottom:20, lineHeight:1.6 }}>
-              Tips: ensure good lighting, whole plate visible, food not blurry
-            </div>
+            <div style={{ fontSize:11, color:T.textDim, marginBottom:20, lineHeight:1.6 }}>Tips: ensure good lighting, whole plate visible, food not blurry</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => { setPhase("ready"); setErrMsg(""); }} className="btn ring" style={{ flex:1, padding:11, fontSize:12, background:`${T.teal}15`, border:`2px solid ${T.teal}`, color:T.teal, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={() => { setPhase("ready"); setErrMsg(""); }} className="btn ring"
+                style={{ flex:1, padding:11, fontSize:12, background:`${T.teal}15`, border:`2px solid ${T.teal}`, color:T.teal, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
                 📷 Try Again
               </button>
               <button onClick={onClose} style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Close</button>
@@ -700,7 +644,6 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
           <div className="fade-up">
             {preview && <img src={preview} alt="food" style={{ width:"100%", maxHeight:180, objectFit:"cover", borderRadius:8, marginBottom:14 }}/>}
 
-            {/* Meal header */}
             <div style={{ border:`2px solid ${cfg.color}44`, background:cfg.bg, padding:"14px 16px", borderRadius:12, marginBottom:12 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
                 <div>
@@ -718,7 +661,6 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
                 </div>
               </div>
 
-              {/* Macro grid */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:10 }}>
                 {[["Protein",totals.protein_g,"g",T.blue],["Carbs",totals.carbs_g,"g",T.yellow],["Fat",totals.fat_g,"g",T.red],["Fiber",totals.fiber_g,"g",T.teal]].map(([l,v,u,c]) => (
                   <div key={l} style={{ textAlign:"center", padding:"6px 4px", background:"rgba(0,0,0,.3)", borderRadius:6 }}>
@@ -749,33 +691,27 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
                 </div>
                 <div style={{ display:"grid", gap:6 }}>
                   {scanResult.items.map((item, i) => {
-                    const icfg = LIGHT_CONFIG[item.light || "yellow"];
+                    const icfg = LIGHT_CONFIG[item.light] || LIGHT_CONFIG.yellow;
                     return (
-                      <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", background:T.card, border:`1.5px solid ${icfg.color}22`, borderRadius:8 }}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
-                            <span style={{ fontSize:12, fontWeight:700, color:T.textPrimary }}>{item.name}</span>
-                            <div style={{ textAlign:"right" }}>
-                              <span style={{ fontSize:13, fontWeight:700, color:icfg.color, fontFamily:"'Space Mono',monospace" }}>{item.calories}</span>
-                              <span style={{ fontSize:9, color:T.textDim }}> cal</span>
-                            </div>
+                      <div key={i} style={{ padding:"10px 12px", background:T.card, border:`1.5px solid ${icfg.color}22`, borderRadius:8 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:T.textPrimary }}>{item.name}</span>
+                          <div style={{ textAlign:"right" }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:icfg.color, fontFamily:"'Space Mono',monospace" }}>{item.calories}</span>
+                            <span style={{ fontSize:9, color:T.textDim }}> cal</span>
                           </div>
-                          <div style={{ fontSize:10, color:T.textDim, marginBottom:4 }}>
-                            ~{item.estimated_weight_g}g · {item.description}
-                          </div>
-                          <div style={{ display:"flex", gap:8, fontSize:10, color:T.textDim, marginBottom:4 }}>
-                            <span style={{ color:T.blue }}>P:{item.protein_g}g</span>
-                            <span style={{ color:T.yellow }}>C:{item.carbs_g}g</span>
-                            <span style={{ color:T.red }}>F:{item.fat_g}g</span>
-                          </div>
-                          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                            <TrafficLight light={item.light}/>
-                            <span style={{ fontSize:9, color:T.textDim }}>{item.confidence}% confident</span>
-                          </div>
-                          {item.notes && (
-                            <div style={{ fontSize:9, color:T.yellow, marginTop:4 }}>⚡ {item.notes}</div>
-                          )}
                         </div>
+                        <div style={{ fontSize:10, color:T.textDim, marginBottom:4 }}>~{item.estimated_weight_g}g · {item.description}</div>
+                        <div style={{ display:"flex", gap:8, fontSize:10, color:T.textDim, marginBottom:4 }}>
+                          <span style={{ color:T.blue }}>P:{item.protein_g}g</span>
+                          <span style={{ color:T.yellow }}>C:{item.carbs_g}g</span>
+                          <span style={{ color:T.red }}>F:{item.fat_g}g</span>
+                        </div>
+                        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                          <TrafficLight light={item.light}/>
+                          <span style={{ fontSize:9, color:T.textDim }}>{item.confidence}% confident</span>
+                        </div>
+                        {item.notes && <div style={{ fontSize:9, color:T.yellow, marginTop:4 }}>⚡ {item.notes}</div>}
                       </div>
                     );
                   })}
@@ -786,7 +722,7 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
             {/* AI tips */}
             {scanResult.ai_tips?.length > 0 && (
               <div style={{ border:`1px solid ${T.purple}33`, background:`${T.purple}06`, padding:"10px 12px", borderRadius:10, marginBottom:12 }}>
-                <div style={{ fontSize:10, color:T.purple, textTransform:"uppercase", letterSpacing:".1em", marginBottom:6 }}>AI Coach</div>
+                <div style={{ fontSize:10, color:T.purple, textTransform:"uppercase", letterSpacing:".1em", marginBottom:6 }}>AI Tips</div>
                 {scanResult.ai_tips.map((tip, i) => (
                   <div key={i} style={{ fontSize:11, color:T.textMid, marginBottom:4, paddingLeft:12, borderLeft:`2px solid ${T.purple}44` }}>💡 {tip}</div>
                 ))}
@@ -798,13 +734,12 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
             )}
 
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={() => { setPhase("ready"); setScanResult(null); setPreview(null); setBase64(null); }} style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={() => { setPhase("ready"); setScanResult(null); setPreview(null); setBase64(null); }}
+                style={{ flex:1, padding:11, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
                 📷 Scan Again
               </button>
-              <button onClick={() => { onFoodLogged(scanResult); onClose(); }} className="btn ring" style={{
-                flex:2, padding:11, fontSize:13, fontWeight:700, background:T.accent, border:`2px solid ${T.accent}`,
-                color:"#020906", borderRadius:10, cursor:"pointer", fontFamily:"inherit"
-              }}>
+              <button onClick={() => { onFoodLogged(scanResult); onClose(); }} className="btn ring"
+                style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background:T.accent, border:`2px solid ${T.accent}`, color:"#020906", borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>
                 + Log {totals.calories} cal
               </button>
             </div>
@@ -819,11 +754,11 @@ function AIPhotoScanner({ lang, onFoodLogged, onClose }) {
    CBT PSYCHOLOGY MODULE
 ════════════════════════════════════════════════════════════ */
 function CBTModule({ cbtProgress, onComplete, onClose }) {
-  const completedIds = cbtProgress || [];
-  const nextLesson = CBT_LESSONS.find(l => !completedIds.includes(l.id)) || CBT_LESSONS[0];
-  const [activeLesson, setActiveLesson] = useState(nextLesson);
-  const [phase, setPhase] = useState("read");
-  const [exerciseInput, setExerciseInput] = useState("");
+  const completedIds   = cbtProgress || [];
+  const nextLesson     = CBT_LESSONS.find(l => !completedIds.includes(l.id)) || CBT_LESSONS[0];
+  const [activeLesson, setActiveLesson]     = useState(nextLesson);
+  const [phase,        setPhase]            = useState("read");
+  const [exerciseInput,setExerciseInput]    = useState("");
   const catColor = { mindfulness:T.teal, cbt:T.purple, environment:T.blue, habit:T.orange };
 
   return (
@@ -836,13 +771,16 @@ function CBTModule({ cbtProgress, onComplete, onClose }) {
           </div>
           <button onClick={onClose} style={{ fontSize:20, background:"none", border:"none", color:"#444", cursor:"pointer" }}>✕</button>
         </div>
+
+        {/* Progress dots */}
         <div style={{ display:"flex", gap:5, marginBottom:16 }}>
           {CBT_LESSONS.map(l => (
             <button key={l.id} onClick={() => { setActiveLesson(l); setPhase("read"); setExerciseInput(""); }}
               style={{ flex:1, height:5, borderRadius:3, background:completedIds.includes(l.id)?T.purple:l.id===activeLesson.id?`${T.purple}55`:"#1a1a2e", border:"none", cursor:"pointer", transition:"all .2s" }}/>
           ))}
         </div>
-        <div className="fade-up" style={{ border:`2px solid ${catColor[activeLesson.category]}33`, background:`${catColor[activeLesson.category]}08`, padding:"16px 18px", borderRadius:12, marginBottom:14 }}>
+
+        <div className="fade-up" style={{ border:`2px solid ${(catColor[activeLesson.category]||T.purple)}33`, background:`${(catColor[activeLesson.category]||T.purple)}08`, padding:"16px 18px", borderRadius:12, marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
             <div>
               <span style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em" }}>Day {activeLesson.day} · {activeLesson.category}</span>
@@ -850,43 +788,52 @@ function CBTModule({ cbtProgress, onComplete, onClose }) {
             </div>
             <span style={{ fontSize:10, color:T.textDim }}>{activeLesson.duration}</span>
           </div>
+
           {phase === "read" && (
             <>
               <p style={{ fontSize:13, color:"#cde8d5", lineHeight:1.7, marginBottom:14 }}>{activeLesson.content}</p>
-              <button onClick={() => setPhase("exercise")} className="btn ring" style={{ width:"100%", padding:"10px", fontSize:12, fontWeight:700, background:`${catColor[activeLesson.category]}22`, border:`2px solid ${catColor[activeLesson.category]}`, color:catColor[activeLesson.category], borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={() => setPhase("exercise")} className="btn ring"
+                style={{ width:"100%", padding:"10px", fontSize:12, fontWeight:700, background:`${(catColor[activeLesson.category]||T.purple)}22`, border:`2px solid ${catColor[activeLesson.category]||T.purple}`, color:catColor[activeLesson.category]||T.purple, borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>
                 ✏️ Try the Exercise
               </button>
             </>
           )}
+
           {phase === "exercise" && (
             <>
-              <div style={{ fontSize:12, color:T.textMid, lineHeight:1.6, marginBottom:12, padding:"10px 12px", background:"rgba(0,0,0,.3)", borderRadius:8, borderLeft:`3px solid ${catColor[activeLesson.category]}` }}>
+              <div style={{ fontSize:12, color:T.textMid, lineHeight:1.6, marginBottom:12, padding:"10px 12px", background:"rgba(0,0,0,.3)", borderRadius:8, borderLeft:`3px solid ${catColor[activeLesson.category]||T.purple}` }}>
                 📝 {activeLesson.exercise}
               </div>
-              <textarea value={exerciseInput} onChange={e => setExerciseInput(e.target.value)} placeholder="Write your reflection here… (optional)" rows={3}
+              <textarea value={exerciseInput} onChange={e => setExerciseInput(e.target.value)}
+                placeholder="Write your reflection here… (optional)" rows={3}
                 style={{ width:"100%", padding:"10px 12px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:8, marginBottom:12, fontFamily:"inherit", resize:"vertical" }}/>
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={() => setPhase("read")} style={{ flex:1, padding:10, fontSize:12, background:"#111", border:"1.5px solid #222", color:T.textDim, borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>← Back</button>
-                <button onClick={() => { onComplete(activeLesson.id); setPhase("done"); }} className="btn ring" style={{ flex:2, padding:10, fontSize:12, fontWeight:700, background:T.purple, border:`2px solid ${T.purple}`, color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>
+                <button onClick={() => { onComplete(activeLesson.id); setPhase("done"); }} className="btn ring"
+                  style={{ flex:2, padding:10, fontSize:12, fontWeight:700, background:T.purple, border:`2px solid ${T.purple}`, color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>
                   ✓ Mark Complete
                 </button>
               </div>
             </>
           )}
+
           {phase === "done" && (
             <div style={{ textAlign:"center", padding:"14px 0" }}>
               <div style={{ fontSize:36, marginBottom:8 }}>🎉</div>
               <div style={{ fontSize:14, fontWeight:700, color:T.accent, marginBottom:4 }}>Lesson Complete!</div>
-              <button onClick={onClose} className="btn ring" style={{ padding:"10px 24px", fontSize:13, fontWeight:700, background:T.accent, border:`2px solid ${T.accent}`, color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
+              <button onClick={onClose} className="btn ring"
+                style={{ padding:"10px 24px", fontSize:13, fontWeight:700, background:T.accent, border:`2px solid ${T.accent}`, color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit" }}>Done</button>
             </div>
           )}
         </div>
+
         <div style={{ display:"grid", gap:6 }}>
           {CBT_LESSONS.map(l => {
-            const done = completedIds.includes(l.id);
+            const done   = completedIds.includes(l.id);
             const active = l.id === activeLesson.id;
             return (
-              <button key={l.id} onClick={() => { setActiveLesson(l); setPhase("read"); setExerciseInput(""); }} className="btn ring" style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:active?`${T.purple}15`:done?`${T.accent}08`:"#060f08", border:`1.5px solid ${active?T.purple:done?T.accent:T.border}`, borderRadius:8, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+              <button key={l.id} onClick={() => { setActiveLesson(l); setPhase("read"); setExerciseInput(""); }} className="btn ring"
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:active?`${T.purple}15`:done?`${T.accent}08`:"#060f08", border:`1.5px solid ${active?T.purple:done?T.accent:T.border}`, borderRadius:8, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
                 <span style={{ fontSize:18 }}>{l.icon}</span>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:12, fontWeight:600, color:active?T.purple:done?T.accent:T.textPrimary }}>{l.title}</div>
@@ -903,13 +850,13 @@ function CBTModule({ cbtProgress, onComplete, onClose }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   ENHANCED FOOD LOG MODAL
+   FOOD LOG MODAL
 ════════════════════════════════════════════════════════════ */
 function FoodLogModal({ onClose, onLog }) {
-  const [search, setSearch] = useState("");
-  const [sel, setSel] = useState(null);
+  const [search,  setSearch]  = useState("");
+  const [sel,     setSel]     = useState(null);
   const [portion, setPortion] = useState(1);
-  const [meal, setMeal] = useState("lunch");
+  const [meal,    setMeal]    = useState("lunch");
 
   const filtered = useMemo(() => {
     if (!search) return FOOD_KEYS.map(k => ({ key:k, ...FOOD_DB[k] }));
@@ -917,7 +864,7 @@ function FoodLogModal({ onClose, onLog }) {
   }, [search]);
 
   const lightGroups = { green:[], yellow:[], red:[] };
-  filtered.forEach(f => lightGroups[f.light]?.push(f));
+  filtered.forEach(f => { if (lightGroups[f.light]) lightGroups[f.light].push(f); });
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.95)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:16 }}>
@@ -929,8 +876,10 @@ function FoodLogModal({ onClose, onLog }) {
           </div>
           <button onClick={onClose} style={{ fontSize:20, background:"none", border:"none", color:"#444", cursor:"pointer" }}>✕</button>
         </div>
+
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search: rice, dal, chicken, egg…"
-          style={{ width:"100%", padding:"9px 12px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:8, fontFamily:"inherit", marginBottom:10 }}/>
+          style={{ width:"100%", padding:"9px 12px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:8, fontFamily:"inherit", marginBottom:10, outline:"none" }}/>
+
         <div style={{ display:"flex", gap:6, marginBottom:12 }}>
           {Object.entries(LIGHT_CONFIG).map(([k,v]) => (
             <div key={k} style={{ flex:1, textAlign:"center", padding:"5px 4px", borderRadius:6, background:v.bg, border:`1px solid ${v.color}33` }}>
@@ -939,23 +888,24 @@ function FoodLogModal({ onClose, onLog }) {
             </div>
           ))}
         </div>
+
         <div style={{ maxHeight:200, overflowY:"auto", marginBottom:12 }} className="hide-scroll">
-          {(search ? [["", filtered]] : Object.entries(lightGroups)).map(([light, foods]) => {
-            const list = search ? foods : foods;
-            if (!list.length) return null;
-            const lcfg = light ? LIGHT_CONFIG[light] : null;
+          {(search ? [["search", filtered]] : Object.entries(lightGroups)).map(([light, foods]) => {
+            if (!foods.length) return null;
+            const lcfg = light !== "search" ? LIGHT_CONFIG[light] : null;
             return (
-              <div key={light || "search"} style={{ marginBottom: light ? 12 : 0 }}>
+              <div key={light} style={{ marginBottom:12 }}>
                 {lcfg && (
                   <div style={{ fontSize:10, color:lcfg.color, textTransform:"uppercase", letterSpacing:".1em", marginBottom:6 }}>
                     ● {lcfg.label} Foods
                   </div>
                 )}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
-                  {list.slice(0,search?20:undefined).map(f => {
-                    const fcfg = LIGHT_CONFIG[f.light];
+                  {foods.slice(0, search ? 20 : undefined).map(f => {
+                    const fcfg = LIGHT_CONFIG[f.light] || LIGHT_CONFIG.yellow;
                     return (
-                      <button key={f.key} onClick={() => setSel(f)} className="btn ring" style={{ padding:"8px 4px", borderRadius:8, textAlign:"center", background:sel?.key===f.key?`${fcfg.color}22`:"#0a1a0a", border:`2px solid ${sel?.key===f.key?fcfg.color:"#0d2010"}`, color:sel?.key===f.key?fcfg.color:T.textMid, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+                      <button key={f.key} onClick={() => setSel(f)} className="btn ring"
+                        style={{ padding:"8px 4px", borderRadius:8, textAlign:"center", background:sel?.key===f.key?`${fcfg.color}22`:"#0a1a0a", border:`2px solid ${sel?.key===f.key?fcfg.color:"#0d2010"}`, color:sel?.key===f.key?fcfg.color:T.textMid, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
                         <div style={{ fontSize:20, marginBottom:2 }}>{f.icon}</div>
                         <div style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name.split(" ")[0]}</div>
                         <div style={{ fontSize:9, color:fcfg.color, marginTop:1 }}>{f.calories}cal</div>
@@ -967,8 +917,9 @@ function FoodLogModal({ onClose, onLog }) {
             );
           })}
         </div>
+
         {sel && (
-          <div className="fade-up" style={{ border:`1.5px solid ${LIGHT_CONFIG[sel.light].color}44`, background:`${LIGHT_CONFIG[sel.light].color}08`, padding:"12px 14px", borderRadius:10, marginBottom:12 }}>
+          <div className="fade-up" style={{ border:`1.5px solid ${(LIGHT_CONFIG[sel.light]||LIGHT_CONFIG.yellow).color}44`, background:`${(LIGHT_CONFIG[sel.light]||LIGHT_CONFIG.yellow).color}08`, padding:"12px 14px", borderRadius:10, marginBottom:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <span style={{ fontSize:24 }}>{sel.icon}</span>
               <div style={{ flex:1 }}>
@@ -980,7 +931,7 @@ function FoodLogModal({ onClose, onLog }) {
               </div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, marginBottom:10 }}>
-              {[["Cal",Math.round(sel.calories*portion),"",T.accent],["P",Math.round(sel.protein*portion*10)/10,"g",T.blue],["C",Math.round(sel.carbs*portion*10)/10,"g",T.yellow],["F",Math.round(sel.fat*portion*10)/10,"g",T.red]].map(([l,v,u,c]) => (
+              {[["Cal",Math.round(sel.calories*portion),"",T.accent],["P",+(sel.protein*portion).toFixed(1),"g",T.blue],["C",+(sel.carbs*portion).toFixed(1),"g",T.yellow],["F",+(sel.fat*portion).toFixed(1),"g",T.red]].map(([l,v,u,c]) => (
                 <div key={l} style={{ textAlign:"center", padding:"6px 4px", background:"rgba(0,0,0,.3)", borderRadius:6 }}>
                   <div style={{ fontSize:14, fontWeight:700, color:c, fontFamily:"'Space Mono',monospace" }}>{v}{u}</div>
                   <div style={{ fontSize:9, color:T.textDim }}>{l}</div>
@@ -990,22 +941,26 @@ function FoodLogModal({ onClose, onLog }) {
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
               <div>
                 <label style={{ fontSize:10, color:T.textDim, display:"block", marginBottom:4 }}>Portion size</label>
-                <select value={portion} onChange={e => setPortion(parseFloat(e.target.value))} style={{ width:"100%", padding:"7px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:6, fontFamily:"inherit" }}>
+                <select value={portion} onChange={e => setPortion(parseFloat(e.target.value))}
+                  style={{ width:"100%", padding:"7px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:6, fontFamily:"inherit" }}>
                   {[0.25,0.5,0.75,1,1.5,2,3].map(p => <option key={p} value={p} style={{ background:"#040d06" }}>{p}× ({Math.round(sel.calories*p)} cal)</option>)}
                 </select>
               </div>
               <div>
                 <label style={{ fontSize:10, color:T.textDim, display:"block", marginBottom:4 }}>Meal</label>
-                <select value={meal} onChange={e => setMeal(e.target.value)} style={{ width:"100%", padding:"7px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:6, fontFamily:"inherit" }}>
+                <select value={meal} onChange={e => setMeal(e.target.value)}
+                  style={{ width:"100%", padding:"7px", fontSize:12, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textPrimary, borderRadius:6, fontFamily:"inherit" }}>
                   {["breakfast","lunch","dinner","snack"].map(m => <option key={m} value={m} style={{ background:"#040d06" }}>{m}</option>)}
                 </select>
               </div>
             </div>
           </div>
         )}
+
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={onClose} style={{ flex:1, padding:11, fontSize:13, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-          <button onClick={() => { if(sel){ onLog({ foodId:sel.key, meal, portion }); onClose(); }}} disabled={!sel} className="btn ring" style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background:sel?T.accent:"#1a1a1a", border:`2px solid ${sel?T.accent:"#333"}`, color:sel?"#020906":T.textDim, borderRadius:10, cursor:sel?"pointer":"not-allowed", fontFamily:"inherit" }}>
+          <button onClick={() => { if (sel) { onLog({ foodId:sel.key, meal, portion }); onClose(); }}} disabled={!sel} className="btn ring"
+            style={{ flex:2, padding:11, fontSize:13, fontWeight:700, background:sel?T.accent:"#1a1a1a", border:`2px solid ${sel?T.accent:"#333"}`, color:sel?"#020906":T.textDim, borderRadius:10, cursor:sel?"pointer":"not-allowed", fontFamily:"inherit" }}>
             {sel ? `+ Log ${sel.name.split(" ")[0]} (${Math.round(sel.calories*portion)} cal)` : "Select a food"}
           </button>
         </div>
@@ -1018,7 +973,7 @@ function FoodLogModal({ onClose, onLog }) {
    ACTIVITY MODAL
 ════════════════════════════════════════════════════════════ */
 function ActivityModal({ onClose, onLog }) {
-  const [sel, setSel] = useState(null);
+  const [sel,  setSel]  = useState(null);
   const [mins, setMins] = useState(30);
   const calc = sel ? Math.round(sel.calPerMin * mins) : 0;
   return (
@@ -1030,7 +985,8 @@ function ActivityModal({ onClose, onLog }) {
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
           {ACTIVITIES.map(a => (
-            <button key={a.id} onClick={() => setSel(a)} className="btn ring" style={{ padding:"10px 6px", borderRadius:8, textAlign:"center", background:sel?.id===a.id?`${T.orange}20`:"#0a1a0a", border:`2px solid ${sel?.id===a.id?T.orange:"#0d2010"}`, color:sel?.id===a.id?T.orange:T.textMid, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
+            <button key={a.id} onClick={() => setSel(a)} className="btn ring"
+              style={{ padding:"10px 6px", borderRadius:8, textAlign:"center", background:sel?.id===a.id?`${T.orange}20`:"#0a1a0a", border:`2px solid ${sel?.id===a.id?T.orange:"#0d2010"}`, color:sel?.id===a.id?T.orange:T.textMid, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>
               <div style={{ fontSize:22, marginBottom:3 }}>{a.icon}</div>
               <div>{a.name}</div>
             </button>
@@ -1043,7 +999,8 @@ function ActivityModal({ onClose, onLog }) {
         {sel && <div style={{ textAlign:"center", fontSize:15, fontWeight:700, color:T.orange, marginBottom:14, fontFamily:"'Space Mono',monospace" }}>~{calc} calories burned</div>}
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={onClose} style={{ flex:1, padding:11, fontSize:13, background:"#0a1a0a", border:`1.5px solid ${T.border}`, color:T.textDim, borderRadius:10, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-          <button onClick={() => { if(sel){ onLog({ activityId:sel.id, name:sel.name, icon:sel.icon, minutes:mins, calories:calc }); onClose(); }}} disabled={!sel} className="btn ring" style={{ flex:1, padding:11, fontSize:13, fontWeight:700, background:sel?T.orange:"#1a1a1a", border:`2px solid ${sel?T.orange:"#333"}`, color:sel?"#020906":T.textDim, borderRadius:10, cursor:sel?"pointer":"not-allowed", fontFamily:"inherit" }}>
+          <button onClick={() => { if (sel) { onLog({ activityId:sel.id, name:sel.name, icon:sel.icon, minutes:mins, calories:calc }); onClose(); }}} disabled={!sel} className="btn ring"
+            style={{ flex:1, padding:11, fontSize:13, fontWeight:700, background:sel?T.orange:"#1a1a1a", border:`2px solid ${sel?T.orange:"#333"}`, color:sel?"#020906":T.textDim, borderRadius:10, cursor:sel?"pointer":"not-allowed", fontFamily:"inherit" }}>
             Log Activity
           </button>
         </div>
@@ -1053,106 +1010,35 @@ function ActivityModal({ onClose, onLog }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   AI COACH PANEL — Nutrient gap analysis
-════════════════════════════════════════════════════════════ */
-function AICoachPanel({ lang, totals, score, goal }) {
-  const [advice, setAdvice] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-
-  const ask = useCallback(async () => {
-    setOpen(true); setLoading(true); setAdvice("");
-    const langName = LANG_NAMES[lang] || "English";
-
-    // Build nutrient gap analysis
-    const gaps = [];
-    if (totals.protein < goal.protein * 0.7) gaps.push(`protein deficit (${Math.round(totals.protein)}/${goal.protein}g)`);
-    if (totals.fiber < 15) gaps.push(`fiber low (${Math.round(totals.fiber)}g, need 25g)`);
-    if (totals.water < goal.water * 0.6) gaps.push(`hydration low (${totals.water}/${goal.water} glasses)`);
-    if (totals.vitC < 30) gaps.push(`Vitamin C low`);
-    if (totals.vitD < 8) gaps.push(`Vitamin D low`);
-    if (totals.redCount > totals.greenCount) gaps.push(`too many red-light foods`);
-
-    const summary = `Nutrition today: ${Math.round(totals.calories)} kcal, ${Math.round(totals.protein)}g protein, ${Math.round(totals.carbs)}g carbs, ${Math.round(totals.fat)}g fat, ${totals.water} glasses water, ${Math.round(totals.fiber)}g fiber. Traffic lights: ${totals.greenCount} green, ${totals.yellowCount} yellow, ${totals.redCount} red. Score: ${score}/100. Nutrient gaps: ${gaps.length ? gaps.join(", ") : "none significant"}. Give 3 specific, actionable improvements in ${langName}. Reference specific Indian/regional foods. Format: numbered 1. 2. 3.`;
-
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: "You are a compassionate expert nutrition coach specializing in Indian and South Asian diets. Be specific, warm, and practical. Suggest real foods available in Indian households.",
-          messages: [{ role:"user", content:summary }],
-        })
-      });
-      const data = await res.json();
-      setAdvice(data.content?.map(b => b.text || "").join("") || "Unable to get advice right now.");
-    } catch { setAdvice("Unable to reach AI coach. Check your connection."); }
-    setLoading(false);
-  }, [lang, totals, score, goal]);
-
-  return (
-    <div style={{ border:`2px solid ${T.purple}33`, background:`${T.purple}06`, padding:"14px 16px", borderRadius:12 }}>
-      <button onClick={open ? () => setOpen(false) : ask} className="btn" style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:"none", border:"none", padding:0, cursor:"pointer", fontFamily:"inherit" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:18 }}>🤖</span>
-          <span style={{ fontSize:13, fontWeight:700, color:T.purple }}>AI Nutrition Coach</span>
-        </div>
-        <span style={{ fontSize:11, color:T.purple }}>{open ? "▾ Close" : "▸ Get Advice"}</span>
-      </button>
-      {open && (
-        <div className="fade-up" style={{ marginTop:12 }}>
-          {loading ? (
-            <div style={{ display:"flex", alignItems:"center", gap:10, color:T.textDim, fontSize:13 }}>
-              <div style={{ width:16, height:16, border:`2px solid ${T.border}`, borderTopColor:T.purple, borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
-              Analyzing your nutrition…
-            </div>
-          ) : (
-            <div style={{ fontSize:13, color:T.textPrimary, lineHeight:1.75, whiteSpace:"pre-wrap" }}>{advice}</div>
-          )}
-          {!loading && (
-            <button onClick={ask} className="btn" style={{ marginTop:8, fontSize:11, color:T.purple, background:"none", border:`1px solid ${T.purple}33`, padding:"5px 10px", borderRadius:6, cursor:"pointer", fontFamily:"inherit" }}>
-              ↻ Refresh
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ════════════════════════════════════════════════════════════ */
 export default function NutritionHealth() {
-  const lang    = useMemo(loadLang, []);
-  const speak   = useMemo(() => makeSpeaker(lang), [lang]);
+  const speak = useMemo(() => makeSpeaker(), []);
 
-  const [data,        setData]        = useState(() => loadData());
-  const [showFood,    setShowFood]    = useState(false);
-  const [showActivity,setActivity]   = useState(false);
-  const [showPhoto,   setShowPhoto]   = useState(false);
-  const [showCBT,     setShowCBT]     = useState(false);
-  const [loading,     setLoading]     = useState(true);
-  const [offline,     setOffline]     = useState(!navigator.onLine);
-  const [confetti,    setConfetti]    = useState(false);
-  const [activeTab,   setActiveTab]   = useState("today");
-  const [celebMsg,    setCelebMsg]    = useState("");
+  const [data,          setData]        = useState(() => loadData());
+  const [showFood,      setShowFood]    = useState(false);
+  const [showActivity,  setShowActivity]= useState(false);
+  const [showPhoto,     setShowPhoto]   = useState(false);
+  const [showCBT,       setShowCBT]     = useState(false);
+  const [loading,       setLoading]     = useState(true);
+  const [offline,       setOffline]     = useState(!navigator.onLine);
+  const [confetti,      setConfetti]    = useState(false);
+  const [activeTab,     setActiveTab]   = useState("today");
+  const [celebMsg,      setCelebMsg]    = useState("");
 
-  const totals   = useMemo(() => calcTotals(data.logged, data.water),   [data.logged, data.water]);
-  const burnCal  = useMemo(() => calcActivityBurn(data.activities || []),[data.activities]);
-  const score    = useMemo(() => calcScore(totals, data.dailyGoal, burnCal), [totals, data.dailyGoal, burnCal]);
-  const netCal   = Math.round(totals.calories - burnCal);
+  const totals     = useMemo(() => calcTotals(data.logged, data.water),    [data.logged, data.water]);
+  const burnCal    = useMemo(() => calcActivityBurn(data.activities),       [data.activities]);
+  const score      = useMemo(() => calcScore(totals, data.dailyGoal, burnCal), [totals, data.dailyGoal, burnCal]);
+  const netCal     = Math.round(totals.calories - burnCal);
   const scoreColor = score >= 80 ? T.accent : score >= 60 ? T.yellow : T.red;
 
   const mealPlan = useMemo(() => {
     const day = new Date().getDay();
     const meals = {
       breakfast:[
-        { name:"Oats + Banana + Milk", foods:["oats","banana","milk"], calories:290 },
-        { name:"Egg + Roti + Spinach",  foods:["egg","roti","spinach"],  calories:204 },
-        { name:"Curd + Mango + Nuts",   foods:["curd","mango","nuts"],   calories:304 },
+        { name:"Oats + Banana + Milk",  foods:["oats","banana","milk"],               calories:290 },
+        { name:"Egg + Roti + Spinach",   foods:["egg","roti","spinach"],               calories:204 },
+        { name:"Curd + Mango + Nuts",    foods:["curd","mango","nuts"],                calories:304 },
       ],
       lunch:[
         { name:"Dal + Rice + Chicken + Carrot",  foods:["dal","rice","chicken","carrot"],  calories:452 },
@@ -1160,44 +1046,54 @@ export default function NutritionHealth() {
         { name:"Tofu + Rice + Veggies",          foods:["tofu","rice","spinach","tomato"], calories:247 },
       ],
       dinner:[
-        { name:"Dal + Roti + Curd",      foods:["dal","roti","curd"],              calories:279 },
-        { name:"Grilled Fish + Veggies", foods:["fish","spinach","tomato","carrot"],calories:288 },
-        { name:"Egg + Roti + Salad",     foods:["egg","roti","tomato"],            calories:195 },
+        { name:"Dal + Roti + Curd",       foods:["dal","roti","curd"],               calories:279 },
+        { name:"Grilled Fish + Veggies",  foods:["fish","spinach","tomato","carrot"], calories:288 },
+        { name:"Egg + Roti + Salad",      foods:["egg","roti","tomato"],             calories:195 },
       ],
       snack:[
-        { name:"Apple + Nuts",  foods:["apple","nuts"],  calories:237 },
-        { name:"Banana + Curd", foods:["banana","curd"], calories:148 },
-        { name:"Orange + Egg",  foods:["orange","egg"],  calories:125 },
+        { name:"Apple + Nuts",   foods:["apple","nuts"],  calories:237 },
+        { name:"Banana + Curd",  foods:["banana","curd"], calories:148 },
+        { name:"Orange + Egg",   foods:["orange","egg"],  calories:125 },
       ],
     };
-    return Object.fromEntries(Object.entries(meals).map(([k,v]) => [k, v[day % v.length]]));
+    return Object.fromEntries(Object.entries(meals).map(([k, v]) => [k, v[day % v.length]]));
   }, []);
 
+  /* ── Init ── */
   useEffect(() => {
     injectCSS();
     const d = updateStreak(data);
     if (d.streakDays !== data.streakDays) setData(d);
-    const t = setTimeout(() => { setLoading(false); speak("Welcome to ManifiX Nutrition. AI food scanning ready."); }, 800);
+    const t = setTimeout(() => {
+      setLoading(false);
+      speak("Welcome to ManifiX Nutrition. AI food scanning ready.");
+    }, 800);
     return () => clearTimeout(t);
   }, []); // eslint-disable-line
 
+  /* ── Online/offline ── */
   useEffect(() => {
-    const on = () => setOffline(false);
+    const on  = () => setOffline(false);
     const off = () => setOffline(true);
-    window.addEventListener("online", on); window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online",on); window.removeEventListener("offline",off); };
+    window.addEventListener("online",  on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
+  /* ── Persist ── */
   useEffect(() => { saveData(data); }, [data]);
 
+  /* ── Perfect score confetti ── */
   useEffect(() => {
     if (score >= 100) {
-      setConfetti(true); setCelebMsg("Perfect Score! 🎉");
+      setConfetti(true);
+      setCelebMsg("Perfect Score! 🎉");
       speak("Outstanding! Perfect nutrition score today!", true);
       setTimeout(() => { setConfetti(false); setCelebMsg(""); }, 2500);
     }
   }, [score]); // eslint-disable-line
 
+  /* ── Callbacks ── */
   const logFood = useCallback((entry) => {
     setData(p => ({ ...p, logged: [...p.logged, { id:Date.now(), time:new Date().toISOString(), ...entry }] }));
     speak("Food logged!");
@@ -1207,7 +1103,7 @@ export default function NutritionHealth() {
     setData(p => ({
       ...p,
       logged: [...p.logged, {
-        id: Date.now(),
+        id:   Date.now(),
         time: new Date().toISOString(),
         meal: scanResult.meal_type || "snack",
         _aiScan: {
@@ -1232,24 +1128,26 @@ export default function NutritionHealth() {
     setData(p => ({ ...p, water: [...p.water, new Date().toISOString()] }));
     if (totals.water + 1 >= data.dailyGoal.water) {
       speak("Hydration goal reached! Outstanding!", true);
-      setConfetti(true); setTimeout(() => setConfetti(false), 2000);
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 2000);
     }
   }, [totals.water, data.dailyGoal.water, speak]);
 
   const logActivity = useCallback((act) => {
-    setData(p => ({ ...p, activities: [...(p.activities||[]), { id:Date.now(), time:new Date().toISOString(), ...act }] }));
+    setData(p => ({ ...p, activities: [...(p.activities || []), { id:Date.now(), time:new Date().toISOString(), ...act }] }));
     speak(`Burned ${act.calories} calories.`);
   }, [speak]);
 
   const completeCBT = useCallback((id) => {
-    setData(p => ({ ...p, cbtProgress: [...(p.cbtProgress||[]), id] }));
+    setData(p => ({ ...p, cbtProgress: [...(p.cbtProgress || []), id] }));
     speak("Psychology lesson complete!");
   }, [speak]);
 
   const toggleGrocery = useCallback((item) => {
-    setData(p => ({ ...p, groceryChecked: p.groceryChecked.includes(item) ? p.groceryChecked.filter(i=>i!==item) : [...p.groceryChecked, item] }));
+    setData(p => ({ ...p, groceryChecked: p.groceryChecked.includes(item) ? p.groceryChecked.filter(i => i !== item) : [...p.groceryChecked, item] }));
   }, []);
 
+  /* ── Derived ── */
   const grocery = useMemo(() => {
     const items = new Set();
     Object.values(mealPlan).forEach(m => m?.foods?.forEach(id => { const f = FOOD_DB[id]; if (f) items.add(f.name); }));
@@ -1260,17 +1158,21 @@ export default function NutritionHealth() {
   const todayLog = useMemo(() => data.logged.filter(l => l.time.startsWith(todayStr())), [data.logged]);
   const cbtDone  = (data.cbtProgress || []).length;
 
+  /* ── Loading screen ── */
   if (loading) return (
     <div style={{ minHeight:"100dvh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Space Mono',monospace", color:T.textPrimary }}>
       <div style={{ fontSize:54, marginBottom:18 }}>🥗</div>
-      <div style={{ fontSize:12, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginBottom:14 }}>ManifiX Nutrition v8</div>
+      <div style={{ fontSize:12, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginBottom:14 }}>ManifiX Nutrition v8.1</div>
       <div style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor:T.accent, borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
     </div>
   );
 
+  /* ════════ RENDER ════════ */
   return (
     <div style={{ minHeight:"100dvh", background:T.bg, color:T.textPrimary, fontFamily:"'Space Grotesk',sans-serif", display:"flex", flexDirection:"column", alignItems:"center", position:"relative" }}>
+      {/* BG grid */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", backgroundImage:`linear-gradient(rgba(34,197,94,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(34,197,94,0.012) 1px,transparent 1px)`, backgroundSize:"40px 40px" }}/>
+      {/* Ambient glow */}
       <div style={{ position:"fixed", top:"20%", left:"50%", transform:"translateX(-50%)", width:500, height:250, background:`radial-gradient(ellipse,${T.accentGlow} 0%,transparent 70%)`, pointerEvents:"none" }}/>
 
       <Confetti show={confetti}/>
@@ -1289,13 +1191,13 @@ export default function NutritionHealth() {
 
       <div style={{ position:"relative", zIndex:2, width:"min(480px,98vw)", display:"flex", flexDirection:"column", gap:12, padding:"18px 0 60px" }}>
 
-        {/* HEADER */}
+        {/* ─── HEADER ─── */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", paddingBottom:14, borderBottom:`1.5px solid ${T.border}` }}>
           <div>
             <div style={{ fontFamily:"'Space Mono',monospace", fontSize:22, fontWeight:700, lineHeight:1.1, color:T.textPrimary }}>
               ManifiX <span style={{ color:T.accent }}>Nutrition</span>
             </div>
-            <div style={{ fontSize:10, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginTop:3, opacity:.6 }}>v8 · Real AI Vision</div>
+            <div style={{ fontSize:10, letterSpacing:".18em", color:T.accent, textTransform:"uppercase", marginTop:3, opacity:.6 }}>v8.1 · Real AI Vision</div>
             <div style={{ marginTop:8, display:"flex", gap:6 }}>
               <StreakBadge days={data.streakDays}/>
               {cbtDone > 0 && (
@@ -1305,21 +1207,19 @@ export default function NutritionHealth() {
               )}
             </div>
           </div>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-            {burnCal > 0 && (
-              <div style={{ fontSize:11, color:T.orange, background:`${T.orange}12`, border:`1px solid ${T.orange}33`, padding:"2px 8px", borderRadius:8, fontFamily:"'Space Mono',monospace" }}>
-                🔥 -{burnCal} burned
-              </div>
-            )}
-          </div>
+          {burnCal > 0 && (
+            <div style={{ fontSize:11, color:T.orange, background:`${T.orange}12`, border:`1px solid ${T.orange}33`, padding:"4px 10px", borderRadius:8, fontFamily:"'Space Mono',monospace", alignSelf:"flex-start", marginTop:6 }}>
+              🔥 -{burnCal} burned
+            </div>
+          )}
         </div>
 
-        {/* SCORE + MACROS */}
+        {/* ─── SCORE + MACROS ─── */}
         <div className="fade-up" style={{ display:"flex", gap:12 }}>
           <div style={{ border:`2px solid ${scoreColor}33`, background:`${scoreColor}08`, padding:"12px 10px", borderRadius:12, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:112 }}>
             <ScoreRing score={score}/>
             <div style={{ fontSize:10, fontWeight:700, color:scoreColor, marginTop:4 }}>
-              {score>=80?"Excellent":score>=60?"Good":"Keep going"}
+              {score >= 80 ? "Excellent" : score >= 60 ? "Good" : "Keep going"}
             </div>
             <div style={{ fontSize:9, color:T.textDim, marginTop:2 }}>{netCal}/{data.dailyGoal.calories} net kcal</div>
           </div>
@@ -1332,7 +1232,7 @@ export default function NutritionHealth() {
           </div>
         </div>
 
-        {/* TRAFFIC LIGHT SUMMARY */}
+        {/* ─── TRAFFIC LIGHT SUMMARY ─── */}
         <div className="fade-up" style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
           {Object.entries(LIGHT_CONFIG).map(([key, cfg]) => {
             const count = totals[`${key}Count`] || 0;
@@ -1346,7 +1246,7 @@ export default function NutritionHealth() {
           })}
         </div>
 
-        {/* MICRO NUTRIENTS */}
+        {/* ─── MICRO NUTRIENTS ─── */}
         <div className="fade-up" style={{ border:`1.5px solid ${T.border}`, background:T.card, padding:"12px 14px", borderRadius:12 }}>
           <div style={{ fontSize:11, fontWeight:700, color:T.textPrimary, marginBottom:10 }}>🔬 Micro-Nutrients</div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
@@ -1357,18 +1257,18 @@ export default function NutritionHealth() {
           </div>
         </div>
 
-        {/* WATER */}
+        {/* ─── WATER ─── */}
         <div className="fade-up" style={{ border:`1.5px solid ${T.accent}22`, background:`${T.accent}05`, padding:"12px 14px", borderRadius:12 }}>
           <WaterTracker count={totals.water} goal={data.dailyGoal.water} onAdd={addWater}/>
         </div>
 
-        {/* QUICK ADD */}
+        {/* ─── QUICK ADD ─── */}
         <div>
           <div style={{ fontSize:10, color:T.textDim, textTransform:"uppercase", letterSpacing:".12em", marginBottom:6 }}>⚡ Quick Add</div>
           <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:4 }} className="hide-scroll">
             {QUICK_ADD.map(key => {
-              const f = FOOD_DB[key];
-              const lcfg = LIGHT_CONFIG[f.light];
+              const f    = FOOD_DB[key];
+              const lcfg = LIGHT_CONFIG[f.light] || LIGHT_CONFIG.yellow;
               return (
                 <button key={key} onClick={() => logFood({ foodId:key, meal:"snack", portion:1 })} className="btn ring"
                   style={{ flex:"0 0 auto", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"8px 10px", borderRadius:10, background:T.card, border:`1.5px solid ${T.border}`, cursor:"pointer", fontFamily:"inherit" }}>
@@ -1381,48 +1281,53 @@ export default function NutritionHealth() {
           </div>
         </div>
 
-        {/* PRIMARY ACTIONS */}
+        {/* ─── PRIMARY ACTIONS ─── */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:8 }}>
-          <button onClick={() => setShowFood(true)} className="btn ring" style={{ gridColumn:"span 2", padding:"12px 8px", fontSize:12, fontWeight:700, background:T.accent, border:"2px solid #000", color:"#020906", borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
+          <button onClick={() => setShowFood(true)} className="btn ring"
+            style={{ gridColumn:"span 2", padding:"12px 8px", fontSize:12, fontWeight:700, background:T.accent, border:"2px solid #000", color:"#020906", borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:5, cursor:"pointer" }}>
             🍽️ Log Food
           </button>
-          <button onClick={() => setShowPhoto(true)} className="btn ring ai-glow" style={{ padding:"12px 6px", fontSize:11, fontWeight:700, background:`${T.teal}20`, border:`2px solid ${T.teal}`, color:T.teal, borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+          <button onClick={() => setShowPhoto(true)} className="btn ring ai-glow"
+            style={{ padding:"12px 6px", fontSize:11, fontWeight:700, background:`${T.teal}20`, border:`2px solid ${T.teal}`, color:T.teal, borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:4, cursor:"pointer" }}>
             📸 AI Scan
           </button>
-          <button onClick={() => setActivity(true)} className="btn ring" style={{ padding:"12px 6px", fontSize:11, fontWeight:700, background:`${T.orange}15`, border:`2px solid ${T.orange}`, color:T.orange, borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+          <button onClick={() => setShowActivity(true)} className="btn ring"
+            style={{ padding:"12px 6px", fontSize:11, fontWeight:700, background:`${T.orange}15`, border:`2px solid ${T.orange}`, color:T.orange, borderRadius:10, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:4, cursor:"pointer" }}>
             🏃 Burns
           </button>
         </div>
 
-        {/* AI Scan Feature highlight */}
+        {/* ─── AI Scan highlight ─── */}
         <div style={{ border:`1px solid ${T.teal}33`, background:`${T.teal}06`, padding:"10px 14px", borderRadius:10, display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ fontSize:24 }}>📸</div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:12, fontWeight:700, color:T.teal }}>AI Photo Food Scanner</div>
             <div style={{ fontSize:10, color:T.textDim }}>Real Claude Vision · per-item breakdown · ±10% accuracy · Indian food trained</div>
           </div>
-          <button onClick={() => setShowPhoto(true)} className="btn ring" style={{ padding:"7px 12px", fontSize:11, fontWeight:700, background:T.teal, border:"none", color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+          <button onClick={() => setShowPhoto(true)} className="btn ring"
+            style={{ padding:"7px 12px", fontSize:11, fontWeight:700, background:T.teal, border:"none", color:"#020906", borderRadius:8, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
             Scan Now
           </button>
         </div>
 
-        {/* CBT button */}
-        <button onClick={() => setShowCBT(true)} className="btn ring" style={{ width:"100%", padding:"11px", fontSize:12, fontWeight:700, background:`${T.purple}15`, border:`2px solid ${T.purple}44`, color:T.purple, borderRadius:10, fontFamily:"inherit", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        {/* ─── CBT button ─── */}
+        <button onClick={() => setShowCBT(true)} className="btn ring"
+          style={{ width:"100%", padding:"11px", fontSize:12, fontWeight:700, background:`${T.purple}15`, border:`2px solid ${T.purple}44`, color:T.purple, borderRadius:10, fontFamily:"inherit", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <span>🧠 CBT Psychology Coach — Eating Mindset Training</span>
           <span style={{ fontSize:10, opacity:.7 }}>{cbtDone}/{CBT_LESSONS.length} done ▸</span>
         </button>
 
-        {/* TABS */}
+        {/* ─── TABS ─── */}
         <div style={{ display:"flex", gap:5 }}>
           {["today","plan","grocery","trends"].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(activeTab===tab?"_":tab)} className="btn ring"
+            <button key={tab} onClick={() => setActiveTab(activeTab === tab ? "_" : tab)} className="btn ring"
               style={{ flex:1, padding:"7px 4px", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".07em", fontFamily:"inherit", borderRadius:8, background:activeTab===tab?`${T.accent}18`:"#060f08", border:`1.5px solid ${activeTab===tab?T.accent:T.border}`, color:activeTab===tab?T.accent:T.textDim, cursor:"pointer" }}>
               {tab==="today"?"📋 Log":tab==="plan"?"🍱 Plan":tab==="grocery"?"🛒 Shop":"📈 Trend"}
             </button>
           ))}
         </div>
 
-        {/* TAB: TODAY LOG */}
+        {/* ═══ TAB: TODAY LOG ═══ */}
         {activeTab === "today" && (
           <div className="fade-up">
             <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 }}>
@@ -1438,7 +1343,7 @@ export default function NutritionHealth() {
                 {todayLog.map(log => {
                   if (log._aiScan) {
                     const scan = log._aiScan;
-                    const scfg = LIGHT_CONFIG[scan.overallLight || "yellow"];
+                    const scfg = LIGHT_CONFIG[scan.overallLight] || LIGHT_CONFIG.yellow;
                     return (
                       <div key={log.id} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 12px", background:T.card, border:`1.5px solid ${T.teal}44`, borderRadius:8 }}>
                         <span style={{ fontSize:20 }}>📸</span>
@@ -1460,8 +1365,9 @@ export default function NutritionHealth() {
                       </div>
                     );
                   }
-                  const f = FOOD_DB[log.foodId]; if (!f) return null;
-                  const lcfg = LIGHT_CONFIG[f.light];
+                  const f = FOOD_DB[log.foodId];
+                  if (!f) return null;
+                  const lcfg = LIGHT_CONFIG[f.light] || LIGHT_CONFIG.yellow;
                   return (
                     <div key={log.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:T.card, border:`1px solid ${lcfg.color}22`, borderRadius:8 }}>
                       <span style={{ fontSize:20 }}>{f.icon}</span>
@@ -1474,7 +1380,7 @@ export default function NutritionHealth() {
                         </div>
                       </div>
                       <div style={{ textAlign:"right" }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:T.accent, fontFamily:"'Space Mono',monospace" }}>{Math.round(f.calories*(log.portion||1))}</div>
+                        <div style={{ fontSize:12, fontWeight:700, color:T.accent, fontFamily:"'Space Mono',monospace" }}>{Math.round(f.calories * (log.portion || 1))}</div>
                         <div style={{ fontSize:9, color:T.textDim }}>cal</div>
                       </div>
                     </div>
@@ -1485,7 +1391,7 @@ export default function NutritionHealth() {
           </div>
         )}
 
-        {/* TAB: MEAL PLAN */}
+        {/* ═══ TAB: MEAL PLAN ═══ */}
         {activeTab === "plan" && (
           <div className="fade-up">
             <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 }}>Smart Meal Plan — Today</div>
@@ -1497,13 +1403,15 @@ export default function NutritionHealth() {
                 </div>
                 <div style={{ fontSize:12, color:"#cde8d5", marginBottom:8 }}>{plan.name}</div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
-                  {plan.foods?.map((fid,i) => {
-                    const f = FOOD_DB[fid]; if (!f) return null;
-                    const lcfg = LIGHT_CONFIG[f.light];
+                  {plan.foods?.map((fid, i) => {
+                    const f = FOOD_DB[fid];
+                    if (!f) return null;
+                    const lcfg = LIGHT_CONFIG[f.light] || LIGHT_CONFIG.yellow;
                     return <span key={i} style={{ fontSize:9, padding:"2px 7px", borderRadius:4, background:lcfg.bg, color:lcfg.color }}>{f.icon} {f.name.split(" ")[0]}</span>;
                   })}
                 </div>
-                <button onClick={() => plan.foods?.forEach(fid => logFood({ foodId:fid, meal:type, portion:1 }))} className="btn ring" style={{ width:"100%", padding:"7px", fontSize:11, background:`${T.accent}10`, border:`1px solid ${T.accent}`, color:T.accent, borderRadius:6, cursor:"pointer", fontFamily:"inherit" }}>
+                <button onClick={() => plan.foods?.forEach(fid => logFood({ foodId:fid, meal:type, portion:1 }))} className="btn ring"
+                  style={{ width:"100%", padding:"7px", fontSize:11, background:`${T.accent}10`, border:`1px solid ${T.accent}`, color:T.accent, borderRadius:6, cursor:"pointer", fontFamily:"inherit" }}>
                   ✓ Log This Meal
                 </button>
               </div>
@@ -1511,7 +1419,7 @@ export default function NutritionHealth() {
           </div>
         )}
 
-        {/* TAB: GROCERY */}
+        {/* ═══ TAB: GROCERY ═══ */}
         {activeTab === "grocery" && (
           <div className="fade-up">
             <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 }}>Smart Grocery · {grocery.length} items</div>
@@ -1529,24 +1437,26 @@ export default function NutritionHealth() {
           </div>
         )}
 
-        {/* TAB: TRENDS */}
+        {/* ═══ TAB: TRENDS ═══ */}
         {activeTab === "trends" && (
           <div className="fade-up">
             <div style={{ border:`1.5px solid ${T.border}`, background:T.card, padding:"14px 16px", borderRadius:12, marginBottom:10 }}>
               <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:10 }}>7-Day Score Trend</div>
               <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
-                <SparkLine scores={[...(data.weeklyScores||[]).slice(-6), score]}/>
+                <SparkLine scores={[...(data.weeklyScores || []).slice(-6), score]}/>
               </div>
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:T.textDim }}>
                 <span>7 days ago</span>
                 <span style={{ color:scoreColor, fontFamily:"'Space Mono',monospace" }}>Today: {score}</span>
               </div>
             </div>
-            {(data.activities||[]).filter(a => a.time.startsWith(todayStr())).length > 0 && (
+
+            {/* Activity log */}
+            {(data.activities || []).filter(a => a.time.startsWith(todayStr())).length > 0 && (
               <div style={{ border:`1.5px solid ${T.border}`, background:T.card, padding:"12px 14px", borderRadius:12, marginBottom:10 }}>
                 <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:8 }}>Today's Activities · {burnCal} cal burned</div>
                 <div style={{ display:"grid", gap:6 }}>
-                  {(data.activities||[]).filter(a => a.time.startsWith(todayStr())).map(a => (
+                  {(data.activities || []).filter(a => a.time.startsWith(todayStr())).map(a => (
                     <div key={a.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", background:"#0a1a0a", border:`1px solid ${T.border}`, borderRadius:8 }}>
                       <span style={{ fontSize:20 }}>{a.icon}</span>
                       <div style={{ flex:1 }}>
@@ -1559,11 +1469,13 @@ export default function NutritionHealth() {
                 </div>
               </div>
             )}
+
+            {/* CBT progress grid */}
             <div style={{ border:`1.5px solid ${T.purple}22`, background:`${T.purple}06`, padding:"12px 14px", borderRadius:12 }}>
               <div style={{ fontSize:11, color:T.textDim, textTransform:"uppercase", letterSpacing:".1em", marginBottom:6 }}>Psychology Progress</div>
               <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                 {CBT_LESSONS.map(l => {
-                  const done = (data.cbtProgress||[]).includes(l.id);
+                  const done = (data.cbtProgress || []).includes(l.id);
                   return (
                     <div key={l.id} style={{ width:32, height:32, borderRadius:6, background:done?`${T.purple}22`:"#0a1a0a", border:`1.5px solid ${done?T.purple:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>
                       {done ? "✓" : l.icon}
@@ -1576,20 +1488,18 @@ export default function NutritionHealth() {
           </div>
         )}
 
-        {/* AI COACH */}
-        <AICoachPanel lang={lang} totals={totals} score={score} goal={data.dailyGoal}/>
-
         {/* FOOTER */}
         <div style={{ textAlign:"center", fontSize:9, letterSpacing:".12em", color:T.textDim, textTransform:"uppercase", paddingTop:6 }}>
-          v8.0 · Real Claude Vision · CBT Coach · Traffic Light · {offline ? "Offline" : "Online"}
+          v8.1 · Real Claude Vision · CBT Coach · Traffic Light · {offline ? "Offline" : "Online"}
         </div>
 
       </div>
 
-      {showFood     && <FoodLogModal  onClose={() => setShowFood(false)}  onLog={logFood}/>}
-      {showActivity && <ActivityModal onClose={() => setActivity(false)}  onLog={logActivity}/>}
-      {showPhoto    && <AIPhotoScanner lang={lang} onFoodLogged={logPhotoFood} onClose={() => setShowPhoto(false)}/>}
-      {showCBT      && <CBTModule cbtProgress={data.cbtProgress} onComplete={completeCBT} onClose={() => setShowCBT(false)}/>}
+      {/* MODALS */}
+      {showFood     && <FoodLogModal    onClose={() => setShowFood(false)}     onLog={logFood}/>}
+      {showActivity && <ActivityModal   onClose={() => setShowActivity(false)} onLog={logActivity}/>}
+      {showPhoto    && <AIPhotoScanner  onFoodLogged={logPhotoFood}            onClose={() => setShowPhoto(false)}/>}
+      {showCBT      && <CBTModule       cbtProgress={data.cbtProgress}         onComplete={completeCBT} onClose={() => setShowCBT(false)}/>}
     </div>
   );
 }
