@@ -1,28 +1,5 @@
-/**
- * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Elderly Care Module v7.0                      ║
- * ║                                                                          ║
- * ║  BEATS TELADOC + OURA — NEW IN v7:                                     ║
- * ║  • Oura-Style Readiness Score (HRV, sleep, activity composite)         ║
- * ║  • Sleep Tracker — stages, duration, quality score, 7-day trend        ║
- * ║  • HRV Monitor — resting HR trend, recovery status                     ║
- * ║  • Activity Rings — move / stand / exercise daily goals                ║
- * ║  • Teladoc-Style Telehealth — book video/audio/chat appointments       ║
- * ║  • Prescription Refill Tracker — auto-remind before runout             ║
- * ║  • Doctor Notes — post-visit summaries & follow-up reminders           ║
- * ║  • AI Triage — symptom → severity → auto-suggest telehealth or ER      ║
- * ║  • Caregiver Live Dashboard — real-time family view                    ║
- * ║  • Passive Monitoring Simulation — step/activity from device motion    ║
- * ║  • Recovery Advisor — rest days, hydration, nutrition nudges           ║
- * ║  • All v6 features retained (20 langs, emergency, WHO, etc.)           ║
- * ╚══════════════════════════════════════════════════════════════════════════╝
- */
-
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 
-/* ════════════════════════════════════════════════════════════
-   1. THEME
-════════════════════════════════════════════════════════════ */
 const T = {
   accent:"#FCD34D", accentDim:"#92400E", accentGlow:"rgba(252,211,77,0.14)",
   bg:"#0c0802", card:"#130f04", cardBright:"#1c1608",
@@ -34,9 +11,6 @@ const T = {
   voiceRate:0.75, voicePitch:0.95, touchTarget:58, fontSize:16,
 };
 
-/* ════════════════════════════════════════════════════════════
-   2. LANGUAGES (20 — abbreviated for space, full map retained)
-════════════════════════════════════════════════════════════ */
 const LANG_MAP={
   "en-IN":"en-IN","hi-IN":"hi-IN","te-IN":"te-IN","ta-IN":"ta-IN",
   "mr-IN":"mr-IN","bn-IN":"bn-IN","kn-IN":"kn-IN","gu-IN":"gu-IN",
@@ -57,7 +31,6 @@ const PHRASES={
     vitals_log:"Health numbers saved. You are taking good care of yourself.",
     fall_tip:"Remember: stand up slowly. Hold onto something stable first.",
     emergency:"Calling for help now. Please stay calm and stay where you are.",
-    ai_thinking:"Your health assistant is thinking…",
     mood_prompt:"How are you feeling right now?",
     med_streak:"Amazing! {days} days medicine streak!",
     sleep_done:"Sleep logged. Rest is vital for your health.",
@@ -74,11 +47,10 @@ const PHRASES={
     vitals_log:"स्वास्थ्य संख्याएं सहेज ली गईं।",
     fall_tip:"याद रखें: धीरे-धीरे खड़े हों।",
     emergency:"अभी मदद के लिए कॉल हो रही है। शांत रहें।",
-    ai_thinking:"आपका स्वास्थ्य सहायक सोच रहा है…",
     mood_prompt:"आप अभी कैसा महसूस कर रहे हैं?",
     med_streak:"अद्भुत! {days} दिनों से लगातार दवा!",
     sleep_done:"नींद दर्ज की गई।",
-    readiness_good:"आज उत्कृष्ट तैयारी! आप अच्छी तरह से ठीक हैं।",
+    readiness_good:"आज उत्कृष्ट तैयारी!",
     readiness_low:"आज आराम करें।",
     telehealth_booked:"अपॉइंटमेंट बुक हो गई।",
     hrv_good:"आपकी हृदय गति परिवर्तनशीलता आज स्वस्थ दिखती है।",
@@ -91,7 +63,6 @@ const PHRASES={
     vitals_log:"ఆరోగ్య సంఖ్యలు సేవ్ చేయబడ్డాయి.",
     fall_tip:"నెమ్మదిగా లేవండి.",
     emergency:"ఇప్పుడు సహాయం కోసం కాల్ చేస్తున్నారు.",
-    ai_thinking:"మీ ఆరోగ్య సహాయకుడు ఆలోచిస్తున్నాడు…",
     mood_prompt:"మీరు ఇప్పుడు ఎలా అనుభవిస్తున్నారు?",
     med_streak:"{days} రోజులు వరుసగా మందు!",
     sleep_done:"నిద్ర నమోదు చేయబడింది.",
@@ -108,7 +79,6 @@ const PHRASES={
     vitals_log:"உடல்நல எண்கள் சேமிக்கப்பட்டன.",
     fall_tip:"மெதுவாக எழுந்திருங்கள்.",
     emergency:"இப்போது உதவிக்கு அழைக்கிறோம்.",
-    ai_thinking:"உங்கள் உடல்நல உதவியாளர் யோசிக்கிறார்…",
     mood_prompt:"நீங்கள் இப்போது எப்படி உணர்கிறீர்கள்?",
     med_streak:"{days} நாட்கள் தொடர்ந்து மருந்து!",
     sleep_done:"தூக்கம் பதிவு செய்யப்பட்டது.",
@@ -125,13 +95,12 @@ const PHRASES={
     vitals_log:"Datos de salud guardados.",
     fall_tip:"Recuerda: levántate despacio.",
     emergency:"Llamando por ayuda ahora. Quédate tranquilo.",
-    ai_thinking:"Tu asistente de salud está pensando…",
     mood_prompt:"¿Cómo te sientes ahora mismo?",
     med_streak:"¡{days} días seguidos de medicina!",
     sleep_done:"Sueño registrado.",
-    readiness_good:"¡Excelente disposición hoy! Estás bien recuperado.",
-    readiness_low:"Descansa hoy. Tu cuerpo necesita más reposo.",
-    telehealth_booked:"Cita reservada. Tu médico te verá pronto.",
+    readiness_good:"¡Excelente disposición hoy!",
+    readiness_low:"Descansa hoy.",
+    telehealth_booked:"Cita reservada.",
     hrv_good:"Tu variabilidad de frecuencia cardíaca hoy parece saludable.",
     activity_goal:"¡Buen trabajo cumpliendo tu objetivo de actividad!",
   },
@@ -142,7 +111,6 @@ const PHRASES={
     vitals_log:"Données de santé enregistrées.",
     fall_tip:"Levez-vous lentement.",
     emergency:"Appel d'urgence en cours.",
-    ai_thinking:"Votre assistant de santé réfléchit…",
     mood_prompt:"Comment vous sentez-vous en ce moment ?",
     med_streak:"{days} jours de médicaments consécutifs !",
     sleep_done:"Sommeil enregistré.",
@@ -159,7 +127,6 @@ const PHRASES={
     vitals_log:"Gesundheitsdaten gespeichert.",
     fall_tip:"Stehen Sie langsam auf.",
     emergency:"Hilferuf wird jetzt abgesetzt.",
-    ai_thinking:"Ihr Gesundheitsassistent denkt nach…",
     mood_prompt:"Wie fühlen Sie sich gerade?",
     med_streak:"{days} Tage Medikamenten-Streak!",
     sleep_done:"Schlaf protokolliert.",
@@ -176,12 +143,11 @@ const PHRASES={
     vitals_log:"健康数据已保存。",
     fall_tip:"慢慢站起来。",
     emergency:"正在呼叫救援。请保持冷静。",
-    ai_thinking:"您的健康助手正在思考…",
     mood_prompt:"您现在感觉怎么样？",
     med_streak:"已连续{days}天服药！",
     sleep_done:"睡眠已记录。",
     readiness_good:"今天准备状态极佳！",
-    readiness_low:"今天请休息。您的身体需要更多休息。",
+    readiness_low:"今天请休息。",
     telehealth_booked:"预约已成功。",
     hrv_good:"您今天的心率变异性看起来很健康。",
     activity_goal:"今天完成了活动目标！",
@@ -193,7 +159,6 @@ const PHRASES={
     vitals_log:"健康データが保存されました。",
     fall_tip:"ゆっくり立ち上がってください。",
     emergency:"今すぐ助けを呼んでいます。",
-    ai_thinking:"健康アシスタントが考えています…",
     mood_prompt:"今どんな気分ですか？",
     med_streak:"{days}日連続でお薬を飲んでいます！",
     sleep_done:"睡眠が記録されました。",
@@ -210,7 +175,6 @@ const PHRASES={
     vitals_log:"건강 수치가 저장되었습니다.",
     fall_tip:"천천히 일어나세요.",
     emergency:"지금 도움을 요청하고 있습니다.",
-    ai_thinking:"건강 도우미가 생각 중입니다…",
     mood_prompt:"지금 어떤 기분이신가요?",
     med_streak:"{days}일 연속으로 약을 드셨습니다!",
     sleep_done:"수면이 기록되었습니다.",
@@ -227,7 +191,6 @@ const PHRASES={
     vitals_log:"تم حفظ بيانات الصحة.",
     fall_tip:"انهض ببطء.",
     emergency:"نتصل طلباً للمساعدة الآن.",
-    ai_thinking:"مساعدك الصحي يفكر…",
     mood_prompt:"كيف تشعر الآن؟",
     med_streak:"{days} أيام متتالية من الدواء!",
     sleep_done:"تم تسجيل النوم.",
@@ -244,7 +207,6 @@ const PHRASES={
     vitals_log:"Dados de saúde salvos.",
     fall_tip:"Levante-se devagar.",
     emergency:"Ligando por ajuda agora.",
-    ai_thinking:"Seu assistente de saúde está pensando…",
     mood_prompt:"Como você está se sentindo agora?",
     med_streak:"{days} dias seguidos de remédio!",
     sleep_done:"Sono registrado.",
@@ -261,7 +223,6 @@ const PHRASES={
     vitals_log:"आरोग्य आकडे सेव्ह केले.",
     fall_tip:"हळूहळू उठा.",
     emergency:"मदतीसाठी कॉल होत आहे.",
-    ai_thinking:"तुमचा आरोग्य सहाय्यक विचार करत आहे…",
     mood_prompt:"तुम्हाला आत्ता कसे वाटत आहे?",
     med_streak:"{days} दिवसांपासून औषध!",
     sleep_done:"झोप नोंदवली.",
@@ -278,7 +239,6 @@ const PHRASES={
     vitals_log:"স্বাস্থ্য সংখ্যাগুলো সেভ হয়েছে।",
     fall_tip:"ধীরে ধীরে উঠুন।",
     emergency:"সাহায্যের জন্য ফোন করা হচ্ছে।",
-    ai_thinking:"আপনার স্বাস্থ্য সহকারী ভাবছে…",
     mood_prompt:"আপনি এখন কেমন অনুভব করছেন?",
     med_streak:"{days} দিন ধরে ওষুধ!",
     sleep_done:"ঘুম রেকর্ড করা হয়েছে।",
@@ -295,7 +255,6 @@ const PHRASES={
     vitals_log:"ಆರೋಗ್ಯ ಸಂಖ್ಯೆಗಳು ಉಳಿಸಲಾಗಿದೆ.",
     fall_tip:"ನಿಧಾನವಾಗಿ ಎದ್ದೇಳಿ.",
     emergency:"ಈಗ ಸಹಾಯಕ್ಕಾಗಿ ಕರೆ ಮಾಡಲಾಗುತ್ತಿದೆ.",
-    ai_thinking:"ನಿಮ್ಮ ಆರೋಗ್ಯ ಸಹಾಯಕ ಯೋಚಿಸುತ್ತಿದ್ದಾರೆ…",
     mood_prompt:"ನೀವು ಈಗ ಹೇಗೆ ಅನುಭವಿಸುತ್ತಿದ್ದೀರಿ?",
     med_streak:"{days} ದಿನಗಳ ಮದ್ದು ಸ್ಟ್ರೀಕ್!",
     sleep_done:"ನಿದ್ದೆ ದಾಖಲಿಸಲಾಗಿದೆ.",
@@ -312,7 +271,6 @@ const PHRASES={
     vitals_log:"સ્વાસ્થ્ય આંકડા સેવ.",
     fall_tip:"ધીમે ધીમે ઊઠો.",
     emergency:"મદદ માટે કૉલ.",
-    ai_thinking:"સ્વાસ્થ્ય સહાયક વિચારી રહ્યા છે…",
     mood_prompt:"તમે અત્યારે કેવું અનુભવો છો?",
     med_streak:"{days} દિવસ દવા!",
     sleep_done:"ઊંઘ નોંધાઈ.",
@@ -329,7 +287,6 @@ const PHRASES={
     vitals_log:"ആരോഗ്യ സംഖ്യകൾ സേവ് ചെയ്തു.",
     fall_tip:"പതുക്കെ എഴുന്നേൽക്കൂ.",
     emergency:"ഇപ്പോൾ സഹായത്തിനായി വിളിക്കുന്നു.",
-    ai_thinking:"ആരോഗ്യ സഹായകൻ ചിന്തിക്കുന്നു…",
     mood_prompt:"നിങ്ങൾ ഇപ്പോൾ എങ്ങനെ അനുഭവിക്കുന്നു?",
     med_streak:"{days} ദിവസം തുടർച്ചയായി മരുന്ന്!",
     sleep_done:"ഉറക്കം രേഖപ്പെടുത്തി.",
@@ -346,7 +303,6 @@ const PHRASES={
     vitals_log:"ਸਿਹਤ ਨੰਬਰ ਸੇਵ।",
     fall_tip:"ਹੌਲੀ-ਹੌਲੀ ਉੱਠੋ।",
     emergency:"ਮਦਦ ਲਈ ਕਾਲ।",
-    ai_thinking:"ਸਿਹਤ ਸਹਾਇਕ ਸੋਚ ਰਿਹਾ ਹੈ…",
     mood_prompt:"ਤੁਸੀਂ ਹੁਣ ਕਿਵੇਂ ਮਹਿਸੂਸ ਕਰ ਰਹੇ ਹੋ?",
     med_streak:"{days} ਦਿਨਾਂ ਦੀ ਦਵਾਈ ਸਟ੍ਰੀਕ!",
     sleep_done:"ਨੀਂਦ ਦਰਜ ਕੀਤੀ ਗਈ।",
@@ -363,7 +319,6 @@ const PHRASES={
     vitals_log:"ସ୍ୱାସ୍ଥ୍ୟ ସଂଖ୍ୟା ସଂରକ୍ଷଣ।",
     fall_tip:"ଧୀରେ ଧୀରେ ଉଠନ୍ତୁ।",
     emergency:"ସାହାଯ୍ୟ ପାଇଁ ଫୋନ।",
-    ai_thinking:"ସ୍ୱାସ୍ଥ୍ୟ ସହାୟକ ଭାବୁଛନ୍ତି…",
     mood_prompt:"ଆପଣ ଏବେ କେମିତି ଅନୁଭବ କରୁଛନ୍ତି?",
     med_streak:"{days} ଦିନ ଔଷଧ!",
     sleep_done:"ଶଯ୍ୟା ଦାଖଲ।",
@@ -380,7 +335,6 @@ const PHRASES={
     vitals_log:"صحت کے اعداد محفوظ۔",
     fall_tip:"آہستہ آہستہ اٹھیں۔",
     emergency:"مدد کے لیے کال۔",
-    ai_thinking:"صحت معاون سوچ رہا ہے…",
     mood_prompt:"آپ ابھی کیسا محسوس کر رہے ہیں؟",
     med_streak:"{days} دنوں کی دوائی!",
     sleep_done:"نیند ریکارڈ ہوگئی۔",
@@ -399,9 +353,6 @@ function ph(lang, key, vars={}) {
   return t;
 }
 
-/* ════════════════════════════════════════════════════════════
-   3. DATA MODELS
-════════════════════════════════════════════════════════════ */
 const VITAL_TYPES=[
   {id:"bp",label:"Blood Pressure",unit:"mmHg",icon:"🩺",color:T.blue,hint:"e.g. 120/80"},
   {id:"pulse",label:"Heart Rate",unit:"bpm",icon:"💓",color:T.red,normalMin:60,normalMax:100,hint:"e.g. 72"},
@@ -454,9 +405,6 @@ const SYMPTOM_SEVERITY={
   "Persistent vomiting":"urgent","General weakness / fatigue":"monitor",
 };
 
-/* ════════════════════════════════════════════════════════════
-   4. STORAGE
-════════════════════════════════════════════════════════════ */
 const todayKey=()=>new Date().toISOString().split("T")[0];
 function ls(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch{return fb;}}
 function lsSave(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
@@ -491,9 +439,6 @@ const loadPrescriptions=()=>ls("manifix_rx_v1",PRESCRIPTIONS_DEMO);
 function tAgo(ts){const d=Math.floor((Date.now()-ts)/60000);if(d<1)return"Just now";if(d<60)return`${d}m ago`;if(d<1440)return`${Math.floor(d/60)}h ago`;return`${Math.floor(d/1440)}d ago`;}
 function getGreeting(){const h=new Date().getHours();return h<12?"Good Morning":h<17?"Good Afternoon":"Good Evening";}
 
-/* ════════════════════════════════════════════════════════════
-   5. VOICE
-════════════════════════════════════════════════════════════ */
 function makeSpeaker(lang){
   return(text,urgent=false)=>{
     if(!("speechSynthesis" in window)||!text)return;
@@ -511,9 +456,6 @@ function makeSpeaker(lang){
   };
 }
 
-/* ════════════════════════════════════════════════════════════
-   6. CSS
-════════════════════════════════════════════════════════════ */
 function injectCSS(){
   if(document.getElementById("eld-v7"))return;
   const s=document.createElement("style");s.id="eld-v7";
@@ -541,35 +483,19 @@ function injectCSS(){
   document.head.appendChild(s);
 }
 
-/* ════════════════════════════════════════════════════════════
-   7. READINESS ENGINE (Oura-style)
-════════════════════════════════════════════════════════════ */
 function computeReadiness(sleepLogs, vitals, meds, moods){
-  // HRV contribution
   const hrvEntries=vitals.filter(v=>v.type==="hrv").slice(0,7);
   const avgHRV=hrvEntries.length?hrvEntries.reduce((a,b)=>a+parseFloat(b.value),0)/hrvEntries.length:45;
   const hrvScore=Math.min(100,Math.max(0,((avgHRV-15)/60)*100));
-
-  // Sleep contribution
   const lastSleep=sleepLogs[0];
   const sleepScore=lastSleep?lastSleep.quality:60;
-
-  // Resting HR contribution
   const pulseEntries=vitals.filter(v=>v.type==="pulse").slice(0,3);
   const avgPulse=pulseEntries.length?pulseEntries.reduce((a,b)=>a+parseFloat(b.value),0)/pulseEntries.length:72;
   const hrScore=avgPulse<70?95:avgPulse<80?80:avgPulse<90?65:50;
-
-  // Medication adherence contribution
   const adherence=meds.length?Math.round(meds.filter(m=>m.taken).length/meds.length*100):100;
   const medScore=adherence;
-
-  // Mood contribution
   const moodScore=moods[0]?moods[0].score*20:60;
-
-  // Weighted composite
-  const readiness=Math.round(
-    hrvScore*0.30 + sleepScore*0.30 + hrScore*0.15 + medScore*0.15 + moodScore*0.10
-  );
+  const readiness=Math.round(hrvScore*0.30+sleepScore*0.30+hrScore*0.15+medScore*0.15+moodScore*0.10);
   return {
     readiness:Math.min(100,Math.max(1,readiness)),
     components:{hrv:Math.round(hrvScore),sleep:sleepScore,hr:Math.round(hrScore),meds:medScore,mood:moodScore},
@@ -579,11 +505,6 @@ function computeReadiness(sleepLogs, vitals, meds, moods){
   };
 }
 
-/* ════════════════════════════════════════════════════════════
-   8. COMPONENTS
-════════════════════════════════════════════════════════════ */
-
-/* ── XL Button ── */
 function XLBtn({children,onClick,bg,fg,border,icon,disabled,aria,pulse}){
   return(
     <button onClick={onClick} disabled={disabled} aria-label={aria}
@@ -595,7 +516,6 @@ function XLBtn({children,onClick,bg,fg,border,icon,disabled,aria,pulse}){
   );
 }
 
-/* ── Sparkline ── */
 function Spark({values,color}){
   if(!values||values.length<2)return<span style={{fontSize:10,color:T.textDim}}>—</span>;
   const max=Math.max(...values),min=Math.min(...values),range=max-min||1;
@@ -609,19 +529,17 @@ function Spark({values,color}){
   );
 }
 
-/* ── Activity Rings (Oura-style) ── */
 function ActivityRings({move,stand,exercise}){
   const rings=[
     {pct:move,color:"#ef4444",bg:"#3f0e0e",label:"Move",val:`${move}%`},
     {pct:stand,color:"#22c55e",bg:"#0a2e0a",label:"Stand",val:`${stand}%`},
     {pct:exercise,color:"#38bdf8",bg:"#0a1f2e",label:"Exercise",val:`${exercise}%`},
   ];
-  const r=28,cx=36,cy=36,circ=2*Math.PI*r;
   return(
     <div style={{display:"flex",alignItems:"center",gap:16}}>
       <div style={{position:"relative",width:80,height:80}}>
         {rings.map((ring,i)=>{
-          const offset=r-(i*9);
+          const offset=28-(i*9);
           const c2=2*Math.PI*offset;
           const dash=c2*(ring.pct/100);
           return(
@@ -646,24 +564,18 @@ function ActivityRings({move,stand,exercise}){
   );
 }
 
-/* ── Readiness Dashboard (Oura-style) ── */
 function ReadinessDash({readinessData,lang,speak}){
   const {readiness,components,recommendation,avgHRV,avgPulse}=readinessData;
   const color=readiness>=80?T.green:readiness>=60?T.teal:readiness>=40?T.orange:T.red;
   const label=readiness>=80?"Peak":readiness>=60?"Good":readiness>=40?"Fair":"Low";
-
   useEffect(()=>{
     if(readiness>=80)speak(ph(lang,"readiness_good"));
     else if(readiness<50)speak(ph(lang,"readiness_low"));
   },[]);
-
-  const circ=2*Math.PI*52;
-  const dash=circ*(readiness/100);
-
+  const circ=2*Math.PI*36;
   return(
     <div className="fade-in" style={{border:`2px solid ${color}44`,background:`${color}08`,padding:"16px",borderRadius:13}}>
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
-        {/* Radial score */}
         <div style={{position:"relative",width:90,height:90,flexShrink:0}}>
           <svg width={90} height={90} viewBox="0 0 90 90" style={{transform:"rotate(-90deg)"}}>
             <circle cx={45} cy={45} r={36} fill="none" stroke="#1a1208" strokeWidth="7"/>
@@ -690,7 +602,6 @@ function ReadinessDash({readinessData,lang,speak}){
           </div>
         </div>
       </div>
-      {/* Component bars */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
         {[
           {label:"HRV",val:components.hrv,color:T.teal},
@@ -713,7 +624,6 @@ function ReadinessDash({readinessData,lang,speak}){
   );
 }
 
-/* ── Sleep Logger ── */
 function SleepLogger({lang,speak,onSave}){
   const [open,setOpen]=useState(false);
   const [hours,setHours]=useState(7);
@@ -721,25 +631,19 @@ function SleepLogger({lang,speak,onSave}){
   const [wake,setWake]=useState("05:30");
   const [disturbances,setDisturbances]=useState(0);
   const [feeling,setFeeling]=useState(3);
-
-  const quality=Math.round(Math.min(100,
-    (hours/8)*40 + (feeling/5)*30 + Math.max(0,(3-disturbances)/3)*30
-  ));
+  const quality=Math.round(Math.min(100,(hours/8)*40+(feeling/5)*30+Math.max(0,(3-disturbances)/3)*30));
   const sqInfo=SLEEP_QUALITY.find(s=>quality>=s.min)||SLEEP_QUALITY[3];
-
   if(!open)return(
     <button onClick={()=>setOpen(true)} className="btn-xl fr" style={{width:"100%",padding:"13px 16px",background:`${T.purple}12`,border:`2px solid ${T.purple}44`,color:T.purple,borderRadius:12,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
       <span style={{fontSize:22}}>🌙</span> Log Last Night's Sleep
     </button>
   );
-
   return(
     <div className="slide-up" style={{border:`2px solid ${T.purple}44`,background:`${T.purple}09`,padding:"16px",borderRadius:12}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
         <span style={{fontSize:14,fontWeight:700,color:T.purple,fontFamily:"'Syne',sans-serif"}}>🌙 Sleep Log</span>
         <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:T.textMid,cursor:"pointer",fontSize:16}}>✕</button>
       </div>
-      {/* Time inputs */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
         <div>
           <div style={{fontSize:10,color:T.textDim,marginBottom:4}}>Bedtime</div>
@@ -750,7 +654,6 @@ function SleepLogger({lang,speak,onSave}){
           <input type="time" value={wake} onChange={e=>setWake(e.target.value)} style={{width:"100%",padding:"8px 10px",fontSize:14,background:"#1a1208",border:"2px solid #3a2a10",color:T.textPrimary,borderRadius:8,fontFamily:"inherit"}}/>
         </div>
       </div>
-      {/* Hours slider */}
       <div style={{marginBottom:12}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
           <span style={{fontSize:11,color:T.textDim}}>Hours slept</span>
@@ -758,7 +661,6 @@ function SleepLogger({lang,speak,onSave}){
         </div>
         <input type="range" min={2} max={12} value={hours} onChange={e=>setHours(+e.target.value)} style={{width:"100%",accentColor:T.purple}}/>
       </div>
-      {/* Disturbances */}
       <div style={{marginBottom:12}}>
         <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Times woken up</div>
         <div style={{display:"flex",gap:6}}>
@@ -767,7 +669,6 @@ function SleepLogger({lang,speak,onSave}){
           ))}
         </div>
       </div>
-      {/* Feeling */}
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>How refreshed do you feel?</div>
         <div style={{display:"flex",gap:6}}>
@@ -776,7 +677,6 @@ function SleepLogger({lang,speak,onSave}){
           ))}
         </div>
       </div>
-      {/* Quality preview */}
       <div style={{background:`${sqInfo.color}18`,border:`1.5px solid ${sqInfo.color}44`,borderRadius:8,padding:"10px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
         <span style={{fontSize:20}}>{sqInfo.icon}</span>
         <div>
@@ -784,16 +684,11 @@ function SleepLogger({lang,speak,onSave}){
           <div style={{fontSize:11,color:T.textMid}}>{hours}h · {disturbances} wakeups · Feeling {feeling}/5</div>
         </div>
       </div>
-      <XLBtn onClick={()=>{
-        const entry={bedtime,wake,hours,disturbances,feeling,quality};
-        saveSleepLog(entry);onSave(entry);
-        speak(ph(lang,"sleep_done"));setOpen(false);
-      }} bg={T.purple} fg="#fff" aria="Save sleep log">💾 Save Sleep Log</XLBtn>
+      <XLBtn onClick={()=>{saveSleepLog({bedtime,wake,hours,disturbances,feeling,quality});onSave();speak(ph(lang,"sleep_done"));setOpen(false);}} bg={T.purple} fg="#fff" aria="Save sleep log">💾 Save Sleep Log</XLBtn>
     </div>
   );
 }
 
-/* ── Sleep History ── */
 function SleepHistory({logs}){
   if(!logs.length)return<div style={{fontSize:12,color:T.textDim,textAlign:"center",padding:"12px 0"}}>No sleep logs yet. Start logging tonight!</div>;
   return(
@@ -816,56 +711,39 @@ function SleepHistory({logs}){
   );
 }
 
-/* ── Telehealth Booking (Teladoc-style) ── */
 function TelehealthBooker({lang,speak,contacts}){
-  const [step,setStep]=useState("list"); // list | doctor | confirm | booked
+  const [step,setStep]=useState("list");
   const [selDoctor,setSelDoctor]=useState(null);
   const [selSlot,setSelSlot]=useState(null);
   const [apptType,setApptType]=useState("video");
   const [reason,setReason]=useState("");
   const [appointments,setAppointments]=useState(()=>loadAppointments());
   const [open,setOpen]=useState(false);
-
   const book=()=>{
-    const appt={
-      doctor:selDoctor.name,spec:selDoctor.spec,slot:selSlot,type:apptType,
-      reason:reason||"General checkup",date:todayKey(),avatar:selDoctor.avatar,
-    };
-    saveAppointment(appt);
-    setAppointments(loadAppointments());
-    setStep("booked");
-    speak(ph(lang,"telehealth_booked"),true);
+    const appt={doctor:selDoctor.name,spec:selDoctor.spec,slot:selSlot,type:apptType,reason:reason||"General checkup",date:todayKey(),avatar:selDoctor.avatar};
+    saveAppointment(appt);setAppointments(loadAppointments());setStep("booked");speak(ph(lang,"telehealth_booked"),true);
   };
-
   if(!open)return(
     <div>
       <button onClick={()=>setOpen(true)} className="btn-xl fr" style={{width:"100%",padding:"13px 16px",background:`${T.cyan}12`,border:`2px solid ${T.cyan}44`,color:T.cyan,borderRadius:12,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:22}}>📹</span>
-          <span>Telehealth — Book a Doctor</span>
-        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>📹</span><span>Telehealth — Book a Doctor</span></div>
         <span style={{fontSize:11,opacity:.7}}>{appointments.length} upcoming ▸</span>
       </button>
       {appointments.slice(0,2).map((a,i)=>(
         <div key={i} style={{border:`1px solid ${T.cyan}33`,background:`${T.cyan}07`,padding:"10px 12px",borderRadius:8,marginTop:6,display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:18}}>{a.avatar}</span>
-          <div style={{flex:1}}>
-            <div style={{fontSize:12,fontWeight:700,color:T.textPrimary}}>{a.doctor}</div>
-            <div style={{fontSize:11,color:T.textMid}}>{a.spec} · {a.slot} · {a.type==="video"?"📹":"📞"} {a.date}</div>
-          </div>
+          <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:T.textPrimary}}>{a.doctor}</div><div style={{fontSize:11,color:T.textMid}}>{a.spec} · {a.slot} · {a.date}</div></div>
           <span style={{fontSize:10,color:T.green,background:`${T.green}22`,padding:"3px 8px",borderRadius:5,fontWeight:700}}>Booked</span>
         </div>
       ))}
     </div>
   );
-
   return(
     <div className="slide-up" style={{border:`2px solid ${T.cyan}44`,background:`${T.cyan}08`,padding:"16px",borderRadius:12}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
         <span style={{fontSize:14,fontWeight:700,color:T.cyan,fontFamily:"'Syne',sans-serif"}}>📹 Telehealth</span>
         <button onClick={()=>{setOpen(false);setStep("list");}} style={{background:"none",border:"none",color:T.textMid,cursor:"pointer",fontSize:16}}>✕</button>
       </div>
-
       {step==="list"&&(
         <>
           <div style={{fontSize:12,color:T.textMid,marginBottom:12}}>Choose your doctor:</div>
@@ -873,14 +751,8 @@ function TelehealthBooker({lang,speak,contacts}){
             <button key={doc.id} onClick={()=>{if(doc.available){setSelDoctor(doc);setStep("doctor");}}} className="btn-xl fr"
               style={{width:"100%",display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:doc.available?"#0a1318":"#100c03",border:`1.5px solid ${doc.available?T.cyan:"#2a1f08"}`,borderRadius:10,cursor:doc.available?"pointer":"not-allowed",textAlign:"left",marginBottom:8,fontFamily:"inherit",opacity:doc.available?1:0.5}}>
               <span style={{fontSize:28}}>{doc.avatar}</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>{doc.name}</div>
-                <div style={{fontSize:11,color:T.textMid}}>{doc.spec} · ⭐ {doc.rating}</div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:10,color:doc.available?T.green:T.red,fontWeight:700}}>{doc.available?"Available":"Busy"}</div>
-                <div style={{fontSize:9,color:T.textDim}}>{doc.slots.length} slots</div>
-              </div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>{doc.name}</div><div style={{fontSize:11,color:T.textMid}}>{doc.spec} · ⭐ {doc.rating}</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:10,color:doc.available?T.green:T.red,fontWeight:700}}>{doc.available?"Available":"Busy"}</div><div style={{fontSize:9,color:T.textDim}}>{doc.slots.length} slots</div></div>
             </button>
           ))}
           {appointments.length>0&&(
@@ -897,16 +769,12 @@ function TelehealthBooker({lang,speak,contacts}){
           )}
         </>
       )}
-
       {step==="doctor"&&selDoctor&&(
         <>
           <button onClick={()=>setStep("list")} style={{background:"none",border:"none",color:T.cyan,cursor:"pointer",fontFamily:"inherit",fontSize:12,marginBottom:12}}>← Back</button>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,padding:"10px 12px",background:"#0a1318",border:`1.5px solid ${T.cyan}44`,borderRadius:10}}>
             <span style={{fontSize:32}}>{selDoctor.avatar}</span>
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:T.textPrimary}}>{selDoctor.name}</div>
-              <div style={{fontSize:12,color:T.textMid}}>{selDoctor.spec} · ⭐ {selDoctor.rating}</div>
-            </div>
+            <div><div style={{fontSize:14,fontWeight:700,color:T.textPrimary}}>{selDoctor.name}</div><div style={{fontSize:12,color:T.textMid}}>{selDoctor.spec} · ⭐ {selDoctor.rating}</div></div>
           </div>
           <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Appointment type</div>
           <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -919,9 +787,7 @@ function TelehealthBooker({lang,speak,contacts}){
           <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Select time slot</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
             {selDoctor.slots.map(slot=>(
-              <button key={slot} onClick={()=>setSelSlot(slot)} style={{padding:"8px 14px",borderRadius:8,border:`1.5px solid ${selSlot===slot?T.cyan:"#2a1f08"}`,background:selSlot===slot?`${T.cyan}22`:"#100c03",color:selSlot===slot?T.cyan:T.textMid,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:selSlot===slot?700:400}}>
-                {slot}
-              </button>
+              <button key={slot} onClick={()=>setSelSlot(slot)} style={{padding:"8px 14px",borderRadius:8,border:`1.5px solid ${selSlot===slot?T.cyan:"#2a1f08"}`,background:selSlot===slot?`${T.cyan}22`:"#100c03",color:selSlot===slot?T.cyan:T.textMid,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:selSlot===slot?700:400}}>{slot}</button>
             ))}
           </div>
           <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Reason for visit (optional)</div>
@@ -929,20 +795,12 @@ function TelehealthBooker({lang,speak,contacts}){
           <XLBtn onClick={()=>selSlot&&setStep("confirm")} bg={T.cyan} fg="#0c0802" disabled={!selSlot} aria="Continue">Confirm Details →</XLBtn>
         </>
       )}
-
       {step==="confirm"&&selDoctor&&(
         <>
           <button onClick={()=>setStep("doctor")} style={{background:"none",border:"none",color:T.cyan,cursor:"pointer",fontFamily:"inherit",fontSize:12,marginBottom:12}}>← Back</button>
           <div style={{border:`2px solid ${T.cyan}44`,background:"#0a1318",padding:"14px",borderRadius:10,marginBottom:14}}>
             <div style={{fontSize:11,color:T.textDim,marginBottom:8,textTransform:"uppercase",letterSpacing:".08em"}}>Appointment Summary</div>
-            {[
-              ["Doctor",`${selDoctor.avatar} ${selDoctor.name}`],
-              ["Speciality",selDoctor.spec],
-              ["Date",todayKey()],
-              ["Time",selSlot],
-              ["Type",apptType==="video"?"📹 Video Call":apptType==="audio"?"📞 Audio Call":"💬 Chat"],
-              ["Reason",reason||"General checkup"],
-            ].map(([k,v])=>(
+            {[["Doctor",`${selDoctor.avatar} ${selDoctor.name}`],["Speciality",selDoctor.spec],["Date",todayKey()],["Time",selSlot],["Type",apptType==="video"?"📹 Video Call":apptType==="audio"?"📞 Audio Call":"💬 Chat"],["Reason",reason||"General checkup"]].map(([k,v])=>(
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid #1a1208`}}>
                 <span style={{fontSize:12,color:T.textDim}}>{k}</span>
                 <span style={{fontSize:12,color:T.textPrimary,fontWeight:700}}>{v}</span>
@@ -952,7 +810,6 @@ function TelehealthBooker({lang,speak,contacts}){
           <XLBtn onClick={book} bg={T.cyan} fg="#0c0802" aria="Book appointment">📅 Book Appointment</XLBtn>
         </>
       )}
-
       {step==="booked"&&(
         <div className="fade-in" style={{textAlign:"center",padding:"20px 0"}}>
           <div style={{fontSize:52,marginBottom:12}}>✅</div>
@@ -967,7 +824,6 @@ function TelehealthBooker({lang,speak,contacts}){
   );
 }
 
-/* ── Prescription Tracker ── */
 function PrescriptionTracker(){
   const [open,setOpen]=useState(false);
   const rx=loadPrescriptions();
@@ -1007,7 +863,6 @@ function PrescriptionTracker(){
   );
 }
 
-/* ── HRV & Recovery Panel ── */
 function HRVPanel({vitals,lang,speak}){
   const [open,setOpen]=useState(false);
   const hrvLogs=vitals.filter(v=>v.type==="hrv").slice(0,7);
@@ -1015,20 +870,14 @@ function HRVPanel({vitals,lang,speak}){
   const avgHRV=hrvLogs.length?Math.round(hrvLogs.reduce((a,b)=>a+parseFloat(b.value),0)/hrvLogs.length):45;
   const trend=hrvLogs.length>1?hrvLogs[0].value>hrvLogs[1].value?"↑ Improving":"↓ Declining":"—";
   const color=avgHRV>50?T.green:avgHRV>35?T.teal:avgHRV>20?T.orange:T.red;
-
   if(!open)return(
     <button onClick={()=>setOpen(true)} className="btn-xl fr" style={{width:"100%",padding:"13px 16px",background:`${T.teal}12`,border:`2px solid ${T.teal}44`,color:T.teal,borderRadius:12,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}><span className="beat" style={{fontSize:22,display:"inline-block"}}>💚</span><span>HRV & Recovery</span></div>
-      <div style={{textAlign:"right"}}>
-        <div style={{fontSize:14,color,fontWeight:800}}>{avgHRV}ms</div>
-        <div style={{fontSize:9,color:T.textDim}}>Avg HRV {trend}</div>
-      </div>
+      <div style={{textAlign:"right"}}><div style={{fontSize:14,color,fontWeight:800}}>{avgHRV}ms</div><div style={{fontSize:9,color:T.textDim}}>Avg HRV {trend}</div></div>
     </button>
   );
-
   const hrvVals=hrvLogs.map(v=>parseFloat(v.value)).filter(Boolean).reverse();
   const pulseVals=pulseLogs.map(v=>parseFloat(v.value)).filter(Boolean).reverse();
-
   return(
     <div className="slide-up" style={{border:`2px solid ${T.teal}44`,background:`${T.teal}08`,padding:"16px",borderRadius:12}}>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
@@ -1049,7 +898,6 @@ function HRVPanel({vitals,lang,speak}){
           <div style={{marginTop:8}}><Spark values={pulseVals} color={T.red}/></div>
         </div>
       </div>
-      {/* Recovery zones */}
       <div style={{fontSize:11,color:T.textDim,marginBottom:8}}>Recovery zones</div>
       {[
         {label:"Peak Recovery",range:"HRV > 50ms",color:T.green,active:avgHRV>50},
@@ -1059,10 +907,7 @@ function HRVPanel({vitals,lang,speak}){
       ].map(z=>(
         <div key={z.label} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",borderRadius:8,background:z.active?`${z.color}18`:"transparent",border:`1px solid ${z.active?z.color:"transparent"}`,marginBottom:4}}>
           <div style={{width:10,height:10,borderRadius:"50%",background:z.active?z.color:"#2a1f08"}}/>
-          <div style={{flex:1}}>
-            <span style={{fontSize:12,color:z.active?T.textPrimary:T.textDim,fontWeight:z.active?700:400}}>{z.label}</span>
-            <span style={{fontSize:10,color:T.textDim,marginLeft:8}}>{z.range}</span>
-          </div>
+          <div style={{flex:1}}><span style={{fontSize:12,color:z.active?T.textPrimary:T.textDim,fontWeight:z.active?700:400}}>{z.label}</span><span style={{fontSize:10,color:T.textDim,marginLeft:8}}>{z.range}</span></div>
           {z.active&&<span style={{fontSize:10,color:z.color,fontWeight:700}}>← You</span>}
         </div>
       ))}
@@ -1070,7 +915,6 @@ function HRVPanel({vitals,lang,speak}){
   );
 }
 
-/* ── Medication Card ── */
 function MedCard({med,onToggle,streak}){
   const now=new Date();
   const [h,m]=med.time.split(":").map(Number);
@@ -1100,7 +944,6 @@ function MedCard({med,onToggle,streak}){
   );
 }
 
-/* ── Vitals Row ── */
 function VitalRow({vital,history,onLog}){
   const myHistory=history.filter(e=>e.type===vital.id).slice(0,7);
   const numVals=myHistory.map(e=>parseFloat(e.value.split("/")[0])).filter(Boolean).reverse();
@@ -1120,7 +963,6 @@ function VitalRow({vital,history,onLog}){
   );
 }
 
-/* ── Vital Modal ── */
 function VitalModal({vital,onClose,onSave}){
   const [val,setVal]=useState("");
   const isValid=val.trim().length>0;
@@ -1135,10 +977,7 @@ function VitalModal({vital,onClose,onSave}){
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}}>
       <div style={{background:T.bg,border:`3px solid ${vital.color}`,padding:22,width:"min(400px,100%)",borderRadius:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:28}}>{vital.icon}</span>
-            <span style={{fontSize:17,fontWeight:800,color:T.textPrimary,fontFamily:"'Syne',sans-serif"}}>{vital.label}</span>
-          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:28}}>{vital.icon}</span><span style={{fontSize:17,fontWeight:800,color:T.textPrimary,fontFamily:"'Syne',sans-serif"}}>{vital.label}</span></div>
           <button onClick={onClose} style={{fontSize:20,background:"none",border:"none",color:T.textMid,cursor:"pointer"}}>✕</button>
         </div>
         <input value={val} onChange={e=>setVal(e.target.value)} placeholder={vital.hint} autoFocus style={{width:"100%",padding:"14px 16px",fontSize:20,background:"#1a1208",border:`2.5px solid ${vital.color}44`,color:T.textPrimary,borderRadius:10,fontFamily:"inherit",marginBottom:8}}/>
@@ -1147,16 +986,13 @@ function VitalModal({vital,onClose,onSave}){
         <div style={{display:"flex",gap:10}}>
           <button onClick={onClose} style={{flex:1,padding:14,fontSize:14,background:"#1a1208",border:"2px solid #3a2a10",color:T.textMid,borderRadius:10,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
           <button onClick={()=>{if(isValid){onSave({type:vital.id,value:val.trim(),unit:vital.unit});onClose();}}} disabled={!isValid}
-            style={{flex:1,padding:14,fontSize:14,fontWeight:700,background:isValid?vital.color:"#222",border:"2px solid transparent",color:isValid?"#0c0802":T.textDim,borderRadius:10,cursor:isValid?"pointer":"not-allowed",fontFamily:"inherit",opacity:isValid?1:0.5}}>
-            Save
-          </button>
+            style={{flex:1,padding:14,fontSize:14,fontWeight:700,background:isValid?vital.color:"#222",border:"2px solid transparent",color:isValid?"#0c0802":T.textDim,borderRadius:10,cursor:isValid?"pointer":"not-allowed",fontFamily:"inherit",opacity:isValid?1:0.5}}>Save</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── Mood Bar ── */
 function MoodBar({onLog}){
   const [chosen,setChosen]=useState(null);
   return(
@@ -1175,7 +1011,6 @@ function MoodBar({onLog}){
   );
 }
 
-/* ── Symptom Checker ── */
 function SymptomChecker({lang,onEmergency,onTelehealth}){
   const [open,setOpen]=useState(false);
   const [sel,setSel]=useState([]);
@@ -1241,59 +1076,8 @@ function SymptomChecker({lang,onEmergency,onTelehealth}){
   );
 }
 
-/* ── AI Health Coach (Claude-powered) ── */
-function AICoach({lang,meds,vitalsHistory,streak,moods,sleepLogs,readiness}){
-  const [open,setOpen]=useState(false);
-  const [advice,setAdvice]=useState("");
-  const [loading,setLoading]=useState(false);
-  const langName=(l)=>{
-    const m={hi:"Hindi",te:"Telugu",ta:"Tamil",es:"Spanish",fr:"French",de:"German",zh:"Mandarin",ja:"Japanese",ko:"Korean",ar:"Arabic",pt:"Portuguese",mr:"Marathi",bn:"Bengali",kn:"Kannada",gu:"Gujarati",ml:"Malayalam",pa:"Punjabi",or:"Odia",ur:"Urdu"};
-    return m[l.split("-")[0]]||"English";
-  };
-  const ask=useCallback(async()=>{
-    setOpen(true);setLoading(true);setAdvice("");
-    const recent=vitalsHistory.slice(0,5).map(e=>`${e.type}=${e.value}${e.unit}`).join(", ");
-    const lastSleep=sleepLogs[0];
-    const prompt=`Elderly patient data: meds taken ${meds.filter(m=>m.taken).length}/${meds.length}, streak ${streak} days, recent vitals: ${recent||"none"}, mood: ${moods[0]?.label||"unknown"}, readiness score: ${readiness.readiness}/100, avg HRV: ${readiness.avgHRV}ms, resting HR: ${readiness.avgPulse}bpm${lastSleep?`, last sleep: ${lastSleep.hours}h quality ${lastSleep.quality}/100`:""}. Give 3 personalized, warm, actionable tips. Focus on safety, recovery, hydration, and gentle movement. Respond in ${langName(lang)}. Under 30 words each. Numbered 1. 2. 3.`;
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:"You are a warm, expert geriatric health coach. Be encouraging, simple, and safety-focused. Personalize advice based on HRV, sleep quality, and readiness score.",messages:[{role:"user",content:prompt}]}),
-      });
-      const d=await res.json();
-      setAdvice(d.content?.map(b=>b.text||"").join("")||"Unable to connect right now.");
-    }catch{setAdvice("Please check your connection and try again.");}
-    setLoading(false);
-  },[lang,meds,vitalsHistory,streak,moods,sleepLogs,readiness]);
-
-  return(
-    <div style={{border:`2px solid ${T.purple}44`,background:`${T.purple}09`,padding:"14px 16px",borderRadius:12}}>
-      <button onClick={open?()=>setOpen(false):ask} className="btn-xl" style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:"inherit"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:22}}>🤖</span>
-          <span style={{fontSize:14,fontWeight:700,color:T.purple,fontFamily:"'Syne',sans-serif"}}>AI Health Coach</span>
-        </div>
-        <span style={{fontSize:11,color:T.purple}}>{open?"▾ Close":"▸ Get Advice"}</span>
-      </button>
-      {open&&(
-        <div className="fade-in" style={{marginTop:12}}>
-          {loading?(
-            <div style={{display:"flex",alignItems:"center",gap:10,color:T.textMid,fontSize:13}}>
-              <div style={{width:16,height:16,border:`2px solid #2a1f08`,borderTopColor:T.purple,borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
-              {ph(lang,"ai_thinking")}
-            </div>
-          ):<div style={{fontSize:13,color:T.textPrimary,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{advice}</div>}
-          {!loading&&<button onClick={ask} className="btn-xl" style={{marginTop:8,fontSize:11,color:T.purple,background:"none",border:`1px solid ${T.purple}44`,padding:"5px 10px",borderRadius:6,cursor:"pointer",fontFamily:"inherit"}}>↻ Refresh</button>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Emergency Setup ── */
 function EmergencySetup({onSave}){
-  const [c1n,setC1n]=useState(""),c1p=useRef(""),c2n=useRef(""),c2p=useRef(""),dn=useRef(""),dp=useRef("");
+  const [c1n,setC1n]=useState(""),c2n=useRef(""),c2p=useRef(""),dn=useRef(""),dp=useRef("");
   const [c1ph,setC1ph]=useState("");
   const canSave=c1n.trim()&&c1ph.trim();
   return(
@@ -1338,13 +1122,9 @@ function EmergencySetup({onSave}){
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   9. MAIN APP
-════════════════════════════════════════════════════════════ */
 export default function ElderlyHealthV7(){
   const lang=useMemo(loadLang,[]);
   const speak=useMemo(()=>makeSpeaker(lang),[lang]);
-
   const [contacts,setContacts]=useState(()=>loadContacts());
   const [meds,setMeds]=useState(()=>loadMeds());
   const [vitals,setVitals]=useState(()=>loadVitals());
@@ -1356,12 +1136,9 @@ export default function ElderlyHealthV7(){
   const [emergency,setEmergency]=useState(false);
   const [vitalModal,setVitalModal]=useState(null);
   const [activeTab,setActiveTab]=useState("today");
-  const [telehealthOpen,setTelehealthOpen]=useState(false);
 
   const adherence=useMemo(()=>meds.length?Math.round(meds.filter(m=>m.taken).length/meds.length*100):100,[meds]);
   const readinessData=useMemo(()=>computeReadiness(sleepLogs,vitals,meds,moods),[sleepLogs,vitals,meds,moods]);
-
-  // Activity rings (simulated from vitals/steps)
   const activityRings=useMemo(()=>{
     const today=vitals.filter(v=>Date.now()-v.ts<86400000);
     const move=Math.min(100,today.length*18+adherence*0.2);
@@ -1407,11 +1184,7 @@ export default function ElderlyHealthV7(){
     if(s.days>1)setTimeout(()=>speak(ph(lang,"med_streak",{days:s.days})),2500);
   },[lang,speak]);
 
-  const handleVitalSave=useCallback((entry)=>{
-    saveVitalEntry(entry);setVitals(loadVitals());
-    speak(ph(lang,"vitals_log"));
-  },[lang,speak]);
-
+  const handleVitalSave=useCallback((entry)=>{saveVitalEntry(entry);setVitals(loadVitals());speak(ph(lang,"vitals_log"));},[lang,speak]);
   const handleMoodLog=useCallback((mood)=>{saveMood(mood);setMoods(loadMoods());},[]);
   const handleSleepSave=useCallback(()=>{setSleepLogs(loadSleepLogs());},[]);
   const callContact=useCallback((contact)=>{if(contact.phone)window.location.href=`tel:${contact.phone}`;},[]);
@@ -1437,17 +1210,12 @@ export default function ElderlyHealthV7(){
           <button key={c.id} onClick={()=>callContact(c)} className="btn-xl fr"
             style={{width:"100%",padding:"18px 20px",background:c.id==="amb"?"#3d0000":"#1a0a00",border:`2.5px solid ${c.id==="amb"?T.red:T.accent}`,color:c.id==="amb"?T.red:T.accent,fontSize:16,fontWeight:800,borderRadius:14,cursor:"pointer",display:"flex",alignItems:"center",gap:14,fontFamily:"inherit"}}>
             <span style={{fontSize:28}}>{c.avatar}</span>
-            <div style={{textAlign:"left"}}>
-              <div>{c.name}</div>
-              <div style={{fontSize:12,opacity:.7}}>{c.relation} · {c.phone}</div>
-            </div>
+            <div style={{textAlign:"left"}}><div>{c.name}</div><div style={{fontSize:12,opacity:.7}}>{c.relation} · {c.phone}</div></div>
             <span style={{marginLeft:"auto",fontSize:22}}>📞</span>
           </button>
         ))}
       </div>
-      <button onClick={()=>setEmergency(false)} style={{marginTop:16,padding:"14px 32px",fontSize:15,background:"#1a1208",border:"2px solid #3a2a10",color:T.textMid,borderRadius:12,cursor:"pointer",fontFamily:"inherit"}}>
-        Cancel Emergency
-      </button>
+      <button onClick={()=>setEmergency(false)} style={{marginTop:16,padding:"14px 32px",fontSize:15,background:"#1a1208",border:"2px solid #3a2a10",color:T.textMid,borderRadius:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel Emergency</button>
     </div>
   );
 
@@ -1491,7 +1259,6 @@ export default function ElderlyHealthV7(){
 
         {/* READINESS + RINGS ROW */}
         <div className="fade-in" style={{border:`2px solid ${readinessColor}44`,background:`${readinessColor}08`,padding:"14px 16px",borderRadius:12,display:"flex",alignItems:"center",gap:14}}>
-          {/* Readiness mini */}
           <div style={{textAlign:"center",minWidth:64}}>
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:38,fontWeight:800,color:readinessColor,lineHeight:1}}>{readinessData.readiness}</div>
             <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:".08em",marginTop:2}}>Readiness</div>
@@ -1500,10 +1267,8 @@ export default function ElderlyHealthV7(){
             </div>
           </div>
           <div style={{width:1,height:60,background:T.border}}/>
-          {/* Activity rings */}
           <ActivityRings move={activityRings.move} stand={activityRings.stand} exercise={activityRings.exercise}/>
           <div style={{width:1,height:60,background:T.border}}/>
-          {/* Mood + HRV mini */}
           <div style={{textAlign:"center",minWidth:48}}>
             <div style={{fontSize:24}}>{moods[0]?.emoji||"😐"}</div>
             <div style={{fontSize:9,color:T.textDim,marginTop:2}}>Mood</div>
@@ -1537,7 +1302,7 @@ export default function ElderlyHealthV7(){
           </div>
         )}
 
-        {/* TAB: RECOVERY (Oura-style) */}
+        {/* TAB: RECOVERY */}
         {activeTab==="recovery"&&(
           <div className="fade-in">
             <ReadinessDash readinessData={readinessData} lang={lang} speak={speak}/>
@@ -1550,23 +1315,19 @@ export default function ElderlyHealthV7(){
           </div>
         )}
 
-        {/* TAB: TELEHEALTH + CARE (Teladoc-style) */}
+        {/* TAB: TELEHEALTH + CARE */}
         {activeTab==="telehealth"&&(
           <div className="fade-in">
             <TelehealthBooker lang={lang} speak={speak} contacts={contacts}/>
             <div style={{height:10}}/>
             <SymptomChecker lang={lang} onEmergency={triggerEmergency} onTelehealth={()=>setActiveTab("telehealth")}/>
             <div style={{height:10}}/>
-            {/* Family */}
             <div style={{fontSize:11,color:T.textDim,textTransform:"uppercase",letterSpacing:".1em",marginBottom:8}}>Family Connections</div>
             {contacts.filter(c=>c.id!=="amb").map(c=>(
               <button key={c.id} onClick={()=>callContact(c)} className="btn-xl fr"
                 style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:T.card,border:`2px solid ${T.border}`,borderRadius:12,cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%",minHeight:T.touchTarget,marginBottom:8}}>
                 <div style={{width:40,height:40,borderRadius:"50%",background:`${T.accent}22`,border:`2px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{c.avatar}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>{c.name}</div>
-                  <div style={{fontSize:11,color:T.textMid}}>{c.relation} · {c.phone}</div>
-                </div>
+                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.textPrimary}}>{c.name}</div><div style={{fontSize:11,color:T.textMid}}>{c.relation} · {c.phone}</div></div>
                 <span style={{fontSize:18,color:T.accent}}>📞</span>
               </button>
             ))}
@@ -1582,9 +1343,6 @@ export default function ElderlyHealthV7(){
             </div>
           </div>
         )}
-
-        {/* AI COACH */}
-        <AICoach lang={lang} meds={meds} vitalsHistory={vitals} streak={streak} moods={moods} sleepLogs={sleepLogs} readiness={readinessData}/>
 
         {/* EDIT CONTACTS */}
         <button onClick={()=>{if(window.confirm("Reset emergency contacts?")){{saveContacts(null);setContacts(null);}}}} style={{padding:"7px 14px",fontSize:10,color:T.textDim,background:"none",border:`1px solid ${T.border}`,borderRadius:8,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:".08em"}}>
