@@ -556,7 +556,7 @@ export default function FeedbackPage() {
             fontFamily:T.body, fontSize:15, color:T.muted,
             lineHeight:1.7, maxWidth:480, margin:"0 auto",
           }}>
-            I built ManifiX alone. Your feedback directly shapes what I build next.<br/>
+           We Value Your Feedback<br/>
             <strong style={{ color:T.text, fontWeight:600 }}>You are part of the founding story.</strong>
           </p>
 
