@@ -144,8 +144,8 @@ const DEFAULT_MEDS = [
 
 const DEFAULT_PROFILES = [
   { id:"p1", name:"You", avatar:"🧑", age:42, relation:"Self", medications: DEFAULT_MEDS, active:true },
-  { id:"p2", name:"Mom", avatar:"👩", age:68, relation:"Mother", medications:[], active:false },
-  { id:"p3", name:"dad", avatar:"👴", age:71, relation:"Father", medications:[], active:false },
+  { id:"p2", name:"Amma", avatar:"👩", age:68, relation:"Mother", medications:[], active:false },
+  { id:"p3", name:"Nanna", avatar:"👴", age:71, relation:"Father", medications:[], active:false },
 ];
 
 const DEFAULT_VITALS = [
@@ -232,40 +232,7 @@ function injectCSS(dark) {
   `;
 }
 
-/* ═══════════════════════════════════════════════════
-   ONBOARDING WIZARD
-═══════════════════════════════════════════════════ */
-function OnboardingWizard({ onComplete, accent }) {
-  const [step, setStep] = useState(0);
-  const steps = [
-    { icon:"💊", title:"Welcome to ManifiX Meds v7.1", sub:"The smartest medication tracker ever built.", body:"Track every dose, drug interaction checks, monitor vitals, and coordinate family care — all offline-first.", cta:"Get Started" },
-    { icon:"📊", title:"Vitals & Side Effects", sub:"Track how your medications affect your body.", body:"Log blood pressure, glucose, heart rate and more. Track side effects with severity scores. All correlated to your medication schedule.", cta:"Next" },
-    { icon:"👨‍👩‍👧", title:"Family Care Sync", sub:"Manage medications for your whole family.", body:"Create profiles for up to 5 family members. View adherence scores and medication lists for everyone you care for.", cta:"Let's Begin" },
-  ];
-  const s = steps[step];
-  return (
-    <div style={{ position:"fixed", inset:0, background:"#030d0c", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-      <div style={{ width:"min(440px,100%)", textAlign:"center" }}>
-        <div style={{ fontSize:72, marginBottom:20, animation:"countPulse 2s ease-in-out infinite" }}>{s.icon}</div>
-        <div style={{ fontSize:28, fontWeight:800, fontFamily:"'Syne',sans-serif", color:"#f0ede6", marginBottom:8, lineHeight:1.2 }}>{s.title}</div>
-        <div style={{ fontSize:14, color:accent, marginBottom:16, fontStyle:"italic", fontFamily:"'Instrument Serif',serif" }}>{s.sub}</div>
-        <div style={{ fontSize:13, color:"#6a6a6a", lineHeight:1.8, marginBottom:32, padding:"0 16px" }}>{s.body}</div>
-        <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:28 }}>
-          {steps.map((_,i) => (
-            <div key={i} style={{ width:i===step?24:8, height:8, borderRadius:4, background:i===step?accent:"#1a1a1a", transition:"all .3s" }} />
-          ))}
-        </div>
-        <button className="btn" onClick={() => step < steps.length-1 ? setStep(step+1) : onComplete()}
-          style={{ padding:"14px 32px", fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", background:accent, border:"none", color:"#030d0c", borderRadius:12, cursor:"pointer", width:"100%" }}>
-          {s.cta} →
-        </button>
-        {step > 0 && (
-          <button onClick={() => setStep(step-1)} style={{ marginTop:12, fontSize:12, color:"#4a4a4a", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit" }}>← Back</button>
-        )}
-      </div>
-    </div>
-  );
-}
+/* Onboarding wizard removed — app opens directly */
 
 /* ═══════════════════════════════════════════════════
    SIDE EFFECT TRACKER
@@ -897,7 +864,7 @@ function exportFHIR(medications, vitals, adherenceScore, streak) {
    MAIN COMPONENT v7.1
 ═══════════════════════════════════════════════════ */
 export default function MedicationHealth() {
-  const [onboarded, setOnboarded]             = useState(() => load("mhv71_onboarded", false));
+  // Onboarding removed — app opens directly
   const [dark, setDark]                       = useState(() => load("mhv71_dark", true));
   const [profiles, setProfiles]               = useState(() => load("mhv71_profiles", DEFAULT_PROFILES));
   const [activeProfileId, setActiveProfileId] = useState(() => load("mhv71_active", "p1"));
@@ -935,18 +902,16 @@ export default function MedicationHealth() {
   useEffect(() => { const id = setInterval(() => setTick(t=>t+1), 60000); return () => clearInterval(id); }, []);
 
   useEffect(() => {
-    if (!onboarded) return;
     const t = setTimeout(() => {
-      speak("Welcome to ManifiX Medications. Stay healthy, one dose at a time.");
       if (!lowAlertedRef.current) {
         lowAlertedRef.current = true;
         medications.filter(isLowStock).forEach(m => {
-          setTimeout(() => speak(`${m.name} is running low. Refill soon.`, true), 2000);
+          setTimeout(() => speak(`${m.name} is running low. Refill soon.`, true), 1000);
         });
       }
     }, 800);
     return () => clearTimeout(t);
-  }, [onboarded]); // eslint-disable-line
+  }, []); // eslint-disable-line
 
   const adherenceScore = useMemo(() => calcDayAdherence(medications, todayStr()), [medications, tick]); // eslint-disable-line
   const streak         = useMemo(() => getStreak(medications), [medications]);
@@ -1018,7 +983,7 @@ export default function MedicationHealth() {
 
   const A = "#6EE7B7";
 
-  if (!onboarded) return <OnboardingWizard accent={A} onComplete={() => { setOnboarded(true); save("mhv71_onboarded",true); }} />;
+  // Onboarding removed — app opens directly
 
   return (
     <div style={{ minHeight:"100dvh", background:"var(--bg)", color:"var(--text)", fontFamily:"'JetBrains Mono','Courier New',monospace", display:"flex", flexDirection:"column", alignItems:"center", overflowX:"hidden", position:"relative" }}>
