@@ -451,7 +451,7 @@ function MxLogo({size=48, glow=false}) {
         }}/>
       )}
       <img
-        src="src/assets/logo.png"
+        src="/assets/logo.png"
         alt="ManifiX"
         style={{
           width:size, height:size,
@@ -460,11 +460,7 @@ function MxLogo({size=48, glow=false}) {
           filter: glow ? `drop-shadow(0 0 ${size*.2}px ${GOLD}90)` : "none",
           animation: glow ? "mx-float 3.5s ease-in-out infinite" : "none",
         }}
-        onError={e => {
-          // 🛡️ Fallback: geometric M logo if image fails
-          e.target.style.display = "none";
-          e.target.parentNode.innerHTML = `<div style="width:${size}px;height:${size}px;background:linear-gradient(135deg,#ffc83c,#c8a84b);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:${size*.55}px;color:#060608;letter-spacing:-1px">M</div>`;
-        }}
+        onError={e => { e.target.style.display = "none"; }}
       />
     </div>
   );
@@ -616,7 +612,7 @@ function HabitTracker({onAskCoach}) {
             <button className="mx-btn" onClick={()=>onAskCoach(`My habits today: ${rate}% complete. Done: ${todayDone.map(h=>h.name).join(", ")||"none"}. Pending: ${habits.filter(h=>!h.completions.includes(today)).map(h=>h.name).join(", ")||"none"}. Give me behavioral coaching and help me finish strong today! 💪`)} style={{
               width:"100%", padding:"13px 0", background:`${GOLD}10`, border:`1px solid ${GOLD}28`,
               color:GOLD, fontFamily:FONT, fontSize:9, fontWeight:700, letterSpacing:".18em", textTransform:"uppercase",
-            }}>✨ Ask ManifiX AI About My Habits</button>
+            }}>✨ Ask ManifiX About My Habits</button>
           )}
         </div>
       )}
@@ -877,7 +873,7 @@ function useChatEngine({lang, moodProfile}) {
 // 📺 TICKER TAPE — Scrolling brand message at the top
 // ═══════════════════════════════════════════════════════════
 function TickerTape() {
-  const text = "ManifiX AI✦   ";
+  const text = "ManifiX AI   ✦   Sleep · Mind · Body · Nutrition · Chronic · Medication   ✦   Magic16 · 16 mins a day · Transform everything   ✦   Built by Yesh Rajana · Andhra Pradesh 🇮🇳   ✦   ";
   return (
     <div style={{overflow:"hidden", borderBottom:`1px solid ${BOR}`, background:`linear-gradient(90deg,${BG},#0a0900,${BG})`, height:22, display:"flex", alignItems:"center"}}>
       <div style={{display:"inline-flex", whiteSpace:"nowrap", animation:"mx-ticker 35s linear infinite"}}>
@@ -1136,6 +1132,10 @@ export default function Gpt() {
                     MANIFIX AI
                   </div>
 
+                  <div style={{fontSize:8, color:SUB, letterSpacing:".04em", marginBottom:4}}>
+                    by Yesh Rajana · Andhra Pradesh 🇮🇳
+                  </div>
+
                   <div style={{fontSize:10, color:SUB, lineHeight:2, letterSpacing:".04em", marginBottom:8, marginTop:12}}>
                     Your 24/7 personal wellness intelligence. 💪<br/>
                     I know your sleep, stress, habits, meds, and more.<br/>
@@ -1323,7 +1323,7 @@ export default function Gpt() {
 
             {/* 🔒 Footer */}
             <div style={{textAlign:"center", fontSize:6, color:MUTED, letterSpacing:".16em", textTransform:"uppercase", marginTop:2}}>
-              ManifiX AI 
+              ManifiX AI · Built by Yesh Rajana 🇮🇳 · Your data stays on your device 🔒
             </div>
           </div>
         )}
@@ -1336,7 +1336,7 @@ export default function Gpt() {
             <button className="mx-btn" onClick={()=>setMode("therapy")} style={{
               width:"100%", padding:"11px 0", background:"transparent", border:`1px solid ${BOR}`,
               color:SUB, fontFamily:FONT, fontSize:8, letterSpacing:".16em", textTransform:"uppercase",
-            }}>← Back to ManifiX AI</button>
+            }}>← Back to ManifiX Chat</button>
           </div>
         )}
 
