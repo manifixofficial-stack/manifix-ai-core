@@ -144,8 +144,8 @@ const DEFAULT_MEDS = [
 
 const DEFAULT_PROFILES = [
   { id:"p1", name:"You", avatar:"🧑", age:42, relation:"Self", medications: DEFAULT_MEDS, active:true },
-  { id:"p2", name:"Amma", avatar:"👩", age:68, relation:"Mother", medications:[], active:false },
-  { id:"p3", name:"Nanna", avatar:"👴", age:71, relation:"Father", medications:[], active:false },
+  { id:"p2", name:"Mom", avatar:"👩", age:68, relation:"Mother", medications:[], active:false },
+  { id:"p3", name:"dad", avatar:"👴", age:71, relation:"Father", medications:[], active:false },
 ];
 
 const DEFAULT_VITALS = [
