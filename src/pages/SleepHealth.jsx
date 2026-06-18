@@ -47,7 +47,7 @@ const PHRASES = {
   "de-DE":{ ready:"Lass deinen Körper die Ruhe empfangen, die er verdient hat.", tip:"Regelmäßige Schlafzeiten verbessern die Qualität um 40%.", breathe:"4 einatmen. 7 halten. 8 ausatmen.", saved:"Schlafeintrag gespeichert.", story:"Mach es dir bequem. Lass deinen Körper schwer werden." },
   "ja-JP":{ ready:"体に、獲得した休息を与えましょう。", tip:"規則正しい就寝時間は睡眠の質を40%向上させます。", breathe:"4で吸い、7で保ち、8で吐く。", saved:"睡眠記録を保存しました。", story:"落ち着いて。体が重くなるのを感じてください。" },
 };
-const ph = (l, k) => PHRASES[l]?.[k] || PHRASES["en-IN"][k] || "";
+const ph = (l,k) => PHRASES[l]?.[k] || PHRASES["en-IN"][k] || "";
 
 const HABITS_DEFAULT = [
   { id:1, label:"No screens 60 min before bed",      science:"Blue light suppresses melatonin by 50%"   },
@@ -178,9 +178,10 @@ function buildSleepEngine(ctx, type, volRef) {
   master.connect(ctx.destination);
   const ramp = (val, t=1.5) => master.gain.linearRampToValueAtTime(val, ctx.currentTime + t);
 
+  // REAL noise generators
   function brownNoise(dur=6) {
     const sr = ctx.sampleRate;
-    const buf = ctx.createBuffer(2, sr * dur, sr);
+    const buf = ctx.createBuffer(2, sr * dur, sr); // stereo
     for (let ch=0; ch<2; ch++) {
       const d = buf.getChannelData(ch);
       let last = 0;
@@ -239,20 +240,27 @@ function buildSleepEngine(ctx, type, volRef) {
   const comp = compressor();
   comp.connect(master);
 
+  // ── DELTA BINAURAL BEATS (0–4 Hz) for deep sleep ──
   if (type === "delta_binaural") {
+    // TRUE binaural: different freq each ear via channel splitter
+    const splitter = ctx.createChannelSplitter ? null : null;
     const merger = ctx.createChannelMerger(2);
+    // Left ear: 100 Hz, Right ear: 102 Hz → 2 Hz binaural beat (Delta)
     const oscL = osc(100); const oscR = osc(102);
     const gL = gain(0.12); const gR = gain(0.12);
     oscL.connect(gL); oscR.connect(gR);
     gL.connect(merger, 0, 0);
     gR.connect(merger, 0, 1);
     merger.connect(comp);
+    // Subtle modulation on carrier
     const modL = lfo(0.1, 2); modL.lfo.connect(modL.gain); modL.gain.connect(oscL.frequency);
+    // Brown noise bed (low pass filtered)
     const bn = loopNoise(brownNoise(8));
     const lpf1 = biquad("lowpass", 260, 0.6);
     const lpf2 = biquad("lowpass", 160, 0.5);
     const ng = gain(0.07);
     bn.connect(lpf1); lpf1.connect(lpf2); lpf2.connect(ng); ng.connect(comp);
+    // Deep sub-bass pulse at 0.5 Hz (delta marker)
     const subPulse = osc(40, "sine");
     const subG = gain(0);
     subPulse.connect(subG); subG.connect(comp);
@@ -261,13 +269,16 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 420);
 
   } else if (type === "theta_binaural") {
+    // Theta: 200 Hz L, 206 Hz R → 6 Hz theta beat
     const merger = ctx.createChannelMerger(2);
     const oscL = osc(200); const oscR = osc(206);
     const gL = gain(0.10); const gR = gain(0.10);
     oscL.connect(gL); oscR.connect(gR);
     gL.connect(merger, 0, 0); gR.connect(merger, 0, 1);
     merger.connect(comp);
+    // Slow shimmer
     const shimL = lfo(0.08, 3); shimL.lfo.connect(shimL.gain); shimL.gain.connect(oscL.frequency);
+    // Pink noise bed
     const pn = loopNoise(pinkNoise(6));
     const bp = biquad("bandpass", 500, 0.3);
     const lpf = biquad("lowpass", 700, 0.5);
@@ -277,8 +288,9 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 380);
 
   } else if (type === "alpha_binaural") {
+    // Alpha: 8–12 Hz for relaxation/light sleep
     const merger = ctx.createChannelMerger(2);
-    const oscL = osc(150); const oscR = osc(159);
+    const oscL = osc(150); const oscR = osc(159); // 9 Hz alpha
     const gL = gain(0.09); const gR = gain(0.09);
     oscL.connect(gL); oscR.connect(gR);
     gL.connect(merger, 0, 0); gR.connect(merger, 0, 1);
@@ -290,14 +302,18 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 360);
 
   } else if (type === "solfeggio_528") {
+    // 528 Hz — DNA repair / love frequency
     const o1 = osc(528, "sine"); const o2 = osc(264, "sine"); const o3 = osc(1056, "sine");
     const g1 = gain(0.06); const g2 = gain(0.03); const g3 = gain(0.012);
     o1.connect(g1); o2.connect(g2); o3.connect(g3);
     [g1,g2,g3].forEach(g=>g.connect(comp));
+    // Gentle shimmer LFO
     const sh = lfo(0.05, 5); sh.lfo.connect(sh.gain); sh.gain.connect(o1.frequency);
+    // Reverb-like delay
     const del = ctx.createDelay(2); del.delayTime.value=0.6;
     const fb = gain(0.35); del.connect(fb); fb.connect(del);
     const dg = gain(0.25); g1.connect(del); del.connect(dg); dg.connect(comp);
+    // Brown noise bed
     const bn = loopNoise(brownNoise(5));
     const lpf = biquad("lowpass", 300, 0.5); const ng = gain(0.04);
     bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
@@ -305,6 +321,7 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 360);
 
   } else if (type === "solfeggio_432") {
+    // 432 Hz — Natural harmony
     const o1 = osc(432, "sine"); const o2 = osc(216, "sine"); const o3 = osc(648, "sine");
     const g1 = gain(0.06); const g2 = gain(0.025); const g3 = gain(0.015);
     o1.connect(g1); o2.connect(g2); o3.connect(g3);
@@ -320,6 +337,7 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 360);
 
   } else if (type === "solfeggio_396") {
+    // 396 Hz — Liberation from fear
     const o1 = osc(396, "sine"); const o2 = osc(198, "sine");
     const g1 = gain(0.06); const g2 = gain(0.03);
     o1.connect(g1); o2.connect(g2);
@@ -332,23 +350,28 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 340);
 
   } else if (type === "brown_rain") {
+    // Brown noise rain — best for tinnitus/focus/sleep
     const bn = loopNoise(brownNoise(8));
     const lpf = biquad("lowpass", 320, 0.45);
     const shelf = biquad("highshelf", 3500, 0.5); shelf.gain.value = -22;
     const ng = gain(0.28);
     bn.connect(lpf); lpf.connect(shelf); shelf.connect(ng); ng.connect(comp);
+    // High crinkle layer for realism
     const pn = loopNoise(pinkNoise(4));
     const hp = biquad("highpass", 2400, 1.1);
     const pg = gain(0.045); pn.connect(hp); hp.connect(pg); pg.connect(comp);
+    // Slow LFO wave modulation for rainfall variation
     const rainLFO = lfo(0.04, 0.04); rainLFO.lfo.connect(rainLFO.gain); rainLFO.gain.connect(ng.gain);
     nodes.push(bn, pn, rainLFO.lfo);
     ramp(volRef.current / 190);
 
   } else if (type === "ocean_resonance") {
+    // Ocean with LFO at 0.1 Hz matching HRV
     const bn = loopNoise(brownNoise(10));
     const lpf = biquad("lowpass", 200, 0.35);
     const wave = lfo(0.09, 160); wave.lfo.connect(wave.gain); wave.gain.connect(lpf.frequency);
     const ng = gain(0.22); bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
+    // Foam hiss
     const pn = loopNoise(pinkNoise(5));
     const hp = biquad("highpass", 3600, 0.7);
     const foamLFO = lfo(0.09, 0.02); foamLFO.lfo.connect(foamLFO.gain);
@@ -358,16 +381,20 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 180);
 
   } else if (type === "forest_deep") {
+    // Forest night: wind, crickets, distant water
     const pn = loopNoise(pinkNoise(6));
     const bp = biquad("bandpass", 650, 0.3);
     const ng = gain(0.13); pn.connect(bp); bp.connect(ng); ng.connect(comp);
+    // Wind swell
     const bn = loopNoise(brownNoise(5));
     const lpw = biquad("lowpass", 175, 0.5);
     const wl = lfo(0.03, 100); wl.lfo.connect(wl.gain); wl.gain.connect(lpw.frequency);
     const wg = gain(0.12); bn.connect(lpw); lpw.connect(wg); wg.connect(comp);
+    // Cricket texture (high freq modulated)
     const cr = osc(3850, "sine"); const crg = gain(0);
     cr.connect(crg); crg.connect(comp);
     const cl = lfo(13, 0.007); cl.lfo.connect(cl.gain); cl.gain.connect(crg.gain);
+    // Distant stream
     const wn = loopNoise(whiteNoise(3));
     const streamLP = biquad("lowpass", 900, 0.3);
     const streamHP = biquad("highpass", 400, 0.4);
@@ -377,30 +404,37 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 210);
 
   } else if (type === "womb_heartbeat") {
+    // Womb + heartbeat at 60 BPM
     const bn = loopNoise(brownNoise(4));
     const lpf = biquad("lowpass", 150, 1.3);
     const ng = gain(0.28); bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
+    // Heartbeat: kick at 60 BPM
     const hb = osc(60, "sine"); const hbg = gain(0);
     hb.connect(hbg); hbg.connect(comp);
     const hl = lfo(1, 0.10); hl.lfo.connect(hl.gain); hl.gain.connect(hbg.gain);
+    // Sub harmonic
     const sub = osc(30, "sine"); const subG = gain(0.05);
     sub.connect(subG); subG.connect(comp);
     nodes.push(bn, hb, hl.lfo, sub);
     ramp(volRef.current / 145);
 
   } else if (type === "crystal_bowl") {
+    // Tibetan crystal bowl at 396 Hz with reverb
     const o1 = osc(396, "sine"); const o2 = osc(792, "sine"); const o3 = osc(198, "sine");
     const g1 = gain(0.065); const g2 = gain(0.025); const g3 = gain(0.03);
     o1.connect(g1); o2.connect(g2); o3.connect(g3);
     [g1,g2,g3].forEach(g=>g.connect(comp));
+    // Bowl shimmer
     const rm = osc(0.4, "sine"); const rmg = gain(0.04);
     rm.connect(rmg); rmg.connect(o1.frequency);
+    // Long delay reverb
     const del = ctx.createDelay(3.5); del.delayTime.value=1.1;
     const fb = gain(0.5); del.connect(fb); fb.connect(del);
     const dg = gain(0.35); g1.connect(del); del.connect(dg); dg.connect(comp);
     const del2 = ctx.createDelay(2.0); del2.delayTime.value=0.7;
     const fb2 = gain(0.35); del2.connect(fb2); fb2.connect(del2);
     const dg2 = gain(0.2); g2.connect(del2); del2.connect(dg2); dg2.connect(comp);
+    // Noise bed
     const bn = loopNoise(brownNoise(5));
     const lpf = biquad("lowpass", 230, 0.5); const nbg = gain(0.03);
     bn.connect(lpf); lpf.connect(nbg); nbg.connect(comp);
@@ -408,11 +442,14 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 400);
 
   } else if (type === "spine_release") {
+    // Schumann resonance 7.83 Hz + 40 Hz gamma
     const o40 = osc(40, "sine"); const g40 = gain(0.05);
     o40.connect(g40); g40.connect(comp);
     const oS = osc(7.83, "sine"); const gS = gain(0.03);
     oS.connect(gS); gS.connect(comp);
+    // Breathe modulation
     const bl = lfo(0.25, 0.025); bl.lfo.connect(bl.gain); bl.gain.connect(g40.gain);
+    // Bass resonance
     const bass = osc(111, "sine"); const bassG = gain(0.04);
     bass.connect(bassG); bassG.connect(comp);
     const bassLFO = lfo(0.1, 3); bassLFO.lfo.connect(bassLFO.gain); bassLFO.gain.connect(bass.frequency);
@@ -423,17 +460,20 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 420);
 
   } else if (type === "rain_thunder") {
+    // Full rain + distant thunder
     const bn = loopNoise(brownNoise(8));
     const lpf = biquad("lowpass", 280, 0.4);
     const ng = gain(0.32); bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
     const pn = loopNoise(pinkNoise(5));
     const hp = biquad("highpass", 2000, 1.0);
     const pg = gain(0.055); pn.connect(hp); hp.connect(pg); pg.connect(comp);
+    // Thunder rumble LFO
     const thLFO = lfo(0.02, 0.05); thLFO.lfo.connect(thLFO.gain); thLFO.gain.connect(ng.gain);
     nodes.push(bn, pn, thLFO.lfo);
     ramp(volRef.current / 175);
 
   } else if (type === "white_noise") {
+    // Pure white noise
     const wn = loopNoise(whiteNoise(4));
     const lpf = biquad("lowpass", 1200, 0.5);
     const ng = gain(0.18); wn.connect(lpf); lpf.connect(ng); ng.connect(comp);
@@ -455,15 +495,18 @@ function buildSleepEngine(ctx, type, volRef) {
    VOICE NARRATION ENGINE — TTS with peaceful settings
 ═══════════════════════════════════════════════════════════ */
 function createVoiceNarrator(lang) {
+  let currentUtterance = null;
   let onEndCallback = null;
 
   const getVoice = () => {
     const voices = window.speechSynthesis.getVoices();
+    // Priority: female English voices known for calm quality
     const preferredNames = ["Samantha","Victoria","Karen","Moira","Fiona","Alice","Ting-Ting","Serena","Google UK English Female","Microsoft Aria","Microsoft Hazel"];
     for (const name of preferredNames) {
       const v = voices.find(x=>x.name.includes(name));
       if (v) return v;
     }
+    // Fallback by language
     const byLang = voices.find(x=>x.lang===lang && x.name.toLowerCase().includes("female"));
     if (byLang) return byLang;
     return voices.find(x=>x.lang.startsWith("en")) || voices[0];
@@ -481,6 +524,8 @@ function createVoiceNarrator(lang) {
     if (v) u.voice = v;
     onEndCallback = onEnd;
     u.onend = () => { if (onEndCallback) onEndCallback(); };
+    currentUtterance = u;
+    // Small delay for smooth cross-fade
     setTimeout(() => window.speechSynthesis.speak(u), 200);
   };
 
@@ -766,10 +811,10 @@ function StoryReader({ story, onClose, lang }) {
   const [parIdx, setParIdx] = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
-  const [voiceStatus, setVoiceStatus] = useState("idle");
+  const [voiceStatus, setVoiceStatus] = useState("idle"); // idle | speaking | paused
   const [elapsed, setElapsed] = useState(0);
-  const [storyElapsed, setStoryElapsed] = useState(0);
-  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
+  const [storyElapsed, setStoryElapsed] = useState(0); // total story timer
+  const [voiceSpeed, setVoiceSpeed] = useState(1.0); // multiplier on base rate
   const timerRef = useRef(null);
   const storyTimerRef = useRef(null);
   const narratorRef = useRef(null);
@@ -777,6 +822,7 @@ function StoryReader({ story, onClose, lang }) {
 
   useEffect(() => {
     narratorRef.current = createVoiceNarrator(lang);
+    // Start total story timer
     storyTimerRef.current = setInterval(() => setStoryElapsed(e => e+1), 1000);
     return () => {
       narratorRef.current?.stop();
@@ -785,6 +831,7 @@ function StoryReader({ story, onClose, lang }) {
     };
   }, [lang]);
 
+  // Auto-advance timer
   useEffect(() => {
     if (autoPlay) {
       timerRef.current = setInterval(() => setElapsed(e => e+1), 1000);
@@ -794,17 +841,19 @@ function StoryReader({ story, onClose, lang }) {
     return () => clearInterval(timerRef.current);
   }, [autoPlay]);
 
+  // Auto-advance logic
   useEffect(() => {
     if (!autoPlay) return;
     const words = story.paragraphs[parIdx].split(" ").length;
-    const readingSpeed = 28;
+    const readingSpeed = 28; // slower = more relaxed
     const waitTime = Math.floor((words / readingSpeed) * 60);
     if (elapsed >= waitTime && parIdx < story.paragraphs.length - 1) {
       setParIdx(p => p+1);
       setElapsed(0);
     }
-  }, [elapsed, autoPlay, parIdx, story.paragraphs]);
+  }, [elapsed, autoPlay]);
 
+  // Speak paragraph with voice
   const speakParagraph = useCallback((idx) => {
     if (!narratorRef.current || !hasSpeechAPI) return;
     const baseRate = story.voiceRate || 0.70;
@@ -817,6 +866,7 @@ function StoryReader({ story, onClose, lang }) {
       basePitch,
       () => {
         setVoiceStatus("idle");
+        // Auto-advance to next paragraph after voice finishes
         if (idx < story.paragraphs.length - 1) {
           setTimeout(() => {
             setParIdx(p => {
@@ -824,11 +874,11 @@ function StoryReader({ story, onClose, lang }) {
               speakParagraph(next);
               return next;
             });
-          }, 2000);
+          }, 2000); // 2s peaceful pause between paragraphs
         }
       }
     );
-  }, [story, voiceSpeed, hasSpeechAPI]);
+  }, [story, voiceSpeed]);
 
   const toggleVoice = useCallback(() => {
     if (!hasSpeechAPI) return;
@@ -840,7 +890,7 @@ function StoryReader({ story, onClose, lang }) {
       setVoiceActive(true);
       speakParagraph(parIdx);
     }
-  }, [voiceActive, parIdx, speakParagraph, hasSpeechAPI]);
+  }, [voiceActive, parIdx, speakParagraph]);
 
   const pauseResumeVoice = useCallback(() => {
     if (voiceStatus === "speaking") {
@@ -852,7 +902,7 @@ function StoryReader({ story, onClose, lang }) {
     }
   }, [voiceStatus]);
 
-  const goToParagraph = useCallback((idx) => {
+  const goToParagraph = (idx) => {
     narratorRef.current?.stop();
     setVoiceStatus("idle");
     setParIdx(idx);
@@ -860,7 +910,7 @@ function StoryReader({ story, onClose, lang }) {
     if (voiceActive) {
       setTimeout(() => speakParagraph(idx), 300);
     }
-  }, [voiceActive, speakParagraph]);
+  };
 
   const progress = ((parIdx+1)/story.paragraphs.length)*100;
   const formatTime = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
@@ -903,6 +953,7 @@ function StoryReader({ story, onClose, lang }) {
                 <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}60`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Voice Narration</div>
                 <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:2}}>Peaceful · Slow · Natural pacing</div>
               </div>
+              {/* Voice wave animation */}
               {voiceStatus==="speaking" && (
                 <div style={{display:"flex",alignItems:"flex-end",gap:2,height:16}}>
                   {[6,10,14,8,12].map((h,i)=>(
@@ -914,7 +965,7 @@ function StoryReader({ story, onClose, lang }) {
                 <div style={{fontSize:8,color:AMBER,fontFamily:"'Space Mono',monospace",letterSpacing:".1em"}}>⏸ PAUSED</div>
               )}
             </div>
-            <div style={{display:"flex",gap:6}}>
+            <div style={{display:"flex",gap:6"}}>
               <button className="sg-btn" onClick={toggleVoice}
                 style={{flex:1,padding:"10px",background:voiceActive?`${CRIMSON}12`:`${GOLD}10`,color:voiceActive?CRIMSON:GOLD,
                   border:`1px solid ${voiceActive?CRIMSON+"25":GOLD+"25"}`,fontSize:9,fontWeight:700,
@@ -962,6 +1013,7 @@ function StoryReader({ story, onClose, lang }) {
                 transition:"all .7s ease",
                 animation: i===parIdx ? "fadeInUp .6s ease" : "",
                 textIndent: "1.5em",
+                fontStyle: i===parIdx ? "normal" : "normal",
                 borderLeft: i===parIdx ? `2px solid ${GOLD}40` : "2px solid transparent",
                 paddingLeft: "12px",
                 paddingTop: "4px",
@@ -998,7 +1050,7 @@ function StoryReader({ story, onClose, lang }) {
             <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
               <span style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".1em",whiteSpace:"nowrap"}}>AUTO PACE</span>
               <div style={{flex:1,height:2,background:"#0e0a06",borderRadius:1,overflow:"hidden"}}>
-                <div style={{height:"100%",background:`${GOLD}50`,borderRadius:1,animation:"timerBlink 1s ease-in-out infinite",width:`${Math.min((elapsed/60)*30,100)}%`}}/>
+                <div style={{height:"100%",background:`${GOLD}50`,borderRadius:1,animation:"timerBlink 1s ease-in-out infinite",width:`${(elapsed/60)*30}%`}}/>
               </div>
             </div>
           )}
@@ -1273,7 +1325,7 @@ export default function SleepGold() {
                 </div>
               ))}
             </div>
-            {/* Goal vs actual bar chart */}
+            {/* Goal vs actual */}
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Goal vs Actual · Last 7 Nights</div>
@@ -1507,6 +1559,7 @@ export default function SleepGold() {
                 </div>
               ))}
             </div>
+            {/* 7-day recovery trend */}
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
               <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:12}}>7-Night Recovery Trend</div>
               <div style={{display:"flex",alignItems:"flex-end",gap:5,height:80,paddingBottom:20,position:"relative"}}>
@@ -1563,8 +1616,8 @@ export default function SleepGold() {
             <div style={{border:`1px solid ${GOLD}15`,background:`${GOLD}04`,padding:"12px 14px"}}>
               <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}60`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:3}}>Real Frequency Engine v4 · 14 Tones</div>
               <div style={{fontSize:8,color:TEXTMU,letterSpacing:".04em",lineHeight:1.8,fontFamily:"'Space Mono',monospace"}}>
-                True binaural synthesis · Real brown/pink/white noise · Solfeggio harmonics · Multi-layer ambiences ·{" "}
-                <span style={{color:`${GOLD}60`}}>Headphones recommended for binaural beats.</span>
+                True binaural synthesis · Real brown/pink/white noise · Solfeggio harmonics · Multi-layer ambiences · 
+                <span style={{color:`${GOLD}60`}}> Headphones recommended for binaural beats.</span>
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -1622,9 +1675,10 @@ export default function SleepGold() {
                 <div style={{fontSize:6,color:GOLD,background:`${GOLD}15`,border:`1px solid ${GOLD}30`,padding:"2px 7px",textTransform:"uppercase",letterSpacing:".1em",fontFamily:"'Space Mono',monospace"}}>v4 VOICE</div>
               </div>
               <div style={{fontSize:8,color:TEXTMU,letterSpacing:".06em",lineHeight:1.8,fontFamily:"'Space Mono',monospace",marginBottom:14}}>
-                6 therapeutic narratives with peaceful TTS voice narration. Auto-pacing · Speed control · Story timer.{" "}
-                <span style={{color:`${GOLD}60`}}>Each story tuned to a specific sleep frequency.</span>
+                6 therapeutic narratives with peaceful TTS voice narration. Auto-pacing · Speed control · Story timer. 
+                <span style={{color:`${GOLD}60`}}> Each story tuned to a specific sleep frequency.</span>
               </div>
+              {/* Voice capability check */}
               {"speechSynthesis" in window ? (
                 <div style={{padding:"8px 10px",background:`${GREEN}06`,border:`1px solid ${GREEN}15`,fontSize:7,color:`${GREEN}60`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",marginBottom:14,lineHeight:1.7}}>
                   ✓ Voice narration available on this device · Slow, peaceful pacing · Female voice preferred · Speed adjustable
