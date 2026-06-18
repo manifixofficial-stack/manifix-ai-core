@@ -1977,7 +1977,7 @@ export default function SleepGold() {
         )}
 
         <div style={{textAlign:"center",fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",paddingTop:8}}>
-          ManifiX SleepGold v4 · WHO {WHO.code} · SDG 3.4 · 14 Real Tones · 6 Voice Stories · Full Analytics
+          ManifiX SleepGold 
         </div>
       </div>
 
