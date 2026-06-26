@@ -1,14 +1,45 @@
-import React, { useEffect } from "react";
-import AppRouter from "./AppRouter";
-
-export default function App() {
-
-  /* Notification Permission */
-  useEffect(() => {
-    if ("Notification" in window) {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  return <AppRouter />;
-}
+const styles = {
+  errorScreen: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#000000",
+    padding: "24px",
+  },
+  errorCard: {
+    background: "#111111",
+    borderRadius: "16px",
+    padding: "40px 32px",
+    maxWidth: "400px",
+    width: "100%",
+    textAlign: "center",
+    border: "1px solid #D4AF37",
+  },
+  errorIcon: {
+    fontSize: "48px",
+    marginBottom: "16px",
+  },
+  errorTitle: {
+    color: "#D4AF37",
+    fontSize: "22px",
+    fontWeight: 700,
+    margin: "0 0 12px",
+  },
+  errorMsg: {
+    color: "#999999",
+    fontSize: "14px",
+    lineHeight: 1.6,
+    margin: "0 0 28px",
+  },
+  errorBtn: {
+    background: "linear-gradient(135deg, #D4AF37, #B8960C)",
+    color: "#000000",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 28px",
+    fontSize: "15px",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+};
