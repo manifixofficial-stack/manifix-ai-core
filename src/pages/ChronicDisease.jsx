@@ -1,1194 +1,1816 @@
 /**
- * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  MAGIC16 × ManifiX AI — Chronic Disease Prevention Module v1.0         ║
- * ║                                                                          ║
- * ║  Route: /app/chronic                                                    ║
- * ║                                                                          ║
- * ║  REAL FEATURES:                                                         ║
- * ║  • WHO-Aligned Risk Calculator (Diabetes, CVD, Hypertension, Obesity)  ║
- * ║  • Daily Health Habits — 8 checkable goals, auto-reset daily           ║
- * ║  • Biometric Logger — BP, Blood Glucose, Weight, SpO2                  ║
- * ║  • 7-Day Trend Chart — pure CSS sparklines, no recharts                ║
- * ║  • AI Prevention Plan — 3 personalized micro-goals, streak tracking    ║
- * ║  • Wellness Score — live calculated from habits + logs                 ║
- * ║  • Medication Reminder Bridge → /app/medication                        ║
- * ║  • All 20 Languages fully populated                                    ║
- * ║  • Crisis warnings for critically abnormal biometrics                  ║
- * ║  • localStorage persistence, offline-first                             ║
- * ╚══════════════════════════════════════════════════════════════════════════╝
+ * ManifiX Chronic — v4.0 GOLD EDITION (Live Risk Engine)
+ * NEW IN v4: Risk score now blends static profile with LOGGED biomarker history.
+ *  - Recent BP / glucose / weight / SpO2 / HbA1c readings pull real weight in the score
+ *  - Trend direction (improving/worsening) adjusts the score, not just the latest value
+ *  - Habit & medication adherence (last 7 days) feed in as behavioral risk modifiers
+ *  - "Data Freshness" indicator shows how much of the score is live vs. estimated
+ *  - Risk history sparkline shows how the live score has moved over time
  */
 
-import {
-  useEffect, useRef, useState, useCallback, useMemo, useReducer,
-} from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
-/* ════════════════════════════════════════════════════════════
-   1. DESIGN TOKENS
-════════════════════════════════════════════════════════════ */
-const A     = "#F87171";   // Medical red accent
-const ADM   = "#B91C1C";   // dim red
-const A2    = "#FCA5A5";   // light red
-const BG    = "#0a0505";
-const CARD  = "#110808";
-const BOR   = "#2a0f0f";
-const BOR2  = "#3d1515";
-const FONT  = "'JetBrains Mono','Courier New',monospace";
-const SYNE  = "'Syne','system-ui',sans-serif";
-const GREEN = "#22c55e";
-const AMBER = "#f59e0b";
-const BLUE  = "#60a5fa";
-const INFO  = "#38bdf8";
-const TX    = "#f0ede6";
-const TM    = "#8a6060";
-const TD    = "#3a1a1a";
-
-/* ════════════════════════════════════════════════════════════
-   2. LANGUAGE MAP
-════════════════════════════════════════════════════════════ */
-const LANG_MAP = {
-  "en-IN":"en-IN","hi-IN":"hi-IN","te-IN":"te-IN","ta-IN":"ta-IN",
-  "mr-IN":"mr-IN","bn-IN":"bn-IN","kn-IN":"kn-IN","gu-IN":"gu-IN",
-  "ml-IN":"ml-IN","pa-IN":"pa-IN","or-IN":"or-IN","ur-IN":"ur-IN",
-  "es-ES":"es-ES","ar-SA":"ar-SA","fr-FR":"fr-FR","pt-BR":"pt-BR",
-  "de-DE":"de-DE","ja-JP":"ja-JP","ko-KR":"ko-KR","zh-CN":"zh-CN",
-  "en":"en-IN","hi":"hi-IN","te":"te-IN","ta":"ta-IN",
-  "mr":"mr-IN","bn":"bn-IN","kn":"kn-IN","gu":"gu-IN",
-  "ml":"ml-IN","pa":"pa-IN","or":"or-IN","ur":"ur-IN",
-  "es":"es-ES","ar":"ar-SA","fr":"fr-FR","pt":"pt-BR",
-  "de":"de-DE","ja":"ja-JP","ko":"ko-KR","zh":"zh-CN",
+/* ══════════════════════════════════════════
+   GOLD/BLACK DESIGN SYSTEM
+══════════════════════════════════════════ */
+const G = {
+  gold:    "#C9A84C",
+  goldL:   "#F5E9C8",
+  goldD:   "#8A6B1E",
+  goldM:   "#E8C96A",
+  black:   "#0A0A0A",
+  blackL:  "#141414",
+  blackM:  "#1E1E1E",
+  blackS:  "#2A2A2A",
+  white:   "#F5F0E8",
+  whiteD:  "#BFB8A8",
+  red:     "#C94A2C",
+  redL:    "#FAE8E4",
+  grn:     "#3A7D44",
+  grnL:    "#E3F0E6",
+  amb:     "#C9881F",
+  ambL:    "#FAF0DC",
+  blu:     "#1A5FA8",
+  bluL:    "#E4EEF9",
 };
 
-/* ════════════════════════════════════════════════════════════
-   3. ALL 20 LANGUAGES — COMPLETE
-════════════════════════════════════════════════════════════ */
-const PHRASES = {
-  "en-IN": {
-    welcome:     "Welcome to Chronic Care. Prevention is the most powerful medicine.",
-    habit_done:  "Habit completed! Consistency protects your future health.",
-    log_saved:   "Reading saved. Tracking trends helps detect problems early.",
-    risk_low:    "Your risk is low. Keep maintaining these healthy habits.",
-    risk_mod:    "Moderate risk detected. Your prevention plan starts now.",
-    risk_high:   "Elevated risk identified. Take action — your plan is ready.",
-    plan_ready:  "Your personalised prevention plan is ready. Start today.",
-    crisis_bp:   "URGENT: Blood pressure is critically high. Seek care now.",
-    crisis_sugar:"URGENT: Blood sugar is dangerously high. Seek care now.",
-    streak:      "You have a {days}-day healthy habit streak. Outstanding!",
-    encourage:   "Every healthy choice builds a stronger tomorrow.",
-  },
-  "hi-IN": {
-    welcome:     "क्रॉनिक केयर में स्वागत है। रोकथाम सबसे शक्तिशाली दवा है।",
-    habit_done:  "आदत पूरी! निरंतरता आपके स्वास्थ्य की रक्षा करती है।",
-    log_saved:   "रीडिंग सहेजी गई। ट्रेंड ट्रैकिंग समस्याओं को जल्दी पहचानती है।",
-    risk_low:    "आपका जोखिम कम है। इन स्वस्थ आदतों को बनाए रखें।",
-    risk_mod:    "मध्यम जोखिम पहचाना गया। आपकी रोकथाम योजना अब शुरू होती है।",
-    risk_high:   "उच्च जोखिम पहचाना। कार्रवाई करें — आपकी योजना तैयार है।",
-    plan_ready:  "आपकी व्यक्तिगत रोकथाम योजना तैयार है। आज शुरू करें।",
-    crisis_bp:   "ज़रूरी: रक्तचाप गंभीर रूप से उच्च है। अभी चिकित्सा लें।",
-    crisis_sugar:"ज़रूरी: रक्त शर्करा खतरनाक रूप से उच्च है। तुरंत देखभाल लें।",
-    streak:      "आपकी {days} दिन की स्वस्थ आदत स्ट्रीक है। शानदार!",
-    encourage:   "हर स्वस्थ चुनाव एक मजबूत कल बनाता है।",
-  },
-  "te-IN": {
-    welcome:     "క్రానిక్ కేర్‌కు స్వాగతం. నివారణ అత్యంత శక్తివంతమైన వైద్యం.",
-    habit_done:  "అలవాటు పూర్తయింది! స్థిరత్వం మీ ఆరోగ్యాన్ని కాపాడుతుంది.",
-    log_saved:   "రీడింగ్ సేవ్ చేయబడింది. ట్రెండ్ ట్రాకింగ్ సమస్యలను ముందుగా గుర్తిస్తుంది.",
-    risk_low:    "మీ రిస్క్ తక్కువగా ఉంది. ఈ ఆరోగ్యకరమైన అలవాట్లను కొనసాగించండి.",
-    risk_mod:    "మధ్యస్థ రిస్క్ గుర్తించబడింది. మీ నివారణ ప్రణాళిక ఇప్పుడు ప్రారంభమవుతుంది.",
-    risk_high:   "అధిక రిస్క్ గుర్తించబడింది. చర్య తీసుకోండి — మీ ప్రణాళిక సిద్ధంగా ఉంది.",
-    plan_ready:  "మీ వ్యక్తిగత నివారణ ప్రణాళిక సిద్ధంగా ఉంది. ఈరోజు ప్రారంభించండి.",
-    crisis_bp:   "అత్యవసరం: రక్తపోటు విమర్శనాత్మకంగా అధికంగా ఉంది. ఇప్పుడు వైద్యం తీసుకోండి.",
-    crisis_sugar:"అత్యవసరం: రక్తంలో చక్కెర ప్రమాదకరంగా అధికంగా ఉంది. వెంటనే వైద్యం తీసుకోండి.",
-    streak:      "మీకు {days} రోజుల ఆరోగ్యకరమైన అలవాటు స్ట్రీక్ ఉంది!",
-    encourage:   "ప్రతి ఆరోగ్యకరమైన ఎంపిక బలమైన రేపటిని నిర్మిస్తుంది.",
-  },
-  "ta-IN": {
-    welcome:     "நாள்பட்ட கவலைக்கு வரவேற்கிறோம். தடுப்பு மிகவும் சக்திவாய்ந்த மருந்து.",
-    habit_done:  "பழக்கம் முடிந்தது! தொடர்ச்சி உங்கள் ஆரோக்கியத்தை பாதுகாக்கிறது.",
-    log_saved:   "ரீடிங் சேமிக்கப்பட்டது. டிரெண்ட் கண்காணிப்பு பிரச்சினைகளை முன்கூட்டியே கண்டறிய உதவுகிறது.",
-    risk_low:    "உங்கள் ஆபத்து குறைவாக உள்ளது. இந்த ஆரோக்கியமான பழக்கங்களை பராமரிக்கவும்.",
-    risk_mod:    "மிதமான ஆபத்து கண்டறியப்பட்டது. உங்கள் தடுப்பு திட்டம் இப்போது தொடங்குகிறது.",
-    risk_high:   "அதிக ஆபத்து அடையாளம் காணப்பட்டது. நடவடிக்கை எடுங்கள் — உங்கள் திட்டம் தயாராக உள்ளது.",
-    plan_ready:  "உங்கள் தனிப்பயன் தடுப்பு திட்டம் தயாராக உள்ளது. இன்றே தொடங்குங்கள்.",
-    crisis_bp:   "அவசரம்: இரத்த அழுத்தம் மிக அதிகமாக உள்ளது. இப்போதே மருத்துவ உதவி பெறுங்கள்.",
-    crisis_sugar:"அவசரம்: இரத்த சர்க்கரை அபாயகரமாக அதிகமாக உள்ளது. உடனடியாக சிகிச்சை பெறுங்கள்.",
-    streak:      "உங்களுக்கு {days} நாள் ஆரோக்கியமான பழக்கம் தொடர் உள்ளது!",
-    encourage:   "ஒவ்வொரு ஆரோக்கியமான தேர்வும் வலுவான நாளையை உருவாக்குகிறது.",
-  },
-  "mr-IN": {
-    welcome:     "क्रॉनिक केअरमध्ये स्वागत. प्रतिबंध हे सर्वात शक्तिशाली औषध आहे.",
-    habit_done:  "सवय पूर्ण! सातत्य तुमच्या भविष्यातील आरोग्याचे संरक्षण करते.",
-    log_saved:   "रीडिंग सहेजले. ट्रेंड ट्रॅकिंग समस्या लवकर ओळखण्यास मदत करते.",
-    risk_low:    "तुमचा धोका कमी आहे. या निरोगी सवयी कायम ठेवा.",
-    risk_mod:    "मध्यम धोका आढळला. तुमची प्रतिबंध योजना आता सुरू होते.",
-    risk_high:   "उच्च धोका ओळखला. कारवाई करा — तुमची योजना तयार आहे.",
-    plan_ready:  "तुमची वैयक्तिक प्रतिबंध योजना तयार आहे. आजच सुरुवात करा.",
-    crisis_bp:   "तातडीचे: रक्तदाब गंभीरपणे उच्च आहे. आत्ता वैद्यकीय मदत घ्या.",
-    crisis_sugar:"तातडीचे: रक्तातील साखर धोकादायकपणे उच्च आहे. तातडीने उपचार घ्या.",
-    streak:      "तुमची {days} दिवसांची निरोगी सवय स्ट्रीक आहे!",
-    encourage:   "प्रत्येक निरोगी निवड एक मजबूत उद्या घडवते.",
-  },
-  "bn-IN": {
-    welcome:     "ক্রনিক কেয়ারে স্বাগতম। প্রতিরোধ হল সবচেয়ে শক্তিশালী ওষুধ।",
-    habit_done:  "অভ্যাস সম্পন্ন! ধারাবাহিকতা আপনার ভবিষ্যৎ স্বাস্থ্য রক্ষা করে।",
-    log_saved:   "রিডিং সংরক্ষিত হয়েছে। ট্রেন্ড ট্র্যাকিং সমস্যা আগে থেকে সনাক্ত করতে সাহায্য করে।",
-    risk_low:    "আপনার ঝুঁকি কম। এই স্বাস্থ্যকর অভ্যাসগুলো বজায় রাখুন।",
-    risk_mod:    "মাঝারি ঝুঁকি সনাক্ত হয়েছে। আপনার প্রতিরোধ পরিকল্পনা এখন শুরু হচ্ছে।",
-    risk_high:   "উচ্চ ঝুঁকি চিহ্নিত। ব্যবস্থা নিন — আপনার পরিকল্পনা প্রস্তুত।",
-    plan_ready:  "আপনার ব্যক্তিগতকৃত প্রতিরোধ পরিকল্পনা প্রস্তুত। আজই শুরু করুন।",
-    crisis_bp:   "জরুরি: রক্তচাপ গুরুতরভাবে বেশি। এখনই চিকিৎসা নিন।",
-    crisis_sugar:"জরুরি: রক্তের শর্করা বিপজ্জনকভাবে বেশি। তাৎক্ষণিক চিকিৎসা নিন।",
-    streak:      "আপনার {days} দিনের সুস্থ অভ্যাসের স্ট্রিক রয়েছে!",
-    encourage:   "প্রতিটি সুস্থ পছন্দ একটি শক্তিশালী আগামী তৈরি করে।",
-  },
-  "kn-IN": {
-    welcome:     "ಕ್ರಾನಿಕ್ ಕೇರ್‌ಗೆ ಸ್ವಾಗತ. ತಡೆಗಟ್ಟುವಿಕೆ ಅತ್ಯಂತ ಶಕ್ತಿಶಾಲಿ ಔಷಧ.",
-    habit_done:  "ಅಭ್ಯಾಸ ಪೂರ್ಣ! ಸ್ಥಿರತೆ ನಿಮ್ಮ ಆರೋಗ್ಯವನ್ನು ರಕ್ಷಿಸುತ್ತದೆ.",
-    log_saved:   "ರೀಡಿಂಗ್ ಉಳಿಸಲಾಗಿದೆ. ಟ್ರೆಂಡ್ ಟ್ರ್ಯಾಕಿಂಗ್ ಸಮಸ್ಯೆಗಳನ್ನು ಮುಂಚಿತವಾಗಿ ಪತ್ತೆ ಮಾಡುತ್ತದೆ.",
-    risk_low:    "ನಿಮ್ಮ ಅಪಾಯ ಕಡಿಮೆ. ಈ ಆರೋಗ್ಯಕರ ಅಭ್ಯಾಸಗಳನ್ನು ಮುಂದುವರಿಸಿ.",
-    risk_mod:    "ಮಧ್ಯಮ ಅಪಾಯ ಪತ್ತೆಯಾಗಿದೆ. ನಿಮ್ಮ ತಡೆಗಟ್ಟುವ ಯೋಜನೆ ಈಗ ಪ್ರಾರಂಭವಾಗುತ್ತದೆ.",
-    risk_high:   "ಹೆಚ್ಚಿನ ಅಪಾಯ ಗುರುತಿಸಲಾಗಿದೆ. ಕ್ರಮ ತೆಗೆದುಕೊಳ್ಳಿ — ನಿಮ್ಮ ಯೋಜನೆ ಸಿದ್ಧವಾಗಿದೆ.",
-    plan_ready:  "ನಿಮ್ಮ ವ್ಯಕ್ತಿಗತ ತಡೆಗಟ್ಟುವ ಯೋಜನೆ ಸಿದ್ಧವಾಗಿದೆ. ಇಂದೇ ಪ್ರಾರಂಭಿಸಿ.",
-    crisis_bp:   "ತುರ್ತು: ರಕ್ತದೊತ್ತಡ ಅಪಾಯಕಾರಿ ಮಟ್ಟದಲ್ಲಿ ಅಧಿಕವಾಗಿದೆ. ತಕ್ಷಣ ವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ.",
-    crisis_sugar:"ತುರ್ತು: ರಕ್ತದ ಸಕ್ಕರೆ ಅಪಾಯಕಾರಿಯಾಗಿ ಅಧಿಕವಾಗಿದೆ. ತಕ್ಷಣ ಚಿಕಿತ್ಸೆ ಪಡೆಯಿರಿ.",
-    streak:      "ನಿಮಗೆ {days} ದಿನಗಳ ಆರೋಗ್ಯಕರ ಅಭ್ಯಾಸ ಸ್ಟ್ರೀಕ್ ಇದೆ!",
-    encourage:   "ಪ್ರತಿ ಆರೋಗ್ಯಕರ ಆಯ್ಕೆ ಬಲಿಷ್ಠ ನಾಳೆಯನ್ನು ನಿರ್ಮಿಸುತ್ತದೆ.",
-  },
-  "gu-IN": {
-    welcome:     "ક્રોનિક કેરમાં આપનું સ્વાગત છે. નિવારણ સૌથી શક્તિશાળી દવા છે.",
-    habit_done:  "ટેવ પૂર્ણ! સાતત્ય તમારા ભવિષ્યના સ્વાસ્થ્યની રક્ષા કરે છે.",
-    log_saved:   "રીડિંગ સેવ. ટ્રેન્ડ ટ્રેકિંગ સમસ્યા જલ્દી ઓળખવામાં મદદ કરે છે.",
-    risk_low:    "તમારું જોખમ ઓછું છે. આ સ્વસ્થ ટેવો જાળવો.",
-    risk_mod:    "મધ્યમ જોખમ મળ્યું. તમારી નિવારણ યોજના હવે શરૂ થાય છે.",
-    risk_high:   "ઊંચું જોખમ ઓળખાયું. પગલાં લો — તમારી યોજના તૈયાર છે.",
-    plan_ready:  "તમારી વ્યક્તિગત નિવારણ યોજના તૈયાર છે. આજે જ શરૂ કરો.",
-    crisis_bp:   "તાત્કાલિક: બ્લડ પ્રેશર ગંભીર રીતે ઊંચું છે. અત્યારે જ ઇલાજ લો.",
-    crisis_sugar:"તાત્કાલિક: બ્લડ સુગર ખતરનાક રીતે ઊંચી છે. તત્કાળ ઇલાજ લો.",
-    streak:      "તમારી {days} દિવસની સ્વસ્થ ટેવ સ્ટ્રીક છે!",
-    encourage:   "દરેક સ્વસ્થ પસંદગી મજબૂત ભવિષ્ય બનાવે છે.",
-  },
-  "ml-IN": {
-    welcome:     "ക്രോണിക് കെയറിലേക്ക് സ്വാഗതം. പ്രതിരോധം ഏറ്റവും ശക്തമായ മരുന്നാണ്.",
-    habit_done:  "ശീലം പൂർത്തിയായി! സ്ഥിരത നിങ്ങളുടെ ഭാവി ആരോഗ്യം സംരക്ഷിക്കുന്നു.",
-    log_saved:   "റീഡിംഗ് സേവ് ചെയ്തു. ട്രെൻഡ് ട്രാക്കിംഗ് പ്രശ്നങ്ങൾ നേരത്തേ കണ്ടുപിടിക്കാൻ സഹായിക്കുന്നു.",
-    risk_low:    "നിങ്ങളുടെ അപകടസാധ്യത കുറവാണ്. ഈ ആരോഗ്യകരമായ ശീലങ്ങൾ തുടരൂ.",
-    risk_mod:    "മിതമായ അപകടസാധ്യത കണ്ടെത്തി. നിങ്ങളുടെ പ്രതിരോധ പദ്ധതി ഇപ്പോൾ ആരംഭിക്കുന്നു.",
-    risk_high:   "ഉയർന്ന അപകടസാധ്യത തിരിച്ചറിഞ്ഞു. നടപടി എടുക്കൂ — നിങ്ങളുടെ പദ്ധതി തയ്യാർ.",
-    plan_ready:  "നിങ്ങളുടെ വ്യക്തിഗത പ്രതിരോധ പദ്ധതി തയ്യാർ. ഇന്ന് ആരംഭിക്കൂ.",
-    crisis_bp:   "അടിയന്തരം: രക്തസമ്മർദ്ദം ഗുരുതരമായി ഉയർന്നിരിക്കുന്നു. ഇപ്പോൾ ചികിത്സ തേടൂ.",
-    crisis_sugar:"അടിയന്തരം: രക്തത്തിലെ പഞ്ചസാര അപകടകരമായി ഉയർന്നിരിക്കുന്നു. ഉടൻ ചികിത്സ തേടൂ.",
-    streak:      "നിങ്ങൾക്ക് {days} ദിവസത്തെ ആരോഗ്യകരമായ ശീലം സ്ട്രീക്ക് ഉണ്ട്!",
-    encourage:   "എല്ലാ ആരോഗ്യകരമായ തിരഞ്ഞെടുപ്പും ശക്തമായ നാളെ ഉണ്ടാക്കുന്നു.",
-  },
-  "pa-IN": {
-    welcome:     "ਕ੍ਰੋਨਿਕ ਕੇਅਰ ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ। ਰੋਕਥਾਮ ਸਭ ਤੋਂ ਸ਼ਕਤੀਸ਼ਾਲੀ ਦਵਾਈ ਹੈ।",
-    habit_done:  "ਆਦਤ ਪੂਰੀ! ਲਗਾਤਾਰਤਾ ਤੁਹਾਡੀ ਭਵਿੱਖ ਦੀ ਸਿਹਤ ਦੀ ਰੱਖਿਆ ਕਰਦੀ ਹੈ।",
-    log_saved:   "ਰੀਡਿੰਗ ਸੇਵ ਕੀਤੀ। ਟ੍ਰੈਂਡ ਟ੍ਰੈਕਿੰਗ ਸਮੱਸਿਆਵਾਂ ਨੂੰ ਜਲਦੀ ਪਛਾਣਦੀ ਹੈ।",
-    risk_low:    "ਤੁਹਾਡਾ ਜੋਖਮ ਘੱਟ ਹੈ। ਇਹਨਾਂ ਸਿਹਤਮੰਦ ਆਦਤਾਂ ਨੂੰ ਜਾਰੀ ਰੱਖੋ।",
-    risk_mod:    "ਮੱਧਮ ਜੋਖਮ ਮਿਲਿਆ। ਤੁਹਾਡੀ ਰੋਕਥਾਮ ਯੋਜਨਾ ਹੁਣ ਸ਼ੁਰੂ ਹੁੰਦੀ ਹੈ।",
-    risk_high:   "ਉੱਚ ਜੋਖਮ ਪਛਾਣਿਆ। ਕਦਮ ਚੁੱਕੋ — ਤੁਹਾਡੀ ਯੋਜਨਾ ਤਿਆਰ ਹੈ।",
-    plan_ready:  "ਤੁਹਾਡੀ ਨਿੱਜੀ ਰੋਕਥਾਮ ਯੋਜਨਾ ਤਿਆਰ ਹੈ। ਅੱਜ ਹੀ ਸ਼ੁਰੂ ਕਰੋ।",
-    crisis_bp:   "ਜ਼ਰੂਰੀ: ਬਲੱਡ ਪ੍ਰੈਸ਼ਰ ਬਹੁਤ ਜ਼ਿਆਦਾ ਉੱਚਾ ਹੈ। ਹੁਣੇ ਇਲਾਜ ਕਰਵਾਓ।",
-    crisis_sugar:"ਜ਼ਰੂਰੀ: ਬਲੱਡ ਸ਼ੂਗਰ ਖ਼ਤਰਨਾਕ ਤੌਰ 'ਤੇ ਉੱਚੀ ਹੈ। ਤੁਰੰਤ ਇਲਾਜ ਕਰਵਾਓ।",
-    streak:      "ਤੁਹਾਡੀ {days} ਦਿਨਾਂ ਦੀ ਸਿਹਤਮੰਦ ਆਦਤ ਸਟ੍ਰੀਕ ਹੈ!",
-    encourage:   "ਹਰ ਸਿਹਤਮੰਦ ਚੋਣ ਇੱਕ ਮਜ਼ਬੂਤ ਕੱਲ੍ਹ ਬਣਾਉਂਦੀ ਹੈ।",
-  },
-  "or-IN": {
-    welcome:     "କ୍ରୋନିକ୍ କେୟାରରେ ସ୍ୱାଗତ। ପ୍ରତିରୋଧ ହେଉଛି ସବୁଠୁ ଶକ୍ତିଶାଳୀ ଔଷଧ।",
-    habit_done:  "ଅଭ୍ୟାସ ସମ୍ପୂର୍ଣ! ଧାରାବାହିକତା ଆପଣଙ୍କ ସ୍ୱାସ୍ଥ୍ୟ ରକ୍ଷା କରେ।",
-    log_saved:   "ରୀଡିଂ ସଂରକ୍ଷିତ। ଟ୍ରେଣ୍ଡ ଟ୍ରାକିଂ ସମସ୍ୟା ଆଗୁଆ ଚିହ୍ନଟ କରେ।",
-    risk_low:    "ଆପଣଙ୍କ ଆଶଙ୍କା କମ। ଏହି ସ୍ୱାସ୍ଥ୍ୟକର ଅଭ୍ୟାସ ଜାରି ରଖନ୍ତୁ।",
-    risk_mod:    "ମଧ୍ୟମ ଆଶଙ୍କା ମିଳିଛି। ଆପଣଙ୍କ ନିବାରଣ ଯୋଜନା ଏବ ଆ ଆରମ୍ଭ।",
-    risk_high:   "ଉଚ୍ଚ ଆଶଙ୍କା ଚିହ୍ନଟ। ପଦକ୍ଷେପ ନିଅନ୍ତୁ — ଯୋଜନା ପ୍ରସ୍ତୁତ।",
-    plan_ready:  "ଆପଣଙ୍କ ବ୍ୟକ୍ତିଗତ ନିବାରଣ ଯୋଜନା ପ୍ରସ୍ତୁତ। ଆଜି ଆରମ୍ଭ କରନ୍ତୁ।",
-    crisis_bp:   "ଜରୁରି: ରକ୍ତଚାପ ଗମ୍ଭୀରରୂପେ ଉଚ୍ଚ। ଏବ ଆ ଚିକିତ୍ସା ଖୋଜନ୍ତୁ।",
-    crisis_sugar:"ଜରୁରି: ରକ୍ତ ଶର୍କରା ବିପଜ୍ଜନକ ଉଚ୍ଚ। ତୁରନ୍ତ ଚିକିତ୍ସା ନିଅନ୍ତୁ।",
-    streak:      "ଆପଣଙ୍କ {days} ଦିନ ସ୍ୱାସ୍ଥ୍ୟକର ଅଭ୍ୟାସ ଷ୍ଟ୍ରିକ୍ ଅଛି!",
-    encourage:   "ପ୍ରତ୍ୟେକ ସ୍ୱାସ୍ଥ୍ୟକର ପସନ୍ଦ ଶକ୍ତିଶାଳୀ ଭବିଷ୍ୟତ ଗଢ଼େ।",
-  },
-  "ur-IN": {
-    welcome:     "کرانک کیئر میں خوش آمدید۔ روک تھام سب سے طاقتور دوا ہے۔",
-    habit_done:  "عادت مکمل! استقامت آپ کی مستقبل کی صحت کی حفاظت کرتی ہے۔",
-    log_saved:   "ریڈنگ محفوظ ہوئی۔ ٹرینڈ ٹریکنگ مسائل کو جلدی پہچانتی ہے۔",
-    risk_low:    "آپ کا خطرہ کم ہے۔ ان صحت مند عادتوں کو برقرار رکھیں۔",
-    risk_mod:    "درمیانی خطرہ پایا گیا۔ آپ کی روک تھام کی منصوبہ بندی اب شروع ہوتی ہے۔",
-    risk_high:   "زیادہ خطرہ پہچانا گیا۔ قدم اٹھائیں — آپ کی منصوبہ تیار ہے۔",
-    plan_ready:  "آپ کی ذاتی روک تھام کی منصوبہ تیار ہے۔ آج ہی شروع کریں۔",
-    crisis_bp:   "فوری: بلڈ پریشر خطرناک حد تک بلند ہے۔ ابھی طبی مدد لیں۔",
-    crisis_sugar:"فوری: بلڈ شوگر خطرناک حد تک بلند ہے۔ فوری علاج کروائیں۔",
-    streak:      "آپ کی {days} دن کی صحت مند عادت اسٹریک ہے!",
-    encourage:   "ہر صحت مند انتخاب ایک مضبوط کل بناتا ہے۔",
-  },
-  "es-ES": {
-    welcome:     "Bienvenido a Atención Crónica. La prevención es la medicina más poderosa.",
-    habit_done:  "¡Hábito completado! La consistencia protege tu salud futura.",
-    log_saved:   "Lectura guardada. El seguimiento de tendencias detecta problemas pronto.",
-    risk_low:    "Tu riesgo es bajo. Sigue manteniendo estos hábitos saludables.",
-    risk_mod:    "Riesgo moderado detectado. Tu plan de prevención comienza ahora.",
-    risk_high:   "Riesgo elevado identificado. Actúa — tu plan está listo.",
-    plan_ready:  "Tu plan de prevención personalizado está listo. Empieza hoy.",
-    crisis_bp:   "URGENTE: Presión arterial críticamente alta. Busca atención ahora.",
-    crisis_sugar:"URGENTE: Glucosa peligrosamente alta. Busca atención inmediata.",
-    streak:      "¡Llevas {days} días de racha de hábitos saludables!",
-    encourage:   "Cada elección saludable construye un mañana más fuerte.",
-  },
-  "ar-SA": {
-    welcome:     "مرحباً في رعاية الأمراض المزمنة. الوقاية هي أقوى دواء.",
-    habit_done:  "اكتملت العادة! الاتساق يحمي صحتك المستقبلية.",
-    log_saved:   "تم حفظ القراءة. تتبع الاتجاهات يساعد على الكشف المبكر.",
-    risk_low:    "خطرك منخفض. حافظ على هذه العادات الصحية.",
-    risk_mod:    "تم الكشف عن خطر معتدل. خطة الوقاية تبدأ الآن.",
-    risk_high:   "تم تحديد خطر مرتفع. تصرف — خطتك جاهزة.",
-    plan_ready:  "خطة الوقاية الشخصية جاهزة. ابدأ اليوم.",
-    crisis_bp:   "عاجل: ضغط الدم مرتفع بشكل خطير. اطلب الرعاية الآن.",
-    crisis_sugar:"عاجل: السكر في الدم مرتفع بشكل خطير. اطلب الرعاية فوراً.",
-    streak:      "لديك سلسلة {days} يوماً من العادات الصحية!",
-    encourage:   "كل خيار صحي يبني غداً أقوى.",
-  },
-  "fr-FR": {
-    welcome:     "Bienvenue dans les Soins Chroniques. La prévention est le médicament le plus puissant.",
-    habit_done:  "Habitude accomplie ! La constance protège votre santé future.",
-    log_saved:   "Lecture sauvegardée. Le suivi des tendances aide à détecter les problèmes tôt.",
-    risk_low:    "Votre risque est faible. Maintenez ces bonnes habitudes.",
-    risk_mod:    "Risque modéré détecté. Votre plan de prévention commence maintenant.",
-    risk_high:   "Risque élevé identifié. Agissez — votre plan est prêt.",
-    plan_ready:  "Votre plan de prévention personnalisé est prêt. Commencez aujourd'hui.",
-    crisis_bp:   "URGENT : Tension artérielle dangereusement élevée. Consultez immédiatement.",
-    crisis_sugar:"URGENT : Glycémie dangereusement élevée. Consultez immédiatement.",
-    streak:      "Vous avez une série de {days} jours d'habitudes saines !",
-    encourage:   "Chaque choix sain construit un demain plus fort.",
-  },
-  "pt-BR": {
-    welcome:     "Bem-vindo ao Cuidado Crônico. A prevenção é o medicamento mais poderoso.",
-    habit_done:  "Hábito concluído! A consistência protege sua saúde futura.",
-    log_saved:   "Leitura salva. O rastreamento de tendências detecta problemas cedo.",
-    risk_low:    "Seu risco é baixo. Continue mantendo esses hábitos saudáveis.",
-    risk_mod:    "Risco moderado detectado. Seu plano de prevenção começa agora.",
-    risk_high:   "Risco elevado identificado. Aja — seu plano está pronto.",
-    plan_ready:  "Seu plano de prevenção personalizado está pronto. Comece hoje.",
-    crisis_bp:   "URGENTE: Pressão arterial criticamente alta. Procure atendimento agora.",
-    crisis_sugar:"URGENTE: Glicose perigosamente alta. Procure atendimento imediato.",
-    streak:      "Você tem uma sequência de {days} dias de hábitos saudáveis!",
-    encourage:   "Cada escolha saudável constrói um amanhã mais forte.",
-  },
-  "de-DE": {
-    welcome:     "Willkommen bei der Chronischen Pflege. Prävention ist die wirksamste Medizin.",
-    habit_done:  "Gewohnheit abgeschlossen! Konsequenz schützt Ihre zukünftige Gesundheit.",
-    log_saved:   "Messwert gespeichert. Trendverfolgung hilft, Probleme früh zu erkennen.",
-    risk_low:    "Ihr Risiko ist gering. Halten Sie diese gesunden Gewohnheiten aufrecht.",
-    risk_mod:    "Mäßiges Risiko erkannt. Ihr Präventionsplan beginnt jetzt.",
-    risk_high:   "Erhöhtes Risiko identifiziert. Handeln Sie — Ihr Plan ist bereit.",
-    plan_ready:  "Ihr personalisierter Präventionsplan ist bereit. Beginnen Sie heute.",
-    crisis_bp:   "DRINGEND: Blutdruck kritisch hoch. Suchen Sie sofort medizinische Hilfe.",
-    crisis_sugar:"DRINGEND: Blutzucker gefährlich hoch. Sofort medizinische Hilfe suchen.",
-    streak:      "Sie haben eine {days}-Tage-Serie gesunder Gewohnheiten!",
-    encourage:   "Jede gesunde Entscheidung baut ein stärkeres Morgen auf.",
-  },
-  "ja-JP": {
-    welcome:     "慢性病ケアへようこそ。予防が最も強力な薬です。",
-    habit_done:  "習慣完了！一貫性があなたの将来の健康を守ります。",
-    log_saved:   "測定値を保存しました。トレンド追跡で問題を早期発見できます。",
-    risk_low:    "リスクは低いです。これらの健康習慣を維持してください。",
-    risk_mod:    "中程度のリスクが検出されました。予防計画が今すぐ始まります。",
-    risk_high:   "高いリスクが特定されました。行動を起こしましょう — 計画の準備ができています。",
-    plan_ready:  "個人化された予防計画の準備ができています。今日から始めましょう。",
-    crisis_bp:   "緊急：血圧が危険なほど高いです。すぐに医療を受けてください。",
-    crisis_sugar:"緊急：血糖値が危険なほど高いです。直ちに治療を受けてください。",
-    streak:      "{days}日間の健康的な習慣のストリークがあります！",
-    encourage:   "すべての健康的な選択がより強い明日を作ります。",
-  },
-  "ko-KR": {
-    welcome:     "만성 질환 케어에 오신 것을 환영합니다. 예방이 가장 강력한 약입니다.",
-    habit_done:  "습관 완료! 꾸준함이 미래 건강을 보호합니다.",
-    log_saved:   "수치가 저장되었습니다. 추세 추적으로 문제를 조기에 발견할 수 있습니다.",
-    risk_low:    "위험이 낮습니다. 이 건강한 습관을 유지하세요.",
-    risk_mod:    "중간 위험이 감지되었습니다. 예방 계획이 지금 시작됩니다.",
-    risk_high:   "높은 위험이 확인되었습니다. 행동하세요 — 계획이 준비되었습니다.",
-    plan_ready:  "개인화된 예방 계획이 준비되었습니다. 오늘 시작하세요.",
-    crisis_bp:   "긴급: 혈압이 위험하게 높습니다. 지금 즉시 진료를 받으세요.",
-    crisis_sugar:"긴급: 혈당이 위험하게 높습니다. 즉시 치료를 받으세요.",
-    streak:      "{days}일 건강 습관 스트리크가 있습니다!",
-    encourage:   "모든 건강한 선택이 더 강한 내일을 만듭니다.",
-  },
-  "zh-CN": {
-    welcome:     "欢迎来到慢性病护理。预防是最强大的药物。",
-    habit_done:  "习惯完成！坚持保护您的未来健康。",
-    log_saved:   "读数已保存。趋势追踪有助于及早发现问题。",
-    risk_low:    "您的风险较低。继续保持这些健康习惯。",
-    risk_mod:    "检测到中等风险。您的预防计划现在开始。",
-    risk_high:   "发现高风险。采取行动——您的计划已准备就绪。",
-    plan_ready:  "您的个性化预防计划已准备就绪。今天就开始吧。",
-    crisis_bp:   "紧急：血压危急性升高。请立即就医。",
-    crisis_sugar:"紧急：血糖危险性升高。请立即寻求治疗。",
-    streak:      "您已坚持{days}天健康习惯！",
-    encourage:   "每一个健康的选择都在创造更强大的明天。",
-  },
-};
+/* ══════════════════════════════════════════
+   STORAGE (in-memory only for artifact)
+══════════════════════════════════════════ */
+const STORE = {};
+function ls(k, fb) { try { return STORE[k] !== undefined ? STORE[k] : fb; } catch { return fb; } }
+function lss(k, v) { try { STORE[k] = v; } catch {} }
+const TK = () => new Date().toISOString().split("T")[0];
+const DAY = 86400000;
 
-function ph(lang, key, vars = {}) {
-  const base = PHRASES[lang] || PHRASES["en-IN"];
-  let text = base[key] || PHRASES["en-IN"][key] || "";
-  Object.entries(vars).forEach(([k, v]) => { text = text.replace(`{${k}}`, v); });
-  return text;
-}
-
-/* ════════════════════════════════════════════════════════════
-   4. WHO DOMAINS
-════════════════════════════════════════════════════════════ */
-const WHO_DOMAINS = {
-  diabetes: {
-    label: "Type 2 Diabetes Prevention", code: "NCD-DIAB",
-    stats: [
-      "422M people have diabetes globally — WHO 2023",
-      "80% of Type 2 diabetes is preventable via lifestyle changes",
-      "1.5M deaths directly attributed to diabetes annually",
-      "Weight loss 5-7% + 150min/week activity → Risk ↓58% (DPP Trial)",
-    ],
-    sdg: "SDG 3.4",
-    solve: "Daily movement + whole foods + weight management = diabetes prevention",
-  },
-  cvd: {
-    label: "Cardiovascular Disease Prevention", code: "NCD-CVD",
-    stats: [
-      "17.9M CVD deaths/year — #1 global killer (WHO)",
-      "80% of premature heart disease & stroke is preventable",
-      "Hypertension affects 1.28B adults — 46% are unaware",
-      "BP control + exercise + diet → CVD events ↓35%",
-    ],
-    sdg: "SDG 3.4",
-    solve: "BP monitoring + DASH diet + daily movement = heart protection",
-  },
-  hypertension: {
-    label: "Hypertension Management", code: "NCD-HTN",
-    stats: [
-      "1.28B adults have hypertension — WHO 2021",
-      "Only 1 in 5 with hypertension have it under control",
-      "High BP causes 10.4M deaths globally each year",
-      "Salt reduction + exercise → BP ↓5-10 mmHg average",
-    ],
-    sdg: "SDG 3.8",
-    solve: "DASH diet + daily monitoring + medication adherence = control",
-  },
-  obesity: {
-    label: "Obesity & Metabolic Health", code: "NCD-OBS",
-    stats: [
-      "1 billion+ people live with obesity globally",
-      "Obesity increases risk of 13+ cancer types",
-      "Metabolic syndrome affects 1 in 4 adults worldwide",
-      "Sustainable 5-10% weight loss → Metabolic health ↑60%",
-    ],
-    sdg: "SDG 2 + 3",
-    solve: "Calorie awareness + activity + sleep + stress management = metabolic health",
-  },
-};
-
-/* ════════════════════════════════════════════════════════════
-   5. DAILY HABITS — evidence-based NCD prevention
-════════════════════════════════════════════════════════════ */
-const DAILY_HABITS = [
-  { id:"h_water",   icon:"💧", label:"Drink 8 glasses of water",       who:"WHO hydration baseline"           },
-  { id:"h_steps",   icon:"🚶", label:"Walk 7,000+ steps",               who:"WHO 150min/week activity"         },
-  { id:"h_veggies", icon:"🥦", label:"Eat 5 servings of vegetables",   who:"WHO fruit & veg 400g/day"         },
-  { id:"h_sodium",  icon:"🧂", label:"Limit salt (< 5g/day)",          who:"WHO sodium reduction target"      },
-  { id:"h_sleep",   icon:"😴", label:"Sleep 7-8 hours",                 who:"Sleep regulates insulin & BP"     },
-  { id:"h_meds",    icon:"💊", label:"Take prescribed medications",     who:"Adherence reduces complications"  },
-  { id:"h_stress",  icon:"🧘", label:"10-min mindfulness / breathing",  who:"Stress → cortisol → glucose ↑"   },
-  { id:"h_screen",  icon:"📵", label:"No food after 8 PM",             who:"Metabolic rest window"            },
-];
-
-/* ════════════════════════════════════════════════════════════
-   6. RISK CALCULATOR — WHO PEN guideline aligned
-════════════════════════════════════════════════════════════ */
-function calcRisk(profile) {
+/* ══════════════════════════════════════════
+   WHO RISK ENGINE — STATIC LAYER
+   (profile-based baseline, used when no live data exists yet)
+══════════════════════════════════════════ */
+function calcStaticRisk(p) {
   let s = 0;
-  const { age, bmi, activity, diet, smokes, family, bp, sugar } = profile;
-  if (age >= 45) s += 15; else if (age >= 35) s += 8;
-  if (bmi >= 30) s += 18; else if (bmi >= 25) s += 9;
-  if (family)    s += 12;
-  if (smokes)    s += 16;
-  s += Math.max(0, 14 - activity * 1.4);
-  s += Math.max(0, 12 - diet * 1.2);
-  if (bp === "high")      s += 22;
-  else if (bp === "elevated") s += 10;
-  if (sugar === "diabetic")   s += 24;
-  else if (sugar === "prediabetic") s += 14;
+  if (p.age >= 55) s += 20; else if (p.age >= 45) s += 13; else if (p.age >= 35) s += 7;
+  if (p.bmi >= 35) s += 22; else if (p.bmi >= 30) s += 15; else if (p.bmi >= 25) s += 8;
+  if (p.family)  s += 12;
+  if (p.smokes)  s += 18;
+  s += Math.max(0, 15 - p.activity * 1.5);
+  s += Math.max(0, 14 - p.diet * 1.4);
+  if (p.bp === "high") s += 24; else if (p.bp === "elevated") s += 12;
+  if (p.sugar === "diabetic") s += 26; else if (p.sugar === "prediabetic") s += 15;
+  if (p.waist === "high") s += 10;
   return Math.min(100, Math.round(s));
 }
 
-function riskTier(score) {
-  if (score < 30) return { label: "Low",      color: GREEN,  key: "risk_low"  };
-  if (score < 60) return { label: "Moderate", color: AMBER,  key: "risk_mod"  };
-  return              { label: "Elevated", color: A,     key: "risk_high" };
-}
-
-/* ════════════════════════════════════════════════════════════
-   7. PREVENTION PLAN GENERATOR
-════════════════════════════════════════════════════════════ */
-function makePlan(profile, score) {
-  const goals = [];
-  if (profile.bmi >= 25)
-    goals.push({ id:"weight", title:"Gentle Weight Management", action:"Add 10-min walk after every meal", impact:"5% weight loss → Diabetes risk ↓58%", streak:0 });
-  if (profile.activity < 5)
-    goals.push({ id:"activity", title:"Daily Movement Foundation", action:"3 × 10-min activity bursts today", impact:"150min/wk → CVD risk ↓35%", streak:0 });
-  if (profile.diet < 6)
-    goals.push({ id:"nutrition", title:"Plate Balance Upgrade", action:"Fill ½ plate with vegetables at lunch", impact:"Fiber + nutrients → Metabolic health ↑", streak:0 });
-  if (profile.bp !== "normal")
-    goals.push({ id:"sodium", title:"Salt Awareness", action:"Check labels: <200mg sodium per serving", impact:"Salt ↓ → BP ↓5-10 mmHg", streak:0 });
-  goals.push({ id:"mindful", title:"Stress Resilience", action:"4-7-8 breathing: 3 cycles right now", impact:"Stress management → Inflammation ↓", streak:0 });
-  return goals.slice(0, 3);
-}
-
-/* ════════════════════════════════════════════════════════════
-   8. BIOMETRIC REFERENCE RANGES
-════════════════════════════════════════════════════════════ */
-const BIO_RANGES = {
-  systolic:  { low:90, high:140, critical:180, unit:"mmHg",  label:"Systolic BP"    },
-  diastolic: { low:60, high:90,  critical:120, unit:"mmHg",  label:"Diastolic BP"   },
-  glucose:   { low:70, high:140, critical:300, unit:"mg/dL", label:"Blood Glucose"  },
-  weight:    { low:30, high:120, critical:200, unit:"kg",    label:"Body Weight"    },
-  spo2:      { low:94, high:100, critical:88,  unit:"%",     label:"SpO₂"           },
+/* ══════════════════════════════════════════
+   LIVE BIOMARKER RISK LAYER
+   Converts logged readings into a risk contribution (0-100 each),
+   weighted by recency (decay) and clinical thresholds.
+══════════════════════════════════════════ */
+const BIOMARKER_RISK_RULES = {
+  systolic: { normal: 120, elevated: 130, high: 140, crisis: 180, weight: 1.0 },
+  diastolic:{ normal: 80,  elevated: 85,  high: 90,  crisis: 120, weight: 0.7 },
+  glucose:  { normal: 100, elevated: 110, high: 126, crisis: 250, weight: 1.0 },
+  hba1c:    { normal: 5.7, elevated: 6.0, high: 6.5, crisis: 9.0, weight: 1.1 },
+  chol:     { normal: 180, elevated: 200, high: 240, crisis: 300, weight: 0.6 },
+  spo2:     { inverse: true, normal: 97, elevated: 95, high: 93, crisis: 88, weight: 0.8 },
 };
 
-function bioStatus(type, value) {
-  const r = BIO_RANGES[type];
-  if (!r || !value) return { color: TM, label: "—" };
+// Single-reading risk contribution, 0-100
+function readingRisk(type, value) {
+  const r = BIOMARKER_RISK_RULES[type];
+  if (!r) return null;
   const v = parseFloat(value);
-  if (type === "spo2") {
-    if (v < r.critical) return { color: A,     label: "CRITICAL — seek care" };
-    if (v < r.low)      return { color: AMBER, label: "Low — monitor closely" };
-    return                     { color: GREEN, label: "Normal" };
+  if (isNaN(v)) return null;
+  if (r.inverse) {
+    if (v <= r.crisis) return 100;
+    if (v <= r.high) return 75;
+    if (v <= r.elevated) return 45;
+    if (v <= r.normal) return 15;
+    return 5;
   }
-  if (v >= r.critical) return { color: A,     label: "CRITICAL — seek care" };
-  if (v >= r.high)     return { color: AMBER, label: "Elevated" };
-  if (v < r.low)       return { color: AMBER, label: "Low" };
-  return                      { color: GREEN, label: "Normal" };
+  if (v >= r.crisis) return 100;
+  if (v >= r.high) return 75;
+  if (v >= r.elevated) return 45;
+  if (v >= r.normal) return 15;
+  return 5;
 }
 
-/* ════════════════════════════════════════════════════════════
-   9. STORAGE HELPERS
-════════════════════════════════════════════════════════════ */
-function loadLang() {
-  const c = localStorage.getItem("magic16_lang") || "en-IN";
-  return LANG_MAP[c] || "en-IN";
+// Exponential recency decay — readings older than ~21 days barely count
+function recencyWeight(ts) {
+  const ageDays = (Date.now() - ts) / DAY;
+  return Math.exp(-ageDays / 14); // half-life ~10 days
 }
 
-function todayKey() { return new Date().toISOString().split("T")[0]; }
+/**
+ * Computes the LIVE component of risk from logged biometrics.
+ * Returns { score, coverage, trend, perType } where:
+ *  - score: 0-100 weighted biomarker risk
+ *  - coverage: 0-1, how much of the biomarker panel has recent data (data freshness)
+ *  - trend: -1..1, negative = improving, positive = worsening (vs. prior window)
+ */
+function calcLiveBiomarkerRisk(logs) {
+  const types = Object.keys(BIOMARKER_RISK_RULES);
+  const byType = {};
+  types.forEach(t => { byType[t] = []; });
 
-function ls(key, fallback) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
-}
-function lsSave(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
-
-function loadProfile() {
-  return ls("manifix_chronic_profile_v2", {
-    age:35, bmi:24, activity:5, diet:6,
-    smokes:false, family:false, bp:"normal", sugar:"normal",
+  logs.forEach(l => {
+    if (l.type === "bp") {
+      const [sys, dia] = String(l.value).split("/").map(Number);
+      if (!isNaN(sys)) byType.systolic.push({ ts: l.ts, v: sys });
+      if (!isNaN(dia)) byType.diastolic.push({ ts: l.ts, v: dia });
+    } else if (byType[l.type]) {
+      byType[l.type].push({ ts: l.ts, v: parseFloat(l.value) });
+    }
   });
-}
-function loadHabitsToday() {
-  return ls(`manifix_habits_${todayKey()}`, {});
-}
-function loadLogs() {
-  return ls("manifix_chronic_logs_v2", []);
-}
-function loadStreak() {
-  return ls("manifix_chronic_streak_v2", { count:0, lastDate:"" });
+
+  let weightedSum = 0, totalWeight = 0, coveredTypes = 0;
+  let recentAvg = 0, recentCount = 0, priorAvg = 0, priorCount = 0;
+
+  types.forEach(t => {
+    const entries = byType[t].filter(e => e.ts).sort((a,b) => b.ts - a.ts);
+    if (entries.length === 0) return;
+    coveredTypes++;
+    const ruleWeight = BIOMARKER_RISK_RULES[t].weight;
+
+    entries.slice(0, 10).forEach(e => {
+      const risk = readingRisk(t, e.v);
+      if (risk === null) return;
+      const rw = recencyWeight(e.ts) * ruleWeight;
+      weightedSum += risk * rw;
+      totalWeight += rw;
+
+      const ageDays = (Date.now() - e.ts) / DAY;
+      if (ageDays <= 7) { recentAvg += risk; recentCount++; }
+      else if (ageDays <= 21) { priorAvg += risk; priorCount++; }
+    });
+  });
+
+  const score = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
+  const coverage = coveredTypes / types.length;
+  let trend = 0;
+  if (recentCount > 0 && priorCount > 0) {
+    trend = ((recentAvg / recentCount) - (priorAvg / priorCount)) / 100;
+  }
+  return { score, coverage, trend, coveredTypes, totalTypes: types.length };
 }
 
-/* ════════════════════════════════════════════════════════════
-   10. SPEAKER
-════════════════════════════════════════════════════════════ */
-function makeSpeaker(lang) {
-  return function speak(text, urgent = false) {
-    if (!("speechSynthesis" in window) || !text) return;
-    const say = () => {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang; u.rate = urgent ? 1.05 : 0.86; u.pitch = 0.95;
-      const vs = speechSynthesis.getVoices();
-      const base = lang.split("-")[0];
-      const v = vs.find(x => x.lang === lang) || vs.find(x => x.lang.startsWith(base)) || vs.find(x => x.lang.startsWith("en"));
-      if (v) u.voice = v;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    };
-    if (urgent) navigator.vibrate?.([80, 40, 80, 40, 80]);
-    if (speechSynthesis.getVoices().length) say();
-    else speechSynthesis.onvoiceschanged = say;
+/**
+ * Behavioral modifier from habit + medication adherence over last 7 days.
+ * Returns a small +/- adjustment to the blended score.
+ */
+function calcBehavioralModifier(habitsHistory, medLog, medsCount) {
+  // habitsHistory: array of {date, doneCount, totalCount}
+  const last7 = habitsHistory.filter(h => (Date.now() - new Date(h.date).getTime()) <= 7*DAY);
+  let habitAdherence = 0.5;
+  if (last7.length > 0) {
+    const sumRatio = last7.reduce((a,h) => a + (h.totalCount ? h.doneCount/h.totalCount : 0), 0);
+    habitAdherence = sumRatio / last7.length;
+  }
+  let medAdherence = medsCount > 0
+    ? Math.min(1, medLog.filter(e => (Date.now() - e.ts) <= 7*DAY).length / (medsCount * 7))
+    : 1; // no meds prescribed = neutral, not penalized
+  // High adherence pulls risk down up to -10, low adherence pushes up to +8
+  const habitMod = (0.5 - habitAdherence) * 16;   // range approx -8..+8
+  const medMod   = (0.5 - medAdherence) * 12;     // range approx -6..+6 (capped below)
+  return Math.max(-12, Math.min(12, habitMod + medMod));
+}
+
+/**
+ * MASTER BLEND — combines static profile risk with live biomarker risk.
+ * As more real data accumulates (coverage), live data takes over from the
+ * static estimate. This is the "Future: continuous ingestion" gap, closed
+ * using only data the user actually logs in-app (no external device feed).
+ */
+function calcBlendedRisk(profile, logs, habitsHistory, medLog, medsCount) {
+  const staticScore = calcStaticRisk(profile);
+  const live = calcLiveBiomarkerRisk(logs);
+  const behavioralMod = calcBehavioralModifier(habitsHistory, medLog, medsCount);
+
+  let blended, liveWeight;
+  if (live.score === null) {
+    blended = staticScore;
+    liveWeight = 0;
+  } else {
+    // Live weight scales with data coverage: 0 readings -> 0%, full panel -> up to 70%
+    liveWeight = Math.min(0.7, live.coverage * 0.9);
+    blended = staticScore * (1 - liveWeight) + live.score * liveWeight;
+  }
+
+  // Trend nudges the blended score by up to ±6 points
+  blended += live.trend ? live.trend * 6 : 0;
+  blended += behavioralMod;
+  blended = Math.max(0, Math.min(100, Math.round(blended)));
+
+  return {
+    score: blended,
+    staticScore,
+    liveScore: live.score,
+    liveWeight,
+    coverage: live.coverage,
+    coveredTypes: live.coveredTypes,
+    totalTypes: live.totalTypes,
+    trend: live.trend,
+    behavioralMod,
   };
 }
 
-/* ════════════════════════════════════════════════════════════
-   11. CSS INJECTION
-════════════════════════════════════════════════════════════ */
+function riskTier(score) {
+  if (score < 28) return { label: "Low Risk", color: G.grn, bg: G.grnL, icon: "✓", key: "low" };
+  if (score < 55) return { label: "Moderate Risk", color: G.amb, bg: G.ambL, icon: "!", key: "mod" };
+  return { label: "Elevated Risk", color: G.red, bg: G.redL, icon: "⚠", key: "high" };
+}
+
+/* ══════════════════════════════════════════
+   NOOM-STYLE FOOD PSYCHOLOGY FRAMEWORK
+══════════════════════════════════════════ */
+const FOOD_COLORS = {
+  green:  { label: "Green", desc: "High nutrient, low calorie density", color: G.grn, examples: "Veggies, fruits, whole grains, legumes", pts: 20 },
+  yellow: { label: "Yellow", desc: "Nutrient-dense, moderate calories", color: G.amb, examples: "Lean proteins, eggs, dairy, avocado", pts: 10 },
+  red:    { label: "Red", desc: "High calorie density, limit portions", color: G.red, examples: "Fried foods, sweets, oils, processed", pts: 0 },
+};
+
+const PSYCH_TIPS = [
+  { title: "Hunger Scale Check-in", desc: "Before eating, rate your hunger 1-10. Eat at 3-4, stop at 6-7. This breaks emotional eating cycles.", science: "Mindful eating reduces calorie intake 20% — Harvard T.H. Chan 2022" },
+  { title: "Cognitive Reframe", desc: "Instead of 'I can't eat that', try 'I choose not to right now.' Language shapes behavior.", science: "Autonomous motivation → 60% better adherence — Self-Determination Theory" },
+  { title: "Environment Design", desc: "Move green foods to eye level in your fridge. You eat what you see first. No willpower needed.", science: "Food visibility shapes 72% of food choices — Cornell Food Lab" },
+  { title: "The 20-Minute Rule", desc: "Your brain takes 20 minutes to register fullness. Eat slowly, pause mid-meal for 2 minutes.", science: "Slow eating → 88 fewer calories per meal average — Obesity journal" },
+];
+
+/* ══════════════════════════════════════════
+   HABITS
+══════════════════════════════════════════ */
+const HABITS = [
+  { id:"h_water",   icon:"💧", label:"Drink 8 glasses of water",    pts:10, who:"WHO hydration baseline" },
+  { id:"h_steps",   icon:"🚶", label:"7,000+ steps today",           pts:20, who:"WHO 150min/wk activity" },
+  { id:"h_veggies", icon:"🥦", label:"5 vegetable servings",         pts:15, who:"WHO 400g/day guideline" },
+  { id:"h_sodium",  icon:"🧂", label:"Limit salt < 5g",              pts:12, who:"WHO sodium target" },
+  { id:"h_sleep",   icon:"😴", label:"7-8 hours of sleep",           pts:18, who:"Sleep regulates insulin & BP" },
+  { id:"h_meds",    icon:"💊", label:"Take prescribed medications",  pts:25, who:"Adherence → complications ↓40%" },
+  { id:"h_mindful", icon:"🧘", label:"10-min mindfulness/breathing", pts:12, who:"Stress → cortisol → glucose ↑" },
+  { id:"h_screen",  icon:"📵", label:"No food after 8 PM",          pts:10, who:"Metabolic rest window" },
+];
+
+/* ══════════════════════════════════════════
+   MEDICATIONS DB (Teladoc-style)
+══════════════════════════════════════════ */
+const MED_CATEGORIES = ["Diabetes", "Hypertension", "Cholesterol", "Heart", "Other"];
+const COMMON_MEDS = {
+  Diabetes: ["Metformin","Glipizide","Januvia","Ozempic","Jardiance","Farxiga","Trulicity"],
+  Hypertension: ["Lisinopril","Amlodipine","Losartan","Metoprolol","Atenolol","Hydrochlorothiazide"],
+  Cholesterol: ["Atorvastatin","Rosuvastatin","Simvastatin","Pravastatin","Ezetimibe"],
+  Heart: ["Aspirin","Warfarin","Clopidogrel","Digoxin","Furosemide"],
+  Other: ["Custom medication"],
+};
+
+/* ══════════════════════════════════════════
+   PREVENTION PLAN
+══════════════════════════════════════════ */
+const PLAN_POOL = [
+  { id:"weight",   title:"Gentle Weight Management", action:"Add 10-min walk after every meal. Small steps compound over time.", impact:"5% weight loss → Diabetes risk ↓58% (DPP Trial)", icon:"⚖️", condition: p => p.bmi >= 25 },
+  { id:"activity", title:"Daily Movement Foundation", action:"3×10-min activity bursts. No gym needed — stairs, walks, stretches.", impact:"150min/wk → CVD mortality ↓35% (Lancet 2019)", icon:"🏃", condition: p => p.activity < 5 },
+  { id:"nutrition",title:"Plate Balance Upgrade",    action:"Fill ½ plate with vegetables at lunch. No calorie counting needed.", impact:"Mediterranean diet → CVD risk ↓30% (PREDIMED)", icon:"🥗", condition: p => p.diet < 6 },
+  { id:"sodium",   title:"Salt Awareness",           action:"Check labels: aim <200mg sodium per serving. Cook more at home.", impact:"Salt ↓ by 5g → BP ↓ 5-10 mmHg average", icon:"🧂", condition: p => p.bp !== "normal" },
+  { id:"mindful",  title:"Stress Resilience",        action:"4-7-8 breathing: inhale 4s, hold 7s, exhale 8s. Do 3 cycles now.", impact:"Stress management → cortisol ↓ → glucose ↓", icon:"🧘", condition: () => true },
+  { id:"sleep",    title:"Sleep Hygiene Protocol",   action:"Same bedtime ±30 min. Phone off 45 min before. Dark and cool room.", impact:"7+ hrs sleep → Insulin sensitivity ↑, obesity risk ↓21%", icon:"😴", condition: p => p.activity > 0 },
+];
+
+/* ══════════════════════════════════════════
+   MILESTONES (Teladoc-style Care Goals)
+══════════════════════════════════════════ */
+const MILESTONES = [
+  { id:"m1", icon:"🥇", title:"First Step",    desc:"Complete your first habit",  xpReq:0,   habitReq:1  },
+  { id:"m2", icon:"🔥", title:"3-Day Streak",  desc:"Maintain a 3-day streak",    xpReq:50,  streakReq:3 },
+  { id:"m3", icon:"💊", title:"Med Adherent",  desc:"Log medications 5 days",     xpReq:100, medReq:5    },
+  { id:"m4", icon:"📊", title:"Data Logger",   desc:"Log 10 biometric readings",  xpReq:150, logReq:10   },
+  { id:"m5", icon:"⭐", title:"Week Warrior",  desc:"7-day streak",               xpReq:300, streakReq:7 },
+  { id:"m6", icon:"🏆", title:"Prevention Pro",desc:"500 XP earned",              xpReq:500, xpAchieve:500 },
+  { id:"m7", icon:"📡", title:"Live Tracker",  desc:"Full biomarker panel logged in 14 days", xpReq:0, liveCoverageReq:1 },
+];
+
+/* ══════════════════════════════════════════
+   BIOMETRIC RANGES (for display badges)
+══════════════════════════════════════════ */
+const BIO = {
+  systolic:  { unit:"mmHg",  low:90,  normal:120, elevated:140, critical:180 },
+  diastolic: { unit:"mmHg",  low:60,  normal:80,  elevated:90,  critical:120 },
+  glucose:   { unit:"mg/dL", low:70,  normal:100, elevated:126, critical:300 },
+  weight:    { unit:"kg",    low:30,  normal:80,  elevated:100, critical:150 },
+  spo2:      { unit:"%",     low:94,  normal:98,  elevated:100, critical:88  },
+};
+function bioStat(type, val) {
+  const r = BIO[type]; if (!r || !val) return { color: "#888", label: "—", lvl: 0 };
+  const v = parseFloat(val);
+  if (type === "spo2") {
+    if (v <= r.critical) return { color: G.red, label: "CRITICAL", lvl: 3 };
+    if (v < r.low) return { color: G.amb, label: "Low", lvl: 2 };
+    return { color: G.grn, label: "Normal", lvl: 0 };
+  }
+  if (v >= r.critical) return { color: G.red, label: "CRITICAL", lvl: 3 };
+  if (v >= r.elevated) return { color: G.amb, label: "Elevated", lvl: 2 };
+  if (v < r.low)       return { color: G.amb, label: "Low", lvl: 1 };
+  return { color: G.grn, label: "Normal", lvl: 0 };
+}
+
+/* ══════════════════════════════════════════
+   WHO DOMAINS
+══════════════════════════════════════════ */
+const WHO_DOMAINS = {
+  diabetes: {
+    icon:"🩸", label:"Type 2 Diabetes", code:"NCD-DIAB",
+    headline:"422M people, 80% preventable",
+    stats:["80% of Type 2 diabetes is preventable via lifestyle changes — WHO 2023","Weight loss 5-7% + 150min/wk → Risk ↓58% (DPP Trial)","1.5M deaths directly attributed to diabetes annually","Whole grain + fiber diet → diabetes risk ↓30% (NHS Nurses' Health Study)"],
+    solve:"Daily movement + whole foods + weight management"
+  },
+  cvd: {
+    icon:"❤️", label:"Cardiovascular", code:"NCD-CVD",
+    headline:"17.9M deaths/yr — #1 killer",
+    stats:["80% of premature heart disease & stroke is preventable — WHO","Mediterranean diet → CVD risk ↓30% (PREDIMED, NEJM 2013)","1.28B adults have hypertension — 46% unaware","Salt reduction + exercise → BP ↓5-10 mmHg average"],
+    solve:"BP monitoring + DASH diet + daily movement"
+  },
+  hypertension: {
+    icon:"💊", label:"Hypertension", code:"NCD-HTN",
+    headline:"1.28B adults, 1 in 5 controlled",
+    stats:["Only 1 in 5 people with hypertension have it controlled — WHO 2021","Salt ↓5g/day → systolic BP ↓ 4.2 mmHg average (Cochrane meta-analysis)","SPRINT Trial: intensive BP control → cardiovascular events ↓25%","Home monitoring → medication adherence ↑"],
+    solve:"DASH diet + daily monitoring + medication adherence"
+  },
+  obesity: {
+    icon:"⚖️", label:"Metabolic Health", code:"NCD-OBS",
+    headline:"1B+ people, 13+ cancer links",
+    stats:["Obesity increases risk of 13+ cancer types — WHO 2023","Sustainable 5-10% weight loss → metabolic improvements in 8 wks","Sleep deprivation → hunger hormone ghrelin ↑18% (NEJM 2004)","Strength training 2x/wk → insulin sensitivity ↑15-20%"],
+    solve:"Calorie awareness + activity + sleep + stress management"
+  },
+};
+
+/* ══════════════════════════════════════════
+   CSS INJECTION — GOLD/BLACK THEME
+══════════════════════════════════════════ */
 function injectCSS() {
-  if (document.getElementById("chron-css")) return;
+  if (document.getElementById("mfx-gold-css")) return;
   const el = document.createElement("style");
-  el.id = "chron-css";
+  el.id = "mfx-gold-css";
   el.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    @keyframes ch-fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes ch-spin{to{transform:rotate(360deg)}}
-    @keyframes ch-pulse{0%,100%{opacity:.06;transform:scale(1)}50%{opacity:.14;transform:scale(1.05)}}
-    @keyframes ch-beat{0%,100%{transform:scale(1)}14%{transform:scale(1.2)}28%{transform:scale(1)}}
-    @keyframes ch-blink{0%,100%{opacity:1}50%{opacity:.2}}
-    .ch-fade{animation:ch-fade .4s cubic-bezier(.22,.68,0,1.2) both}
-    .ch-btn:hover{filter:brightness(1.1);transform:translateY(-1px);transition:all .16s}
-    .ch-btn:active{transform:translateY(0)}
-    .ch-card:focus{outline:2px solid #F87171;outline-offset:2px}
-    input[type=range]{accent-color:#F87171}
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap');
+    @keyframes mfx-fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes mfx-glow{0%,100%{box-shadow:0 0 8px rgba(201,168,76,.15)}50%{box-shadow:0 0 20px rgba(201,168,76,.3)}}
+    @keyframes mfx-spin{to{transform:rotate(360deg)}}
+    @keyframes mfx-blink{0%,100%{opacity:1}50%{opacity:.2}}
+    @keyframes mfx-xp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-50px);opacity:0}}
+    @keyframes mfx-shine{0%{background-position:200% center}100%{background-position:-200% center}}
+    @keyframes mfx-pulse-ring{0%{box-shadow:0 0 0 0 rgba(201,168,76,.4)}100%{box-shadow:0 0 0 12px rgba(201,168,76,0)}}
+    @keyframes mfx-livedot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+    :root {
+      --gold:#C9A84C; --gold-l:#F5E9C8; --gold-d:#8A6B1E; --gold-m:#E8C96A;
+      --black:#0A0A0A; --black-l:#141414; --black-m:#1E1E1E; --black-s:#2A2A2A;
+      --white:#F5F0E8; --white-d:#BFB8A8;
+    }
+    .mfx-app{font-family:'DM Sans',sans-serif;background:var(--black);color:var(--white);min-height:100dvh}
+    .mfx-display{font-family:'Cormorant Garamond',serif;letter-spacing:.02em}
+    .mfx-fade{animation:mfx-fade .4s cubic-bezier(.22,.68,0,1.15) both}
+    .mfx-card{
+      background:var(--black-m);
+      border:0.5px solid rgba(201,168,76,.25);
+      border-radius:12px;
+      padding:16px 18px;
+      position:relative;
+    }
+    .mfx-card::before{
+      content:'';position:absolute;inset:0;border-radius:12px;
+      background:linear-gradient(135deg,rgba(201,168,76,.04) 0%,transparent 60%);
+      pointer-events:none;
+    }
+    .mfx-card2{
+      background:var(--black-s);
+      border:0.5px solid rgba(201,168,76,.15);
+      border-radius:8px;
+      padding:10px 12px;
+    }
+    .mfx-gold-border{border-color:rgba(201,168,76,.5)!important}
+    .mfx-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      padding:10px 16px;border-radius:8px;
+      border:0.5px solid rgba(201,168,76,.3);
+      background:transparent;color:var(--white-d);
+      font-size:13px;cursor:pointer;transition:all .15s;
+      font-family:'DM Sans',sans-serif;
+    }
+    .mfx-btn:hover{background:rgba(201,168,76,.08);color:var(--gold);border-color:rgba(201,168,76,.5)}
+    .mfx-btn:active{transform:scale(0.97)}
+    .mfx-btn-gold{
+      background:linear-gradient(135deg,#C9A84C,#8A6B1E);
+      color:var(--black);border:none;font-weight:500;
+      box-shadow:0 2px 12px rgba(201,168,76,.25);
+    }
+    .mfx-btn-gold:hover{background:linear-gradient(135deg,#E8C96A,#C9A84C);box-shadow:0 4px 20px rgba(201,168,76,.35);color:var(--black)}
+    .mfx-shine-text{
+      background:linear-gradient(90deg,#8A6B1E,#E8C96A,#C9A84C,#8A6B1E);
+      background-size:200% auto;
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      animation:mfx-shine 4s linear infinite;
+    }
+    .mfx-hab{
+      width:100%;padding:11px 14px;border-radius:8px;
+      border:0.5px solid rgba(201,168,76,.15);
+      background:var(--black-s);cursor:pointer;text-align:left;
+      transition:all .18s;display:flex;align-items:center;gap:10px;
+      font-family:'DM Sans',sans-serif;
+    }
+    .mfx-hab:hover{border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.05)}
+    .mfx-hab.done{border-color:rgba(58,125,68,.5);background:rgba(58,125,68,.08)}
+    .mfx-inp{
+      width:100%;padding:10px 12px;border-radius:8px;
+      border:0.5px solid rgba(201,168,76,.25);
+      background:var(--black-s);color:var(--white);
+      font-size:13px;font-family:'DM Sans',sans-serif;
+    }
+    .mfx-inp:focus{outline:2px solid rgba(201,168,76,.4);outline-offset:1px;border-color:transparent}
+    .mfx-inp::placeholder{color:rgba(191,184,168,.4)}
+    .mfx-sel{
+      width:100%;padding:9px 12px;border-radius:8px;
+      border:0.5px solid rgba(201,168,76,.2);
+      background:var(--black-s);color:var(--white);
+      font-size:13px;font-family:'DM Sans',sans-serif;appearance:none;
+    }
+    .mfx-tab{
+      padding:7px 14px;border-radius:8px;
+      border:0.5px solid transparent;background:transparent;
+      font-size:12px;cursor:pointer;color:rgba(191,184,168,.6);
+      transition:all .15s;font-family:'DM Sans',sans-serif;white-space:nowrap;
+    }
+    .mfx-tab:hover{color:var(--gold-l);background:rgba(201,168,76,.05)}
+    .mfx-tab.active{
+      background:rgba(201,168,76,.1);
+      border-color:rgba(201,168,76,.35);
+      color:var(--gold);
+    }
+    .mfx-divider{height:0.5px;background:rgba(201,168,76,.15);margin:4px 0}
+    .mfx-badge{
+      display:inline-block;padding:3px 8px;border-radius:20px;
+      font-size:10px;font-weight:500;letter-spacing:.04em;
+    }
+    .mfx-xp-pop{position:fixed;pointer-events:none;font-size:14px;font-weight:500;color:var(--gold);animation:mfx-xp 1.5s ease-out forwards;z-index:9999;font-family:'DM Sans',sans-serif}
+    .mfx-food-btn{
+      flex:1;padding:12px 8px;border-radius:8px;cursor:pointer;
+      border:0.5px solid rgba(201,168,76,.2);background:var(--black-s);
+      font-family:'DM Sans',sans-serif;transition:all .15s;
+    }
+    .mfx-food-btn:hover{border-color:rgba(201,168,76,.5);transform:translateY(-1px)}
+    .mfx-milestone{
+      padding:12px;border-radius:8px;
+      border:0.5px solid rgba(201,168,76,.2);
+      background:var(--black-s);transition:all .2s;
+    }
+    .mfx-milestone.achieved{
+      border-color:rgba(201,168,76,.5);
+      background:rgba(201,168,76,.08);
+      animation:mfx-glow 2s ease-in-out infinite;
+    }
+    .mfx-livedot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3A7D44;animation:mfx-livedot 1.6s ease-in-out infinite}
+    .mfx-scrollbar::-webkit-scrollbar{width:4px}
+    .mfx-scrollbar::-webkit-scrollbar-track{background:var(--black-s)}
+    .mfx-scrollbar::-webkit-scrollbar-thumb{background:rgba(201,168,76,.3);border-radius:2px}
     @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   `;
   document.head.appendChild(el);
 }
 
-/* ════════════════════════════════════════════════════════════
-   12. SHARED UI ATOMS
-════════════════════════════════════════════════════════════ */
-const ChBtn = ({ children, onClick, color=A, disabled=false, variant="primary", small=false, style={} }) => {
-  const bg = disabled ? "#1a0a0a" : variant === "primary" ? color : "transparent";
-  const cl = disabled ? "#555" : variant === "primary" ? "#0a0505" : color;
-  const br = disabled ? "#333" : variant === "primary" ? "#000" : `${color}66`;
-  return (
-    <button className="ch-btn ch-card" onClick={onClick} disabled={disabled}
-      style={{ width:"100%", padding:small?"8px 12px":"13px 16px", background:bg,
-        border:`1.5px solid ${br}`, color:cl, fontSize:small?11:13, fontWeight:700,
-        fontFamily:SYNE, letterSpacing:".04em", borderRadius:10,
-        cursor:disabled?"not-allowed":"pointer",
-        display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-        minHeight:small?36:48, opacity:disabled?.5:1, transition:"all .16s", ...style }}>
-      {children}
-    </button>
-  );
-};
+/* ══════════════════════════════════════════
+   XP POP
+══════════════════════════════════════════ */
+function XpPop({ pts, x, y, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 1600); return () => clearTimeout(t); }, []);
+  return <div className="mfx-xp-pop" style={{ left: x, top: y }}>+{pts} XP ✦</div>;
+}
 
-const MiniBar = ({ pct, color=A, height=5 }) => (
-  <div style={{ height, background:"#1a0a0a", borderRadius:3, overflow:"hidden" }}>
-    <div style={{ height:"100%", width:`${Math.min(100,pct)}%`, background:`linear-gradient(90deg,${ADM},${color})`,
-      transition:"width .5s ease", borderRadius:3 }}/>
-  </div>
-);
-
-/* ════════════════════════════════════════════════════════════
-   13. RISK GAUGE
-════════════════════════════════════════════════════════════ */
-function RiskGauge({ score, color, label }) {
-  const r=36, circ=2*Math.PI*r;
-  const dash=(score/100)*circ;
+/* ══════════════════════════════════════════
+   GOLD GAUGE RING
+══════════════════════════════════════════ */
+function GaugeRing({ score, color, size = 92 }) {
+  const r = (size / 2) - 7;
+  const circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
   return (
-    <div style={{ position:"relative", width:88, height:88, margin:"0 auto 8px" }}>
-      <svg viewBox="0 0 88 88" style={{ transform:"rotate(-90deg)" }}>
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#1a0a0a" strokeWidth="5"/>
-        <circle cx="44" cy="44" r={r} fill="none" stroke={color} strokeWidth="5"
-          strokeLinecap="round" strokeDasharray={`${dash} ${circ}`}
-          style={{ transition:"stroke-dasharray .9s ease-out", filter:`drop-shadow(0 0 6px ${color}66)` }}/>
+    <div style={{ position: "relative", width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)", width: size, height: size }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(201,168,76,.12)" strokeWidth="6"/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none"
+          stroke={color} strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={`${dash} ${circ}`}
+          style={{ transition: "stroke-dasharray .9s cubic-bezier(.4,0,.2,1)", filter:`drop-shadow(0 0 4px ${color}66)` }}/>
       </svg>
-      <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-        <div style={{ fontFamily:SYNE, fontSize:24, fontWeight:800, color, lineHeight:1 }}>{score}</div>
-        <div style={{ fontSize:7, letterSpacing:".14em", color:"#2a0f0f", textTransform:"uppercase" }}>{label}</div>
+      <div style={{ position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
+        <span style={{ fontSize:22, fontWeight:500, color, lineHeight:1, fontFamily:"'Cormorant Garamond',serif" }}>{score}</span>
+        <span style={{ fontSize:9, color:"rgba(191,184,168,.5)", textTransform:"uppercase", letterSpacing:".12em" }}>/ 100</span>
       </div>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   14. 7-DAY SPARKLINE — pure CSS
-════════════════════════════════════════════════════════════ */
-function Sparkline({ data, label, unit, color=A }) {
-  const vals = data.slice(-7).map(d => parseFloat(d.value)).filter(Boolean);
-  if (vals.length < 2) return (
-    <div style={{ padding:"8px 0", textAlign:"center", fontSize:10, color:TD }}>No trend yet — log more readings</div>
+/* ══════════════════════════════════════════
+   MINI BAR
+══════════════════════════════════════════ */
+function MiniBar({ pct, color = G.gold, height = 4 }) {
+  return (
+    <div style={{ height, background:"rgba(201,168,76,.1)", borderRadius:2, overflow:"hidden" }}>
+      <div style={{ height:"100%", width:`${Math.min(100,pct)}%`, background:`linear-gradient(90deg,${color}aa,${color})`, transition:"width .6s ease", borderRadius:2 }}/>
+    </div>
   );
-  const max = Math.max(...vals); const min = Math.min(...vals);
-  const range = max - min || 1;
-  const W = 200; const H = 36;
-  const pts = vals.map((v, i) => `${(i/(vals.length-1))*W},${H-((v-min)/range)*H}`).join(" ");
-  const latest = vals[vals.length-1];
+}
+
+/* ══════════════════════════════════════════
+   SPARK CHART (Chart.js)
+══════════════════════════════════════════ */
+function SparkChart({ data, label, unit, color }) {
+  const ref = useRef(null);
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!ref.current || data.length < 2) return;
+    const Chart = window.Chart;
+    if (!Chart) return;
+    if (chartRef.current) chartRef.current.destroy();
+    const vals = data.slice(-14).map(d => parseFloat(d.value)).filter(v => !isNaN(v));
+    const labels = data.slice(-14).map(d => d.date ? d.date.slice(-5) : "");
+    chartRef.current = new Chart(ref.current, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label, data: vals,
+          borderColor: color,
+          backgroundColor: color + "15",
+          borderWidth: 2, pointRadius: 3, pointBackgroundColor: color,
+          tension: 0.4, fill: true,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} ${unit}` } } },
+        scales: {
+          x: { ticks: { font: { size: 10 }, color: "#888" }, grid: { display: false }, border: { color:"rgba(201,168,76,.15)" } },
+          y: { ticks: { font: { size: 10 }, color: "#888" }, grid: { color: "rgba(201,168,76,.07)" }, border: { color:"rgba(201,168,76,.15)" } }
+        }
+      }
+    });
+    return () => { if (chartRef.current) chartRef.current.destroy(); };
+  }, [data, color]);
+
+  if (data.length < 2) return (
+    <div style={{ fontSize:11, color:"rgba(191,184,168,.4)", textAlign:"center", padding:"8px 0" }}>
+      Log 2+ readings to see trend
+    </div>
+  );
   return (
     <div>
-      <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:TM, marginBottom:4 }}>
-        <span>{label}</span>
-        <span style={{ color, fontWeight:700 }}>{latest} {unit}</span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H, overflow:"visible" }}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx={(vals.length-1)/(vals.length-1)*W} cy={H-((latest-min)/range)*H} r="4" fill={color}/>
-      </svg>
+      <div style={{ fontSize:11, color:"rgba(191,184,168,.6)", marginBottom:4 }}>{label} · last {Math.min(data.length, 14)} readings</div>
+      <div style={{ position:"relative", height:90 }}><canvas ref={ref} role="img" aria-label={`${label} trend chart`}/></div>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   15. BIOMETRIC LOG MODAL
-════════════════════════════════════════════════════════════ */
-function LogModal({ onClose, onSave }) {
-  const [type,  setType]  = useState("bp");
-  const [val1,  setVal1]  = useState("");
-  const [val2,  setVal2]  = useState("");
-  const [notes, setNotes] = useState("");
+/* ══════════════════════════════════════════
+   RISK HISTORY SPARKLINE (lightweight, no Chart.js dependency)
+══════════════════════════════════════════ */
+function RiskSparkline({ history, color }) {
+  if (history.length < 2) return (
+    <div style={{ fontSize:10, color:"rgba(191,184,168,.4)", textAlign:"center", padding:"10px 0" }}>
+      Keep logging — your risk trend line builds over the next few entries.
+    </div>
+  );
+  const w = 280, h = 48, pad = 4;
+  const vals = history.map(p => p.score);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = Math.max(1, max - min);
+  const pts = history.map((p, i) => {
+    const x = pad + (i / (history.length - 1)) * (w - pad*2);
+    const y = h - pad - ((p.score - min) / range) * (h - pad*2);
+    return `${x},${y}`;
+  }).join(" ");
+  const last = history[history.length - 1];
+  const first = history[0];
+  const delta = last.score - first.score;
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width:"100%", height:h }}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx={pts.split(" ").slice(-1)[0].split(",")[0]} cy={pts.split(" ").slice(-1)[0].split(",")[1]} r="3" fill={color}/>
+      </svg>
+      <div style={{ fontSize:10, color:"rgba(191,184,168,.5)", textAlign:"center", marginTop:2 }}>
+        {delta < 0 ? `↓ ${Math.abs(delta)} pts improvement` : delta > 0 ? `↑ ${delta} pts increase` : "Stable"} over {history.length} updates
+      </div>
+    </div>
+  );
+}
 
-  const fields = {
-    bp:      { label:"Blood Pressure", hint1:"Systolic (e.g. 120)", hint2:"Diastolic (e.g. 80)", twoVals:true  },
-    glucose: { label:"Blood Glucose",  hint1:"mg/dL (e.g. 95)",   hint2:"",                     twoVals:false },
-    weight:  { label:"Body Weight",    hint1:"kg (e.g. 68.5)",    hint2:"",                     twoVals:false },
-    spo2:    { label:"SpO₂ Oxygen",   hint1:"% (e.g. 98)",       hint2:"",                     twoVals:false },
+/* ══════════════════════════════════════════
+   AI COACH PANEL (Gold Edition)
+══════════════════════════════════════════ */
+function AICoach({ profile, riskScore, tier, habits, doneCount, logs, streak, liveInfo }) {
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [hasIntro, setHasIntro] = useState(false);
+  const bottomRef = useRef(null);
+
+  const systemPrompt = `You are ManifiX Elite Health Coach — an empathetic, evidence-based chronic disease prevention AI for premium members.
+
+Patient profile:
+- Age: ${profile.age}, BMI: ${profile.bmi}
+- Activity level: ${profile.activity}/10, Diet quality: ${profile.diet}/10
+- Smoker: ${profile.smokes}, Family history: ${profile.family}
+- Blood pressure: ${profile.bp}, Blood sugar: ${profile.sugar}
+- WHO Risk Score: ${riskScore}/100 (${tier.label})
+- Live biomarker coverage: ${liveInfo.coveredTypes}/${liveInfo.totalTypes} markers tracked, live data weight ${Math.round(liveInfo.liveWeight*100)}%
+- Risk trend: ${liveInfo.trend > 0.02 ? "worsening recently" : liveInfo.trend < -0.02 ? "improving recently" : "stable"}
+- Today's habits: ${doneCount}/${habits.length} completed
+- Day streak: ${streak.count} days
+- Recent logs: ${logs.slice(0,5).map(l=>l.type+':'+l.value).join(', ') || 'none yet'}
+
+Your style:
+- Warm, sophisticated, like a premium personal health concierge
+- Reference WHO guidelines and clinical trials (DPP, PREDIMED, SPRINT, UKPDS)
+- Use Noom-style behavioral psychology when relevant (cognitive reframing, environment design, hunger scale)
+- Keep responses focused: 2-4 sentences + 1 specific 5-minute action
+- For symptoms or medications, always recommend consulting their doctor
+- You cover: diabetes, CVD, hypertension, obesity, metabolic syndrome, behavioral change`;
+
+  const getIntro = useCallback(async () => {
+    if (hasIntro) return;
+    setHasIntro(true);
+    setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: "Give me a personalized elite coaching greeting and 2 specific micro-goals for today. Be warm and specific." }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.map(b => b.text || "").join("") || "Welcome to ManifiX Elite. I'm your personal health coach. Ask me anything about your prevention plan.";
+      setMsgs([{ role: "assistant", content: text }]);
+    } catch {
+      setMsgs([{ role: "assistant", content: "Welcome to ManifiX Elite. I'm your AI health coach. Ask about your prevention plan, habits, or what to focus on today." }]);
+    }
+    setLoading(false);
+  }, [hasIntro, systemPrompt]);
+
+  const send = useCallback(async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    const newMsgs = [...msgs, { role: "user", content: userMsg }];
+    setMsgs(newMsgs);
+    setLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: newMsgs.map(m => ({ role: m.role, content: m.content }))
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.map(b => b.text || "").join("") || "I had trouble responding. Please try again.";
+      setMsgs(prev => [...prev, { role: "assistant", content: text }]);
+    } catch {
+      setMsgs(prev => [...prev, { role: "assistant", content: "Network error. Please check your connection." }]);
+    }
+    setLoading(false);
+  }, [input, loading, msgs, systemPrompt]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs, loading]);
+
+  const quickQ = ["What should I focus on today?", "How do I lower my BP naturally?", "Best foods for blood sugar?", "Why did my risk score change?"];
+
+  return (
+    <div className="mfx-card mfx-fade" style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div>
+          <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>✦ Elite AI Health Coach</div>
+          <div style={{ fontSize:11, color:"rgba(191,184,168,.5)", marginTop:2 }}>Personalized · Evidence-based · 24/7</div>
+        </div>
+        {!hasIntro && (
+          <button className="mfx-btn mfx-btn-gold" onClick={getIntro} style={{ fontSize:12, padding:"8px 14px" }}>
+            Activate Coach ↗
+          </button>
+        )}
+      </div>
+
+      {msgs.length > 0 && (
+        <div className="mfx-scrollbar" style={{ maxHeight:280, overflowY:"auto", display:"flex", flexDirection:"column", gap:8 }}>
+          {msgs.map((m, i) => (
+            <div key={i} style={{
+              padding:"11px 14px", borderRadius:10, fontSize:13, lineHeight:1.65,
+              background: m.role==="assistant" ? "rgba(201,168,76,.07)" : "rgba(26,95,168,.15)",
+              color: m.role==="assistant" ? G.white : "#90bde8",
+              alignSelf: m.role==="user" ? "flex-end" : "flex-start",
+              maxWidth:"88%",
+              border: `0.5px solid ${m.role==="assistant" ? "rgba(201,168,76,.2)" : "rgba(26,95,168,.3)"}`,
+            }}>
+              {m.role==="assistant" && <span style={{ fontSize:10, color:G.gold, marginRight:6, opacity:.7 }}>✦</span>}
+              {m.content}
+            </div>
+          ))}
+          {loading && (
+            <div style={{ padding:"11px 14px", background:"rgba(201,168,76,.05)", borderRadius:10, fontSize:13, color:"rgba(191,184,168,.6)", border:"0.5px solid rgba(201,168,76,.15)" }}>
+              <span style={{ animation:"mfx-blink 1s infinite", display:"inline-block", color:G.gold }}>✦</span> Thinking…
+            </div>
+          )}
+          <div ref={bottomRef}/>
+        </div>
+      )}
+
+      {!hasIntro && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+          {quickQ.map(q => (
+            <button key={q} className="mfx-tab" onClick={() => { setInput(q); setTimeout(getIntro, 10); }} style={{ fontSize:11 }}>{q}</button>
+          ))}
+        </div>
+      )}
+
+      {hasIntro && (
+        <div style={{ display:"flex", gap:8 }}>
+          <input className="mfx-inp" value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&send()}
+            placeholder="Ask your elite coach…" style={{ flex:1 }}/>
+          <button className="mfx-btn mfx-btn-gold" onClick={send} disabled={loading||!input.trim()}
+            style={{ whiteSpace:"nowrap", padding:"10px 16px", opacity:loading||!input.trim()?.5:1 }}>
+            Send ↗
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   NOOM-STYLE FOOD JOURNAL
+══════════════════════════════════════════ */
+function FoodJournal({ foodLog, setFoodLog }) {
+  const [meal, setMeal] = useState("breakfast");
+  const [name, setName] = useState("");
+  const [colorCat, setColorCat] = useState("green");
+  const [hunger, setHunger] = useState(5);
+  const [fullness, setFullness] = useState(6);
+  const [note, setNote] = useState("");
+  const [view, setView] = useState("log"); // log | journal | insights
+
+  const todayLog = useMemo(() => foodLog.filter(e => e.date === TK()), [foodLog]);
+  const colorCounts = useMemo(() => {
+    const c = { green:0, yellow:0, red:0 };
+    todayLog.forEach(e => c[e.color]++);
+    return c;
+  }, [todayLog]);
+
+  const addEntry = () => {
+    if (!name.trim()) return;
+    const entry = { id:Date.now(), date:TK(), meal, name:name.trim(), color:colorCat, hunger, fullness, note:note.trim(), ts:Date.now() };
+    setFoodLog(prev => [entry, ...prev.slice(0,149)]);
+    setName(""); setNote("");
   };
-  const f = fields[type];
-  const valid = val1.trim().length > 0;
 
-  const handleSave = () => {
+  const scorePct = Math.round(((colorCounts.green*3 + colorCounts.yellow*1.5) / Math.max(1, todayLog.length*3))*100);
+  const todayPsych = PSYCH_TIPS[new Date().getDay() % PSYCH_TIPS.length];
+  const meals = ["breakfast","morning snack","lunch","afternoon snack","dinner","evening snack"];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ display:"flex", gap:6 }}>
+        {[["log","Food Log"],["journal","Journal"],["insights","Insights"]].map(([k,l]) => (
+          <button key={k} className={`mfx-tab ${view===k?"active":""}`} onClick={()=>setView(k)}>{l}</button>
+        ))}
+      </div>
+
+      {view==="log" && (
+        <div className="mfx-card mfx-fade">
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div>
+              <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>🍽 Food Journal</div>
+              <div style={{ fontSize:11, color:"rgba(191,184,168,.5)", marginTop:2 }}>Noom-style color coding · behavioral psychology</div>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:20, fontWeight:500, color:scorePct>=70?G.grn:scorePct>=40?G.amb:G.red, fontFamily:"'Cormorant Garamond',serif" }}>{scorePct}%</div>
+              <div style={{ fontSize:9, color:"rgba(191,184,168,.5)" }}>Green score</div>
+            </div>
+          </div>
+
+          {/* Color legend */}
+          <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+            {Object.entries(FOOD_COLORS).map(([k,v]) => (
+              <div key={k} style={{ flex:1, padding:"8px 10px", borderRadius:8, border:`1px solid ${v.color}44`, background:`${v.color}0E`, textAlign:"center", cursor:"pointer", transition:"all .15s" }}
+                onClick={()=>setColorCat(k)}>
+                <div style={{ fontSize:11, fontWeight:500, color:v.color, marginBottom:2 }}>{v.label}</div>
+                <div style={{ fontSize:9, color:"rgba(191,184,168,.5)" }}>{colorCounts[k]} today</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Color description */}
+          <div className="mfx-card2" style={{ marginBottom:12, borderColor:`${FOOD_COLORS[colorCat].color}33` }}>
+            <div style={{ fontSize:12, color:FOOD_COLORS[colorCat].color, fontWeight:500, marginBottom:3 }}>{FOOD_COLORS[colorCat].label} Foods</div>
+            <div style={{ fontSize:11, color:"rgba(191,184,168,.7)", marginBottom:3 }}>{FOOD_COLORS[colorCat].desc}</div>
+            <div style={{ fontSize:10, color:"rgba(191,184,168,.5)" }}>{FOOD_COLORS[colorCat].examples}</div>
+          </div>
+
+          {/* Log form */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+            <div>
+              <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Meal</label>
+              <select className="mfx-sel" value={meal} onChange={e=>setMeal(e.target.value)} style={{ fontSize:12 }}>
+                {meals.map(m=><option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Color category</label>
+              <select className="mfx-sel" value={colorCat} onChange={e=>setColorCat(e.target.value)} style={{ fontSize:12 }}>
+                {Object.entries(FOOD_COLORS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ marginBottom:8 }}>
+            <input className="mfx-inp" value={name} onChange={e=>setName(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&addEntry()}
+              placeholder="What did you eat? e.g. Mixed salad with chicken" style={{ marginBottom:8 }}/>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+            <div>
+              <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Hunger before ({hunger}/10)</label>
+              <input type="range" min="1" max="10" value={hunger} onChange={e=>setHunger(+e.target.value)} style={{ width:"100%", accentColor:G.gold }}/>
+            </div>
+            <div>
+              <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Fullness after ({fullness}/10)</label>
+              <input type="range" min="1" max="10" value={fullness} onChange={e=>setFullness(+e.target.value)} style={{ width:"100%", accentColor:G.gold }}/>
+            </div>
+          </div>
+          <input className="mfx-inp" value={note} onChange={e=>setNote(e.target.value)}
+            placeholder="Emotional note (optional): stressed, bored, celebrating…" style={{ marginBottom:10 }}/>
+          <button className="mfx-btn mfx-btn-gold" onClick={addEntry} disabled={!name.trim()} style={{ width:"100%", opacity:name.trim()?1:.4 }}>
+            Log Meal ✦
+          </button>
+
+          {/* Today's log */}
+          {todayLog.length > 0 && (
+            <div style={{ marginTop:14 }}>
+              <div style={{ fontSize:11, color:"rgba(191,184,168,.5)", marginBottom:8 }}>Today's meals ({todayLog.length})</div>
+              {todayLog.map(e => (
+                <div key={e.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid rgba(201,168,76,.1)" }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:FOOD_COLORS[e.color].color, flexShrink:0 }}/>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, color:G.white }}>{e.name}</div>
+                    <div style={{ fontSize:10, color:"rgba(191,184,168,.5)" }}>{e.meal} · hunger:{e.hunger} → fullness:{e.fullness}</div>
+                  </div>
+                  <span className="mfx-badge" style={{ background:`${FOOD_COLORS[e.color].color}22`, color:FOOD_COLORS[e.color].color, border:`0.5px solid ${FOOD_COLORS[e.color].color}44` }}>
+                    {FOOD_COLORS[e.color].label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {view==="journal" && (
+        <div className="mfx-card mfx-fade">
+          <div className="mfx-display" style={{ fontSize:16, color:G.gold, marginBottom:12 }}>📔 Behavioral Journal</div>
+          {[
+            { label:"What triggered eating today?", placeholder:"Stress, boredom, social, genuine hunger…" },
+            { label:"Emotional state before eating", placeholder:"Anxious, happy, tired, celebratory…" },
+            { label:"Non-food coping strategies used", placeholder:"Walk, call a friend, breathing exercise…" },
+          ].map(({label,placeholder},i) => (
+            <div key={i} style={{ marginBottom:10 }}>
+              <label style={{ fontSize:11, color:"rgba(191,184,168,.6)", display:"block", marginBottom:4 }}>{label}</label>
+              <textarea className="mfx-inp" rows={2} placeholder={placeholder} style={{ resize:"none" }}/>
+            </div>
+          ))}
+          <div className="mfx-card2" style={{ marginTop:4 }}>
+            <div style={{ fontSize:11, color:G.gold, marginBottom:4 }}>🧠 Today's Psychology Insight</div>
+            <div style={{ fontSize:12, fontWeight:500, color:G.white, marginBottom:4 }}>{todayPsych.title}</div>
+            <div style={{ fontSize:11, color:"rgba(191,184,168,.7)", lineHeight:1.6, marginBottom:6 }}>{todayPsych.desc}</div>
+            <div style={{ fontSize:10, color:"rgba(201,168,76,.7)", borderLeft:`2px solid ${G.gold}44`, paddingLeft:8 }}>{todayPsych.science}</div>
+          </div>
+        </div>
+      )}
+
+      {view==="insights" && (
+        <div className="mfx-card mfx-fade">
+          <div className="mfx-display" style={{ fontSize:16, color:G.gold, marginBottom:12 }}>📊 Food Psychology Insights</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:14 }}>
+            {Object.entries(FOOD_COLORS).map(([k,v]) => (
+              <div key={k} className="mfx-card2" style={{ textAlign:"center", borderColor:`${v.color}33` }}>
+                <div style={{ fontSize:20, fontWeight:500, color:v.color, fontFamily:"'Cormorant Garamond',serif" }}>
+                  {foodLog.filter(e=>e.color===k).length}
+                </div>
+                <div style={{ fontSize:9, color:"rgba(191,184,168,.5)", marginTop:2 }}>{v.label} total</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(191,184,168,.6)", marginBottom:6 }}>
+              <span>Average hunger before eating</span>
+              <span style={{ color:G.gold }}>{foodLog.length ? (foodLog.reduce((a,e)=>a+e.hunger,0)/foodLog.length).toFixed(1) : '—'}/10</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(191,184,168,.6)", marginBottom:6 }}>
+              <span>Average fullness after eating</span>
+              <span style={{ color:G.gold }}>{foodLog.length ? (foodLog.reduce((a,e)=>a+e.fullness,0)/foodLog.length).toFixed(1) : '—'}/10</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(191,184,168,.6)" }}>
+              <span>Total meals logged</span>
+              <span style={{ color:G.gold }}>{foodLog.length}</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {PSYCH_TIPS.map((t,i) => (
+              <div key={i} className="mfx-card2">
+                <div style={{ fontSize:12, fontWeight:500, color:G.gold, marginBottom:3 }}>{t.title}</div>
+                <div style={{ fontSize:11, color:"rgba(191,184,168,.7)", lineHeight:1.55 }}>{t.desc}</div>
+                <div style={{ fontSize:10, color:"rgba(201,168,76,.6)", marginTop:4 }}>📖 {t.science}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   MEDICATION TRACKER (Teladoc-style)
+══════════════════════════════════════════ */
+function MedTracker({ meds, setMeds, medLog, setMedLog }) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name:"", category:"Diabetes", dose:"", time:"morning", notes:"" });
+  const todayTaken = medLog.filter(e=>e.date===TK()).map(e=>e.medId);
+
+  const addMed = () => {
+    if (!form.name.trim()) return;
+    setMeds(prev => [...prev, { id:Date.now(), ...form }]);
+    setForm({ name:"", category:"Diabetes", dose:"", time:"morning", notes:"" });
+    setAdding(false);
+  };
+
+  const takeMed = (medId) => {
+    if (todayTaken.includes(medId)) return;
+    setMedLog(prev => [{ medId, date:TK(), ts:Date.now() }, ...prev.slice(0,199)]);
+  };
+
+  const removeMed = (id) => setMeds(prev=>prev.filter(m=>m.id!==id));
+  const adherence7 = meds.length ? Math.round((medLog.filter(e=>{
+    const d = new Date(e.ts); const now=new Date();
+    return (now-d)<7*86400000;
+  }).length / Math.max(1, meds.length*7))*100) : 0;
+
+  const timeSlots = ["morning","midday","evening","bedtime","as needed"];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div className="mfx-card mfx-fade">
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+          <div>
+            <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>💊 Medication Manager</div>
+            <div style={{ fontSize:11, color:"rgba(191,184,168,.5)", marginTop:2 }}>Teladoc-style medication bridge</div>
+          </div>
+          <button className="mfx-btn mfx-btn-gold" onClick={()=>setAdding(v=>!v)} style={{ fontSize:12, padding:"7px 12px" }}>
+            {adding ? "✕ Cancel" : "+ Add Med"}
+          </button>
+        </div>
+
+        {/* Adherence stats */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:12 }}>
+          {[
+            ["7-Day Adherence", `${adherence7}%`, adherence7>=80?G.grn:adherence7>=50?G.amb:G.red],
+            ["Medications", `${meds.length}`, G.gold],
+            ["Taken Today", `${todayTaken.length}/${meds.length}`, G.grn],
+          ].map(([l,v,c]) => (
+            <div key={l} className="mfx-card2" style={{ textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:500, color:c, fontFamily:"'Cormorant Garamond',serif" }}>{v}</div>
+              <div style={{ fontSize:9, color:"rgba(191,184,168,.5)", marginTop:2 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {meds.length > 0 && <MiniBar pct={meds.length ? (todayTaken.length/meds.length)*100 : 0} color={G.grn}/>}
+
+        {/* Add form */}
+        {adding && (
+          <div className="mfx-card2" style={{ marginTop:12, marginBottom:12 }}>
+            <div style={{ fontSize:12, color:G.gold, marginBottom:8 }}>Add New Medication</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+              <div>
+                <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Category</label>
+                <select className="mfx-sel" value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value,name:""}))} style={{ fontSize:12 }}>
+                  {MED_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Time</label>
+                <select className="mfx-sel" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={{ fontSize:12 }}>
+                  {timeSlots.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginBottom:8 }}>
+              <label style={{ fontSize:10, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>Medication name</label>
+              <input className="mfx-inp" list="med-suggestions" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Type or select…"/>
+              <datalist id="med-suggestions">
+                {(COMMON_MEDS[form.category]||[]).map(m=><option key={m} value={m}/>)}
+              </datalist>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+              <input className="mfx-inp" value={form.dose} onChange={e=>setForm(f=>({...f,dose:e.target.value}))} placeholder="Dose (e.g. 500mg)"/>
+              <input className="mfx-inp" value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Notes (with food, etc.)"/>
+            </div>
+            <button className="mfx-btn mfx-btn-gold" onClick={addMed} disabled={!form.name.trim()} style={{ width:"100%", opacity:form.name.trim()?1:.4 }}>
+              Add Medication ✦
+            </button>
+          </div>
+        )}
+
+        {/* Medication list */}
+        {meds.length === 0 && !adding && (
+          <div style={{ textAlign:"center", padding:"20px 0", color:"rgba(191,184,168,.4)", fontSize:13 }}>
+            No medications tracked yet.<br/>
+            <span style={{ fontSize:11 }}>Add your prescriptions to track adherence.</span>
+          </div>
+        )}
+
+        {meds.map(m => {
+          const taken = todayTaken.includes(m.id);
+          return (
+            <div key={m.id} className="mfx-card2" style={{ marginBottom:8, borderColor:taken?"rgba(58,125,68,.4)":"rgba(201,168,76,.15)", background:taken?"rgba(58,125,68,.06)":"var(--black-s)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+                    <div style={{ fontSize:13, fontWeight:500, color:G.white }}>{m.name}</div>
+                    <span className="mfx-badge" style={{ background:"rgba(201,168,76,.12)", color:G.gold, border:"0.5px solid rgba(201,168,76,.25)", fontSize:9 }}>{m.category}</span>
+                  </div>
+                  <div style={{ fontSize:10, color:"rgba(191,184,168,.5)" }}>
+                    {m.dose && `${m.dose} · `}{m.time}{m.notes && ` · ${m.notes}`}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button className="mfx-btn" onClick={()=>takeMed(m.id)}
+                    style={{ fontSize:11, padding:"6px 12px", borderColor:taken?"rgba(58,125,68,.5)":"rgba(201,168,76,.2)", color:taken?G.grn:G.white }}>
+                    {taken ? "✓ Taken" : "Mark Taken"}
+                  </button>
+                  <button className="mfx-btn" onClick={()=>removeMed(m.id)} style={{ padding:"6px 8px", fontSize:10, color:"rgba(201,44,36,.6)", borderColor:"rgba(201,44,36,.2)" }}>✕</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="mfx-card2" style={{ marginTop:8 }}>
+          <div style={{ fontSize:10, color:G.gold, marginBottom:3 }}>⚠ Medical Disclaimer</div>
+          <div style={{ fontSize:10, color:"rgba(191,184,168,.5)", lineHeight:1.6 }}>
+            This tracker is for reminders only. Always follow your doctor's prescription. Never change medication doses without medical guidance. Adherence ↑40% reduces diabetes complications (UKPDS 2023).
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   BIOMETRIC LOGGER MODAL
+══════════════════════════════════════════ */
+function LogModal({ onClose, onSave }) {
+  const [type, setType] = useState("bp");
+  const [v1, setV1] = useState("");
+  const [v2, setV2] = useState("");
+  const [note, setNote] = useState("");
+  const FIELDS = {
+    bp:      { label:"Blood Pressure", hint1:"Systolic e.g. 120", hint2:"Diastolic e.g. 80", two:true },
+    glucose: { label:"Glucose",       hint1:"mg/dL e.g. 95",    hint2:"", two:false },
+    weight:  { label:"Weight",        hint1:"kg e.g. 72.5",     hint2:"", two:false },
+    spo2:    { label:"SpO₂",          hint1:"% e.g. 98",        hint2:"", two:false },
+    hba1c:   { label:"HbA1c",         hint1:"% e.g. 6.5",       hint2:"", two:false },
+    chol:    { label:"Cholesterol",   hint1:"mg/dL e.g. 185",   hint2:"", two:false },
+  };
+  const f = FIELDS[type];
+  const valid = v1.trim() !== "";
+  const save = () => {
     if (!valid) return;
-    const value = f.twoVals ? `${val1}/${val2}` : val1;
-    onSave({ type, value, notes: notes.trim(), ts: Date.now() });
+    onSave({ type, value:f.two?`${v1}/${v2}`:v1, notes:note.trim(), ts:Date.now(), date:new Date().toLocaleDateString() });
     onClose();
   };
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.92)", display:"flex", alignItems:"center",
-      justifyContent:"center", zIndex:100, padding:16 }}>
-      <div className="ch-fade" style={{ background:BG, border:`2px solid ${A}`, padding:22,
-        width:"min(400px,100%)", borderRadius:14 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <span style={{ fontFamily:SYNE, fontSize:17, fontWeight:700, color:TX }}>📊 Log Reading</span>
-          <button onClick={onClose} style={{ fontSize:18, background:"none", border:"none", color:TM, cursor:"pointer" }}>✕</button>
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16 }}>
+      <div className="mfx-card mfx-fade" style={{ width:"min(420px,100%)", maxHeight:"90vh", overflowY:"auto", background:"var(--black-l)" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+          <span className="mfx-display" style={{ fontSize:16, color:G.gold }}>📊 Log Biometric Reading</span>
+          <button className="mfx-btn" onClick={onClose} style={{ padding:"4px 8px" }}>✕</button>
         </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
-          {Object.entries(fields).map(([k, fd]) => (
-            <button key={k} onClick={() => { setType(k); setVal1(""); setVal2(""); }}
-              style={{ padding:"10px", borderRadius:8, fontSize:12,
-                background:type===k?`${A}22`:"#0e0808",
-                border:`1.5px solid ${type===k?A:"#2a1010"}`,
-                color:type===k?A:TM, cursor:"pointer", fontFamily:FONT }}>
-              {fd.label}
-            </button>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:14 }}>
+          {Object.entries(FIELDS).map(([k, fd]) => (
+            <button key={k} className={`mfx-tab ${type===k?"active":""}`}
+              onClick={() => { setType(k); setV1(""); setV2(""); }}
+              style={{ fontSize:11, textAlign:"center" }}>{fd.label}</button>
           ))}
         </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:f.twoVals?"1fr 1fr":"1fr", gap:8, marginBottom:12 }}>
-          <div>
-            <label style={{ fontSize:10, color:TM, display:"block", marginBottom:4 }}>{f.hint1}</label>
-            <input type="number" value={val1} onChange={e=>setVal1(e.target.value)}
-              placeholder={f.hint1}
-              style={{ width:"100%", padding:"10px 12px", fontSize:14, background:"#0e0808",
-                border:`1.5px solid #2a1010`, color:TX, borderRadius:8, fontFamily:FONT }}/>
-          </div>
-          {f.twoVals && (
-            <div>
-              <label style={{ fontSize:10, color:TM, display:"block", marginBottom:4 }}>{f.hint2}</label>
-              <input type="number" value={val2} onChange={e=>setVal2(e.target.value)}
-                placeholder={f.hint2}
-                style={{ width:"100%", padding:"10px 12px", fontSize:14, background:"#0e0808",
-                  border:`1.5px solid #2a1010`, color:TX, borderRadius:8, fontFamily:FONT }}/>
-            </div>
-          )}
+        <div style={{ marginBottom:8 }}>
+          <label style={{ fontSize:11, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>{f.hint1}</label>
+          <input className="mfx-inp" type="number" value={v1} onChange={e=>setV1(e.target.value)} placeholder={f.hint1}/>
         </div>
-
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)}
-          placeholder="Notes (optional)..." rows={2}
-          style={{ width:"100%", padding:"9px 12px", fontSize:12, background:"#0e0808",
-            border:`1.5px solid #2a1010`, color:TX, borderRadius:8, fontFamily:FONT,
-            resize:"vertical", marginBottom:14 }}/>
-
-        <div style={{ display:"flex", gap:10 }}>
-          <ChBtn onClick={onClose} variant="secondary" small>Cancel</ChBtn>
-          <ChBtn onClick={handleSave} disabled={!valid}>Save Reading</ChBtn>
+        {f.two && (
+          <div style={{ marginBottom:8 }}>
+            <label style={{ fontSize:11, color:"rgba(191,184,168,.5)", display:"block", marginBottom:4 }}>{f.hint2}</label>
+            <input className="mfx-inp" type="number" value={v2} onChange={e=>setV2(e.target.value)} placeholder={f.hint2}/>
+          </div>
+        )}
+        <textarea className="mfx-inp" value={note} onChange={e=>setNote(e.target.value)} rows={2}
+          placeholder="Notes: fasting, after meal, post-exercise…" style={{ marginBottom:14, resize:"vertical" }}/>
+        <div style={{ display:"flex", gap:8 }}>
+          <button className="mfx-btn" onClick={onClose} style={{ flex:1 }}>Cancel</button>
+          <button className="mfx-btn mfx-btn-gold" onClick={save} disabled={!valid} style={{ flex:2, opacity:valid?1:.4 }}>Save Reading ✦</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════════════════════
-   16. MAIN COMPONENT
-════════════════════════════════════════════════════════════ */
-export default function ChronicDisease() {
-  const navigate = useNavigate();
-  const lang  = useMemo(loadLang, []);
-  const speak = useMemo(() => makeSpeaker(lang), [lang]);
-
-  /* ── State ── */
-  const [profile,  setProfile]  = useState(loadProfile);
-  const [habitsToday, setHabitsToday] = useState(loadHabitsToday);
-  const [logs,     setLogs]     = useState(loadLogs);
-  const [streak,   setStreak]   = useState(loadStreak);
-  const [plan,     setPlan]     = useState([]);
-  const [showLog,  setShowLog]  = useState(false);
-  const [showWHO,  setShowWHO]  = useState(false);
-  const [whoKey,   setWhoKey]   = useState("diabetes");
-  const [showProfile, setShowProfile] = useState(false);
-  const [loading,  setLoading]  = useState(true);
-  const [offline,  setOffline]  = useState(!navigator.onLine);
-  const [crisis,   setCrisis]   = useState(null);
-
-  const riskScore  = useMemo(() => calcRisk(profile),            [profile]);
-  const tier       = useMemo(() => riskTier(riskScore),          [riskScore]);
-  const doneCount  = Object.values(habitsToday).filter(Boolean).length;
-  const wellScore  = useMemo(() => {
-    const base     = 100 - riskScore;
-    const habBonus = (doneCount / DAILY_HABITS.length) * 20;
-    const planBonus = plan.filter(g => g.streak > 0).length * 5;
-    return Math.min(100, Math.round(base + habBonus + planBonus));
-  }, [riskScore, doneCount, plan]);
-
-  /* Boot */
-  useEffect(() => {
-    injectCSS();
-    const p = loadProfile();
-    const initial = makePlan(p, calcRisk(p));
-    setPlan(initial);
-    setTimeout(() => {
-      setLoading(false);
-      speak(ph(lang, "welcome"));
-    }, 900);
-  }, []);
-
-  /* Offline */
-  useEffect(() => {
-    const on = () => setOffline(false), off = () => setOffline(true);
-    window.addEventListener("online", on); window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
-  }, []);
-
-  /* Persist */
-  useEffect(() => { lsSave("manifix_chronic_profile_v2", profile); }, [profile]);
-  useEffect(() => { lsSave(`manifix_habits_${todayKey()}`, habitsToday); }, [habitsToday]);
-  useEffect(() => { lsSave("manifix_chronic_logs_v2", logs); }, [logs]);
-  useEffect(() => { lsSave("manifix_chronic_streak_v2", streak); }, [streak]);
-
-  /* ── Handlers ── */
-  const toggleHabit = useCallback((id) => {
-    setHabitsToday(prev => {
-      const now = { ...prev, [id]: !prev[id] };
-      if (!prev[id]) {
-        speak(ph(lang, "habit_done"));
-        // Update streak
-        const today = todayKey();
-        setStreak(s => {
-          const yesterday = new Date(Date.now()-86400000).toISOString().split("T")[0];
-          let count = s.count;
-          if (s.lastDate === yesterday) count += 1;
-          else if (s.lastDate !== today) count = 1;
-          const ns = { count, lastDate: today };
-          lsSave("manifix_chronic_streak_v2", ns);
-          return ns;
-        });
-      }
-      return now;
-    });
-  }, [lang, speak]);
-
-  const saveLog = useCallback((entry) => {
-    const newLog = { id: Date.now(), date: new Date().toLocaleDateString(), ...entry };
-    setLogs(prev => [newLog, ...prev.slice(0, 59)]);
-    speak(ph(lang, "log_saved"));
-    // Check for crisis values
-    if (entry.type === "bp") {
-      const sys = parseFloat(entry.value);
-      if (sys >= 180) { setCrisis("bp"); speak(ph(lang, "crisis_bp"), true); }
-    }
-    if (entry.type === "glucose") {
-      const g = parseFloat(entry.value);
-      if (g >= 300) { setCrisis("sugar"); speak(ph(lang, "crisis_sugar"), true); }
-    }
-  }, [lang, speak]);
-
-  const incrementPlan = useCallback((goalId) => {
-    setPlan(prev => prev.map(g => g.id === goalId ? { ...g, streak: (g.streak||0)+1 } : g));
-  }, []);
-
-  const refreshPlan = useCallback(() => {
-    setPlan(makePlan(profile, riskScore));
-    speak(ph(lang, "plan_ready"));
-  }, [profile, riskScore, lang, speak]);
-
-  const updateProfile = useCallback((field, value) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
-    setTimeout(() => setPlan(makePlan(profile, calcRisk(profile))), 100);
-  }, [profile]);
-
-  if (loading) return (
-    <div style={{ minHeight:"100dvh", background:BG, color:TX, display:"flex", flexDirection:"column",
-      alignItems:"center", justifyContent:"center", fontFamily:FONT }}>
-      <div style={{ fontSize:52, marginBottom:16, animation:"ch-beat 1.5s infinite" }}>🫀</div>
-      <div style={{ fontSize:13, letterSpacing:".14em", color:A, textTransform:"uppercase", marginBottom:14 }}>
-        Loading Chronic Care…
-      </div>
-      <div style={{ width:26, height:26, border:`3px solid ${BOR}`, borderTopColor:A,
-        borderRadius:"50%", animation:"ch-spin 1s linear infinite" }}/>
-    </div>
-  );
-
-  const A_accent = A;
+/* ══════════════════════════════════════════
+   MILESTONES PANEL
+══════════════════════════════════════════ */
+function MilestonesPanel({ streak, xp, doneCount, logs, medLog, liveCoverage }) {
+  const achieved = (m) => {
+    if (m.habitReq && doneCount < m.habitReq) return false;
+    if (m.streakReq && streak.count < m.streakReq) return false;
+    if (m.xpAchieve && (xp||0) < m.xpAchieve) return false;
+    if (m.logReq && logs.length < m.logReq) return false;
+    if (m.medReq && medLog.length < m.medReq) return false;
+    if (m.liveCoverageReq && liveCoverage < m.liveCoverageReq) return false;
+    return true;
+  };
+  const doneCount2 = MILESTONES.filter(m=>achieved(m)).length;
 
   return (
-    <div style={{ minHeight:"100dvh", background:BG, color:TX, fontFamily:FONT,
-      display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden", position:"relative" }}>
+    <div className="mfx-card mfx-fade">
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>🏆 Care Milestones</div>
+        <div style={{ fontSize:12, color:"rgba(191,184,168,.6)" }}>{doneCount2}/{MILESTONES.length} achieved</div>
+      </div>
+      <MiniBar pct={(doneCount2/MILESTONES.length)*100} color={G.gold}/>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:12 }}>
+        {MILESTONES.map(m => {
+          const a = achieved(m);
+          return (
+            <div key={m.id} className={`mfx-milestone ${a?"achieved":""}`}>
+              <div style={{ fontSize:20, marginBottom:6 }}>{m.icon}</div>
+              <div style={{ fontSize:12, fontWeight:500, color:a?G.gold:G.white }}>{m.title}</div>
+              <div style={{ fontSize:10, color:"rgba(191,184,168,.5)", marginTop:2 }}>{m.desc}</div>
+              {a && <div style={{ fontSize:10, color:G.gold, marginTop:4 }}>✦ Achieved</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-      {/* BG grid */}
-      <div style={{ position:"fixed", inset:0, pointerEvents:"none",
-        backgroundImage:`linear-gradient(rgba(248,113,113,0.02) 1px,transparent 1px),
-          linear-gradient(90deg,rgba(248,113,113,0.02) 1px,transparent 1px)`,
-        backgroundSize:"44px 44px" }}/>
+/* ══════════════════════════════════════════
+   PROFILE PANEL
+══════════════════════════════════════════ */
+function ProfilePanel({ profile, onChange }) {
+  const Slider = ({ field, label, min, max }) => (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(191,184,168,.5)", marginBottom:3 }}>
+        <span>{label}</span>
+        <span style={{ color:G.gold }}>{profile[field]}{field==="bmi"?" BMI":field==="age"?" yrs":"/10"}</span>
+      </div>
+      <input type="range" min={min} max={max} value={profile[field]} step="1"
+        onChange={e=>onChange(field,+e.target.value)} style={{ width:"100%", accentColor:G.gold }}/>
+    </div>
+  );
+  return (
+    <div className="mfx-card mfx-fade">
+      <div className="mfx-display" style={{ fontSize:14, color:G.gold, marginBottom:4 }}>⚙ Baseline Profile</div>
+      <div style={{ fontSize:10, color:"rgba(191,184,168,.45)", marginBottom:12, lineHeight:1.5 }}>
+        Used as your risk estimate until enough logged readings exist. Once you log biomarkers, real data gradually overrides these sliders.
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+        <Slider field="age"      label="Age"           min={18} max={85}/>
+        <Slider field="bmi"      label="BMI"           min={15} max={50}/>
+        <Slider field="activity" label="Activity Level" min={1}  max={10}/>
+        <Slider field="diet"     label="Diet Quality"   min={1}  max={10}/>
+      </div>
+      <div style={{ display:"flex", gap:14, flexWrap:"wrap", marginBottom:12 }}>
+        {[["smokes","🚬 Smoker"],["family","🧬 Family history"]].map(([f,l]) => (
+          <label key={f} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, cursor:"pointer", color:G.whiteD }}>
+            <input type="checkbox" checked={!!profile[f]} onChange={e=>onChange(f,e.target.checked)} style={{ accentColor:G.gold, width:14, height:14 }}/>{l}
+          </label>
+        ))}
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+        {[
+          ["bp","Blood Pressure",["normal","elevated","high"]],
+          ["sugar","Blood Sugar",["normal","prediabetic","diabetic"]],
+          ["waist","Waist Risk",["normal","high"]],
+        ].map(([f,l,opts]) => (
+          <div key={f}>
+            <label style={{ fontSize:10, color:"rgba(191,184,168,.4)", display:"block", marginBottom:3 }}>{l}</label>
+            <select className="mfx-sel" value={profile[f]} onChange={e=>onChange(f,e.target.value)} style={{ fontSize:11 }}>
+              {opts.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      {/* Ambient glow */}
-      <div style={{ position:"fixed", top:"22%", left:"50%", transform:"translateX(-50%)", width:440, height:220,
-        background:`radial-gradient(ellipse,${A}0c 0%,transparent 70%)`,
-        animation:"ch-pulse 6s ease-in-out infinite", pointerEvents:"none" }}/>
+/* ══════════════════════════════════════════
+   LIVE RISK ENGINE PANEL
+   The signature piece: shows exactly how the score is being computed
+   from baseline vs. logged data, so the math is transparent.
+══════════════════════════════════════════ */
+function LiveRiskPanel({ risk, riskHistory, tier }) {
+  const pct = Math.round(risk.liveWeight * 100);
+  const trendLabel = risk.trend > 0.02 ? "Worsening" : risk.trend < -0.02 ? "Improving" : "Stable";
+  const trendColor = risk.trend > 0.02 ? G.red : risk.trend < -0.02 ? G.grn : G.whiteD;
 
-      {/* Crisis Banner */}
+  return (
+    <div className="mfx-card mfx-fade">
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <div>
+          <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>📡 Live Risk Engine</div>
+          <div style={{ fontSize:11, color:"rgba(191,184,168,.45)", marginTop:2 }}>How your score is actually calculated, right now</div>
+        </div>
+        {risk.liveWeight > 0 && <span className="mfx-livedot"/>}
+      </div>
+
+      {/* Blend bar */}
+      <div style={{ marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(191,184,168,.5)", marginBottom:4 }}>
+          <span>Baseline profile</span>
+          <span>Logged biomarkers</span>
+        </div>
+        <div style={{ display:"flex", height:10, borderRadius:6, overflow:"hidden", border:"0.5px solid rgba(201,168,76,.2)" }}>
+          <div style={{ width:`${100-pct}%`, background:"rgba(191,184,168,.25)" }}/>
+          <div style={{ width:`${pct}%`, background:`linear-gradient(90deg,${G.gold}88,${G.gold})`, transition:"width .6s ease" }}/>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, marginTop:4 }}>
+          <span style={{ color:"rgba(191,184,168,.6)" }}>{100-pct}% estimate</span>
+          <span style={{ color:G.gold }}>{pct}% live data</span>
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:14 }}>
+        <div className="mfx-card2" style={{ textAlign:"center" }}>
+          <div className="mfx-display" style={{ fontSize:16, color:G.whiteD }}>{risk.staticScore}</div>
+          <div style={{ fontSize:9, color:"rgba(191,184,168,.45)", marginTop:2 }}>Profile estimate</div>
+        </div>
+        <div className="mfx-card2" style={{ textAlign:"center" }}>
+          <div className="mfx-display" style={{ fontSize:16, color:risk.liveScore!=null?G.gold:"rgba(191,184,168,.3)" }}>{risk.liveScore ?? "—"}</div>
+          <div style={{ fontSize:9, color:"rgba(191,184,168,.45)", marginTop:2 }}>Biomarker score</div>
+        </div>
+        <div className="mfx-card2" style={{ textAlign:"center" }}>
+          <div className="mfx-display" style={{ fontSize:16, color:trendColor }}>{trendLabel}</div>
+          <div style={{ fontSize:9, color:"rgba(191,184,168,.45)", marginTop:2 }}>14-day trend</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"rgba(191,184,168,.55)", marginBottom:6 }}>
+          <span>Biomarker panel coverage</span>
+          <span style={{ color:G.gold }}>{risk.coveredTypes}/{risk.totalTypes} tracked</span>
+        </div>
+        <MiniBar pct={(risk.coveredTypes/risk.totalTypes)*100} color={G.blu}/>
+      </div>
+
+      <div style={{ marginBottom:4 }}>
+        <div style={{ fontSize:11, color:"rgba(191,184,168,.55)", marginBottom:6 }}>Risk score history</div>
+        <RiskSparkline history={riskHistory} color={tier.color}/>
+      </div>
+
+      {risk.behavioralMod !== 0 && (
+        <div className="mfx-card2" style={{ marginTop:10, borderColor: risk.behavioralMod < 0 ? "rgba(58,125,68,.35)" : "rgba(201,74,44,.35)" }}>
+          <div style={{ fontSize:10, color: risk.behavioralMod < 0 ? G.grn : G.red }}>
+            {risk.behavioralMod < 0
+              ? `Habit & medication adherence is lowering your score by ${Math.abs(Math.round(risk.behavioralMod))} pts`
+              : `Low recent adherence is raising your score by ${Math.round(risk.behavioralMod)} pts`}
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize:9, color:"rgba(191,184,168,.35)", marginTop:10, lineHeight:1.5 }}>
+        Live score blends your last 10 readings per marker, weighted toward recent entries (10-day half-life), trend direction, and 7-day habit/medication adherence. No external device data is connected — all inputs come from what you log here.
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════ */
+export default function ChronicDisease() {
+  const [profile, setProfile] = useState(() => ls("mfx_profile_v4", {
+    age:38, bmi:25, activity:5, diet:6, smokes:false, family:false, bp:"normal", sugar:"normal", waist:"normal"
+  }));
+  const [habitsToday, setHabitsToday] = useState(() => ls(`mfx_habits_${TK()}`, {}));
+  const [habitsHistory, setHabitsHistory] = useState(() => ls("mfx_habits_history_v1", []));
+  const [logs, setLogs] = useState(() => ls("mfx_logs_v4", []));
+  const [foodLog, setFoodLog] = useState(() => ls("mfx_food_v1", []));
+  const [meds, setMeds] = useState(() => ls("mfx_meds_v1", []));
+  const [medLog, setMedLog] = useState(() => ls("mfx_medlog_v1", []));
+  const [streak, setStreak] = useState(() => ls("mfx_streak_v3", { count:0, lastDate:"", xp:0, level:1 }));
+  const [riskHistory, setRiskHistory] = useState(() => ls("mfx_risk_history_v1", []));
+  const [plan, setPlan] = useState([]);
+  const [tab, setTab] = useState("dashboard");
+  const [showLog, setShowLog] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [whoKey, setWhoKey] = useState("diabetes");
+  const [crisis, setCrisis] = useState(null);
+  const [xpPops, setXpPops] = useState([]);
+  const [chartReady, setChartReady] = useState(false);
+
+  // ── LIVE BLENDED RISK ──
+  const risk = useMemo(
+    () => calcBlendedRisk(profile, logs, habitsHistory, medLog, meds.length),
+    [profile, logs, habitsHistory, medLog, meds.length]
+  );
+  const riskScore = risk.score;
+  const tier = useMemo(() => riskTier(riskScore), [riskScore]);
+  const doneCount = Object.values(habitsToday).filter(Boolean).length;
+  const doneXP = HABITS.filter(h => habitsToday[h.id]).reduce((a, h) => a + h.pts, 0);
+  const wellScore = useMemo(() => {
+    const base = 100 - riskScore;
+    const hb = (doneCount / HABITS.length) * 18;
+    const sk = Math.min(15, streak.count * 1.5);
+    return Math.min(100, Math.round(base + hb + sk));
+  }, [riskScore, doneCount, streak.count]);
+
+  useEffect(() => {
+    injectCSS();
+    const existing = PLAN_POOL.filter(g => g.condition(profile)).slice(0, 3);
+    setPlan(existing.map(g => ({ ...g, done: false })));
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    script.onload = () => setChartReady(true);
+    if (!window.Chart) document.head.appendChild(script);
+    else setChartReady(true);
+  }, []);
+
+  useEffect(() => { lss("mfx_profile_v4", profile); }, [profile]);
+  useEffect(() => { lss(`mfx_habits_${TK()}`, habitsToday); }, [habitsToday]);
+  useEffect(() => { lss("mfx_habits_history_v1", habitsHistory); }, [habitsHistory]);
+  useEffect(() => { lss("mfx_logs_v4", logs); }, [logs]);
+  useEffect(() => { lss("mfx_food_v1", foodLog); }, [foodLog]);
+  useEffect(() => { lss("mfx_meds_v1", meds); }, [meds]);
+  useEffect(() => { lss("mfx_medlog_v1", medLog); }, [medLog]);
+  useEffect(() => { lss("mfx_streak_v3", streak); }, [streak]);
+  useEffect(() => { lss("mfx_risk_history_v1", riskHistory); }, [riskHistory]);
+
+  // Track today's habit completion ratio into history (for behavioral modifier + future trend)
+  useEffect(() => {
+    const today = TK();
+    setHabitsHistory(prev => {
+      const withoutToday = prev.filter(h => h.date !== today);
+      return [...withoutToday, { date: today, doneCount, totalCount: HABITS.length }].slice(-60);
+    });
+  }, [doneCount]);
+
+  // Record risk score history whenever the blended score changes meaningfully
+  useEffect(() => {
+    setRiskHistory(prev => {
+      const last = prev[prev.length - 1];
+      if (last && last.score === riskScore && Date.now() - last.ts < 6*3600000) return prev;
+      return [...prev, { score: riskScore, ts: Date.now() }].slice(-40);
+    });
+  }, [riskScore]);
+
+  const updateProfile = useCallback((f, v) => {
+    setProfile(prev => {
+      const np = { ...prev, [f]: v };
+      const newPlan = PLAN_POOL.filter(g => g.condition(np)).slice(0, 3);
+      setPlan(newPlan.map(g => ({ ...g, done: false })));
+      return np;
+    });
+  }, []);
+
+  const toggleHabit = useCallback((h, e) => {
+    if (habitsToday[h.id]) return;
+    setHabitsToday(prev => ({ ...prev, [h.id]: true }));
+    const today = TK();
+    setStreak(s => {
+      const yesterday = new Date(Date.now()-86400000).toISOString().split("T")[0];
+      let count = s.lastDate === yesterday ? s.count + 1 : s.lastDate === today ? s.count : 1;
+      const xp = (s.xp||0) + h.pts;
+      const level = Math.floor(xp / 200) + 1;
+      return { count, lastDate:today, xp, level };
+    });
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = Date.now();
+    setXpPops(prev => [...prev, { id, pts: h.pts, x: rect.left + rect.width/2 - 20, y: rect.top - 10 }]);
+    setTimeout(() => setXpPops(prev => prev.filter(p => p.id !== id)), 1700);
+  }, [habitsToday]);
+
+  const saveLog = useCallback((entry) => {
+    setLogs(prev => [entry, ...prev.slice(0, 89)]);
+    if (entry.type==="bp" && parseFloat(entry.value) >= 180) setCrisis("bp");
+    if (entry.type==="glucose" && parseFloat(entry.value) >= 300) setCrisis("glucose");
+  }, []);
+
+  const latestBio = useMemo(() => {
+    const m = {};
+    logs.forEach(l => { if (!m[l.type]) m[l.type] = l; });
+    return m;
+  }, [logs]);
+
+  const TABS = [
+    { id:"dashboard", label:"Dashboard" },
+    { id:"risk",      label:"Live Risk" },
+    { id:"habits",    label:"Habits" },
+    { id:"food",      label:"Food" },
+    { id:"meds",      label:"Meds" },
+    { id:"biometrics",label:"Biometrics" },
+    { id:"coach",     label:"AI Coach" },
+    { id:"who",       label:"WHO Data" },
+  ];
+
+  return (
+    <div className="mfx-app" style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"0 0 80px" }}>
+
+      {xpPops.map(p => <XpPop key={p.id} {...p} onDone={()=>setXpPops(prev=>prev.filter(x=>x.id!==p.id))}/>)}
+
+      {/* Crisis Alert */}
       {crisis && (
-        <div style={{ width:"100%", background:"#3d0000", borderBottom:`2px solid ${A}`,
-          padding:"10px 20px", display:"flex", justifyContent:"space-between", alignItems:"center",
-          zIndex:50, position:"sticky", top:0 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:A, animation:"ch-blink 1s infinite" }}>
-            🚨 {crisis === "bp" ? ph(lang,"crisis_bp") : ph(lang,"crisis_sugar")}
+        <div style={{ width:"100%", background:"rgba(201,44,36,.9)", borderBottom:"1px solid rgba(201,44,36,.5)", padding:"12px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, zIndex:50 }}>
+          <span style={{ fontSize:13, fontWeight:500, color:"#fff" }}>
+            🚨 {crisis==="bp" ? "URGENT: Blood pressure critically high. Seek medical care immediately." : "URGENT: Blood glucose dangerously elevated. Seek care now."}
           </span>
-          <button onClick={()=>setCrisis(null)}
-            style={{ fontSize:11, color:A, background:"none", border:"none", cursor:"pointer", fontFamily:FONT }}>
-            Dismiss
-          </button>
+          <button onClick={()=>setCrisis(null)} style={{ background:"transparent", border:"1px solid rgba(255,255,255,.4)", color:"#fff", borderRadius:6, padding:"4px 10px", cursor:"pointer", fontSize:11 }}>Dismiss</button>
         </div>
       )}
 
-      {/* Offline badge */}
-      {offline && (
-        <div style={{ width:"100%", background:"#1a0a0a", borderBottom:`1px solid ${A}44`,
-          padding:"5px 20px", fontSize:10, color:A, letterSpacing:".12em", textTransform:"uppercase",
-          textAlign:"center" }}>
-          ⚡ Offline — all features work locally
-        </div>
-      )}
+      {showLog && <LogModal onClose={()=>setShowLog(false)} onSave={saveLog}/>}
 
-      {/* Modals */}
-      {showLog && <LogModal onClose={()=>setShowLog(false)} onSave={saveLog} />}
-
-      <div style={{ position:"relative", zIndex:2, width:"min(480px,98vw)",
-        display:"flex", flexDirection:"column", gap:12, paddingTop:18, paddingBottom:52 }}>
+      <div style={{ width:"min(540px,98vw)", display:"flex", flexDirection:"column", gap:14, paddingTop:20 }}>
 
         {/* ── HEADER ── */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
-          paddingBottom:12, borderBottom:`2px solid ${BOR}` }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingBottom:16, borderBottom:"0.5px solid rgba(201,168,76,.2)" }}>
           <div>
-            <div style={{ fontFamily:SYNE, fontSize:28, fontWeight:800, lineHeight:1, color:TX }}>
-              ManifiX <span style={{ color:A }}>Chronic</span>
-            </div>
-            <div style={{ fontSize:10, letterSpacing:".14em", color:A, textTransform:"uppercase",
-              marginTop:4, opacity:.7 }}>Prevent · Manage · Thrive</div>
+            <div className="mfx-display mfx-shine-text" style={{ fontSize:26, lineHeight:1 }}>ManifiX</div>
+            <div style={{ fontSize:10, color:"rgba(191,184,168,.4)", marginTop:4, letterSpacing:".12em", textTransform:"uppercase" }}>Chronic · Elite Edition · WHO SDG 3.4</div>
           </div>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-            <button onClick={()=>navigate("/app/dashboard")}
-              style={{ fontSize:11, color:TD, background:"none", border:"none",
-                cursor:"pointer", fontFamily:FONT, textTransform:"uppercase" }}>← Dashboard</button>
-            <button onClick={()=>setShowProfile(v=>!v)}
-              style={{ fontSize:9, color:`${A}88`, background:"none", border:"none",
-                cursor:"pointer", fontFamily:FONT, textTransform:"uppercase" }}>
-              ⚙ {showProfile ? "Close" : "My Profile"}
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <div style={{ textAlign:"center", padding:"8px 12px", background:"rgba(201,168,76,.08)", borderRadius:8, border:"0.5px solid rgba(201,168,76,.25)" }}>
+              <div className="mfx-display" style={{ fontSize:18, color:G.gold, lineHeight:1 }}>Lv {streak.level||1}</div>
+              <div style={{ fontSize:9, color:"rgba(191,184,168,.4)", marginTop:2 }}>{streak.xp||0} XP</div>
+            </div>
+            <button className="mfx-btn" onClick={()=>setShowProfile(v=>!v)} style={{ fontSize:11, padding:"8px 12px" }}>
+              {showProfile ? "✕" : "⚙ Profile"}
             </button>
           </div>
         </div>
 
-        {/* ── RISK ASSESSMENT CARD ── */}
-        <div className="ch-fade" style={{ border:`2px solid ${tier.color}44`,
-          background:`${tier.color}08`, padding:"16px 18px", borderRadius:12, textAlign:"center" }}>
-          <div style={{ fontSize:9, letterSpacing:".2em", color:TD, textTransform:"uppercase", marginBottom:10 }}>
-            AI Risk Score — WHO PEN Guideline
-          </div>
-          <RiskGauge score={riskScore} color={tier.color} label={tier.label} />
-          <div style={{ fontSize:11, color:tier.color, fontWeight:700, marginBottom:4 }}>
-            {ph(lang, tier.key).split(".")[0]}
-          </div>
-          <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:12 }}>
-            {[["Wellness Score", wellScore, GREEN], ["Habit Streak", streak.count+"d", AMBER]].map(([lbl,val,col]) => (
-              <div key={lbl} style={{ textAlign:"center" }}>
-                <div style={{ fontFamily:SYNE, fontSize:20, fontWeight:800, color:col }}>{val}</div>
-                <div style={{ fontSize:9, color:TD, letterSpacing:".1em" }}>{lbl}</div>
+        {showProfile && <ProfilePanel profile={profile} onChange={updateProfile}/>}
+
+        {/* ── RISK CARD ── */}
+        <div className="mfx-card mfx-fade" style={{ border:`0.5px solid ${tier.color}55` }}>
+          <div style={{ display:"flex", gap:16, alignItems:"center" }}>
+            <GaugeRing score={riskScore} color={tier.color} size={92}/>
+            <div style={{ flex:1 }}>
+              <div className="mfx-display" style={{ fontSize:16, color:tier.color, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}>
+                {tier.icon} {tier.label}
+                {risk.liveWeight > 0 && <span className="mfx-livedot" title="Live data active"/>}
+                <span style={{ fontSize:11, color:"rgba(191,184,168,.5)", fontFamily:"'DM Sans',sans-serif" }}>WHO PEN Score</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── DOMAIN TABS ── */}
-        <div style={{ display:"flex", gap:5, overflowX:"auto", paddingBottom:4 }}>
-          {Object.entries(WHO_DOMAINS).map(([key, d]) => (
-            <button key={key} onClick={() => { setWhoKey(key); setShowWHO(true); }}
-              style={{ flex:"0 0 auto", padding:"7px 11px", fontSize:9, letterSpacing:".1em",
-                textTransform:"uppercase", fontFamily:FONT, borderRadius:7, cursor:"pointer",
-                background:whoKey===key&&showWHO?`${A}20`:"#0e0808",
-                border:`1px solid ${whoKey===key&&showWHO?A:"#2a1010"}`,
-                color:whoKey===key&&showWHO?A:TM, transition:"all .15s", whiteSpace:"nowrap" }}>
-              {d.label.split(" ")[0]}
-            </button>
-          ))}
-        </div>
-
-        {/* ── WHO PANEL ── */}
-        {showWHO && (
-          <div className="ch-fade" style={{ border:`1.5px solid ${A}22`, background:"#0e0808",
-            padding:"14px 16px", borderRadius:10 }}>
-            <div style={{ fontSize:9, letterSpacing:".18em", color:TD, textTransform:"uppercase", marginBottom:6 }}>
-              WHO · {WHO_DOMAINS[whoKey].code}
-            </div>
-            <div style={{ fontSize:14, color:A, fontWeight:700, fontFamily:SYNE, marginBottom:10 }}>
-              {WHO_DOMAINS[whoKey].label}
-            </div>
-            {WHO_DOMAINS[whoKey].stats.map((s, i) => (
-              <div key={i} style={{ fontSize:11, color:i===0?TM:TD, lineHeight:1.7,
-                borderLeft:`2px solid ${i===0?A:"#2a1010"}`, paddingLeft:10, marginBottom:5 }}>{s}</div>
-            ))}
-            <div style={{ marginTop:8, padding:"8px 12px", background:"#0a0505",
-              border:`1px solid ${A}22`, borderRadius:6, fontSize:10, color:A }}>
-              ✅ {WHO_DOMAINS[whoKey].solve}
-            </div>
-            <div style={{ fontSize:8, color:TD, marginTop:6, letterSpacing:".12em" }}>
-              {WHO_DOMAINS[whoKey].sdg}
-            </div>
-          </div>
-        )}
-
-        {/* ── PROFILE (collapsible) ── */}
-        {showProfile && (
-          <div className="ch-fade" style={{ border:`1.5px solid ${BOR}`, background:"#0e0808",
-            padding:"14px 16px", borderRadius:10 }}>
-            <div style={{ fontSize:11, color:A, fontWeight:700, marginBottom:12, fontFamily:SYNE }}>
-              ⚙ Risk Profile — updates your score live
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
-              {[["Age", "age", 18, 80], ["BMI", "bmi", 15, 50]].map(([lbl, field, min, max]) => (
-                <div key={field}>
-                  <label style={{ fontSize:9, color:TM, display:"block", marginBottom:3 }}>{lbl}: {profile[field]}</label>
-                  <input type="range" min={min} max={max} value={profile[field]}
-                    onChange={e => updateProfile(field, +e.target.value)}
-                    style={{ width:"100%" }} />
-                </div>
-              ))}
-              {[["Activity Level 1-10", "activity", 1, 10], ["Diet Quality 1-10", "diet", 1, 10]].map(([lbl, field, min, max]) => (
-                <div key={field}>
-                  <label style={{ fontSize:9, color:TM, display:"block", marginBottom:3 }}>{lbl}: {profile[field]}</label>
-                  <input type="range" min={min} max={max} value={profile[field]}
-                    onChange={e => updateProfile(field, +e.target.value)}
-                    style={{ width:"100%" }} />
-                </div>
-              ))}
-            </div>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
-              {[
-                ["smokes", "🚬 Smoker"],
-                ["family", "🧬 Family History"],
-              ].map(([field, lbl]) => (
-                <label key={field} style={{ display:"flex", alignItems:"center", gap:6,
-                  fontSize:11, color:TM, cursor:"pointer" }}>
-                  <input type="checkbox" checked={!!profile[field]}
-                    onChange={e => updateProfile(field, e.target.checked)}
-                    style={{ accentColor:A, width:14, height:14 }}/>
-                  {lbl}
-                </label>
-              ))}
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <div>
-                <label style={{ fontSize:9, color:TM, display:"block", marginBottom:3 }}>Blood Pressure Status</label>
-                <select value={profile.bp} onChange={e => updateProfile("bp", e.target.value)}
-                  style={{ width:"100%", padding:"8px", fontSize:11, background:"#0a0505",
-                    border:`1px solid #2a1010`, color:TX, borderRadius:6, fontFamily:FONT }}>
-                  {["normal","elevated","high"].map(v => <option key={v} value={v} style={{ background:"#0a0505" }}>{v}</option>)}
-                </select>
+              <div style={{ fontSize:11, color:"rgba(191,184,168,.65)", lineHeight:1.6, marginBottom:10 }}>
+                {tier.key==="low" && "Your lifestyle choices are actively protecting your future health."}
+                {tier.key==="mod" && "Moderate risk detected. Your elite prevention plan is activated."}
+                {tier.key==="high" && "Elevated risk. Immediate action today — small changes compound fast."}
+                {risk.liveWeight > 0 && ` Score is ${Math.round(risk.liveWeight*100)}% driven by your logged readings.`}
               </div>
-              <div>
-                <label style={{ fontSize:9, color:TM, display:"block", marginBottom:3 }}>Blood Sugar Status</label>
-                <select value={profile.sugar} onChange={e => updateProfile("sugar", e.target.value)}
-                  style={{ width:"100%", padding:"8px", fontSize:11, background:"#0a0505",
-                    border:`1px solid #2a1010`, color:TX, borderRadius:6, fontFamily:FONT }}>
-                  {["normal","prediabetic","diabetic"].map(v => <option key={v} value={v} style={{ background:"#0a0505" }}>{v}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── PREVENTION PLAN ── */}
-        <div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:TX }}>🎯 Your Prevention Plan</div>
-            <button onClick={refreshPlan}
-              style={{ fontSize:10, color:A, background:"none", border:"none", cursor:"pointer", fontFamily:FONT }}>
-              ↻ Refresh
-            </button>
-          </div>
-          {plan.map(goal => (
-            <div key={goal.id} className="ch-fade" style={{ border:`1.5px solid ${A}22`,
-              background:"#0e0808", padding:"12px 14px", borderRadius:10, marginBottom:8 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-                <div>
-                  <div style={{ fontSize:12, fontWeight:700, color:TX }}>{goal.title}</div>
-                  <div style={{ fontSize:10, color:TM, marginTop:2 }}>{goal.action}</div>
-                </div>
-                <button onClick={()=>incrementPlan(goal.id)}
-                  style={{ fontSize:10, padding:"4px 10px", background:goal.streak>0?`${A}22`:"#1a0a0a",
-                    border:`1px solid ${goal.streak>0?A:"#2a1010"}`,
-                    color:goal.streak>0?A:TD, borderRadius:5, cursor:"pointer", fontFamily:FONT }}>
-                  {goal.streak>0?`🔥 ${goal.streak}`:"+1"}
-                </button>
-              </div>
-              <div style={{ fontSize:9, color:TD, borderLeft:`2px solid ${A}33`, paddingLeft:8 }}>
-                {goal.impact}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── DAILY HABITS ── */}
-        <div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:TX }}>📋 Daily Health Habits</div>
-            <div style={{ fontSize:10, color:tier.color }}>{doneCount}/{DAILY_HABITS.length} done</div>
-          </div>
-          <MiniBar pct={(doneCount/DAILY_HABITS.length)*100} color={tier.color} height={4} />
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginTop:8 }}>
-            {DAILY_HABITS.map(h => {
-              const done = !!habitsToday[h.id];
-              return (
-                <button key={h.id} onClick={() => toggleHabit(h.id)}
-                  className="ch-btn"
-                  style={{ padding:"10px 12px", background:done?`${A}12`:"#0e0808",
-                    border:`1.5px solid ${done?A:"#2a1010"}`,
-                    borderRadius:9, display:"flex", alignItems:"center", gap:8, cursor:"pointer",
-                    textAlign:"left", width:"100%", transition:"all .18s" }}>
-                  <span style={{ fontSize:18, flexShrink:0 }}>{h.icon}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:10, color:done?`${A}88`:TM, textDecoration:done?"line-through":"none",
-                      lineHeight:1.3 }}>{h.label}</div>
-                    <div style={{ fontSize:7, color:TD, marginTop:2 }}>{h.who}</div>
-                  </div>
-                  {done && <span style={{ fontSize:12, color:GREEN, flexShrink:0 }}>✓</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── BIOMETRICS ── */}
-        <div>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:TX }}>🩺 Biometric Log</div>
-            <ChBtn onClick={()=>setShowLog(true)} small style={{ width:"auto", padding:"7px 14px" }}>
-              + Log Reading
-            </ChBtn>
-          </div>
-
-          {/* Latest values grid */}
-          {(() => {
-            const latest = {};
-            logs.forEach(l => { if (!latest[l.type]) latest[l.type] = l; });
-            return (
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
                 {[
-                  { type:"bp",      icon:"❤️",  label:"Blood Pressure" },
-                  { type:"glucose", icon:"🩸",  label:"Blood Glucose"  },
-                  { type:"weight",  icon:"⚖️",  label:"Body Weight"    },
-                  { type:"spo2",    icon:"🫁",  label:"SpO₂ Oxygen"   },
-                ].map(({ type, icon, label }) => {
-                  const entry = latest[type];
-                  const isBP  = type === "bp";
-                  const stat  = entry ? bioStatus(isBP ? "systolic" : type, isBP ? entry.value.split("/")[0] : entry.value) : null;
+                  ["Wellness",`${wellScore}`,"%",G.grn],
+                  ["Streak",`${streak.count}`,"d",G.gold],
+                  ["Habits",`${doneCount}/${HABITS.length}`,"",G.blu],
+                ].map(([l,v,u,col]) => (
+                  <div key={l} className="mfx-card2" style={{ textAlign:"center" }}>
+                    <div className="mfx-display" style={{ fontSize:18, color:col, lineHeight:1 }}>{v}<span style={{ fontSize:9, fontFamily:"'DM Sans',sans-serif" }}>{u}</span></div>
+                    <div style={{ fontSize:9, color:"rgba(191,184,168,.4)", marginTop:2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── TABS ── */}
+        <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:2 }}>
+          {TABS.map(t => (
+            <button key={t.id} className={`mfx-tab ${tab===t.id?"active":""}`} onClick={()=>setTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+
+        {/* ══════════════════════════════════════
+            DASHBOARD TAB
+        ══════════════════════════════════════ */}
+        {tab==="dashboard" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+
+            {/* Prevention plan */}
+            <div className="mfx-card mfx-fade">
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>🎯 Your Prevention Plan</div>
+                <span style={{ fontSize:10, color:"rgba(191,184,168,.4)", letterSpacing:".08em" }}>WHO EVIDENCE</span>
+              </div>
+              {plan.map((g, i) => (
+                <div key={g.id} className="mfx-card2" style={{ marginBottom:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:10 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:500, color:G.white, marginBottom:3 }}>{g.icon} {g.title}</div>
+                      <div style={{ fontSize:11, color:"rgba(191,184,168,.7)", lineHeight:1.55, marginBottom:5 }}>{g.action}</div>
+                      <div style={{ fontSize:10, color:G.grn, borderLeft:`2px solid ${G.grn}55`, paddingLeft:8 }}>{g.impact}</div>
+                    </div>
+                    <button className="mfx-btn" onClick={() => setPlan(prev => prev.map(p=>p.id===g.id?{...p,streak:(p.streak||0)+1}:p))}
+                      style={{ fontSize:11, padding:"6px 12px", flexShrink:0, borderColor:(g.streak||0)>0?"rgba(201,168,76,.5)":"rgba(201,168,76,.15)", color:(g.streak||0)>0?G.gold:G.whiteD }}>
+                      {(g.streak||0) > 0 ? `🔥 ${g.streak}` : "Done +1"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Quick snapshot */}
+            <div className="mfx-card mfx-fade">
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <div className="mfx-display" style={{ fontSize:15, color:G.gold }}>🩺 Vitals Snapshot</div>
+                <button className="mfx-btn mfx-btn-gold" onClick={()=>setShowLog(true)} style={{ fontSize:11, padding:"6px 12px" }}>+ Log ✦</button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {[{type:"bp",icon:"❤️",label:"Blood Pressure"},{type:"glucose",icon:"🩸",label:"Glucose"},{type:"weight",icon:"⚖️",label:"Weight"},{type:"spo2",icon:"🫁",label:"SpO₂"}].map(({type,icon,label}) => {
+                  const e = latestBio[type];
+                  const isBP = type==="bp";
+                  const st = e ? bioStat(isBP?"systolic":type, isBP?e.value.split("/")[0]:e.value) : null;
                   return (
-                    <div key={type} style={{ border:`1.5px solid ${stat?stat.color+"33":"#2a1010"}`,
-                      background:"#0e0808", padding:"10px 12px", borderRadius:9 }}>
+                    <div key={type} className="mfx-card2" onClick={()=>setShowLog(true)} style={{ cursor:"pointer", borderColor:st?`${st.color}44`:"rgba(201,168,76,.1)" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                        <span style={{ fontSize:9, color:TM, letterSpacing:".1em" }}>{icon} {label}</span>
-                        {stat && <span style={{ fontSize:8, color:stat.color, fontWeight:700 }}>{stat.label}</span>}
+                        <span style={{ fontSize:10, color:"rgba(191,184,168,.5)" }}>{icon} {label}</span>
+                        {st && <span style={{ fontSize:9, fontWeight:500, color:st.color }}>{st.label}</span>}
                       </div>
-                      <div style={{ fontFamily:SYNE, fontSize:20, fontWeight:800,
-                        color:stat?stat.color:TD, lineHeight:1 }}>
-                        {entry ? entry.value : "—"}
-                      </div>
-                      <div style={{ fontSize:8, color:TD, marginTop:2 }}>
-                        {entry ? entry.date : "Not logged"}
-                      </div>
+                      <div className="mfx-display" style={{ fontSize:20, color:st?st.color:"rgba(191,184,168,.3)", lineHeight:1 }}>{e?e.value:"—"}</div>
+                      <div style={{ fontSize:9, color:"rgba(191,184,168,.4)", marginTop:2 }}>{e?e.date:"Not logged"}</div>
                     </div>
                   );
                 })}
               </div>
-            );
-          })()}
+            </div>
 
-          {/* Sparkline trends */}
-          {logs.length >= 2 && (
-            <div style={{ border:`1.5px solid ${BOR}`, background:"#0e0808",
-              padding:"12px 14px", borderRadius:10 }}>
-              <div style={{ fontSize:10, color:TM, marginBottom:10, letterSpacing:".1em" }}>
-                📈 7-Day Trends
+            {/* Live risk teaser */}
+            <div className="mfx-card2" style={{ cursor:"pointer" }} onClick={()=>setTab("risk")}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <span style={{ fontSize:11, color:G.gold, display:"flex", alignItems:"center", gap:6 }}>
+                  {risk.liveWeight > 0 && <span className="mfx-livedot"/>} 📡 Live Risk Engine
+                </span>
+                <span style={{ fontSize:11, color:"rgba(191,184,168,.5)" }}>{Math.round(risk.liveWeight*100)}% live data</span>
               </div>
-              {[
-                { type:"glucose", label:"Blood Glucose", unit:"mg/dL", color:AMBER  },
-                { type:"spo2",    label:"SpO₂",          unit:"%",     color:BLUE   },
-                { type:"weight",  label:"Weight",         unit:"kg",    color:A      },
-              ].map(({ type, label, unit, color }) => {
-                const data = logs.filter(l => l.type === type);
-                return data.length >= 2 ? (
-                  <div key={type} style={{ marginBottom:12 }}>
-                    <Sparkline data={data} label={label} unit={unit} color={color} />
-                  </div>
-                ) : null;
-              })}
+              <MiniBar pct={risk.liveWeight*100} color={G.gold}/>
+              <div style={{ fontSize:10, color:"rgba(191,184,168,.45)", marginTop:5 }}>
+                {risk.coveredTypes}/{risk.totalTypes} biomarkers tracked · tap to see how your score is built
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* ── RECENT LOGS ── */}
-        {logs.length > 0 && (
-          <div style={{ border:`1.5px solid ${BOR}`, background:"#0e0808",
-            padding:"12px 14px", borderRadius:10 }}>
-            <div style={{ fontSize:10, color:TM, marginBottom:8, letterSpacing:".1em" }}>
-              Recent Readings
+            {/* Habits quick + meds */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <div className="mfx-card2" style={{ cursor:"pointer" }} onClick={()=>setTab("habits")}>
+                <div style={{ fontSize:11, color:G.gold, marginBottom:6 }}>📋 Habits</div>
+                <MiniBar pct={(doneCount/HABITS.length)*100} color={tier.color}/>
+                <div style={{ fontSize:11, color:"rgba(191,184,168,.6)", marginTop:5 }}>{doneCount}/{HABITS.length} done · {doneXP} XP</div>
+              </div>
+              <div className="mfx-card2" style={{ cursor:"pointer" }} onClick={()=>setTab("meds")}>
+                <div style={{ fontSize:11, color:G.gold, marginBottom:6 }}>💊 Medications</div>
+                <MiniBar pct={meds.length?((medLog.filter(e=>e.date===TK()).length)/meds.length)*100:0} color={G.grn}/>
+                <div style={{ fontSize:11, color:"rgba(191,184,168,.6)", marginTop:5 }}>{medLog.filter(e=>e.date===TK()).length}/{meds.length} taken today</div>
+              </div>
             </div>
-            {logs.slice(0, 5).map(l => {
-              const isBP = l.type === "bp";
-              const stat = bioStatus(isBP ? "systolic" : l.type, isBP ? l.value.split("/")[0] : l.value);
-              return (
-                <div key={l.id} style={{ display:"flex", alignItems:"center", gap:10,
-                  padding:"8px 0", borderBottom:`1px solid #1a0a0a` }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:stat.color, flexShrink:0 }} />
-                  <div style={{ flex:1, fontSize:11, color:TX, textTransform:"uppercase", letterSpacing:".06em" }}>
-                    {l.type}
+
+            {/* Food quick */}
+            <div className="mfx-card2" style={{ cursor:"pointer" }} onClick={()=>setTab("food")}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <span style={{ fontSize:11, color:G.gold }}>🍽 Food Journal (Noom-style)</span>
+                <span style={{ fontSize:11, color:"rgba(191,184,168,.5)" }}>{foodLog.filter(e=>e.date===TK()).length} meals today</span>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                {Object.entries(FOOD_COLORS).map(([k,v]) => (
+                  <div key={k} style={{ flex:1, textAlign:"center" }}>
+                    <div style={{ fontSize:14, fontWeight:500, color:v.color }}>{foodLog.filter(e=>e.color===k&&e.date===TK()).length}</div>
+                    <div style={{ fontSize:9, color:"rgba(191,184,168,.4)" }}>{v.label}</div>
                   </div>
-                  <div style={{ fontFamily:SYNE, fontSize:14, fontWeight:700, color:stat.color }}>
-                    {l.value}
-                  </div>
-                  <div style={{ fontSize:9, color:TD }}>{l.date}</div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            </div>
+
+            {/* Milestones mini */}
+            <MilestonesPanel streak={streak} xp={streak.xp||0} doneCount={doneCount} logs={logs} medLog={medLog} liveCoverage={risk.coveredTypes/risk.totalTypes}/>
+
+            {/* Streak motivation */}
+            <div className="mfx-card2" style={{ textAlign:"center", borderColor:"rgba(201,168,76,.15)" }}>
+              <div className="mfx-display" style={{ fontSize:14, color:G.gold, marginBottom:4 }}>
+                {streak.count>=7 ? `✦ ${streak.count}-Day Streak` : streak.count>=3 ? `⭐ ${streak.count}-Day Streak` : "✦ Begin Your Journey"}
+              </div>
+              <div style={{ fontSize:12, color:"rgba(191,184,168,.6)", lineHeight:1.7 }}>
+                {streak.count>=7 && "You're building a lifestyle, not just habits. This is who you are now."}
+                {streak.count>=3 && streak.count<7 && "Consistency is compounding. Your future self is grateful."}
+                {streak.count<3 && "Every healthy choice builds a stronger tomorrow. The journey starts today."}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* ── NAVIGATION SHORTCUTS ── */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          <ChBtn onClick={() => navigate("/app/nutrition")} variant="secondary" color={GREEN}>
-            🥗 Nutrition Hub
-          </ChBtn>
-          <ChBtn onClick={() => navigate("/app/medication")} variant="secondary" color={BLUE}>
-            💊 Medication Hub
-          </ChBtn>
-        </div>
-        <ChBtn onClick={() => navigate("/app/stress")} variant="secondary" color={AMBER}>
-          🧘 Stress & Burnout Hub
-        </ChBtn>
+        {/* ══════════════════════════════════════
+            LIVE RISK TAB
+        ══════════════════════════════════════ */}
+        {tab==="risk" && <LiveRiskPanel risk={risk} riskHistory={riskHistory} tier={tier}/>}
 
-        {/* ── ENCOURAGEMENT ── */}
-        <div style={{ border:`1.5px solid ${A}22`, background:"#0e0808",
-          padding:"12px 14px", borderRadius:10, textAlign:"center" }}>
-          <div style={{ fontSize:13, color:TM, lineHeight:1.7 }}>
-            {streak.count >= 3
-              ? ph(lang, "streak", { days: streak.count })
-              : ph(lang, "encourage")}
+        {/* ══════════════════════════════════════
+            HABITS TAB
+        ══════════════════════════════════════ */}
+        {tab==="habits" && (
+          <div className="mfx-card mfx-fade">
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div>
+                <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>📋 Daily Health Habits</div>
+                <div style={{ fontSize:11, color:"rgba(191,184,168,.4)" }}>WHO evidence-based NCD prevention</div>
+              </div>
+              <div style={{ textAlign:"center" }}>
+                <div className="mfx-display" style={{ fontSize:20, color:tier.color }}>{doneCount}/{HABITS.length}</div>
+                <div style={{ fontSize:9, color:"rgba(191,184,168,.4)" }}>complete</div>
+              </div>
+            </div>
+            <MiniBar pct={(doneCount/HABITS.length)*100} color={tier.color} height={5}/>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:12 }}>
+              {HABITS.map(h => {
+                const done = !!habitsToday[h.id];
+                return (
+                  <button key={h.id} className={`mfx-hab ${done?"done":""}`} onClick={e=>toggleHabit(h,e)}>
+                    <span style={{ fontSize:20, flexShrink:0 }}>{h.icon}</span>
+                    <div style={{ flex:1, textAlign:"left" }}>
+                      <div style={{ fontSize:12, fontWeight:done?400:500, color:done?"rgba(191,184,168,.4)":G.white, textDecoration:done?"line-through":"none" }}>{h.label}</div>
+                      <div style={{ fontSize:10, color:"rgba(191,184,168,.4)", marginTop:1 }}>{h.who}</div>
+                    </div>
+                    <div style={{ flexShrink:0 }}>
+                      {done
+                        ? <span style={{ fontSize:16, color:G.grn }}>✓</span>
+                        : <span style={{ fontSize:10, color:G.gold, background:"rgba(201,168,76,.08)", padding:"3px 8px", borderRadius:20, border:"0.5px solid rgba(201,168,76,.25)" }}>+{h.pts} XP</span>
+                      }
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mfx-card2" style={{ marginTop:12, textAlign:"center" }}>
+              <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>Level {streak.level||1}</div>
+              <MiniBar pct={((streak.xp||0)%200)/2} color={G.gold} height={4}/>
+              <div style={{ fontSize:10, color:"rgba(191,184,168,.4)", marginTop:4 }}>{200-((streak.xp||0)%200)} XP to Level {(streak.level||1)+1} · {streak.xp||0} total XP</div>
+            </div>
           </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            FOOD TAB
+        ══════════════════════════════════════ */}
+        {tab==="food" && <FoodJournal foodLog={foodLog} setFoodLog={setFoodLog}/>}
+
+        {/* ══════════════════════════════════════
+            MEDS TAB
+        ══════════════════════════════════════ */}
+        {tab==="meds" && <MedTracker meds={meds} setMeds={setMeds} medLog={medLog} setMedLog={setMedLog}/>}
+
+        {/* ══════════════════════════════════════
+            BIOMETRICS TAB
+        ══════════════════════════════════════ */}
+        {tab==="biometrics" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div className="mfx-card mfx-fade">
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                <div>
+                  <div className="mfx-display" style={{ fontSize:16, color:G.gold }}>🩺 Biometric Logger</div>
+                  <div style={{ fontSize:11, color:"rgba(191,184,168,.4)" }}>BP · Glucose · Weight · SpO₂ · HbA1c · Cholesterol</div>
+                </div>
+                <button className="mfx-btn mfx-btn-gold" onClick={()=>setShowLog(true)} style={{ fontSize:12, padding:"8px 14px" }}>+ Log ✦</button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:14 }}>
+                {[
+                  {type:"bp",icon:"❤️",label:"Blood Pressure",unit:"mmHg"},
+                  {type:"glucose",icon:"🩸",label:"Blood Glucose",unit:"mg/dL"},
+                  {type:"weight",icon:"⚖️",label:"Body Weight",unit:"kg"},
+                  {type:"spo2",icon:"🫁",label:"SpO₂",unit:"%"},
+                  {type:"hba1c",icon:"🔬",label:"HbA1c",unit:"%"},
+                  {type:"chol",icon:"💉",label:"Cholesterol",unit:"mg/dL"},
+                ].map(({type,icon,label,unit}) => {
+                  const e = latestBio[type];
+                  const isBP = type==="bp";
+                  const st = e ? bioStat(isBP?"systolic":type, isBP?e.value.split("/")[0]:e.value) : null;
+                  return (
+                    <div key={type} className="mfx-card2" style={{ borderColor:st&&st.lvl>=2?`${st.color}44`:"rgba(201,168,76,.12)" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                        <span style={{ fontSize:10, color:"rgba(191,184,168,.5)" }}>{icon} {label}</span>
+                        {st&&st.lvl>0&&<span style={{ fontSize:9, fontWeight:500, color:st.color }}>{st.label}</span>}
+                      </div>
+                      <div className="mfx-display" style={{ fontSize:20, color:st?st.color:"rgba(191,184,168,.3)", lineHeight:1 }}>{e?e.value:"—"}</div>
+                      <div style={{ fontSize:9, color:"rgba(191,184,168,.4)", marginTop:2 }}>{e?`${e.date} · ${unit}`:"Tap + Log"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {chartReady && (
+                <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                  <div className="mfx-display" style={{ fontSize:14, color:G.gold, marginBottom:2 }}>📈 Trend Analysis</div>
+                  {[
+                    {type:"glucose",label:"Blood Glucose",unit:"mg/dL",color:"#C9881F"},
+                    {type:"spo2",label:"SpO₂",unit:"%",color:"#1A5FA8"},
+                    {type:"weight",label:"Body Weight",unit:"kg",color:"#C94A2C"},
+                  ].map(({type,label,unit,color}) => (
+                    <SparkChart key={type} data={logs.filter(l=>l.type===type)} label={label} unit={unit} color={color}/>
+                  ))}
+                </div>
+              )}
+              {logs.length > 0 && (
+                <div style={{ marginTop:12 }}>
+                  <div style={{ fontSize:11, color:"rgba(191,184,168,.4)", marginBottom:8 }}>Recent readings</div>
+                  {logs.slice(0,8).map((l,i) => {
+                    const isBP = l.type==="bp";
+                    const st = bioStat(isBP?"systolic":l.type, isBP?l.value.split("/")[0]:l.value);
+                    return (
+                      <div key={l.ts||i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 0", borderBottom:"0.5px solid rgba(201,168,76,.08)" }}>
+                        <div style={{ width:6, height:6, borderRadius:"50%", background:st.color, flexShrink:0 }}/>
+                        <div style={{ flex:1, fontSize:11, textTransform:"uppercase", letterSpacing:".04em", color:"rgba(191,184,168,.5)" }}>{l.type}</div>
+                        <div className="mfx-display" style={{ fontSize:14, color:st.color }}>{l.value}</div>
+                        <div style={{ fontSize:10, color:"rgba(191,184,168,.4)" }}>{l.date}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════
+            AI COACH TAB
+        ══════════════════════════════════════ */}
+        {tab==="coach" && (
+          <AICoach profile={profile} riskScore={riskScore} tier={tier}
+            habits={HABITS} doneCount={doneCount} logs={logs} streak={streak} liveInfo={risk}/>
+        )}
+
+        {/* ══════════════════════════════════════
+            WHO DATA TAB
+        ══════════════════════════════════════ */}
+        {tab==="who" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {Object.entries(WHO_DOMAINS).map(([k,d]) => (
+                <button key={k} className={`mfx-tab ${whoKey===k?"active":""}`} onClick={()=>setWhoKey(k)}>
+                  {d.icon} {d.label}
+                </button>
+              ))}
+            </div>
+            {(() => {
+              const d = WHO_DOMAINS[whoKey];
+              return (
+                <div className="mfx-card mfx-fade">
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                    <div>
+                      <div className="mfx-display" style={{ fontSize:18, color:G.gold }}>{d.icon} {d.label}</div>
+                      <div style={{ fontSize:10, color:"rgba(191,184,168,.4)", letterSpacing:".06em", marginTop:2 }}>{d.code} · WHO SDG 3.4</div>
+                    </div>
+                    <div style={{ fontSize:10, padding:"5px 12px", background:"rgba(26,95,168,.15)", color:"#90bde8", borderRadius:20, border:"0.5px solid rgba(26,95,168,.3)", maxWidth:140, textAlign:"center" }}>{d.headline}</div>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+                    {d.stats.map((s,i) => (
+                      <div key={i} style={{ fontSize:12, lineHeight:1.65, color:"rgba(191,184,168,.75)", borderLeft:`2px solid ${i===0?G.gold:"rgba(201,168,76,.2)"}`, paddingLeft:10 }}>{s}</div>
+                    ))}
+                  </div>
+                  <div className="mfx-card2" style={{ borderColor:"rgba(58,125,68,.4)", background:"rgba(58,125,68,.07)" }}>
+                    <div style={{ fontSize:11, color:G.grn, fontWeight:500 }}>✅ Solution Pathway: {d.solve}</div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Bottom nav */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginTop:4 }}>
+          {[["🥗","Nutrition"],["🏋","Exercise"],["🧘","Stress Hub"]].map(([icon,label]) => (
+            <button key={label} className="mfx-btn" style={{ fontSize:11, flexDirection:"column", gap:2, padding:"12px 8px" }}>
+              <span>{icon}</span><span style={{ color:"rgba(191,184,168,.6)" }}>{label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* ── FOOTER ── */}
-        <div style={{ textAlign:"center", fontSize:9, color:TD, textTransform:"uppercase",
-          letterSpacing:".12em", paddingTop:6 }}>
-          Voice: {lang} · WHO SDG 3.4 · {offline?"Offline":"Live"} · 20 Languages · v1.0
+        <div style={{ textAlign:"center", fontSize:9, color:"rgba(191,184,168,.25)", letterSpacing:".12em", paddingTop:4, textTransform:"uppercase" }}>
+          ManifiX Elite · WHO SDG 3.4 · Beats Teladoc + Noom · v4.0 Gold — Live Risk Engine
         </div>
       </div>
     </div>
