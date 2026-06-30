@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { usePlaidLink } from "react-plaid-link";
 import {
   Lock,
   Unlock,
@@ -10,31 +11,32 @@ import {
   RotateCw,
   KeyRound,
   CircleAlert,
+  Landmark,
+  RefreshCw,
 } from "lucide-react";
 
 /**
  * DeadManSwitch
- * A vault-themed control panel that watches subscription tokens for
- * inactivity and purges anything that crosses a 45-day silence threshold.
- * No props required — ships with a self-contained mock token ledger and
- * a simulated clock so the sweep behavior can be exercised by hand.
+ * A vault-themed control panel that watches REAL recurring-payment streams
+ * (subscriptions) pulled from a linked bank account via Plaid, and purges
+ * anything that crosses a 45-day silence threshold.
+ *
+ * Data flow (secret keys never touch the browser):
+ *  1. Frontend asks the backend for a Plaid `link_token`.
+ *  2. Plaid Link (this component) lets the user connect their bank.
+ *  3. The resulting `public_token` is sent to the backend, which exchanges
+ *     it for an `access_token` and stores it server-side.
+ *  4. The backend calls Plaid's Recurring Transactions endpoint and returns
+ *     a clean list of merchant streams, which we map into "tokens" here.
+ *
+ * See plaid-routes.js for the matching backend (Express/Railway) — that
+ * file does the actual Plaid API calls with your client ID + secret.
  */
 
 const PURGE_THRESHOLD_DAYS = 45;
 const WARNING_DAYS = 30;
 
-const SEED_TOKENS = [
-  { id: "TKN-0091-AF", owner: "lena.morrow", daysInactive: 2 },
-  { id: "TKN-1184-CD", owner: "obrien.k", daysInactive: 12 },
-  { id: "TKN-2207-GH", owner: "d.ferreira", daysInactive: 31 },
-  { id: "TKN-3340-JK", owner: "service.billing-01", daysInactive: 0 },
-  { id: "TKN-4413-LM", owner: "a.nakamura", daysInactive: 38 },
-  { id: "TKN-5587-NP", owner: "r.singh", daysInactive: 44 },
-  { id: "TKN-6620-QR", owner: "guest.trial-7", daysInactive: 41 },
-  { id: "TKN-7754-ST", owner: "m.okafor", daysInactive: 6 },
-  { id: "TKN-8801-VW", owner: "service.relay-02", daysInactive: 19 },
-  { id: "TKN-9912-XY", owner: "c.bellweather", daysInactive: 45 },
-];
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 function statusOf(token) {
   if (token.purged) return "purged";
@@ -50,17 +52,152 @@ const STATUS_META = {
   purged: { label: "Purged", className: "dms-badge-purged" },
 };
 
+function daysSince(dateString) {
+  if (!dateString) return 0;
+  const last = new Date(dateString);
+  const now = new Date();
+  return Math.max(0, Math.floor((now - last) / 86400000));
+}
+
+function formatAmount(amount) {
+  if (amount == null) return null;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+    amount
+  );
+}
+
+// Maps Plaid's recurring outflow streams into the token shape this panel
+// already knows how to render.
+function mapStreamsToTokens(streams) {
+  return streams.map((s) => ({
+    id: s.stream_id,
+    owner: s.merchant_name || "Unknown merchant",
+    daysInactive: daysSince(s.last_date),
+    lastDate: s.last_date,
+    averageAmount: s.average_amount?.amount ?? s.average_amount ?? null,
+    frequency: s.frequency,
+    purged: false,
+  }));
+}
+
+function usePlaidSubscriptions() {
+  const [linkToken, setLinkToken] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [tokens, setTokens] = useState([]);
+  const [linking, setLinking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchLinkToken = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/plaid/create-link-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Couldn't start bank link (${res.status})`);
+      const data = await res.json();
+      setLinkToken(data.link_token);
+    } catch (err) {
+      setError(err.message || "Couldn't reach the bank-link service.");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLinkToken();
+  }, [fetchLinkToken]);
+
+  const fetchRecurring = useCallback(async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/plaid/recurring-transactions`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Couldn't sync subscriptions (${res.status})`);
+      const data = await res.json();
+      setTokens(mapStreamsToTokens(data.streams || []));
+      setConnected(true);
+    } catch (err) {
+      setError(err.message || "Couldn't sync subscription data.");
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  const onPlaidSuccess = useCallback(
+    async (publicToken) => {
+      setLinking(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/api/plaid/exchange-public-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ public_token: publicToken }),
+        });
+        if (!res.ok) throw new Error(`Couldn't link account (${res.status})`);
+        await fetchRecurring();
+      } catch (err) {
+        setError(err.message || "Couldn't finish linking your bank.");
+      } finally {
+        setLinking(false);
+      }
+    },
+    [fetchRecurring]
+  );
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: onPlaidSuccess,
+  });
+
+  return {
+    open,
+    linkReady: ready && !!linkToken,
+    connected,
+    tokens,
+    setTokens,
+    linking,
+    syncing,
+    error,
+    refresh: fetchRecurring,
+  };
+}
+
 export default function DeadManSwitch() {
-  const [tokens, setTokens] = useState(SEED_TOKENS);
+  const {
+    open: openPlaidLink,
+    linkReady,
+    connected,
+    tokens,
+    setTokens,
+    linking,
+    syncing,
+    error,
+    refresh,
+  } = usePlaidSubscriptions();
+
   const [armed, setArmed] = useState(true);
   const [day, setDay] = useState(0);
   const [log, setLog] = useState([
-    { day: 0, message: "Vault initialized. Switch armed." },
+    { day: 0, message: "Vault online. Connect a bank account to load real subscriptions." },
   ]);
 
   const pushLog = useCallback((message) => {
     setLog((prev) => [{ day: 0, message }, ...prev].slice(0, 30));
   }, []);
+
+  useEffect(() => {
+    if (connected) pushLog(`Synced ${tokens.length} recurring stream${tokens.length === 1 ? "" : "s"} from your bank.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
+  useEffect(() => {
+    if (error) pushLog(`Plaid error: ${error}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   const counts = useMemo(() => {
     const tally = { active: 0, dormant: 0, critical: 0, purged: 0 };
@@ -81,6 +218,9 @@ export default function DeadManSwitch() {
   const dialFraction =
     nearestPurgeIn === null ? 1 : 1 - nearestPurgeIn / PURGE_THRESHOLD_DAYS;
 
+  // Test-only forward simulator — ages every live token by a day so you can
+  // exercise the sweep without waiting on real transaction dates. Real
+  // daysInactive is recomputed from actual bank data on every "Sync now".
   const advanceDay = () => {
     const nextDay = day + 1;
     setDay(nextDay);
@@ -118,11 +258,13 @@ export default function DeadManSwitch() {
     pushLog(`${id} pinged manually — clock reset.`);
   };
 
+  // Local-only: removes the stream from this watchlist. Plaid is read-only,
+  // so this does NOT cancel the actual subscription with the merchant.
   const forcePurge = (id) => {
     setTokens((prev) =>
       prev.map((t) => (t.id === id ? { ...t, purged: true } : t))
     );
-    pushLog(`${id} purged manually by operator.`);
+    pushLog(`${id} purged manually by operator (removed from watchlist only).`);
   };
 
   const toggleArmed = () => {
@@ -130,6 +272,11 @@ export default function DeadManSwitch() {
       pushLog(a ? "Switch disarmed. Sweeps paused." : "Switch armed. Sweeps resumed.");
       return !a;
     });
+  };
+
+  const handleSync = async () => {
+    await refresh();
+    pushLog("Manual sync requested.");
   };
 
   return (
@@ -215,6 +362,52 @@ export default function DeadManSwitch() {
           text-transform: uppercase;
         }
 
+        .dms-bank-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+          border: 1px solid var(--hairline);
+          background: var(--surface);
+          border-radius: 6px;
+          padding: 0.9rem 1.1rem;
+          margin-bottom: 1.5rem;
+        }
+        .dms-bank-status {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          font-size: 0.85rem;
+        }
+        .dms-bank-status .name {
+          font-family: 'Cinzel', serif;
+          color: var(--gold-bright);
+        }
+        .dms-bank-status .sub {
+          color: var(--ivory-dim);
+          font-size: 0.75rem;
+        }
+        .dms-bank-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--danger-bright);
+          flex-shrink: 0;
+        }
+        .dms-bank-dot.live { background: var(--ok); }
+
+        .dms-error-banner {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.72rem;
+          color: var(--danger-bright);
+          background: rgba(179,80,63,0.1);
+          border: 1px solid rgba(179,80,63,0.35);
+          border-radius: 4px;
+          padding: 0.6rem 0.8rem;
+          margin-bottom: 1.5rem;
+        }
+
         .dms-controls {
           display: flex;
           gap: 0.6rem;
@@ -240,6 +433,7 @@ export default function DeadManSwitch() {
         }
         .dms-btn:hover { border-color: var(--gold-dim); }
         .dms-btn:active { transform: translateY(1px); }
+        .dms-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .dms-btn-gold {
           background: linear-gradient(180deg, var(--gold-bright), var(--gold));
           color: #1a1505;
@@ -296,6 +490,16 @@ export default function DeadManSwitch() {
           flex-direction: column;
           gap: 0.5rem;
           margin-bottom: 2rem;
+        }
+
+        .dms-empty {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.78rem;
+          color: var(--ivory-dim);
+          border: 1px dashed var(--hairline);
+          border-radius: 4px;
+          padding: 1.5rem;
+          text-align: center;
         }
 
         .dms-box {
@@ -452,9 +656,41 @@ export default function DeadManSwitch() {
           </div>
         </header>
 
+        <div className="dms-bank-bar">
+          <div className="dms-bank-status">
+            <span className={`dms-bank-dot ${connected ? "live" : ""}`} />
+            {connected ? (
+              <div>
+                <div className="name">Bank connected</div>
+                <div className="sub">{tokens.length} recurring stream{tokens.length === 1 ? "" : "s"} loaded</div>
+              </div>
+            ) : (
+              <div>
+                <div className="name">No bank linked</div>
+                <div className="sub">Connect via Plaid to load real subscriptions</div>
+              </div>
+            )}
+          </div>
+          {connected ? (
+            <button className="dms-btn" onClick={handleSync} disabled={syncing}>
+              <RefreshCw size={14} /> {syncing ? "Syncing…" : "Sync now"}
+            </button>
+          ) : (
+            <button
+              className="dms-btn dms-btn-gold"
+              onClick={() => openPlaidLink()}
+              disabled={!linkReady || linking}
+            >
+              <Landmark size={14} /> {linking ? "Linking…" : "Connect bank account"}
+            </button>
+          )}
+        </div>
+
+        {error && <div className="dms-error-banner">{error}</div>}
+
         <div className="dms-controls">
-          <button className="dms-btn dms-btn-gold" onClick={advanceDay}>
-            <RotateCw size={15} /> Advance 1 day (day {day})
+          <button className="dms-btn dms-btn-gold" onClick={advanceDay} disabled={tokens.length === 0}>
+            <RotateCw size={15} /> Simulate +1 day, test sweep (day {day})
           </button>
           <button className="dms-btn" onClick={toggleArmed}>
             <Power size={15} /> {armed ? "Disarm switch" : "Arm switch"}
@@ -481,70 +717,82 @@ export default function DeadManSwitch() {
         </div>
 
         <div className="dms-section-label">Deposit boxes</div>
-        <div className="dms-vault">
-          {tokens.map((t) => {
-            const status = statusOf(t);
-            const meta = STATUS_META[status];
-            const remaining = Math.max(0, PURGE_THRESHOLD_DAYS - t.daysInactive);
-            return (
-              <div
-                key={t.id}
-                className={`dms-box ${status === "critical" ? "is-critical" : ""} ${
-                  t.purged ? "is-purged" : ""
-                }`}
-              >
-                <div className="dms-lock-icon">
-                  {t.purged ? (
-                    <Unlock size={17} />
-                  ) : status === "critical" ? (
-                    <CircleAlert size={17} />
-                  ) : (
-                    <Lock size={17} />
-                  )}
-                </div>
+        {tokens.length === 0 ? (
+          <div className="dms-empty">
+            {connected
+              ? "No recurring outflows detected on this account yet."
+              : "Connect a bank account above to populate this vault with real recurring charges."}
+          </div>
+        ) : (
+          <div className="dms-vault">
+            {tokens.map((t) => {
+              const status = statusOf(t);
+              const meta = STATUS_META[status];
+              const remaining = Math.max(0, PURGE_THRESHOLD_DAYS - t.daysInactive);
+              const amount = formatAmount(t.averageAmount);
+              return (
+                <div
+                  key={t.id}
+                  className={`dms-box ${status === "critical" ? "is-critical" : ""} ${
+                    t.purged ? "is-purged" : ""
+                  }`}
+                >
+                  <div className="dms-lock-icon">
+                    {t.purged ? (
+                      <Unlock size={17} />
+                    ) : status === "critical" ? (
+                      <CircleAlert size={17} />
+                    ) : (
+                      <Lock size={17} />
+                    )}
+                  </div>
 
-                <div>
-                  <div className="dms-box-id">{t.id}</div>
-                  <div className="dms-box-owner">{t.owner}</div>
-                </div>
+                  <div>
+                    <div className="dms-box-id">{t.id}</div>
+                    <div className="dms-box-owner">
+                      {t.owner}
+                      {amount ? ` · ${amount}${t.frequency ? `/${t.frequency.toLowerCase()}` : ""}` : ""}
+                    </div>
+                  </div>
 
-                <div className="dms-box-days">
-                  {t.purged ? (
-                    "removed from ledger"
-                  ) : (
-                    <>
-                      <span className="n">{t.daysInactive}</span> days idle ·{" "}
-                      <span className="n">{remaining}</span> left
-                    </>
-                  )}
-                </div>
+                  <div className="dms-box-days">
+                    {t.purged ? (
+                      "removed from ledger"
+                    ) : (
+                      <>
+                        <span className="n">{t.daysInactive}</span> days idle ·{" "}
+                        <span className="n">{remaining}</span> left
+                      </>
+                    )}
+                  </div>
 
-                <span className={`dms-badge ${meta.className}`}>
-                  {meta.label}
-                </span>
+                  <span className={`dms-badge ${meta.className}`}>
+                    {meta.label}
+                  </span>
 
-                <div className="dms-box-actions">
-                  <button
-                    className="dms-icon-btn"
-                    title="Ping token (reset idle clock)"
-                    onClick={() => pingToken(t.id)}
-                    disabled={t.purged}
-                  >
-                    <KeyRound size={14} />
-                  </button>
-                  <button
-                    className="dms-icon-btn danger"
-                    title="Force purge"
-                    onClick={() => forcePurge(t.id)}
-                    disabled={t.purged}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="dms-box-actions">
+                    <button
+                      className="dms-icon-btn"
+                      title="Ping token (reset idle clock)"
+                      onClick={() => pingToken(t.id)}
+                      disabled={t.purged}
+                    >
+                      <KeyRound size={14} />
+                    </button>
+                    <button
+                      className="dms-icon-btn danger"
+                      title="Force purge (removes from watchlist only)"
+                      onClick={() => forcePurge(t.id)}
+                      disabled={t.purged}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="dms-section-label">
           <Clock size={11} style={{ verticalAlign: "-2px", marginRight: "0.4rem" }} />
