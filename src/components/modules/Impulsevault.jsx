@@ -1,140 +1,78 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
+import ImpulseVault from "./ImpulseVault";
 
-export default function ImpulseVault({ totalSaved, triggerPulse }) {
-  const [displayValue, setDisplayValue] = useState(0);
+/**
+ * ImpulseVaultContainer
+ * Feeds ImpulseVault.jsx with a real `totalSaved` figure pulled from the
+ * backend (see stripe-issuing-routes.js). ImpulseVault.jsx itself stays a
+ * pure display component — this is the only thing that knows where the
+ * number comes from.
+ *
+ * Polls every few seconds and fires `triggerPulse` whenever the total
+ * goes up — i.e. whenever Stripe Issuing actually declined a purchase and
+ * redirected funds to the vault. Swap the polling loop for an SSE/WebSocket
+ * subscription later if you want the pulse to fire the instant a decline
+ * happens rather than on the next poll tick.
+ */
 
-  // Animate the counter toward the real value instead of snapping
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const POLL_MS = 4000;
+const PULSE_MS = 2200;
+
+export default function ImpulseVaultContainer() {
+  const [totalSaved, setTotalSaved] = useState(0);
+  const [triggerPulse, setTriggerPulse] = useState(false);
+  const [error, setError] = useState(null);
+
+  const lastValueRef = useRef(0);
+  const pulseTimeoutRef = useRef(null);
+
   useEffect(() => {
-    const diff = totalSaved - displayValue;
-    if (Math.abs(diff) < 0.01) return;
-    const step = diff / 12;
-    const t = setTimeout(() => setDisplayValue(prev => prev + step), 25);
-    return () => clearTimeout(t);
-  }, [totalSaved, displayValue]);
+    let cancelled = false;
+
+    const fetchTotal = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/vault/total-saved`, {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`Failed to load vault total (${res.status})`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        const amount = data.total_saved ?? 0;
+        if (amount > lastValueRef.current) {
+          setTriggerPulse(true);
+          clearTimeout(pulseTimeoutRef.current);
+          pulseTimeoutRef.current = setTimeout(() => setTriggerPulse(false), PULSE_MS);
+        }
+        lastValueRef.current = amount;
+        setTotalSaved(amount);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Couldn't load vault total.");
+      }
+    };
+
+    fetchTotal();
+    const id = setInterval(fetchTotal, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      clearTimeout(pulseTimeoutRef.current);
+    };
+  }, []);
 
   return (
-    <div
-      className="relative rounded-2xl p-8 overflow-hidden border"
-      style={{
-        background: 'linear-gradient(165deg, #0a0a0a 0%, #141009 60%, #1a1408 100%)',
-        borderColor: 'rgba(212,175,55,0.35)',
-        boxShadow: triggerPulse
-          ? '0 0 0 1px rgba(212,175,55,0.5), 0 0 60px rgba(212,175,55,0.35)'
-          : '0 0 0 1px rgba(212,175,55,0.15), 0 8px 40px rgba(0,0,0,0.6)',
-        transition: 'box-shadow 0.6s ease'
-      }}
-    >
-      {/* Ambient gold sheen */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(circle at 30% 0%, rgba(212,175,55,0.12), transparent 55%)'
-        }}
-      />
-
-      <div className="relative">
-        <div className="flex items-center justify-between mb-8">
-          <p
-            className="text-[11px] font-bold uppercase tracking-[0.2em]"
-            style={{ color: '#caa94f' }}
-          >
-            The Vault
-          </p>
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-              triggerPulse ? 'animate-pulse' : ''
-            }`}
-            style={{
-              borderColor: 'rgba(212,175,55,0.4)',
-              color: '#e8c766',
-              background: 'rgba(212,175,55,0.08)'
-            }}
-          >
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: '#e8c766' }}
-            />
-            Live Ledger
-          </span>
-        </div>
-
-        <div className="mb-2">
-          <p
-            className="text-[11px] uppercase tracking-[0.18em] mb-2"
-            style={{ color: '#8a7a4a' }}
-          >
-            Wealth Redirected
-          </p>
-          <div className="flex items-baseline">
-            <span
-              className="text-2xl font-bold mr-1"
-              style={{ color: '#caa94f' }}
-            >
-              $
-            </span>
-            <span
-              className="text-6xl font-black tracking-tight"
-              style={{
-                backgroundImage:
-                  'linear-gradient(180deg, #f5e3a3 0%, #d4af37 45%, #a8842a 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}
-            >
-              {displayValue.toFixed(2)}
-            </span>
-          </div>
-        </div>
-
-        <div
-          className="h-px my-6"
-          style={{
-            background:
-              'linear-gradient(90deg, transparent, rgba(212,175,55,0.4), transparent)'
-          }}
-        />
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-xs" style={{ color: '#9a8a5a' }}>
-              Checkout interceptions
-            </span>
-            <span className="text-sm font-bold text-white">Active</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-xs" style={{ color: '#9a8a5a' }}>
-              Subscription audits
-            </span>
-            <span className="text-sm font-bold text-white">Enabled</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-xs" style={{ color: '#9a8a5a' }}>
-              Status
-            </span>
-            <span
-              className="text-sm font-bold"
-              style={{ color: '#e8c766' }}
-            >
-              Guarding
-            </span>
-          </div>
-        </div>
-
-        {triggerPulse && (
-          <div
-            className="mt-6 text-center text-xs font-semibold tracking-wide rounded-xl py-2.5 border"
-            style={{
-              color: '#0a0a0a',
-              background: 'linear-gradient(90deg, #f5e3a3, #d4af37)',
-              borderColor: 'rgba(212,175,55,0.6)'
-            }}
-          >
-            ✦ Funds Redirected to Vault
-          </div>
-        )}
-      </div>
+    <div>
+      <ImpulseVault totalSaved={totalSaved} triggerPulse={triggerPulse} />
+      {error && (
+        <p
+          className="mt-3 text-xs text-center"
+          style={{ color: "#d97359" }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }
