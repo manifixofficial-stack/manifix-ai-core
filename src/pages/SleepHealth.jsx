@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 
 /* ═══════════════════════════════════════════════════════════
-   MANIFIX SLEEPGOLD v4 — BLACK × GOLD × CRIMSON
+   MANIFIX SLEEPGOLD v5 — BLACK × GOLD × CRIMSON
    Global Health Tech · WHO MH-SLP · SDG 3.4
-   v4.0 — REAL AUDIO FREQUENCIES · VOICE STORY NARRATION
-           HRV · RHR · SpO2 · Sleep Debt · Recovery Score
-           Goal vs Actual · 30-Day Analytics · AI Insights
-           Nap Tracking · Consistency Streaks
-           Story Timer with Peaceful TTS Voice
-           Enhanced Binaural Beat Engine
+   v5.0 — INFERRED SLEEP STAGE ENGINE (NEW)
+           Estimates per-night stage breakdown (N1/N2/N3/REM/Awake)
+           from logged duration, quality, HRV, RHR, SpO2 — no
+           wearable connection required, since none is available
+           in this environment. Confidence score shows how many
+           signals fed the estimate vs. population defaults.
+           BUGFIX: stray quote in StoryReader voice control style
+           (was `gap:6"}}` — broke that inline style object)
+           v4 carryover: Real Audio Frequencies, Voice Narration,
+           HRV/RHR/SpO2, Sleep Debt, Recovery Score, Analytics
 ═══════════════════════════════════════════════════════════ */
 
 const GOLD    = "#D4AF37";
@@ -169,6 +173,88 @@ const SLEEP_STAGES = [
 ];
 
 /* ═══════════════════════════════════════════════════════════
+   NEW v5 — INFERRED SLEEP STAGE ENGINE
+
+   No wearable connection exists in this environment (no
+   Bluetooth/HealthKit/Google Fit access from a browser
+   artifact), so true stage detection from movement/heart-rate
+   sensors isn't possible here. What IS possible: estimating a
+   plausible per-night stage breakdown from the signals already
+   captured in the manual log (duration, quality, HRV, RHR,
+   SpO2), anchored to the population-average SLEEP_STAGES
+   percentages and nudged by each available signal.
+
+   This replaces "static 5-stage pie for every night" with a
+   per-night estimate, and reports a confidence score based on
+   how many real signals were available versus how much is
+   falling back to population defaults.
+═══════════════════════════════════════════════════════════ */
+function inferStageBreakdown(log) {
+  if (!log) return null;
+
+  // Start from population baseline (SLEEP_STAGES.pct)
+  let pct = { awake:5, n1:8, n2:47, n3:25, rem:20 };
+  let signalsUsed = ["duration"]; // duration is always available if a log exists
+
+  // Duration: short nights compress N3 and REM disproportionately (REM expands late in the night)
+  if (log.duration < 6) {
+    pct.n3 -= 6; pct.rem -= 5; pct.n2 += 4; pct.awake += 4; pct.n1 += 3;
+  } else if (log.duration >= 8.5) {
+    pct.n3 += 3; pct.rem += 4; pct.awake -= 3; pct.n1 -= 2; pct.n2 -= 2;
+  }
+
+  // Quality: low subjective quality usually means fragmented sleep -> more awake/N1, less N3
+  if (typeof log.quality === "number") {
+    signalsUsed.push("quality");
+    if (log.quality <= 4) { pct.awake += 5; pct.n1 += 3; pct.n3 -= 5; pct.rem -= 3; }
+    else if (log.quality >= 8) { pct.n3 += 3; pct.rem += 2; pct.awake -= 3; pct.n1 -= 2; }
+  }
+
+  // HRV: higher overnight HRV correlates with more parasympathetic-dominant deep sleep
+  if (log.hrv) {
+    signalsUsed.push("hrv");
+    if (log.hrv >= 55) { pct.n3 += 4; pct.rem += 2; pct.awake -= 2; pct.n2 -= 4; }
+    else if (log.hrv <= 35) { pct.n3 -= 4; pct.awake += 3; pct.n1 += 2; pct.n2 -= 1; }
+  }
+
+  // RHR: elevated resting HR overnight suggests lighter, more fragmented sleep
+  if (log.rhr) {
+    signalsUsed.push("rhr");
+    if (log.rhr >= 68) { pct.awake += 3; pct.n1 += 2; pct.n3 -= 3; pct.rem -= 2; }
+    else if (log.rhr <= 55) { pct.n3 += 2; pct.rem += 1; pct.awake -= 2; pct.n1 -= 1; }
+  }
+
+  // SpO2: dips suggest brief arousals, pulling time from deep stages into lighter ones
+  if (log.spo2) {
+    signalsUsed.push("spo2");
+    if (log.spo2 < 95) { pct.awake += 4; pct.n1 += 2; pct.n3 -= 4; pct.rem -= 2; }
+    else if (log.spo2 >= 97.5) { pct.n3 += 1; pct.rem += 1; pct.awake -= 1; pct.n1 -= 1; }
+  }
+
+  // Clamp each stage to sane bounds, then renormalize to 100
+  const bounds = { awake:[2,20], n1:[3,18], n2:[30,55], n3:[8,35], rem:[8,30] };
+  Object.keys(pct).forEach(k => {
+    pct[k] = Math.max(bounds[k][0], Math.min(bounds[k][1], pct[k]));
+  });
+  const total = Object.values(pct).reduce((a,b)=>a+b, 0);
+  Object.keys(pct).forEach(k => { pct[k] = Math.round((pct[k] / total) * 100); });
+  // Fix rounding drift onto N2 (the largest, least clinically sensitive bucket to absorb it)
+  const drift = 100 - Object.values(pct).reduce((a,b)=>a+b,0);
+  pct.n2 += drift;
+
+  // Confidence: duration alone = baseline; each extra real signal raises confidence
+  const maxSignals = 5; // duration, quality, hrv, rhr, spo2
+  const confidence = Math.round((signalsUsed.length / maxSignals) * 100);
+
+  // Minutes per stage based on actual logged duration
+  const totalMin = Math.round((log.duration || 0) * 60);
+  const minutes = {};
+  Object.keys(pct).forEach(k => { minutes[k] = Math.round((pct[k]/100) * totalMin); });
+
+  return { pct, minutes, confidence, signalsUsed, totalMin };
+}
+
+/* ═══════════════════════════════════════════════════════════
    REAL AUDIO ENGINE v4 — ENHANCED THERAPEUTIC FREQUENCIES
 ═══════════════════════════════════════════════════════════ */
 function buildSleepEngine(ctx, type, volRef) {
@@ -242,25 +328,19 @@ function buildSleepEngine(ctx, type, volRef) {
 
   // ── DELTA BINAURAL BEATS (0–4 Hz) for deep sleep ──
   if (type === "delta_binaural") {
-    // TRUE binaural: different freq each ear via channel splitter
-    const splitter = ctx.createChannelSplitter ? null : null;
     const merger = ctx.createChannelMerger(2);
-    // Left ear: 100 Hz, Right ear: 102 Hz → 2 Hz binaural beat (Delta)
     const oscL = osc(100); const oscR = osc(102);
     const gL = gain(0.12); const gR = gain(0.12);
     oscL.connect(gL); oscR.connect(gR);
     gL.connect(merger, 0, 0);
     gR.connect(merger, 0, 1);
     merger.connect(comp);
-    // Subtle modulation on carrier
     const modL = lfo(0.1, 2); modL.lfo.connect(modL.gain); modL.gain.connect(oscL.frequency);
-    // Brown noise bed (low pass filtered)
     const bn = loopNoise(brownNoise(8));
     const lpf1 = biquad("lowpass", 260, 0.6);
     const lpf2 = biquad("lowpass", 160, 0.5);
     const ng = gain(0.07);
     bn.connect(lpf1); lpf1.connect(lpf2); lpf2.connect(ng); ng.connect(comp);
-    // Deep sub-bass pulse at 0.5 Hz (delta marker)
     const subPulse = osc(40, "sine");
     const subG = gain(0);
     subPulse.connect(subG); subG.connect(comp);
@@ -269,16 +349,13 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 420);
 
   } else if (type === "theta_binaural") {
-    // Theta: 200 Hz L, 206 Hz R → 6 Hz theta beat
     const merger = ctx.createChannelMerger(2);
     const oscL = osc(200); const oscR = osc(206);
     const gL = gain(0.10); const gR = gain(0.10);
     oscL.connect(gL); oscR.connect(gR);
     gL.connect(merger, 0, 0); gR.connect(merger, 0, 1);
     merger.connect(comp);
-    // Slow shimmer
     const shimL = lfo(0.08, 3); shimL.lfo.connect(shimL.gain); shimL.gain.connect(oscL.frequency);
-    // Pink noise bed
     const pn = loopNoise(pinkNoise(6));
     const bp = biquad("bandpass", 500, 0.3);
     const lpf = biquad("lowpass", 700, 0.5);
@@ -288,9 +365,8 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 380);
 
   } else if (type === "alpha_binaural") {
-    // Alpha: 8–12 Hz for relaxation/light sleep
     const merger = ctx.createChannelMerger(2);
-    const oscL = osc(150); const oscR = osc(159); // 9 Hz alpha
+    const oscL = osc(150); const oscR = osc(159);
     const gL = gain(0.09); const gR = gain(0.09);
     oscL.connect(gL); oscR.connect(gR);
     gL.connect(merger, 0, 0); gR.connect(merger, 0, 1);
@@ -302,18 +378,14 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 360);
 
   } else if (type === "solfeggio_528") {
-    // 528 Hz — DNA repair / love frequency
     const o1 = osc(528, "sine"); const o2 = osc(264, "sine"); const o3 = osc(1056, "sine");
     const g1 = gain(0.06); const g2 = gain(0.03); const g3 = gain(0.012);
     o1.connect(g1); o2.connect(g2); o3.connect(g3);
     [g1,g2,g3].forEach(g=>g.connect(comp));
-    // Gentle shimmer LFO
     const sh = lfo(0.05, 5); sh.lfo.connect(sh.gain); sh.gain.connect(o1.frequency);
-    // Reverb-like delay
     const del = ctx.createDelay(2); del.delayTime.value=0.6;
     const fb = gain(0.35); del.connect(fb); fb.connect(del);
     const dg = gain(0.25); g1.connect(del); del.connect(dg); dg.connect(comp);
-    // Brown noise bed
     const bn = loopNoise(brownNoise(5));
     const lpf = biquad("lowpass", 300, 0.5); const ng = gain(0.04);
     bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
@@ -321,7 +393,6 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 360);
 
   } else if (type === "solfeggio_432") {
-    // 432 Hz — Natural harmony
     const o1 = osc(432, "sine"); const o2 = osc(216, "sine"); const o3 = osc(648, "sine");
     const g1 = gain(0.06); const g2 = gain(0.025); const g3 = gain(0.015);
     o1.connect(g1); o2.connect(g2); o3.connect(g3);
@@ -337,7 +408,6 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 360);
 
   } else if (type === "solfeggio_396") {
-    // 396 Hz — Liberation from fear
     const o1 = osc(396, "sine"); const o2 = osc(198, "sine");
     const g1 = gain(0.06); const g2 = gain(0.03);
     o1.connect(g1); o2.connect(g2);
@@ -350,28 +420,23 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 340);
 
   } else if (type === "brown_rain") {
-    // Brown noise rain — best for tinnitus/focus/sleep
     const bn = loopNoise(brownNoise(8));
     const lpf = biquad("lowpass", 320, 0.45);
     const shelf = biquad("highshelf", 3500, 0.5); shelf.gain.value = -22;
     const ng = gain(0.28);
     bn.connect(lpf); lpf.connect(shelf); shelf.connect(ng); ng.connect(comp);
-    // High crinkle layer for realism
     const pn = loopNoise(pinkNoise(4));
     const hp = biquad("highpass", 2400, 1.1);
     const pg = gain(0.045); pn.connect(hp); hp.connect(pg); pg.connect(comp);
-    // Slow LFO wave modulation for rainfall variation
     const rainLFO = lfo(0.04, 0.04); rainLFO.lfo.connect(rainLFO.gain); rainLFO.gain.connect(ng.gain);
     nodes.push(bn, pn, rainLFO.lfo);
     ramp(volRef.current / 190);
 
   } else if (type === "ocean_resonance") {
-    // Ocean with LFO at 0.1 Hz matching HRV
     const bn = loopNoise(brownNoise(10));
     const lpf = biquad("lowpass", 200, 0.35);
     const wave = lfo(0.09, 160); wave.lfo.connect(wave.gain); wave.gain.connect(lpf.frequency);
     const ng = gain(0.22); bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
-    // Foam hiss
     const pn = loopNoise(pinkNoise(5));
     const hp = biquad("highpass", 3600, 0.7);
     const foamLFO = lfo(0.09, 0.02); foamLFO.lfo.connect(foamLFO.gain);
@@ -381,20 +446,16 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 180);
 
   } else if (type === "forest_deep") {
-    // Forest night: wind, crickets, distant water
     const pn = loopNoise(pinkNoise(6));
     const bp = biquad("bandpass", 650, 0.3);
     const ng = gain(0.13); pn.connect(bp); bp.connect(ng); ng.connect(comp);
-    // Wind swell
     const bn = loopNoise(brownNoise(5));
     const lpw = biquad("lowpass", 175, 0.5);
     const wl = lfo(0.03, 100); wl.lfo.connect(wl.gain); wl.gain.connect(lpw.frequency);
     const wg = gain(0.12); bn.connect(lpw); lpw.connect(wg); wg.connect(comp);
-    // Cricket texture (high freq modulated)
     const cr = osc(3850, "sine"); const crg = gain(0);
     cr.connect(crg); crg.connect(comp);
     const cl = lfo(13, 0.007); cl.lfo.connect(cl.gain); cl.gain.connect(crg.gain);
-    // Distant stream
     const wn = loopNoise(whiteNoise(3));
     const streamLP = biquad("lowpass", 900, 0.3);
     const streamHP = biquad("highpass", 400, 0.4);
@@ -404,37 +465,30 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 210);
 
   } else if (type === "womb_heartbeat") {
-    // Womb + heartbeat at 60 BPM
     const bn = loopNoise(brownNoise(4));
     const lpf = biquad("lowpass", 150, 1.3);
     const ng = gain(0.28); bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
-    // Heartbeat: kick at 60 BPM
     const hb = osc(60, "sine"); const hbg = gain(0);
     hb.connect(hbg); hbg.connect(comp);
     const hl = lfo(1, 0.10); hl.lfo.connect(hl.gain); hl.gain.connect(hbg.gain);
-    // Sub harmonic
     const sub = osc(30, "sine"); const subG = gain(0.05);
     sub.connect(subG); subG.connect(comp);
     nodes.push(bn, hb, hl.lfo, sub);
     ramp(volRef.current / 145);
 
   } else if (type === "crystal_bowl") {
-    // Tibetan crystal bowl at 396 Hz with reverb
     const o1 = osc(396, "sine"); const o2 = osc(792, "sine"); const o3 = osc(198, "sine");
     const g1 = gain(0.065); const g2 = gain(0.025); const g3 = gain(0.03);
     o1.connect(g1); o2.connect(g2); o3.connect(g3);
     [g1,g2,g3].forEach(g=>g.connect(comp));
-    // Bowl shimmer
     const rm = osc(0.4, "sine"); const rmg = gain(0.04);
     rm.connect(rmg); rmg.connect(o1.frequency);
-    // Long delay reverb
     const del = ctx.createDelay(3.5); del.delayTime.value=1.1;
     const fb = gain(0.5); del.connect(fb); fb.connect(del);
     const dg = gain(0.35); g1.connect(del); del.connect(dg); dg.connect(comp);
     const del2 = ctx.createDelay(2.0); del2.delayTime.value=0.7;
     const fb2 = gain(0.35); del2.connect(fb2); fb2.connect(del2);
     const dg2 = gain(0.2); g2.connect(del2); del2.connect(dg2); dg2.connect(comp);
-    // Noise bed
     const bn = loopNoise(brownNoise(5));
     const lpf = biquad("lowpass", 230, 0.5); const nbg = gain(0.03);
     bn.connect(lpf); lpf.connect(nbg); nbg.connect(comp);
@@ -442,14 +496,11 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 400);
 
   } else if (type === "spine_release") {
-    // Schumann resonance 7.83 Hz + 40 Hz gamma
     const o40 = osc(40, "sine"); const g40 = gain(0.05);
     o40.connect(g40); g40.connect(comp);
     const oS = osc(7.83, "sine"); const gS = gain(0.03);
     oS.connect(gS); gS.connect(comp);
-    // Breathe modulation
     const bl = lfo(0.25, 0.025); bl.lfo.connect(bl.gain); bl.gain.connect(g40.gain);
-    // Bass resonance
     const bass = osc(111, "sine"); const bassG = gain(0.04);
     bass.connect(bassG); bassG.connect(comp);
     const bassLFO = lfo(0.1, 3); bassLFO.lfo.connect(bassLFO.gain); bassLFO.gain.connect(bass.frequency);
@@ -460,20 +511,17 @@ function buildSleepEngine(ctx, type, volRef) {
     ramp(volRef.current / 420);
 
   } else if (type === "rain_thunder") {
-    // Full rain + distant thunder
     const bn = loopNoise(brownNoise(8));
     const lpf = biquad("lowpass", 280, 0.4);
     const ng = gain(0.32); bn.connect(lpf); lpf.connect(ng); ng.connect(comp);
     const pn = loopNoise(pinkNoise(5));
     const hp = biquad("highpass", 2000, 1.0);
     const pg = gain(0.055); pn.connect(hp); hp.connect(pg); pg.connect(comp);
-    // Thunder rumble LFO
     const thLFO = lfo(0.02, 0.05); thLFO.lfo.connect(thLFO.gain); thLFO.gain.connect(ng.gain);
     nodes.push(bn, pn, thLFO.lfo);
     ramp(volRef.current / 175);
 
   } else if (type === "white_noise") {
-    // Pure white noise
     const wn = loopNoise(whiteNoise(4));
     const lpf = biquad("lowpass", 1200, 0.5);
     const ng = gain(0.18); wn.connect(lpf); lpf.connect(ng); ng.connect(comp);
@@ -500,13 +548,11 @@ function createVoiceNarrator(lang) {
 
   const getVoice = () => {
     const voices = window.speechSynthesis.getVoices();
-    // Priority: female English voices known for calm quality
     const preferredNames = ["Samantha","Victoria","Karen","Moira","Fiona","Alice","Ting-Ting","Serena","Google UK English Female","Microsoft Aria","Microsoft Hazel"];
     for (const name of preferredNames) {
       const v = voices.find(x=>x.name.includes(name));
       if (v) return v;
     }
-    // Fallback by language
     const byLang = voices.find(x=>x.lang===lang && x.name.toLowerCase().includes("female"));
     if (byLang) return byLang;
     return voices.find(x=>x.lang.startsWith("en")) || voices[0];
@@ -525,7 +571,6 @@ function createVoiceNarrator(lang) {
     onEndCallback = onEnd;
     u.onend = () => { if (onEndCallback) onEndCallback(); };
     currentUtterance = u;
-    // Small delay for smooth cross-fade
     setTimeout(() => window.speechSynthesis.speak(u), 200);
   };
 
@@ -683,6 +728,7 @@ function injectCSS() {
     @keyframes streakGlow{0%,100%{box-shadow:0 0 8px #D4AF3730}50%{box-shadow:0 0 22px #D4AF3760}}
     @keyframes voicePulse{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.3);opacity:1}}
     @keyframes timerBlink{0%,100%{opacity:1}50%{opacity:.3}}
+    @keyframes detectPulse{0%,100%{opacity:.5}50%{opacity:1}}
     .fu{animation:fu .5s cubic-bezier(.22,.68,0,1.2) both}
     .sg-btn:hover{filter:brightness(1.18);transform:translateY(-2px)!important;transition:all .18s!important}
     .sg-btn:active{transform:translateY(0)!important}
@@ -704,6 +750,7 @@ function injectCSS() {
     .voice-wave:nth-child(3){animation-delay:.3s}
     .voice-wave:nth-child(4){animation-delay:.45s}
     .voice-wave:nth-child(5){animation-delay:.6s}
+    .detect-dot{animation:detectPulse 1.4s ease-in-out infinite}
   `;
   document.head.appendChild(el);
 }
@@ -805,7 +852,69 @@ function RecoveryRing({ score }) {
 }
 
 /* ══════════════════════════════════════════════
-   STORY READER v4 — WITH VOICE NARRATION + TIMER
+   NEW v5 — DETECTED STAGES CARD
+   Shows the inferred per-night breakdown for the most recent
+   log, with a confidence meter explaining how the estimate
+   was built (not a real wearable read — clearly labeled).
+══════════════════════════════════════════════ */
+function DetectedStagesCard({ log }) {
+  const result = useMemo(() => inferStageBreakdown(log), [log]);
+  if (!result) {
+    return (
+      <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+        <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:8}}>Detected Stages</div>
+        <div style={{fontSize:8,color:TEXTMU,fontFamily:"'Space Mono',monospace",lineHeight:1.8}}>Log a night's sleep to see an estimated stage breakdown.</div>
+      </div>
+    );
+  }
+  const order = ["awake","n1","n2","n3","rem"];
+  const labels = {awake:"Awake",n1:"Light N1",n2:"Core N2",n3:"Deep N3",rem:"REM"};
+  const colors = {awake:"#E74C3C",n1:"#F59E0B",n2:GOLD,n3:"#34D399",rem:GOLD2};
+  const confColor = result.confidence >= 80 ? GREEN : result.confidence >= 50 ? GOLD : AMBER;
+
+  return (
+    <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <div>
+          <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:3}}>Detected Stages · Last Night</div>
+          <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em"}}>Estimated from your logged signals — not a wearable reading</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+          <span className="detect-dot" style={{width:6,height:6,borderRadius:"50%",background:confColor}}/>
+          <span style={{fontSize:7,color:confColor,fontFamily:"'Space Mono',monospace",letterSpacing:".06em"}}>{result.confidence}% confidence</span>
+        </div>
+      </div>
+
+      <div style={{display:"flex",height:24,borderRadius:2,overflow:"hidden",gap:1,marginBottom:10}}>
+        {order.map(k => (
+          <div key={k} style={{flex:Math.max(result.pct[k],2),background:colors[k]}} title={`${labels[k]}: ${result.pct[k]}%`}/>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:12}}>
+        {order.map(k => (
+          <div key={k} style={{textAlign:"center"}}>
+            <div style={{width:7,height:7,borderRadius:"50%",background:colors[k],margin:"0 auto 4px"}}/>
+            <div style={{fontSize:11,fontWeight:700,color:colors[k],fontFamily:"'Cormorant Garamond',serif"}}>{result.pct[k]}%</div>
+            <div style={{fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",marginTop:1}}>{result.minutes[k]}m</div>
+            <div style={{fontSize:5,color:TEXTMU,fontFamily:"'Space Mono',monospace",textTransform:"uppercase",letterSpacing:".08em"}}>{labels[k]}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{padding:"10px 12px",background:BG3,border:`1px solid ${confColor}18`}}>
+        <div style={{fontSize:6,letterSpacing:".14em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:5}}>How this estimate is built</div>
+        <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",lineHeight:1.7,letterSpacing:".03em"}}>
+          Signals used: <span style={{color:confColor}}>{result.signalsUsed.join(", ")}</span>. No wearable is connected — this environment has no Bluetooth or device API access — so the breakdown is inferred from your manual log against population-average sleep architecture. Add HRV, RHR, and SpO₂ each night to raise confidence.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   STORY READER v5 — WITH VOICE NARRATION + TIMER
+   (bugfix: `gap:6"}}` -> `gap:6}}` in the voice button row)
 ══════════════════════════════════════════════ */
 function StoryReader({ story, onClose, lang }) {
   const [parIdx, setParIdx] = useState(0);
@@ -822,7 +931,6 @@ function StoryReader({ story, onClose, lang }) {
 
   useEffect(() => {
     narratorRef.current = createVoiceNarrator(lang);
-    // Start total story timer
     storyTimerRef.current = setInterval(() => setStoryElapsed(e => e+1), 1000);
     return () => {
       narratorRef.current?.stop();
@@ -831,7 +939,6 @@ function StoryReader({ story, onClose, lang }) {
     };
   }, [lang]);
 
-  // Auto-advance timer
   useEffect(() => {
     if (autoPlay) {
       timerRef.current = setInterval(() => setElapsed(e => e+1), 1000);
@@ -841,11 +948,10 @@ function StoryReader({ story, onClose, lang }) {
     return () => clearInterval(timerRef.current);
   }, [autoPlay]);
 
-  // Auto-advance logic
   useEffect(() => {
     if (!autoPlay) return;
     const words = story.paragraphs[parIdx].split(" ").length;
-    const readingSpeed = 28; // slower = more relaxed
+    const readingSpeed = 28;
     const waitTime = Math.floor((words / readingSpeed) * 60);
     if (elapsed >= waitTime && parIdx < story.paragraphs.length - 1) {
       setParIdx(p => p+1);
@@ -853,7 +959,6 @@ function StoryReader({ story, onClose, lang }) {
     }
   }, [elapsed, autoPlay]);
 
-  // Speak paragraph with voice
   const speakParagraph = useCallback((idx) => {
     if (!narratorRef.current || !hasSpeechAPI) return;
     const baseRate = story.voiceRate || 0.70;
@@ -866,7 +971,6 @@ function StoryReader({ story, onClose, lang }) {
       basePitch,
       () => {
         setVoiceStatus("idle");
-        // Auto-advance to next paragraph after voice finishes
         if (idx < story.paragraphs.length - 1) {
           setTimeout(() => {
             setParIdx(p => {
@@ -874,7 +978,7 @@ function StoryReader({ story, onClose, lang }) {
               speakParagraph(next);
               return next;
             });
-          }, 2000); // 2s peaceful pause between paragraphs
+          }, 2000);
         }
       }
     );
@@ -953,7 +1057,6 @@ function StoryReader({ story, onClose, lang }) {
                 <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}60`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>Voice Narration</div>
                 <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",marginTop:2}}>Peaceful · Slow · Natural pacing</div>
               </div>
-              {/* Voice wave animation */}
               {voiceStatus==="speaking" && (
                 <div style={{display:"flex",alignItems:"flex-end",gap:2,height:16}}>
                   {[6,10,14,8,12].map((h,i)=>(
@@ -965,7 +1068,8 @@ function StoryReader({ story, onClose, lang }) {
                 <div style={{fontSize:8,color:AMBER,fontFamily:"'Space Mono',monospace",letterSpacing:".1em"}}>⏸ PAUSED</div>
               )}
             </div>
-            <div style={{display:"flex",gap:6"}}>
+            {/* FIXED: was `gap:6"}}` — stray quote broke this inline style object */}
+            <div style={{display:"flex",gap:6}}>
               <button className="sg-btn" onClick={toggleVoice}
                 style={{flex:1,padding:"10px",background:voiceActive?`${CRIMSON}12`:`${GOLD}10`,color:voiceActive?CRIMSON:GOLD,
                   border:`1px solid ${voiceActive?CRIMSON+"25":GOLD+"25"}`,fontSize:9,fontWeight:700,
@@ -1132,6 +1236,7 @@ export default function SleepGold() {
   const avgRHR   = useMemo(()=>{const w=mainLogs.filter(l=>l.rhr).slice(0,7);return w.length?(w.reduce((a,b)=>a+b.rhr,0)/w.length).toFixed(0):null;},[mainLogs]);
   const avgSpO2  = useMemo(()=>{const w=mainLogs.filter(l=>l.spo2).slice(0,14);return w.length?(w.reduce((a,b)=>a+b.spo2,0)/w.length).toFixed(1):null;},[mainLogs]);
   const goalVsActual=useMemo(()=>mainLogs.slice(0,parseInt(analyticsRange)).map(l=>({...l,gap:l.duration-sleepGoalHours})),[mainLogs,sleepGoalHours,analyticsRange]);
+  const detectedStages = useMemo(()=>inferStageBreakdown(mainLogs[0]),[mainLogs]);
 
   useEffect(()=>{const t=setTimeout(()=>speak(ph(lang,"ready")),1600);return()=>clearTimeout(t);},[]);
 
@@ -1175,7 +1280,7 @@ export default function SleepGold() {
     {id:"insights",label:"AI Insights",icon:"◈",badge:"AI"},
     {id:"sounds",label:"Sleep Tones",icon:"◉",badge:"14"},
     {id:"stories",label:"Stories",icon:"📖",badge:"Voice"},
-    {id:"stages",label:"Stages",icon:"◐"},
+    {id:"stages",label:"Stages",icon:"◐",badge:"v5"},
     {id:"winddown",label:"Wind Down",icon:"🌙"},
     {id:"breathe",label:"Breathe",icon:"○"},
     {id:"log",label:"Sleep Log",icon:"▣"},
@@ -1217,7 +1322,7 @@ export default function SleepGold() {
                 ))}
               </div>
               <div style={{padding:"8px 10px",background:`${GOLD}06`,border:`1px solid ${GOLD}12`,fontSize:7,color:`${GOLD}55`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7}}>
-                Optional: Enter from wearable. Unlocks HRV trends, recovery scoring, AI insights.
+                Optional: Enter from a wearable you already use. More signals here directly raise the confidence of your Detected Stages estimate on the Stages tab.
               </div>
             </>
           )}
@@ -1243,7 +1348,7 @@ export default function SleepGold() {
       {/* Ticker */}
       <div style={{width:"100%",overflow:"hidden",whiteSpace:"nowrap",borderBottom:`1px solid ${BORDER}30`,padding:"6px 0",background:"#030201"}}>
         <span style={{display:"inline-block",animation:"ticker 60s linear infinite",fontSize:7,letterSpacing:".12em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace"}}>
-          {[WHO.stat1,WHO.stat2,WHO.stat3,WHO.stat4,WHO.solve,WHO.sdg,"✦ ManifiX SleepGold v4 · "+WHO.promise,"✦ Real Audio · Voice Narration · 14 Tones · 6 Stories · HRV · Recovery · AI Insights"].join("   ✦   ").repeat(2)}
+          {[WHO.stat1,WHO.stat2,WHO.stat3,WHO.stat4,WHO.solve,WHO.sdg,"✦ ManifiX SleepGold v5 · "+WHO.promise,"✦ Real Audio · Voice Narration · 14 Tones · 6 Stories · HRV · Recovery · Detected Stages"].join("   ✦   ").repeat(2)}
         </span>
       </div>
 
@@ -1254,7 +1359,7 @@ export default function SleepGold() {
           <div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:700,letterSpacing:"-.01em",lineHeight:1,color:TEXTM}}>
               SLEEP<span style={{color:GOLD}}>GOLD</span>
-              <span style={{fontSize:11,color:`${GOLD}60`,fontFamily:"'Space Mono',monospace",marginLeft:8,letterSpacing:".1em",fontWeight:400}}>v4</span>
+              <span style={{fontSize:11,color:`${GOLD}60`,fontFamily:"'Space Mono',monospace",marginLeft:8,letterSpacing:".1em",fontWeight:400}}>v5</span>
             </div>
             <div style={{fontFamily:"'Space Mono',monospace",fontSize:7,letterSpacing:".2em",color:`${GOLD}50`,textTransform:"uppercase",marginTop:3}}>ManifiX · WHO {WHO.code} · SDG 3.4 · Real Audio Engine</div>
           </div>
@@ -1325,6 +1430,12 @@ export default function SleepGold() {
                 </div>
               ))}
             </div>
+
+            {/* NEW v5: Detected stages teaser */}
+            <div className="fu" style={{cursor:"pointer"}} onClick={()=>setTab("stages")}>
+              <DetectedStagesCard log={mainLogs[0]}/>
+            </div>
+
             {/* Goal vs actual */}
             <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1678,7 +1789,6 @@ export default function SleepGold() {
                 6 therapeutic narratives with peaceful TTS voice narration. Auto-pacing · Speed control · Story timer. 
                 <span style={{color:`${GOLD}60`}}> Each story tuned to a specific sleep frequency.</span>
               </div>
-              {/* Voice capability check */}
               {"speechSynthesis" in window ? (
                 <div style={{padding:"8px 10px",background:`${GREEN}06`,border:`1px solid ${GREEN}15`,fontSize:7,color:`${GREEN}60`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",marginBottom:14,lineHeight:1.7}}>
                   ✓ Voice narration available on this device · Slow, peaceful pacing · Female voice preferred · Speed adjustable
@@ -1720,18 +1830,52 @@ export default function SleepGold() {
           </div>
         )}
 
-        {/* ══════════ SLEEP STAGES ══════════ */}
+        {/* ══════════ SLEEP STAGES — NOW WITH v5 DETECTED ESTIMATE ══════════ */}
         {tab==="stages"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}} className="fu">
             <div style={{display:"flex",gap:6}}>
-              {[{id:"overview",label:"Overview"},{id:"detail",label:"Science"}].map(v=>(
+              {[{id:"overview",label:"Population Model"},{id:"detected",label:"Detected (You)"},{id:"detail",label:"Science"}].map(v=>(
                 <button key={v.id} onClick={()=>setStageView(v.id)} className="sg-btn" style={{flex:1,padding:"8px",background:stageView===v.id?`${GOLD}12`:BG2,border:`1px solid ${stageView===v.id?GOLD+"35":BORDER+"30"}`,color:stageView===v.id?GOLD:TEXTD,fontSize:7,letterSpacing:".1em",textTransform:"uppercase",fontFamily:"'Space Mono',monospace",cursor:"pointer"}}>{v.label}</button>
               ))}
             </div>
+
+            {/* NEW v5: Detected (You) view */}
+            {stageView==="detected"&&(
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <DetectedStagesCard log={mainLogs[0]}/>
+                {mainLogs.length>1&&(
+                  <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
+                    <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:10}}>Recent Nights — Detected N3 + REM Share</div>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:5,height:80,paddingBottom:20,position:"relative"}}>
+                      {mainLogs.slice(0,7).reverse().map((log,i)=>{
+                        const r=inferStageBreakdown(log);
+                        const restPct=r?(r.pct.n3+r.pct.rem):0;
+                        const pct=Math.min(restPct*1.8,98);
+                        const c=restPct>=45?GREEN:restPct>=30?GOLD:CRIMSON;
+                        return (
+                          <div key={log.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative",height:"100%",justifyContent:"flex-end"}}>
+                            <div style={{fontSize:6,color:c,fontFamily:"'Space Mono',monospace"}}>{restPct}%</div>
+                            <div style={{width:"100%",height:`${pct}%`,background:`linear-gradient(180deg,${c},${c}25)`,borderRadius:"2px 2px 0 0",minHeight:3}}/>
+                            <span style={{position:"absolute",bottom:-16,fontSize:6,color:TEXTMU,fontFamily:"'Space Mono',monospace"}}>{new Date(log.date+"T00:00:00").toLocaleDateString([],{weekday:"short"})}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{fontSize:7,color:TEXTMU,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.7,marginTop:8}}>
+                      N3 + REM combined is the "restorative share" of the night — the stages tied to physical repair and emotional processing. Higher is generally better; population average is roughly 45%.
+                    </div>
+                  </div>
+                )}
+                <div style={{padding:"10px 12px",background:`${AMBER}06`,border:`1px solid ${AMBER}15`,fontSize:7,color:`${AMBER}70`,fontFamily:"'Space Mono',monospace",letterSpacing:".04em",lineHeight:1.8}}>
+                  ⚠ This is a statistical estimate from your manual log (duration, quality, HRV, RHR, SpO₂), not EEG-grade stage detection. True stage detection needs a wearable's motion/heart sensors connected via Bluetooth or a platform health API, which this environment cannot access.
+                </div>
+              </div>
+            )}
+
             {stageView==="overview"&&(
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 <div style={{border:`1px solid ${BORDER}20`,background:BG2,padding:"14px"}}>
-                  <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:14}}>Stage Distribution · 7.5h Night</div>
+                  <div style={{fontSize:7,letterSpacing:".18em",color:`${GOLD}50`,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",marginBottom:14}}>Stage Distribution · 7.5h Night (Population Average)</div>
                   <div style={{display:"flex",height:28,borderRadius:2,overflow:"hidden",gap:1,marginBottom:8}}>
                     {SLEEP_STAGES.map(s=>(<div key={s.id} style={{flex:s.pct,background:s.color,cursor:"pointer"}} onClick={()=>setSelectedStage(selectedStage===s.id?null:s.id)}/>))}
                   </div>
@@ -1977,7 +2121,7 @@ export default function SleepGold() {
         )}
 
         <div style={{textAlign:"center",fontSize:6,letterSpacing:".16em",color:TEXTMU,textTransform:"uppercase",fontFamily:"'Space Mono',monospace",paddingTop:8}}>
-          ManifiX SleepGold 
+          ManifiX SleepGold v5 · Detected Stages Engine
         </div>
       </div>
 
