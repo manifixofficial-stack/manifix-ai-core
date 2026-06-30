@@ -1,10 +1,13 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════════╗
- * ║  ManifiX AI — Preventive Health Module v7.0  ★ COMPETITIVE UPGRADE             ║
+ * ║  ManifiX AI — Preventive Health Module v7.1  ★ FORECAST + WEARABLE-READY        ║
  * ║  ┌─ BEATS OURA   → Readiness Score · Sleep Stages · HRV · Body Temp Trends    ║
  * ║  ├─ BEATS WHOOP  → Strain Score · Recovery% · Sleep Debt · Burnout Zone       ║
  * ║  └─ BEATS WW     → NutriPoints · Food Log · Non-Scale Wins · Coach Nudges     ║
  * ║  + Real 90-Day Roadmap · Streak Engine · WHO ICD-11 · Offline PWA             ║
+ * ║  + NEW: Trend Forecast Engine (linear regression, no wearable needed)        ║
+ * ║  + NEW: Pluggable Biometric Source adapters (manual / Apple Health /         ║
+ * ║         Google Fit / Oura API) behind one unified interface                  ║
  * ╚══════════════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -64,6 +67,7 @@ function injectCSS() {
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:#0f2a1a;border-radius:2px}
     .burnout-ring{animation:ph-glow 2.5s ease-in-out infinite}
+    .ph-dash{stroke-dasharray:5 4}
   `;
   document.head.appendChild(el);
 }
@@ -79,6 +83,191 @@ function useLS(key, init) {
     try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
   }, [key, v]);
   return [v, set];
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★ NEW v7.1 — BIOMETRIC SOURCE ADAPTERS
+   One unified interface so the rest of the app never cares whether data comes
+   from manual logging or a real wearable API. Swapping sources later requires
+   zero changes outside this block.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+// Every adapter exposes the same shape: { id, label, icon, isAvailable(), connect(), fetchLatest() }
+// fetchLatest() always resolves to: { sleep, hrv, restHR, temp, steps, activeMins, stress, mood, energy, source, fetchedAt }
+
+function makeManualAdapter() {
+  return {
+    id: "manual",
+    label: "Manual Logging",
+    icon: "📝",
+    connected: true, // always available — this is the fallback
+    isAvailable: () => true,
+    connect: async () => ({ ok: true }),
+    // Manual adapter doesn't fetch — the LogModal writes directly into ph_logs_v7.
+    fetchLatest: async (latestLog) => latestLog ? { ...latestLog, source: "manual" } : null,
+  };
+}
+
+function makeAppleHealthAdapter() {
+  return {
+    id: "apple_health",
+    label: "Apple Health",
+    icon: "🍏",
+    isAvailable: () => typeof window !== "undefined" && /iPhone|iPad|Macintosh/.test(navigator.userAgent),
+    // Real implementation would route through a native bridge (e.g. Capacitor
+    // HealthKit plugin) since browsers cannot call HealthKit directly.
+    connect: async () => {
+      throw new Error("Apple Health requires the ManifiX native iOS app (HealthKit bridge). Not available in browser.");
+    },
+    fetchLatest: async () => {
+      throw new Error("Apple Health adapter not yet wired to a native bridge.");
+    },
+  };
+}
+
+function makeGoogleFitAdapter() {
+  return {
+    id: "google_fit",
+    label: "Google Fit",
+    icon: "🤖",
+    isAvailable: () => typeof window !== "undefined",
+    // Real implementation: OAuth2 → Google Fit REST API (fitness.googleapis.com)
+    // GET /users/me/dataset:aggregate for steps/heart_rate/sleep segment data.
+    connect: async ({ clientId } = {}) => {
+      if (!clientId) throw new Error("Google Fit needs an OAuth client ID configured server-side.");
+      // window.location = googleOAuthUrl(clientId) would go here in production.
+      throw new Error("Google Fit OAuth flow not yet configured for this deployment.");
+    },
+    fetchLatest: async (accessToken) => {
+      if (!accessToken) throw new Error("No Google Fit access token. Call connect() first.");
+      // const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {...})
+      throw new Error("Google Fit fetch not yet implemented — stub ready for token wiring.");
+    },
+  };
+}
+
+function makeOuraAdapter() {
+  return {
+    id: "oura",
+    label: "Oura Ring",
+    icon: "💍",
+    isAvailable: () => typeof window !== "undefined",
+    // Real implementation: Oura uses a personal access token / OAuth2.
+    // GET https://api.ouraring.com/v2/usercollection/daily_readiness
+    connect: async ({ personalAccessToken } = {}) => {
+      if (!personalAccessToken) throw new Error("Paste an Oura Personal Access Token to connect.");
+      throw new Error("Oura API wiring not yet implemented — stub ready for token use.");
+    },
+    fetchLatest: async (token) => {
+      if (!token) throw new Error("No Oura token. Call connect() first.");
+      throw new Error("Oura fetch not yet implemented — stub ready for API wiring.");
+    },
+  };
+}
+
+// Registry — adding a new wearable later means adding one factory here.
+const BIOMETRIC_SOURCES = {
+  manual:        makeManualAdapter(),
+  apple_health:  makeAppleHealthAdapter(),
+  google_fit:    makeGoogleFitAdapter(),
+  oura:          makeOuraAdapter(),
+};
+
+function useBiometricSource() {
+  const [sourceId, setSourceId] = useLS("ph_biometric_source", "manual");
+  const [connectError, setConnectError] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
+  const source = BIOMETRIC_SOURCES[sourceId] || BIOMETRIC_SOURCES.manual;
+
+  const tryConnect = useCallback(async (id, opts) => {
+    const target = BIOMETRIC_SOURCES[id];
+    if (!target) return;
+    if (target.id === "manual") { setSourceId("manual"); setConnectError(null); return; }
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      await target.connect(opts);
+      setSourceId(id);
+    } catch (err) {
+      setConnectError(err.message || "Connection failed");
+    } finally {
+      setConnecting(false);
+    }
+  }, [setSourceId]);
+
+  return { source, sourceId, tryConnect, connectError, connecting, available: BIOMETRIC_SOURCES };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★ NEW v7.1 — FORECAST ENGINE
+   Lightweight linear regression over recent logs to project the next 3 days
+   for any numeric metric (HRV, readiness, stress, recovery). No ML library,
+   no wearable required — works purely off manually logged history, and will
+   automatically improve in accuracy once a real wearable adapter streams
+   daily data points into the same `logs` array.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+// Ordinary least squares on (x = day index, y = metric value)
+function linearRegression(points) {
+  const n = points.length;
+  if (n < 2) return null;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (const [x, y] of points) { sumX += x; sumY += y; sumXY += x * y; sumXX += x * x; }
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  // R² for confidence
+  const meanY = sumY / n;
+  let ssTot = 0, ssRes = 0;
+  for (const [x, y] of points) {
+    const pred = slope * x + intercept;
+    ssTot += (y - meanY) ** 2;
+    ssRes += (y - pred) ** 2;
+  }
+  const r2 = ssTot === 0 ? 1 : Math.max(0, 1 - ssRes / ssTot);
+  return { slope, intercept, r2 };
+}
+
+// metricKey: "hrv" | "stress" | "readiness" | "recovery" | "sleep"
+// logs are newest-first; we need oldest-first for x = chronological day index
+function forecastMetric(logs, metricKey, daysAhead = 3, bounds = [0, 100]) {
+  const chrono = [...logs].reverse().slice(-14); // last 14 days, oldest→newest
+  if (chrono.length < 3) return { points: [], confidence: 0, trend: "flat", reg: null };
+
+  const series = chrono.map((l, i) => {
+    let v;
+    if (metricKey === "readiness") v = calcReadiness({ sleepHours: l.sleep || 7.5, hrv: l.hrv || 55, restingHR: l.restHR || 65, stress: l.stress || 4, activityYesterday: true, sleepDebt: 0 });
+    else if (metricKey === "recovery") v = calcRecovery({ readiness: 70, sleepQuality: 75, hrv: l.hrv || 55, strain: 8 });
+    else v = l[metricKey];
+    return [i, v ?? null];
+  }).filter(([, v]) => v !== null && v !== undefined);
+
+  const reg = linearRegression(series);
+  if (!reg) return { points: [], confidence: 0, trend: "flat", reg: null };
+
+  const lastX = series[series.length - 1][0];
+  const points = [];
+  for (let d = 1; d <= daysAhead; d++) {
+    const x = lastX + d;
+    let y = reg.slope * x + reg.intercept;
+    y = Math.min(bounds[1], Math.max(bounds[0], y));
+    points.push({ dayOffset: d, value: Math.round(y * 10) / 10 });
+  }
+
+  const trend = Math.abs(reg.slope) < 0.05 ? "flat" : reg.slope > 0 ? "up" : "down";
+  // Confidence = R² scaled down slightly with fewer data points (more points = more trustworthy)
+  const dataPenalty = Math.min(1, series.length / 7);
+  const confidence = Math.round(reg.r2 * dataPenalty * 100);
+
+  return { points, confidence, trend, reg };
+}
+
+function trendArrow(trend, goodDirection = "up") {
+  if (trend === "flat") return { glyph: "→", color: "#888" };
+  const isGood = trend === goodDirection;
+  return { glyph: trend === "up" ? "↗" : "↘", color: isGood ? A : RED };
 }
 
 /* ══════════════ ROADMAP ENGINE ══════════════ */
@@ -459,6 +648,107 @@ function StrainArc({ strain, size = 120 }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★ NEW v7.1 — FORECAST CARD
+   Reusable across Oura/Whoop tabs. Shows next 3-day projection + confidence.
+   ══════════════════════════════════════════════════════════════════════════════ */
+function ForecastCard({ title, logs, metricKey, color, unit = "", bounds = [0, 100], goodDirection = "up" }) {
+  const forecast = useMemo(() => forecastMetric(logs, metricKey, 3, bounds), [logs, metricKey]);
+
+  if (logs.length < 3) {
+    return (
+      <Card>
+        <SectionLabel>{title} Forecast</SectionLabel>
+        <div style={{ fontSize: 10, color: "#1a3025", padding: "10px 0" }}>
+          Log 3+ days to unlock {title.toLowerCase()} forecasting. The more you log, the sharper the prediction — and once a wearable adapter is connected, this same engine runs on real-time data automatically.
+        </div>
+      </Card>
+    );
+  }
+
+  const arrow = trendArrow(forecast.trend, goodDirection);
+  const confColor = forecast.confidence >= 60 ? A : forecast.confidence >= 30 ? AMBER : "#555";
+
+  return (
+    <Card glow color={color}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <SectionLabel style={{ marginBottom: 0 }}>{title} Forecast — Next 3 Days</SectionLabel>
+        <div style={{ fontSize: 8, color: confColor, letterSpacing: ".08em", fontFamily: FONT }}>
+          {forecast.confidence}% confidence
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 20, color: arrow.color }}>{arrow.glyph}</span>
+        <span style={{ fontSize: 10, color: "#2a4a35" }}>
+          Trend is {forecast.trend === "flat" ? "stable" : forecast.trend === "up" ? "rising" : "declining"} based on your recent logs
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        {forecast.points.map(p => (
+          <div key={p.dayOffset} style={{ flex: 1, textAlign: "center", padding: "10px 6px", background: "#050e08", border: `1px solid ${BOR}` }}>
+            <div style={{ fontSize: 7, color: "#1a3025", letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 4 }}>+{p.dayOffset}d</div>
+            <div style={{ fontFamily: HEAD, fontSize: 20, color, lineHeight: 1 }}>{p.value}{unit}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 8, color: "#1a3025", marginTop: 10, lineHeight: 1.6, fontFamily: FONT }}>
+        Linear projection from your last {Math.min(logs.length, 14)} logs. Manual logging today — ready to swap in live wearable streams (Apple Health / Google Fit / Oura) with zero UI changes once an adapter is connected.
+      </div>
+    </Card>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ★ NEW v7.1 — BIOMETRIC SOURCE PICKER
+   ══════════════════════════════════════════════════════════════════════════════ */
+function SourcePicker({ bio }) {
+  const [tokenInput, setTokenInput] = useState("");
+  const [pendingId, setPendingId] = useState(null);
+
+  return (
+    <Card>
+      <SectionLabel>Biometric Data Source</SectionLabel>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        {Object.values(bio.available).map(s => {
+          const active = bio.sourceId === s.id;
+          return (
+            <button key={s.id} className="ph-btn" onClick={() => { setPendingId(s.id); if (s.id === "manual") bio.tryConnect("manual"); }}
+              style={{ padding: "8px 12px", background: active ? `${A}14` : "#050e08", border: `1px solid ${active ? A : BOR}`, color: active ? A : "#2a4a35", fontFamily: FONT, fontSize: 9, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>{s.icon}</span>{s.label}{active && <span style={{ color: A }}>· active</span>}
+            </button>
+          );
+        })}
+      </div>
+      {pendingId && pendingId !== "manual" && bio.sourceId !== pendingId && (
+        <div style={{ background: "#050e08", border: `1px solid ${BOR}`, padding: "10px 12px", marginTop: 6 }}>
+          <div style={{ fontSize: 9, color: "#2a4a35", marginBottom: 8, fontFamily: FONT }}>
+            {pendingId === "oura" ? "Paste Oura Personal Access Token to connect:" :
+             pendingId === "google_fit" ? "Google Fit requires OAuth — configure a client ID server-side first." :
+             "Apple Health requires the native iOS app (HealthKit bridge) — not available in browser."}
+          </div>
+          {pendingId === "oura" && (
+            <>
+              <input className="ph-input" placeholder="Oura personal access token..." value={tokenInput} onChange={e => setTokenInput(e.target.value)} style={{ marginBottom: 8 }} />
+              <GreenBtn onClick={() => bio.tryConnect("oura", { personalAccessToken: tokenInput })} disabled={bio.connecting} style={{ width: "100%" }} color={CYAN}>
+                {bio.connecting ? "Connecting..." : "Connect Oura"}
+              </GreenBtn>
+            </>
+          )}
+          {bio.connectError && pendingId === bio.sourceId === false && (
+            <div style={{ fontSize: 9, color: RED, marginTop: 8 }}>{bio.connectError}</div>
+          )}
+        </div>
+      )}
+      {bio.connectError && (
+        <div style={{ fontSize: 9, color: RED, marginTop: 8, fontFamily: FONT }}>⚠ {bio.connectError}</div>
+      )}
+      <div style={{ fontSize: 8, color: "#1a3025", marginTop: 10, lineHeight: 1.6, fontFamily: FONT }}>
+        All scores, charts, and forecasts read from one unified data shape regardless of source — connecting a real wearable later requires no changes to the dashboard.
+      </div>
+    </Card>
+  );
+}
+
 /* ══════════════ LOG MODAL ══════════════ */
 function LogModal({ onClose, onSave }) {
   const [mood, setMood]     = useState(7);
@@ -660,6 +950,7 @@ export default function PreventiveHealth() {
   const [tipIdx, setTipIdx]             = useState(0);
   const [loading, setLoading]           = useState(true);
   const [offline, setOffline]           = useState(!navigator.onLine);
+  const bio = useBiometricSource(); // ★ NEW v7.1
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -683,9 +974,9 @@ export default function PreventiveHealth() {
   }, [streak.count, setStreak, setHabits, setHabitsToday]);
 
   const handleSaveLog = useCallback((entry) => {
-    setLogs(p => [{ id: Date.now(), date: new Date().toISOString(), ...entry }, ...p.slice(0, 89)]);
+    setLogs(p => [{ id: Date.now(), date: new Date().toISOString(), ...entry, source: bio.sourceId }, ...p.slice(0, 89)]);
     setShowLog(false);
-  }, [setLogs]);
+  }, [setLogs, bio.sourceId]);
 
   const handleAddFood = useCallback((food) => {
     setFoodLog(p => [...p, food]);
@@ -753,7 +1044,7 @@ export default function PreventiveHealth() {
       <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
         <div style={{ fontSize: 52, marginBottom: 18 }}>🛡️</div>
       </motion.div>
-      <div style={{ fontSize: 11, letterSpacing: ".2em", color: A, textTransform: "uppercase", marginBottom: 6 }}>ManifiX Prevent v7.0</div>
+      <div style={{ fontSize: 11, letterSpacing: ".2em", color: A, textTransform: "uppercase", marginBottom: 6 }}>ManifiX Prevent v7.1</div>
       <div style={{ fontSize: 9, color: "#1a3025", letterSpacing: ".16em", marginBottom: 20 }}>BEATS OURA · WHOOP · WW</div>
       <div style={{ width: 28, height: 28, border: `3px solid ${BOR2}`, borderTopColor: A, borderRadius: "50%", animation: "ph-spin 1s linear infinite" }} />
     </div>
@@ -785,10 +1076,10 @@ export default function PreventiveHealth() {
       <div style={{ borderBottom: `1px solid ${BOR}`, padding: "12px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: `${BG}f0`, backdropFilter: "blur(14px)", zIndex: 20 }}>
         <div>
           <div style={{ fontFamily: HEAD, fontSize: 26, fontWeight: 800, lineHeight: 1, color: "#f0f8f4" }}>
-            Mani<span style={{ color: A }}>fiX</span> <span style={{ fontSize: 16, color: "#1a3025" }}>v7</span>
+            Mani<span style={{ color: A }}>fiX</span> <span style={{ fontSize: 16, color: "#1a3025" }}>v7.1</span>
           </div>
           <div style={{ fontSize: 7, letterSpacing: ".22em", color: "#1a3025", textTransform: "uppercase", marginTop: 2 }}>
-            Oura · Whoop · WW · WHO ICD-11
+            Oura · Whoop · WW · WHO ICD-11 · Forecast
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -934,6 +1225,9 @@ export default function PreventiveHealth() {
                   <GreenBtn onClick={() => setShowNSV(true)} color={TEAL} icon="🏆" style={{ width: "100%", fontSize: 11 }}>Wins</GreenBtn>
                 </div>
 
+                {/* ★ NEW v7.1 — Biometric source picker */}
+                <SourcePicker bio={bio} />
+
                 {/* Breathing */}
                 <Card>
                   <SectionLabel>HRV Breath Coach</SectionLabel>
@@ -970,7 +1264,7 @@ export default function PreventiveHealth() {
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
                   <div style={{ fontFamily: HEAD, fontSize: 28, fontWeight: 800, color: "#f0f8f4" }}>OURA-STYLE READINESS</div>
-                  <div style={{ fontSize: 9, color: "#1a3025", marginTop: 2 }}>Sleep stages · HRV · Body temp · Readiness score</div>
+                  <div style={{ fontSize: 9, color: "#1a3025", marginTop: 2 }}>Sleep stages · HRV · Body temp · Readiness score · Forecast</div>
                 </div>
 
                 {/* Readiness hero */}
@@ -988,6 +1282,12 @@ export default function PreventiveHealth() {
                     <ProgressRing value={readiness} size={120} stroke={9} color={readiness >= 70 ? A : readiness >= 50 ? AMBER : RED} sublabel="readiness" />
                   </div>
                 </Card>
+
+                {/* ★ NEW v7.1 — Readiness forecast */}
+                <ForecastCard title="Readiness" logs={logs} metricKey="readiness" color={A} bounds={[0, 100]} goodDirection="up" />
+
+                {/* ★ NEW v7.1 — HRV forecast */}
+                <ForecastCard title="HRV" logs={logs} metricKey="hrv" color={ROSE} unit="ms" bounds={[20, 120]} goodDirection="up" />
 
                 {/* Readiness contributors */}
                 <Card>
@@ -1069,7 +1369,7 @@ export default function PreventiveHealth() {
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
                   <div style={{ fontFamily: HEAD, fontSize: 28, fontWeight: 800, color: "#f0f8f4" }}>WHOOP STRAIN · RECOVERY</div>
-                  <div style={{ fontSize: 9, color: "#1a3025", marginTop: 2 }}>Cardiac load · Recovery% · Sleep debt · Burnout prevention</div>
+                  <div style={{ fontSize: 9, color: "#1a3025", marginTop: 2 }}>Cardiac load · Recovery% · Sleep debt · Burnout prevention · Forecast</div>
                 </div>
 
                 {/* Recovery + Strain hero */}
@@ -1084,6 +1384,12 @@ export default function PreventiveHealth() {
                     <StrainArc strain={strain} size={130} />
                   </Card>
                 </div>
+
+                {/* ★ NEW v7.1 — Recovery forecast */}
+                <ForecastCard title="Recovery" logs={logs} metricKey="recovery" color={BLUE} unit="%" bounds={[0, 100]} goodDirection="up" />
+
+                {/* ★ NEW v7.1 — Stress forecast (lower is better) */}
+                <ForecastCard title="Stress" logs={logs} metricKey="stress" color={AMBER} bounds={[0, 10]} goodDirection="down" />
 
                 {/* Burnout risk */}
                 <Card glow color={burnout.color} className="burnout-ring">
@@ -1479,7 +1785,7 @@ export default function PreventiveHealth() {
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div style={{ fontFamily: HEAD, fontSize: 28, fontWeight: 800, color: "#f0f8f4" }}>WHO EVIDENCE BASE</div>
                 <div style={{ fontSize: 10, color: "#2a4a35", lineHeight: 1.8 }}>
-                  ManifiX Prevent v7.0 is built on the WHO ICD-11 Framework and SDG 3.4/3.8. Every habit, score, and recommendation maps to evidence-based preventive medicine.
+                  ManifiX Prevent v7.1 is built on the WHO ICD-11 Framework and SDG 3.4/3.8. Every habit, score, and recommendation maps to evidence-based preventive medicine.
                 </div>
 
                 {Object.entries(WHO_DOMAINS).map(([key, d]) => (
@@ -1526,7 +1832,7 @@ export default function PreventiveHealth() {
 
                 {/* Competitive edge */}
                 <Card glow color={CYAN}>
-                  <SectionLabel>ManifiX v7 vs Competitors</SectionLabel>
+                  <SectionLabel>ManifiX v7.1 vs Competitors</SectionLabel>
                   {[
                     { feature: "Readiness Score (Oura-style)", mf: true, oura: true, whoop: false, ww: false },
                     { feature: "Sleep Stage Architecture",     mf: true, oura: true, whoop: false, ww: false },
@@ -1535,6 +1841,8 @@ export default function PreventiveHealth() {
                     { feature: "Recovery % + HRV Trend",       mf: true, oura: true, whoop: true, ww: false },
                     { feature: "Burnout Risk Monitor",         mf: true, oura: false, whoop: true, ww: false },
                     { feature: "Sleep Debt Tracker",           mf: true, oura: false, whoop: true, ww: false },
+                    { feature: "3-Day Trend Forecasting",      mf: true, oura: false, whoop: false, ww: false },
+                    { feature: "Pluggable Wearable Adapters",  mf: true, oura: false, whoop: false, ww: false },
                     { feature: "NutriPoints System (WW)",      mf: true, oura: false, whoop: false, ww: true },
                     { feature: "Non-Scale Victories",          mf: true, oura: false, whoop: false, ww: true },
                     { feature: "90-Day Prevention Roadmap",    mf: true, oura: false, whoop: false, ww: false },
