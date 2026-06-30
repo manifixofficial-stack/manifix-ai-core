@@ -9,22 +9,33 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
+  Bluetooth,
+  BluetoothConnected,
 } from "lucide-react";
 
 /**
  * ShieldGate
- * A live authorization gate that watches simulated biometric signals
- * (heart rate + heart-rate variability) and gates outgoing transactions
- * against a derived arousal index. Ships with its own randomized signal
- * generator so it runs standalone — wire useBiometricFeed's tick logic
- * to a real sensor source to make it live.
+ * A live authorization gate that watches REAL biometric signals from a
+ * BLE heart-rate wearable (chest strap, watch, ring — anything that
+ * exposes the standard GATT Heart Rate Service, 0x180D) and gates
+ * outgoing transactions against a derived arousal index.
+ *
+ * Heart rate comes straight off the Heart Rate Measurement characteristic
+ * (0x2A37). HRV is computed live from the RR-intervals that ship inside
+ * that same characteristic, using RMSSD over a rolling window — the same
+ * approach used in BiomarkerEngine.jsx's wearable feed.
+ *
+ * Requires a Web Bluetooth–capable browser (Chrome/Edge on desktop or
+ * Android) over HTTPS, and a heart-rate device that broadcasts RR-intervals
+ * (e.g. Polar H10/H9, most chest straps; many optical wrist devices only
+ * send BPM with no RR data, which disables live HRV here).
  *
  * Wellness framing only: this is a general-purpose calm/alert indicator,
  * not a medical or diagnostic device.
  */
 
 const HISTORY_LEN = 40;
-const TICK_MS = 900;
+const RR_WINDOW = 30;
 
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
@@ -57,57 +68,236 @@ const GATE_META = {
   },
 };
 
+// Parses a Bluetooth GATT Heart Rate Measurement value per the
+// Bluetooth SIG spec (org.bluetooth.characteristic.heart_rate_measurement).
+function parseHeartRateMeasurement(dataView) {
+  const flags = dataView.getUint8(0);
+  let offset = 1;
+
+  const is16Bit = flags & 0x1;
+  let heartRate;
+  if (is16Bit) {
+    heartRate = dataView.getUint16(offset, /* littleEndian */ true);
+    offset += 2;
+  } else {
+    heartRate = dataView.getUint8(offset);
+    offset += 1;
+  }
+
+  const sensorContactSupported = (flags >> 2) & 0x1;
+  const sensorContactDetected = (flags >> 1) & 0x1;
+  const energyExpendedPresent = (flags >> 3) & 0x1;
+  const rrIntervalPresent = (flags >> 4) & 0x1;
+
+  if (energyExpendedPresent) {
+    offset += 2; // skip Energy Expended (uint16)
+  }
+
+  const rrIntervalsMs = [];
+  if (rrIntervalPresent) {
+    while (offset + 1 < dataView.byteLength) {
+      const rr1024 = dataView.getUint16(offset, true); // units of 1/1024 s
+      rrIntervalsMs.push((rr1024 / 1024) * 1000);
+      offset += 2;
+    }
+  }
+
+  return {
+    heartRate,
+    rrIntervalsMs,
+    contactSupported: !!sensorContactSupported,
+    contactDetected: !!sensorContactDetected,
+  };
+}
+
+// RMSSD: root mean square of successive RR-interval differences — a
+// standard short-window HRV metric, in milliseconds.
+function computeRMSSD(rrList) {
+  if (rrList.length < 2) return null;
+  let sumSq = 0;
+  for (let i = 1; i < rrList.length; i++) {
+    const diff = rrList[i] - rrList[i - 1];
+    sumSq += diff * diff;
+  }
+  return Math.sqrt(sumSq / (rrList.length - 1));
+}
+
 function useBiometricFeed() {
-  const [bpm, setBpm] = useState(68);
-  const [hrv, setHrv] = useState(62);
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState(null);
+  const [deviceName, setDeviceName] = useState(null);
+  const [hasRrData, setHasRrData] = useState(false);
+
+  const [bpm, setBpm] = useState(null);
+  const [hrv, setHrv] = useState(null);
   const [history, setHistory] = useState(
-    Array.from({ length: HISTORY_LEN }, () => 28)
+    Array.from({ length: HISTORY_LEN }, () => 0)
   );
 
+  const rrBufferRef = useRef([]);
+  const deviceRef = useRef(null);
+  const characteristicRef = useRef(null);
+
+  const handleNotification = useCallback((event) => {
+    const value = event.target.value; // DataView
+    const { heartRate, rrIntervalsMs } = parseHeartRateMeasurement(value);
+
+    setBpm(heartRate);
+
+    if (rrIntervalsMs.length) {
+      setHasRrData(true);
+      rrBufferRef.current = [...rrBufferRef.current, ...rrIntervalsMs].slice(
+        -RR_WINDOW
+      );
+      const rmssd = computeRMSSD(rrBufferRef.current);
+      if (rmssd != null) setHrv(Math.round(rmssd));
+    }
+  }, []);
+
+  const teardown = useCallback(() => {
+    if (characteristicRef.current) {
+      characteristicRef.current.removeEventListener(
+        "characteristicvaluechanged",
+        handleNotification
+      );
+      characteristicRef.current.stopNotifications().catch(() => {});
+      characteristicRef.current = null;
+    }
+    if (deviceRef.current?.gatt?.connected) {
+      deviceRef.current.gatt.disconnect();
+    }
+    deviceRef.current = null;
+    rrBufferRef.current = [];
+  }, [handleNotification]);
+
+  const handleGattDisconnected = useCallback(() => {
+    setConnected(false);
+    setDeviceName(null);
+    setBpm(null);
+    setHrv(null);
+    setHasRrData(false);
+    rrBufferRef.current = [];
+  }, []);
+
+  const connect = useCallback(async () => {
+    setError(null);
+
+    if (!navigator.bluetooth) {
+      setError(
+        "Web Bluetooth isn't available in this browser. Use Chrome or Edge on desktop or Android, over HTTPS."
+      );
+      return;
+    }
+
+    setConnecting(true);
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ["heart_rate"] }],
+        optionalServices: ["battery_service"],
+      });
+
+      deviceRef.current = device;
+      device.addEventListener("gattserverdisconnected", handleGattDisconnected);
+
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService("heart_rate");
+      const characteristic = await service.getCharacteristic(
+        "heart_rate_measurement"
+      );
+
+      characteristicRef.current = characteristic;
+      await characteristic.startNotifications();
+      characteristic.addEventListener(
+        "characteristicvaluechanged",
+        handleNotification
+      );
+
+      setDeviceName(device.name || "Wearable");
+      setConnected(true);
+    } catch (err) {
+      // User cancelling the device picker throws too — treat quietly.
+      if (err?.name !== "NotFoundError") {
+        setError(err?.message || "Couldn't connect to the wearable.");
+      }
+      teardown();
+    } finally {
+      setConnecting(false);
+    }
+  }, [handleNotification, handleGattDisconnected, teardown]);
+
+  const disconnect = useCallback(() => {
+    teardown();
+    setConnected(false);
+    setDeviceName(null);
+    setBpm(null);
+    setHrv(null);
+    setHasRrData(false);
+  }, [teardown]);
+
+  // Clean up on unmount.
   useEffect(() => {
-    const id = setInterval(() => {
-      setBpm((prev) => clamp(prev + (Math.random() - 0.5) * 6, 54, 132));
-      setHrv((prev) => clamp(prev + (Math.random() - 0.5) * 8, 12, 95));
-    }, TICK_MS);
-    return () => clearInterval(id);
+    return () => teardown();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const arousal = useMemo(() => {
+    if (bpm == null || hrv == null) return 0;
     const fromBpm = clamp((bpm - 58) * 1.4, 0, 70);
     const fromHrv = clamp((75 - hrv) * 0.85, 0, 60);
     return Math.round(clamp(fromBpm * 0.55 + fromHrv * 0.45, 0, 100));
   }, [bpm, hrv]);
 
   useEffect(() => {
-    setHistory((prev) => [...prev.slice(1), arousal]);
-  }, [arousal]);
+    setHistory((prev) => [...prev.slice(1), connected ? arousal : 0]);
+  }, [arousal, connected]);
 
-  const settle = useCallback(() => {
-    setBpm((prev) => clamp(prev - 18, 54, 132));
-    setHrv((prev) => clamp(prev + 22, 12, 95));
-  }, []);
-
-  return { bpm, hrv, arousal, history, settle };
+  return {
+    bpm,
+    hrv,
+    arousal,
+    history,
+    connected,
+    connecting,
+    error,
+    deviceName,
+    hasRrData,
+    connect,
+    disconnect,
+  };
 }
 
 let reqCounter = 1;
 const MERCHANTS = ["Nordstrom", "Delta Air Lines", "Steam", "DoorDash", "Best Buy"];
 
 export default function ShieldGate() {
-  const { bpm, hrv, arousal, history, settle } = useBiometricFeed();
-  const gateState = gateStateFor(arousal);
+  const {
+    bpm,
+    hrv,
+    arousal,
+    history,
+    connected,
+    connecting,
+    error,
+    deviceName,
+    hasRrData,
+    connect,
+    disconnect,
+  } = useBiometricFeed();
+
+  const gateState = connected ? gateStateFor(arousal) : "secure";
   const meta = GATE_META[gateState];
-  const Icon = meta.icon;
+  const Icon = connected ? meta.icon : Bluetooth;
 
   const [log, setLog] = useState([
-    { id: 0, message: "Gate online. Monitoring baseline signals." },
+    { id: 0, message: "Gate online. Connect a wearable to begin monitoring." },
   ]);
   const [pending, setPending] = useState(null);
   const [breathing, setBreathing] = useState(false);
   const [breathPhase, setBreathPhase] = useState("in");
 
   const pushLog = useCallback((message) => {
-    setLog((prev) => [{ id: Date.now(), message }, ...prev].slice(0, 24));
+    setLog((prev) => [{ id: Date.now() + Math.random(), message }, ...prev].slice(0, 24));
   }, []);
 
   useEffect(() => {
@@ -118,7 +308,34 @@ export default function ShieldGate() {
     return () => clearInterval(id);
   }, [breathing]);
 
+  const handleConnect = async () => {
+    await connect();
+  };
+
+  useEffect(() => {
+    if (connected && deviceName) {
+      pushLog(`Connected to ${deviceName}. Streaming live heart rate.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, deviceName]);
+
+  useEffect(() => {
+    if (error) pushLog(`Bluetooth error: ${error}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
+  const handleDisconnect = () => {
+    disconnect();
+    setBreathing(false);
+    setPending(null);
+    pushLog("Wearable disconnected.");
+  };
+
   const attemptPurchase = () => {
+    if (!connected) {
+      pushLog("Connect a wearable before authorizing a purchase.");
+      return;
+    }
     const merchant = MERCHANTS[Math.floor(Math.random() * MERCHANTS.length)];
     const amount = (20 + Math.random() * 480).toFixed(2);
     const state = gateStateFor(arousal);
@@ -143,7 +360,7 @@ export default function ShieldGate() {
   const confirmElevated = () => {
     if (!pending) return;
     setLog((prev) => [
-      { id: Date.now(), message: `Confirmed $${pending.amount} to ${pending.merchant}.` },
+      { id: Date.now() + Math.random(), message: `Confirmed $${pending.amount} to ${pending.merchant}.` },
       ...prev,
     ]);
     setPending({ ...pending, decision: "approved" });
@@ -153,7 +370,7 @@ export default function ShieldGate() {
     if (!pending) return;
     setLog((prev) => [
       {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         message: `Manual override — $${pending.amount} to ${pending.merchant} sent anyway.`,
       },
       ...prev,
@@ -162,9 +379,13 @@ export default function ShieldGate() {
     setBreathing(false);
   };
 
+  // Re-checks against the live stream rather than faking a calmer reading —
+  // the panel clears once your actual signals settle below the threshold.
   const recheckAfterBreathing = () => {
-    settle();
-    pushLog("Recheck requested after paced breathing.");
+    pushLog("Rechecking live signals...");
+    if (gateStateFor(arousal) !== "locked") {
+      setBreathing(false);
+    }
   };
 
   useEffect(() => {
@@ -221,6 +442,52 @@ export default function ShieldGate() {
           color: var(--gold-bright);
           margin: 0.35rem 0 1.5rem;
           text-shadow: 0 0 24px rgba(201, 162, 39, 0.18);
+        }
+
+        .sg-device-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+          border: 1px solid var(--hairline);
+          background: var(--surface);
+          border-radius: 6px;
+          padding: 0.9rem 1.1rem;
+          margin-bottom: 1.25rem;
+        }
+        .sg-device-status {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          font-size: 0.85rem;
+        }
+        .sg-device-status .name {
+          font-family: 'Cinzel', serif;
+          color: var(--gold-bright);
+        }
+        .sg-device-status .sub {
+          color: var(--ivory-dim);
+          font-size: 0.75rem;
+        }
+        .sg-device-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--danger-bright);
+          flex-shrink: 0;
+        }
+        .sg-device-dot.live { background: var(--ok); }
+
+        .sg-error-banner {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.72rem;
+          color: var(--danger-bright);
+          background: rgba(179,80,63,0.1);
+          border: 1px solid rgba(179,80,63,0.35);
+          border-radius: 4px;
+          padding: 0.6rem 0.8rem;
+          margin-bottom: 1.25rem;
         }
 
         .sg-gate-panel {
@@ -295,10 +562,16 @@ export default function ShieldGate() {
           color: var(--gold-bright);
           margin-top: 0.2rem;
         }
+        .sg-metric .value.muted { color: var(--ivory-dim); }
         .sg-metric .value .unit {
           font-size: 0.7rem;
           color: var(--ivory-dim);
           margin-left: 0.25rem;
+        }
+        .sg-metric .hint {
+          font-size: 0.65rem;
+          color: var(--ivory-dim);
+          margin-top: 0.3rem;
         }
 
         .sg-spark {
@@ -328,6 +601,10 @@ export default function ShieldGate() {
           gap: 0.5rem;
         }
         .sg-btn:hover { border-color: var(--gold-dim); }
+        .sg-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
         .sg-btn-gold {
           background: linear-gradient(180deg, var(--gold-bright), var(--gold));
           color: #1a1505;
@@ -451,13 +728,45 @@ export default function ShieldGate() {
         <div className="sg-eyebrow">Live Biometric Authorization</div>
         <h1 className="sg-title">ShieldGate</h1>
 
+        <div className="sg-device-bar">
+          <div className="sg-device-status">
+            <span className={`sg-device-dot ${connected ? "live" : ""}`} />
+            {connected ? (
+              <div>
+                <div className="name">{deviceName}</div>
+                <div className="sub">
+                  {hasRrData ? "Live HR + HRV" : "Live HR — device sends no RR data, HRV unavailable"}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="name">No wearable connected</div>
+                <div className="sub">Connect a BLE heart-rate device to start monitoring</div>
+              </div>
+            )}
+          </div>
+          {connected ? (
+            <button className="sg-btn" onClick={handleDisconnect}>
+              <BluetoothConnected size={14} /> Disconnect
+            </button>
+          ) : (
+            <button className="sg-btn sg-btn-gold" onClick={handleConnect} disabled={connecting}>
+              <Bluetooth size={14} /> {connecting ? "Connecting…" : "Connect wearable"}
+            </button>
+          )}
+        </div>
+
+        {error && <div className="sg-error-banner">{error}</div>}
+
         <div className={`sg-gate-panel ${meta.className}`}>
           <div className="sg-gate-icon">
             <Icon size={26} />
           </div>
           <div>
-            <div className="sg-gate-label">{meta.label}</div>
-            <div className="sg-gate-sub">{meta.sub}</div>
+            <div className="sg-gate-label">{connected ? meta.label : "Standing by"}</div>
+            <div className="sg-gate-sub">
+              {connected ? meta.sub : "Connect a wearable to begin gating transactions"}
+            </div>
           </div>
         </div>
 
@@ -466,26 +775,29 @@ export default function ShieldGate() {
             <div className="label">
               <Heart size={11} /> Heart rate
             </div>
-            <div className="value">
-              {Math.round(bpm)}
+            <div className={`value ${bpm == null ? "muted" : ""}`}>
+              {bpm == null ? "—" : Math.round(bpm)}
               <span className="unit">bpm</span>
             </div>
           </div>
           <div className="sg-metric">
             <div className="label">
-              <Activity size={11} /> Variability
+              <Activity size={11} /> Variability (RMSSD)
             </div>
-            <div className="value">
-              {Math.round(hrv)}
+            <div className={`value ${hrv == null ? "muted" : ""}`}>
+              {hrv == null ? "—" : Math.round(hrv)}
               <span className="unit">ms</span>
             </div>
+            {connected && !hasRrData && (
+              <div className="hint">This device doesn't broadcast RR-intervals</div>
+            )}
           </div>
           <div className="sg-metric">
             <div className="label">
               <ShieldAlert size={11} /> Arousal index
             </div>
-            <div className="value">
-              {arousal}
+            <div className={`value ${!connected ? "muted" : ""}`}>
+              {connected ? arousal : "—"}
               <span className="unit">/ 100</span>
             </div>
             <Sparkline data={history} />
@@ -495,9 +807,6 @@ export default function ShieldGate() {
         <div className="sg-controls">
           <button className="sg-btn sg-btn-gold" onClick={attemptPurchase}>
             Simulate purchase attempt
-          </button>
-          <button className="sg-btn" onClick={settle}>
-            <Wind size={14} /> Simulate calming down
           </button>
         </div>
 
