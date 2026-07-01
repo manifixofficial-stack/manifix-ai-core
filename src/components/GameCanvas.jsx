@@ -5,25 +5,23 @@ import confetti from 'canvas-confetti';
 
 // gameState shape expected:
 // {
-//   cockroachHack: boolean,
-//   vegetables: [{ x, y, type }],   // x/y normalized 0..1
+//   cockroachHack: boolean,          // internal flag name only — no user-facing IP reference
+//   vegetables: [{ x, y, type }],    // x/y normalized 0..1
 //   players: {
 //     [slotId]: { x, y, character, name, overheated, heat, score }
 //   }
 // }
-// roomCode: the joined room, used to scope the emitted move events.
 function GameCanvas({ gameState, roomCode, mySlot }) {
   const canvasRef = useRef(null);
-  const wrapperRef = useRef(null);
   const [flashActive, setFlashActive] = useState(false);
   const lastMoveSentRef = useRef(0);
 
   // Unique letter + color per slot — no duplicate initials.
   const SLOT_THEMES = {
-    BLUE: { color: '#3a86ff', initial: 'B' },
-    PURPLE: { color: '#8338ec', initial: 'X' },
-    PINK: { color: '#ff006e', initial: 'K' },
-    ORANGE: { color: '#fb5607', initial: 'O' }
+    BLUE: { color: '#3a86ff', label: 'B' },
+    PURPLE: { color: '#8338ec', label: 'X' },
+    PINK: { color: '#ff006e', label: 'K' },
+    ORANGE: { color: '#fb5607', label: 'O' }
   };
 
   useEffect(() => {
@@ -39,8 +37,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
     return () => socket.off('high-score-flash', handleFlash);
   }, []);
 
-  // Joystick -> socket, throttled ~20/sec. Blocked locally while overheated
-  // so a stale UI can't send moves the server will reject anyway.
+  // Joystick -> socket, throttled ~20/sec. Blocked locally while overheated.
   const handleJoystickMove = useCallback(
     (dx, dy) => {
       const now = Date.now();
@@ -104,7 +101,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
     Object.entries(gameState.players || {}).forEach(([slotId, p]) => {
       const pX = p.x * width;
       const pY = p.y * height;
-      const slotConfig = SLOT_THEMES[slotId] || SLOT_THEMES[p.character] || { color: '#ffffff', initial: '?' };
+      const slotConfig = SLOT_THEMES[slotId] || SLOT_THEMES[p.character] || { color: '#ffffff', label: '?' };
 
       ctx.beginPath();
       ctx.arc(pX, pY, 22, 0, Math.PI * 2);
@@ -119,7 +116,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       ctx.font = 'bold 16px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(p.overheated ? '!' : slotConfig.initial, pX, pY + 1);
+      ctx.fillText(p.overheated ? '!' : slotConfig.label, pX, pY + 1);
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 11px monospace';
@@ -136,9 +133,9 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
   }, [gameState, mySlot]);
 
   return (
-    <div ref={wrapperRef} className="canvas-container" style={{ position: 'relative', width: '100%' }}>
+    <div className="canvas-container" style={{ position: 'relative', width: '100%' }}>
       {gameState.cockroachHack && (
-        <div className="hack-alert-banner">🚨 COCKROACH NETWORK INTRUSION: RADAR BLINDED! 🪳</div>
+        <div className="hack-alert-banner">🚨 SYSTEM DATA CORRUPTION: RADAR DATA BLINDED! ⚡</div>
       )}
 
       <canvas
