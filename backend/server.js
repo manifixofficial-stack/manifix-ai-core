@@ -36,6 +36,8 @@ if (!supabase) console.log("⚠️ Supabase credentials missing. High-scores won
 const PORT = process.env.PORT || 5000;
 const BASE_SPEED = 0.005; // 0-1 speed per tick
 const TICK_RATE = 45; // Smooth ~22Hz frame updates
+const OVERHEAT_LOCK_MS = 3000; // Fixed 3-second input lock, independent of heat decay
+const ROUND_DURATION_MS = 60000; // 60-Second Round Concluded Lock
 
 // State Structures
 let rooms = {};
@@ -76,12 +78,61 @@ function spawnVegetable() {
   };
 }
 
+function makeRoom() {
+  return {
+    players: {},
+    vegetables: Array.from({ length: 5 }, spawnVegetable),
+    // 🛠️ FIXED LOBBY KEYS: Slots updated to color schemas
+    takenCharacters: { BLUE: false, PURPLE: false, PINK: false, ORANGE: false },
+    roundActive: true,
+    roundStartTime: Date.now(),
+    roundEnded: false
+  };
+}
+
 // ==========================================
 // CENTRAL GAME STATE ENGINE TICK LOOP
 // ==========================================
 setInterval(() => {
   Object.keys(rooms).forEach(roomCode => {
     const room = rooms[roomCode];
+    const now = Date.now();
+
+    // 0. Round Lifecycle — 60-Second Round Concluded Lock
+    if (room.roundActive) {
+      const elapsed = now - room.roundStartTime;
+      if (elapsed >= ROUND_DURATION_MS) {
+        room.roundActive = false;
+        room.roundEnded = true;
+
+        // Freeze movement vectors so nobody drifts after the buzzer
+        Object.values(room.players).forEach(p => { p.vector = { x: 0, y: 0 }; });
+
+        // Save every player's final standing to the leaderboard hall of fame
+        Object.values(room.players).forEach(p => {
+          saveScoreToSupabase(p.name, p.character, p.score);
+        });
+
+        const ranked = Object.values(room.players)
+          .map(p => ({ name: p.name, character: p.character, score: p.score }))
+          .sort((a, b) => b.score - a.score);
+
+        io.to(roomCode).emit('round-end', { results: ranked });
+      }
+    }
+
+    if (!room.roundActive) {
+      // While concluded, still broadcast a frozen state so late joiners see the victory card,
+      // but skip all movement/collision/veggie processing below.
+      io.to(roomCode).emit('game-state', {
+        players: room.players,
+        vegetables: [],
+        cockroachHack: false,
+        roundActive: false,
+        roundTimeRemaining: 0
+      });
+      return;
+    }
 
     // 1. Process Movements, Overheat, and Decays
     Object.keys(room.players).forEach(id => {
@@ -89,17 +140,26 @@ setInterval(() => {
       const isMoving = p.vector.x !== 0 || p.vector.y !== 0;
 
       // Handle Device Heat Engine Calculations
-      if (isMoving && !p.overheated) {
+      if (p.overheated) {
+        // Fixed 3-second input lock — release strictly on the timer, not on heat level,
+        // so opponents get a reliable window to catch up.
+        if (now >= p.overheatUntil) {
+          p.overheated = false;
+          p.heat = 0;
+        }
+      } else if (isMoving) {
         p.heat = Math.min(100, p.heat + 1.2);
-        if (p.heat >= 100) p.overheated = true;
+        if (p.heat >= 100) {
+          p.overheated = true;
+          p.overheatUntil = now + OVERHEAT_LOCK_MS;
+        }
       } else {
         p.heat = Math.max(0, p.heat - 0.8);
-        if (p.overheated && p.heat <= 25) p.overheated = false; // Cool down lock release
       }
 
       // Handle Coordinate Position Progression Shifts
-      if (isMoving) {
-        const dynamicSpeed = p.overheated ? 0.3 : CHARACTERS[p.character].speedMultiplier;
+      if (isMoving && !p.overheated) {
+        const dynamicSpeed = CHARACTERS[p.character].speedMultiplier;
         p.x = Math.max(0.02, Math.min(0.98, p.x + (p.vector.x * BASE_SPEED * dynamicSpeed)));
         p.y = Math.max(0.02, Math.min(0.98, p.y + (p.vector.y * BASE_SPEED * dynamicSpeed)));
       }
@@ -120,7 +180,7 @@ setInterval(() => {
     // 3. Process Competitive Item Catch Collisions
     const caughtVegIndexes = new Set();
     room.vegetables.forEach((veg, idx) => {
-      if (caughtVegIndexes.has(idx)) return; 
+      if (caughtVegIndexes.has(idx)) return;
 
       for (const id of Object.keys(room.players)) {
         const p = room.players[id];
@@ -154,27 +214,39 @@ setInterval(() => {
       for (let j = i + 1; j < playerIds.length; j++) {
         let p1 = room.players[playerIds[i]];
         let p2 = room.players[playerIds[j]];
+        const p1Id = playerIds[i];
+        const p2Id = playerIds[j];
 
         if (Math.hypot(p1.x - p2.x, p1.y - p2.y) < 0.05) {
           const p1Speed = Math.hypot(p1.vector.x, p1.vector.y);
           const p2Speed = Math.hypot(p2.vector.x, p2.vector.y);
+          const impactX = (p1.x + p2.x) / 2;
+          const impactY = (p1.y + p2.y) / 2;
 
           if (p1Speed < p2Speed && p1.score > 0) {
             p1.score = Math.max(0, p1.score - 2);
             p2.score += 2;
+            io.to(roomCode).emit('point-steal', {
+              attackerId: p2Id, victimId: p1Id, x: impactX, y: impactY
+            });
           } else if (p2Speed < p1Speed && p2.score > 0) {
             p2.score = Math.max(0, p2.score - 2);
             p1.score += 2;
+            io.to(roomCode).emit('point-steal', {
+              attackerId: p1Id, victimId: p2Id, x: impactX, y: impactY
+            });
           }
         }
       }
     }
 
     // Always broadcast clean unified payload state to all active phones in the room
-    io.to(roomCode).emit('game-state', { 
-      players: room.players, 
+    io.to(roomCode).emit('game-state', {
+      players: room.players,
       vegetables: room.vegetables,
-      cockroachHack: cockroachHackActive 
+      cockroachHack: cockroachHackActive,
+      roundActive: true,
+      roundTimeRemaining: Math.max(0, ROUND_DURATION_MS - (now - room.roundStartTime))
     });
   });
 }, TICK_RATE);
@@ -203,12 +275,7 @@ io.on('connection', (socket) => {
     if (!roomCode) return socket.emit('room-error', { message: "Invalid Room Code Input" });
 
     if (!rooms[roomCode]) {
-      rooms[roomCode] = {
-        players: {},
-        vegetables: Array.from({ length: 5 }, spawnVegetable),
-        // 🛠️ FIXED LOBBY KEYS: Slots updated to color schemas
-        takenCharacters: { BLUE: false, PURPLE: false, PINK: false, ORANGE: false }
-      };
+      rooms[roomCode] = makeRoom();
     }
 
     if (Object.keys(rooms[roomCode].players).length >= 4) {
@@ -252,7 +319,7 @@ io.on('connection', (socket) => {
       x: 0.5, y: 0.5,
       character: data.character,
       name: data.name || `User-${socket.id.substring(0, 3)}`,
-      score: 0, heat: 0, overheated: false,
+      score: 0, heat: 0, overheated: false, overheatUntil: 0,
       color: CHARACTER_COLORS[data.character],
       vector: { x: 0, y: 0 }
     };
@@ -269,6 +336,25 @@ io.on('connection', (socket) => {
         x: Math.max(-1, Math.min(1, vector.x || 0)),
         y: Math.max(-1, Math.min(1, vector.y || 0))
       };
+    }
+  });
+
+  // Instant Replay — any player in a concluded room can reset scores and drop back into countdown
+  socket.on('restart-round', () => {
+    if (currentRoom && rooms[currentRoom]) {
+      const room = rooms[currentRoom];
+      Object.values(room.players).forEach(p => {
+        p.score = 0;
+        p.heat = 0;
+        p.overheated = false;
+        p.overheatUntil = 0;
+        p.vector = { x: 0, y: 0 };
+      });
+      room.vegetables = Array.from({ length: 5 }, spawnVegetable);
+      room.roundActive = true;
+      room.roundEnded = false;
+      room.roundStartTime = Date.now();
+      io.to(currentRoom).emit('round-restarted');
     }
   });
 
