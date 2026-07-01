@@ -1,39 +1,17 @@
 import React, { useState } from "react";
-import { socket } from "../socket.js";
 
-export default function RoomJoin({ onJoined }) {
+// Dumb/presentational component: just collects the room code and hands it
+// off to App.jsx via onJoin. App.jsx owns all socket.io logic (connect,
+// emit 'join-room', listen for 'room-joined' / 'room-error'), so this
+// component doesn't touch the socket directly — avoids double listeners.
+export default function RoomJoin({ onJoin, error, connecting }) {
   const [roomCode, setRoomCode] = useState("");
-  const [error, setError] = useState("");
-  const [connecting, setConnecting] = useState(false);
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
     const room = roomCode.trim().toUpperCase();
     if (!room || connecting) return;
-
-    setError("");
-    setConnecting(true);
-
-    if (!socket.connected) socket.connect();
-    socket.emit("join-room", { room });
-
-    const handleRoomJoined = () => {
-      cleanup();
-      setConnecting(false);
-      onJoined(room);
-    };
-    const handleRoomError = (payload) => {
-      cleanup();
-      setConnecting(false);
-      setError(payload?.message || "Could not join that room");
-    };
-    const cleanup = () => {
-      socket.off("room-joined", handleRoomJoined);
-      socket.off("room-error", handleRoomError);
-    };
-
-    socket.on("room-joined", handleRoomJoined);
-    socket.on("room-error", handleRoomError);
+    onJoin(room);
   };
 
   return (
@@ -44,7 +22,6 @@ export default function RoomJoin({ onJoined }) {
           Sit in a physical circle with your friends and type the exact same
           room code to enter the garden arena.
         </p>
-
         <form onSubmit={handleFormSubmit}>
           <input
             className="room-input"
@@ -55,9 +32,7 @@ export default function RoomJoin({ onJoined }) {
             maxLength={6}
             required
           />
-
           {error && <p className="room-error">{error}</p>}
-
           <button type="submit" className="room-join-btn" disabled={connecting}>
             {connecting ? "Connecting…" : "Connect room"}
           </button>
