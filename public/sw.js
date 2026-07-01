@@ -1,5 +1,7 @@
-// Bump this version string on any deploy to force all friends' mobile browser tabs to fetch clean updates.
-const CACHE_VERSION = 'manifix-veggie-v1';
+// public/sw.js — The 0ms Service Worker Memory Caching Engine
+// Bump this version string on any deploy to force all friends' mobile browser tabs
+// to fetch clean updates on their NEXT visit (current tab still gets instant loads).
+const CACHE_VERSION = 'manifix-veggie-v2';
 const CORE_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -22,18 +24,34 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first cache pattern: Always checks your live Vercel link first to ensure
-// new feature updates load instantly, falling back to local memory only if a phone completely drops signal.
+// Cache-first, stale-while-revalidate pattern:
+// Serves instantly from local storage the moment a friend re-opens the link — true 0ms,
+// even with zero bars in a basement. A fresh copy is fetched silently in the background
+// so the NEXT load picks up any new deploy, without ever blocking the current one on the network.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  // Never cache the realtime socket handshake — that always needs a live network hit.
+  if (event.request.url.includes('/socket.io/') || event.request.url.includes('/ws')) {
+    return;
+  }
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
+    caches.open(CACHE_VERSION).then(async (cache) => {
+      const cached = await cache.match(event.request);
+
+      const networkFetch = fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        })
+        .catch(() => cached);
+
+      // Cache hit -> return it instantly, refresh happens silently in the background.
+      // Cache miss -> wait on the network (first-ever visit only).
+      return cached || networkFetch;
+    })
   );
 });
