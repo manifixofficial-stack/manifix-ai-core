@@ -22,8 +22,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // Named handlers so cleanup only removes THIS component's listeners —
-    // ConnectionStatus.jsx also listens on 'room-joined' and must not be wiped out.
+    // Named handlers so cleanup only removes THIS component's listeners
     const handleRoomJoined = (data) => {
       setRoomCode(data.room);
       setStage(2);
@@ -38,8 +37,7 @@ function App() {
       setTakenChars(data.taken);
     };
 
-    // Server confirms which slot actually won the race — never assume the
-    // slot you requested is the slot you got.
+    // Correctly reads the server handshake block object response
     const handleGameJoined = (data) => {
       setMySlot(data.character);
       setStage(3);
@@ -75,8 +73,10 @@ function App() {
     socket.emit('join-game', { character: slotId, name: claimedName });
   };
 
+  // ✅ FIXED LOOKUP ENGINE: Searches your active socket list map rows correctly!
   const myColor = mySlot ? SLOT_COLORS[mySlot] : '#ffffff';
-  const myName = mySlot ? gameState.players[mySlot]?.name : null;
+  const localPlayerObject = Object.values(gameState.players).find(p => p.character === mySlot);
+  const myName = localPlayerObject ? localPlayerObject.name : mySlot;
 
   return (
     <div className="app-container">
@@ -94,7 +94,7 @@ function App() {
             <h2>ARENA LINK IDENT: {roomCode}</h2>
             <h3>
               PILOT ROLE:{' '}
-              <span style={{ color: myColor }}>{myName || mySlot}</span>
+              <span style={{ color: myColor }}>{myName}</span>
             </h3>
           </div>
 
