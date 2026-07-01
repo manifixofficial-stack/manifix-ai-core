@@ -1,50 +1,46 @@
-// vite.config.js
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { fileURLToPath } from "url";
+
+// __dirname doesn't exist in ES modules (this file runs as ESM because
+// package.json has "type": "module") — derive it from import.meta.url instead.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-
-  // Base path for deployment
+  // Base path for root level Vercel deployment
   base: "/",
-
-  // Resolve aliases
+  // Clean path aliasing setup
   resolve: {
-    alias: [
-      { find: "@", replacement: path.resolve(__dirname, "src") }, // @ -> src
-    ],
-  },
-
-  // Development server
-  server: {
-    port: 5173,
-    open: true,
-  },
-
-  // Build settings
-  build: {
-    outDir: "dist",
-    rollupOptions: {
-      // Externalize modules to prevent Vite resolution issues
-      external: ["react-icons/fa"],
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
     },
   },
-
-  // Optimize dependencies to pre-bundle for Vite dev & prevent runtime errors
+  // High-performance mobile development server routing
+  server: {
+    port: 3000,
+    open: true,
+    host: true, // Enables local IP access so you can test on your phone over local Wi-Fi!
+  },
+  // Production build bundle management
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+    minify: "esbuild",
+  },
+  // Explicitly pre-bundle your actual game dependencies to ensure 0ms launch lag on mobile tabs
   optimizeDeps: {
     include: [
-      "react-icons/fa",
-      "remark-math",
-      "remark-gfm",
-      "rehype-raw",
-      "rehype-sanitize",
-      "react-markdown",
-      "html2canvas", // pre-bundle html2canvas for dev server
+      "socket.io-client",
+      "framer-motion",
+      "canvas-confetti",
+      "lucide-react",
+      "react",
+      "react-dom"
     ],
   },
-
-  // SPA preview settings for Vercel / Netlify
+  // Production SPA client staging configurations
   preview: {
     port: 4173,
   },
