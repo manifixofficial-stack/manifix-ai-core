@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
-// Automatically reads your Vercel Environment Variable, defaults to local port 5000
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+// Forcing the real direct link to completely bypass Vercel panel cache walls!
+const SERVER_URL = 'https://onrender.com';
 
 export const socket = io(SERVER_URL, {
   autoConnect: false, // Wait until the player submits a room code to connect
