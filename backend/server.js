@@ -39,30 +39,22 @@ const TICK_RATE = 45; // Smooth ~22Hz frame updates
 const OVERHEAT_LOCK_MS = 3000; // Fixed 3-second input lock, independent of heat decay
 const ROUND_DURATION_MS = 60000; // 60-Second Round Concluded Lock
 
-// FIX #2: Glitch timing constants — was toggling ON/OFF every 45s (45s blind, 45s clear).
-// Correct behavior: ON for 6 seconds, once every 45-second cycle.
 const GLITCH_CYCLE_MS = 45000;
 const GLITCH_DURATION_MS = 6000;
 
-// FIX #3: Wall bounce constants for fleeing vegetables
 const VEG_WALL_MIN = 0.04;
 const VEG_WALL_MAX = 0.96;
 const VEG_FLEE_SPEED = 0.008;
 
-// State Structures
 let rooms = {};
-let cockroachHackActive = false; // Cyber Matrix Data Corruption Flag
+let cockroachHackActive = false;
 let glitchCycleStart = Date.now();
 
-// FIX #2: Corrected System Data Corruption Event Loop.
-// Runs every tick, checks position within the 45s cycle, and is only
-// true during the first 6 seconds of each cycle.
 setInterval(() => {
   const elapsed = (Date.now() - glitchCycleStart) % GLITCH_CYCLE_MS;
   cockroachHackActive = elapsed < GLITCH_DURATION_MS;
 }, 250);
 
-// 🛠️ FIXED ALIGNMENT SCHEMA: Character dictionaries renamed to match color-based IDs
 const CHARACTERS = {
   BLUE: { speedMultiplier: 1.0 },
   PURPLE: { speedMultiplier: 1.2 },
@@ -77,12 +69,6 @@ const CHARACTER_COLORS = {
   ORANGE: "#fb5607"
 };
 
-// FIX #4: Point values centralized so scoring and spawn-weighting can't drift apart.
-// NOTE: your GameCanvas.jsx currently has no render branch for "broccoli" — it falls
-// through to the golden-node visual (glowing rings) despite only being worth 1 point.
-// This is a real mismatch between what players SEE (looks like a rare 10pt gold catch)
-// and what they GET (1 point). Fix it on either side — either give broccoli its own
-// sprite in GameCanvas.jsx, or drop it from spawnVegetable() until it does.
 const VEGGIE_POINTS = { golden: 10, tomato: 3, broccoli: 1, carrot: 1 };
 
 function spawnVegetable() {
@@ -96,8 +82,6 @@ function spawnVegetable() {
     id: `veg-${Math.random().toString(36).substring(2, 9)}`,
     x: Math.random() * 0.88 + 0.06,
     y: Math.random() * 0.88 + 0.06,
-    // FIX #3: velocity vector so fleeing vegetables can bounce off walls instead
-    // of just clamping and stopping dead at the edge.
     vx: 0,
     vy: 0,
     type: type
@@ -115,15 +99,11 @@ function makeRoom() {
   };
 }
 
-// ==========================================
-// CENTRAL GAME STATE ENGINE TICK LOOP
-// ==========================================
 setInterval(() => {
   Object.keys(rooms).forEach(roomCode => {
     const room = rooms[roomCode];
     const now = Date.now();
 
-    // 0. Round Lifecycle — 60-Second Round Concluded Lock
     if (room.roundActive) {
       const elapsed = now - room.roundStartTime;
       if (elapsed >= ROUND_DURATION_MS) {
@@ -155,7 +135,6 @@ setInterval(() => {
       return;
     }
 
-    // 1. Process Movements, Overheat, and Decays
     Object.keys(room.players).forEach(id => {
       const p = room.players[id];
       const isMoving = p.vector.x !== 0 || p.vector.y !== 0;
@@ -182,9 +161,7 @@ setInterval(() => {
       }
     });
 
-    // 2. Process Fleeing Runaway Target Vegetables — FIX #3: real wall-bounce physics
     room.vegetables.forEach(veg => {
-      // Determine flee vector from nearest threatening player
       let fleeX = 0;
       let fleeY = 0;
       let frightened = false;
@@ -200,11 +177,9 @@ setInterval(() => {
       });
 
       if (frightened) {
-        // Set velocity toward the flee direction (normalized-ish, not perfectly unit)
         veg.vx = fleeX * VEG_FLEE_SPEED;
         veg.vy = fleeY * VEG_FLEE_SPEED;
       } else {
-        // Gentle decay back to rest when no one is nearby
         veg.vx *= 0.9;
         veg.vy *= 0.9;
       }
@@ -212,7 +187,6 @@ setInterval(() => {
       let nextX = veg.x + veg.vx;
       let nextY = veg.y + veg.vy;
 
-      // Wall bounce: reverse velocity component instead of just clamping dead
       if (nextX <= VEG_WALL_MIN || nextX >= VEG_WALL_MAX) {
         veg.vx *= -1;
         nextX = Math.max(VEG_WALL_MIN, Math.min(VEG_WALL_MAX, nextX));
@@ -226,7 +200,6 @@ setInterval(() => {
       veg.y = nextY;
     });
 
-    // 3. Process Competitive Item Catch Collisions — FIX #1: emit veggieCaught
     const caughtVegIndexes = new Set();
     room.vegetables.forEach((veg, idx) => {
       if (caughtVegIndexes.has(idx)) return;
@@ -239,9 +212,6 @@ setInterval(() => {
           const pts = VEGGIE_POINTS[veg.type] ?? 1;
           p.score += pts;
 
-          // FIX #1: this event was calculated but never emitted. GameCanvas.jsx's
-          // spotlight overlay (TOMATOR/CARROTATOR card + score count-up) listens
-          // for exactly this event and had nothing to trigger it until now.
           io.to(roomCode).emit('veggieCaught', {
             playerId: id,
             playerName: p.name,
@@ -271,7 +241,6 @@ setInterval(() => {
       }
     }
 
-    // 4. Process Player-on-Player Collision Steal Mechanics
     const playerIds = Object.keys(room.players);
     for (let i = 0; i < playerIds.length; i++) {
       for (let j = i + 1; j < playerIds.length; j++) {
@@ -303,7 +272,6 @@ setInterval(() => {
       }
     }
 
-    // Always broadcast clean unified payload state to all active phones in the room
     io.to(roomCode).emit('game-state', {
       players: room.players,
       vegetables: room.vegetables,
@@ -314,7 +282,6 @@ setInterval(() => {
   });
 }, TICK_RATE);
 
-// Async function to push records into your Supabase Postgres schema rows
 async function saveScoreToSupabase(name, character, finalScore) {
   if (!supabase) return;
   try {
@@ -326,9 +293,6 @@ async function saveScoreToSupabase(name, character, finalScore) {
   }
 }
 
-// ==========================================
-// SOCKET CONTROLLER INTERFACE ROUTERS
-// ==========================================
 io.on('connection', (socket) => {
   let currentRoom = null;
 
