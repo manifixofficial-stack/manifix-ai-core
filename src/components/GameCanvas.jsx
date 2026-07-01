@@ -145,40 +145,48 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
     );
   }, []);
 
-  // ---- Permission gate: camera + geolocation + (iOS) motion/compass ----
-  const requestPermissions = useCallback(async () => {
-    setPermissionStage('requesting');
-    setPermissionError('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false
-      });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+ const requestPermissions = useCallback(async () => {
+  setPermissionStage('requesting');
+  setPermissionError('');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }, audio: false
+    });
+    streamRef.current = stream;
+    if (videoRef.current) videoRef.current.srcObject = stream;
 
-      if (
-        typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function'
-      ) {
-        const result = await DeviceOrientationEvent.requestPermission();
-        if (result !== 'granted') {
-          throw new Error('Compass permission was denied. AR mode needs it to know which way you\'re facing.');
-        }
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const result = await DeviceOrientationEvent.requestPermission();
+      if (result !== 'granted') {
+        throw new Error('Compass permission was denied.');
       }
-
-      if (!navigator.geolocation) {
-        throw new Error('This device does not support location services.');
-      }
-
-      startCompass();
-      startGeolocation();
-      setPermissionStage('ready');
-    } catch (err) {
-      setPermissionError(err.message || 'Permission was denied. AR mode needs camera, location, and compass access.');
-      setPermissionStage('denied');
     }
-  }, [startCompass, startGeolocation]);
+
+    if (!navigator.geolocation) {
+      throw new Error('This device does not support location services.');
+    }
+
+    // ✅ actually WAIT for a real GPS fix before declaring success
+    await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          myLocationRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          resolve();
+        },
+        (err) => reject(new Error('Location permission denied or unavailable: ' + err.message)),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    startCompass();
+    startGeolocation();
+    setPermissionStage('ready');
+  } catch (err) {
+    setPermissionError(err.message || 'Permission was denied.');
+    setPermissionStage('denied');
+  }
+}, [startCompass, startGeolocation]);
 
   useEffect(() => {
     return () => {
