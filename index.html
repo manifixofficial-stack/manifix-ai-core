@@ -3,105 +3,73 @@
   <head>
     <meta charset="UTF-8" />
 
-    <!-- Favicons -->
+    <!-- Mobile Responsive & Touch Zoom Prevention for Circle Party Play -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+    <!-- Game Title -->
+    <title>ManifiX AI: Veggie Go | Gold Arcade</title>
+
+
+    <!-- Premium Game Fonts (Fredoka, Nunito, JetBrains Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Favicons & App Icons -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="96x96"
-      href="/favicon-96x96.png"
-    />
-    <link
-      rel="apple-touch-icon"
-      sizes="180x180"
-      href="/apple-touch-icon.png"
-    />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <!-- MANIFEST DISABLED TEMPORARILY -->
     <!--
     <link rel="manifest" href="/site.webmanifest" />
     -->
 
-    <!-- Mobile Responsive -->
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Oggy's Veggie Hunt - Premium Multiplayer Cyber Arcade Room Game" />
+    
+    <!-- Gold & Black Cyber Theme Sync -->
+    <meta name="theme-color" content="#08080a" />
 
-    <!-- SEO -->
-    <meta
-      name="description"
-      content="ManifiX AI - Magic16 & GPT Intelligence"
-    />
-
-    <!-- Theme -->
-    <meta name="theme-color" content="#000000" />
-
-    <!-- Open Graph -->
-    <meta property="og:title" content="ManifiX AI" />
-
-    <meta
-      property="og:description"
-      content="ManifiX AI - Magic16 & GPT Intelligence"
-    />
-
+    <!-- Open Graph (Social Media Cards) -->
+    <meta property="og:title" content="Oggy's Veggie Hunt" />
+    <meta property="og:description" content="Join your circle of friends in an addictive, real-time cyber veggie race." />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://www.manifixai.com" />
+    <meta property="og:image" content="https://www.manifixai.com/web-app-manifest-512x512.png" />
 
-    <meta
-      property="og:url"
-      content="https://www.manifixai.com"
-    />
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Oggy's Veggie Hunt" />
+    <meta name="twitter:description" content="Join your circle of friends in an addictive, real-time cyber veggie race." />
+    <meta name="twitter:image" content="https://www.manifixai.com/web-app-manifest-512x512.png" />
 
-    <meta
-      property="og:image"
-      content="https://www.manifixai.com/web-app-manifest-512x512.png"
-    />
-
-    <!-- Twitter -->
-    <meta
-      name="twitter:card"
-      content="summary_large_image"
-    />
-
-    <meta
-      name="twitter:title"
-      content="ManifiX AI"
-    />
-
-    <meta
-      name="twitter:description"
-      content="ManifiX AI - Magic16 & GPT Intelligence"
-    />
-
-    <meta
-      name="twitter:image"
-      content="https://www.manifixai.com/web-app-manifest-512x512.png"
-    />
-
-    <!-- Structured SEO -->
+    <!-- Structured SEO Schema Data -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "ManifiX AI",
+        "@type": "SoftwareApplication",
+        "name": "Oggy's Veggie Hunt",
         "url": "https://www.manifixai.com",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Web",
         "logo": "https://www.manifixai.com/web-app-manifest-512x512.png"
       }
     </script>
 
-    <!-- Title -->
-    <title>ManifiX AI</title>
-
-    <!-- Razorpay -->
+    <!-- Razorpay Payment Integration -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   </head>
 
   <body>
-    <!-- React Root -->
+    <!-- React Main Root Mounting Node -->
     <div id="root"></div>
 
-    <!-- React Entry -->
+    <!-- React Bundled Application Entry Point Module -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
