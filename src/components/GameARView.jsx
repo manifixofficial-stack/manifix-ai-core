@@ -288,26 +288,120 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
       ctx.closePath();
     };
 
-    // Always-on big cartoon eyes (no longer conditional on panic — every
-    // veggie is cute all the time, panic just makes the pupils jitter).
-    const drawEyes = (cx, eyeY, spacing, eyeR, depthScale, panic) => {
+    // Always-on big cartoon eyes with a natural periodic blink — every
+    // veggie is cute all the time, panic just makes the pupils jitter and
+    // the blink speed up.
+    const drawEyes = (cx, eyeY, spacing, eyeR, depthScale, panic, t, idx) => {
+      const blinkCycle = panic ? 1.1 : 3.4;
+      const cyclePos = ((t + idx * 0.7) % blinkCycle) / blinkCycle;
+      const blinkAmount = cyclePos > 0.94 ? (1 - (cyclePos - 0.94) / 0.06) : 0; // 0=open,1=closed
+      const openness = 1 - Math.min(1, blinkAmount * 1.4);
+
       [-spacing, spacing].forEach(ex => {
+        const eyeCx = cx + ex * depthScale;
+        if (openness < 0.15) {
+          ctx.beginPath();
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1.6 * depthScale;
+          ctx.lineCap = 'round';
+          ctx.moveTo(eyeCx - eyeR * 0.8, eyeY);
+          ctx.quadraticCurveTo(eyeCx, eyeY + eyeR * 0.6, eyeCx + eyeR * 0.8, eyeY);
+          ctx.stroke();
+          return;
+        }
+        const ry = eyeR * Math.max(0.18, openness);
         ctx.beginPath();
-        ctx.arc(cx + ex * depthScale, eyeY, eyeR, 0, Math.PI * 2);
+        ctx.ellipse(eyeCx, eyeY, eyeR, ry, 0, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 1 * depthScale;
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(cx + ex * depthScale + (panic ? 1.5 : 0), eyeY, eyeR * 0.45, 0, Math.PI * 2);
+        ctx.ellipse(eyeCx + (panic ? 1.5 : 0), eyeY, eyeR * 0.45, ry * 0.9, 0, 0, Math.PI * 2);
         ctx.fillStyle = '#000000';
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(cx + ex * depthScale - eyeR * 0.2, eyeY - eyeR * 0.2, eyeR * 0.15, 0, Math.PI * 2);
+        ctx.arc(eyeCx - eyeR * 0.2, eyeY - ry * 0.3, eyeR * 0.15, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
       });
+    };
+
+    // Spiky "hair"/leaf crown like the reference mascot art — a fan of
+    // tapered triangles poking up from the top of the head.
+    const drawHairSpikes = (cx, topY, spread, depthScale, color, count = 5) => {
+      ctx.fillStyle = color;
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1 * depthScale;
+      for (let k = 0; k < count; k++) {
+        const frac = count === 1 ? 0.5 : k / (count - 1);
+        const sx = cx + (frac - 0.5) * spread * depthScale;
+        const leanBias = (frac - 0.5) * 6 * depthScale;
+        const spikeLen = (13 - Math.abs(frac - 0.5) * 6) * depthScale;
+        const spikeW = 4 * depthScale;
+        ctx.beginPath();
+        ctx.moveTo(sx - spikeW, topY);
+        ctx.lineTo(sx + leanBias, topY - spikeLen);
+        ctx.lineTo(sx + spikeW, topY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    };
+
+    // A round mitten hand — used for arms so the veggies look like they're
+    // waving "hi" rather than just having bare stick-arms.
+    const drawMitten = (x, y, r, color) => {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = r * 0.25;
+      ctx.stroke();
+    };
+
+    // A cute "Hii!" speech bubble that pops up above a friendly (non-panicked)
+    // veggie every few seconds, greeting whoever's nearby.
+    const drawSpeechBubble = (cx, topY, depthScale, t, idx) => {
+      const cycle = 5.5;
+      const phase = (t + idx * 1.9) % cycle;
+      if (phase > 1.6) return;
+      const show = phase < 0.25 ? phase / 0.25 : (phase > 1.35 ? (1.6 - phase) / 0.25 : 1);
+      const alpha = Math.max(0, Math.min(1, show));
+      const w = 34 * depthScale;
+      const h = 18 * depthScale;
+      const bx = cx;
+      const by = topY - 8 * depthScale;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.2 * depthScale;
+      const r = 6 * depthScale;
+      ctx.beginPath();
+      ctx.moveTo(bx - w / 2 + r, by - h);
+      ctx.lineTo(bx + w / 2 - r, by - h);
+      ctx.quadraticCurveTo(bx + w / 2, by - h, bx + w / 2, by - h + r);
+      ctx.lineTo(bx + w / 2, by - r);
+      ctx.quadraticCurveTo(bx + w / 2, by, bx + w / 2 - r, by);
+      ctx.lineTo(bx + 4 * depthScale, by);
+      ctx.lineTo(bx, by + 6 * depthScale);
+      ctx.lineTo(bx - 2 * depthScale, by);
+      ctx.lineTo(bx - w / 2 + r, by);
+      ctx.quadraticCurveTo(bx - w / 2, by, bx - w / 2, by - r);
+      ctx.lineTo(bx - w / 2, by - h + r);
+      ctx.quadraticCurveTo(bx - w / 2, by - h, bx - w / 2 + r, by - h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ff006e';
+      ctx.font = `bold ${Math.round(11 * depthScale)}px "Fredoka", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Hii!', bx, by - h / 2);
+      ctx.restore();
     };
 
     // Permanent open, toothy grin — always visible now, just widens when panicked.
@@ -479,7 +573,12 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               const hopHeight = (panic ? 6 : 3) * depthScale;
               const hop = Math.abs(Math.sin(t * hopSpeed + idx)) * hopHeight;
               const shiverX = panic ? (Math.random() - 0.5) * 3 * depthScale : 0;
-              const armSwing = Math.sin(t * hopSpeed * 1.5 + idx) * 10 * depthScale;
+              // Idle: arms wave up in a friendly "hii" greeting. Panic: arms
+              // pump fast like a sprinting getaway.
+              const waveAngle = panic
+                ? Math.sin(t * hopSpeed * 1.5 + idx) * 10 * depthScale
+                : Math.sin(t * 2.2 + idx) * 6 * depthScale;
+              const armLift = panic ? 2 * depthScale : 10 * depthScale;
               const cx = vX + shiverX;
               const cy = vY - hop;
 
@@ -489,20 +588,15 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.lineWidth = 3 * depthScale;
               ctx.lineCap = 'round';
               ctx.beginPath();
-              ctx.moveTo(cx - 8 * depthScale, cy + 4 * depthScale);
-              ctx.lineTo(cx - 8 * depthScale + armSwing, cy + 16 * depthScale);
-              ctx.moveTo(cx + 8 * depthScale, cy + 4 * depthScale);
-              ctx.lineTo(cx + 8 * depthScale - armSwing, cy + 16 * depthScale);
+              ctx.moveTo(cx - 8 * depthScale, cy + 2 * depthScale);
+              ctx.lineTo(cx - 12 * depthScale + waveAngle, cy - armLift);
+              ctx.moveTo(cx + 8 * depthScale, cy + 2 * depthScale);
+              ctx.lineTo(cx + 12 * depthScale - waveAngle, cy - armLift);
               ctx.stroke();
+              drawMitten(cx - 12 * depthScale + waveAngle, cy - armLift, 3.2 * depthScale, '#ff7a00');
+              drawMitten(cx + 12 * depthScale - waveAngle, cy - armLift, 3.2 * depthScale, '#ff7a00');
 
-              ctx.strokeStyle = '#2e7d32';
-              ctx.lineWidth = 2.5 * depthScale;
-              [-4, 0, 4].forEach(lx => {
-                ctx.beginPath();
-                ctx.moveTo(cx + lx * depthScale, cy - 14 * depthScale);
-                ctx.lineTo(cx + lx * 1.4 * depthScale, cy - 22 * depthScale);
-                ctx.stroke();
-              });
+              drawHairSpikes(cx, cy - 14 * depthScale, 16, depthScale, '#2e7d32');
 
               drawTriangle(cx, vY, 14 * depthScale, hop);
               ctx.fillStyle = '#ff7a00';
@@ -512,55 +606,61 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.stroke();
 
               drawSmile(cx, cy + 4 * depthScale, 6, depthScale, panic);
-              drawEyes(cx, cy - 3 * depthScale, 5, 4.5 * depthScale, depthScale, panic);
+              drawEyes(cx, cy - 3 * depthScale, 5, 4.5 * depthScale, depthScale, panic, t, idx);
+              if (!panic) drawSpeechBubble(cx, cy - 24 * depthScale, depthScale, t, idx);
             } else if (veg.type === 'tomato') {
               const squishSpeed = panic ? 10 : 3;
               const squish = panic ? 0.35 : 0.1;
               const s = 1 + Math.sin(t * squishSpeed + idx) * squish;
-              const armSwing = Math.sin(t * squishSpeed * 1.5 + idx) * 9 * depthScale;
-              const armLift = panic ? 6 * depthScale : 0;
+              // Idle: both mitten arms raised up beside the head like the
+              // reference art (a permanent "hii!" wave). Panic: arms drop and
+              // pump like a sprint.
+              const idleRaise = Math.sin(t * 2.4 + idx) * 3 * depthScale;
+              const armSwing = panic ? Math.sin(t * squishSpeed * 1.5 + idx) * 9 * depthScale : 0;
+              const armLift = panic ? -4 * depthScale : (14 * depthScale + idleRaise);
 
               drawLegs(vX, vY + 14 * depthScale, 7, depthScale, squishSpeed, idx, panic, t);
+
+              const armY = vY + 2 * depthScale - armLift;
+              const handX1 = vX - 14 * depthScale + armSwing;
+              const handY1 = vY + 4 * depthScale - armLift;
+              const handX2 = vX + 14 * depthScale - armSwing;
+              const handY2 = vY + 4 * depthScale - armLift;
 
               ctx.strokeStyle = '#dd2c00';
               ctx.lineWidth = 3 * depthScale;
               ctx.lineCap = 'round';
               ctx.beginPath();
-              ctx.moveTo(vX - 12 * depthScale, vY + 2 * depthScale - armLift);
-              ctx.lineTo(vX - 12 * depthScale + armSwing, vY + 14 * depthScale - armLift);
-              ctx.moveTo(vX + 12 * depthScale, vY + 2 * depthScale - armLift);
-              ctx.lineTo(vX + 12 * depthScale - armSwing, vY + 14 * depthScale - armLift);
+              ctx.moveTo(vX - 12 * depthScale, vY + 2 * depthScale);
+              ctx.lineTo(handX1, handY1);
+              ctx.moveTo(vX + 12 * depthScale, vY + 2 * depthScale);
+              ctx.lineTo(handX2, handY2);
               ctx.stroke();
-              ctx.fillStyle = '#b71c1c';
-              [-1, 1].forEach(side => {
-                ctx.beginPath();
-                ctx.arc(vX + side * 12 * depthScale - side * armSwing, vY + 14 * depthScale - armLift, 3.5 * depthScale, 0, Math.PI * 2);
-                ctx.fill();
-              });
+              drawMitten(handX1, handY1, 4 * depthScale, '#dd2c00');
+              drawMitten(handX2, handY2, 4 * depthScale, '#dd2c00');
 
-              ctx.strokeStyle = '#2e7d32';
-              ctx.lineWidth = 2.5 * depthScale;
-              [-4, 0, 4].forEach(lx => {
-                ctx.beginPath();
-                ctx.moveTo(vX + lx * depthScale, vY - 13 * depthScale);
-                ctx.lineTo(vX + lx * 1.4 * depthScale, vY - 21 * depthScale);
-                ctx.stroke();
-              });
+              drawHairSpikes(vX, vY - 15 * depthScale, 20, depthScale, '#4a7c34', 6);
 
               ctx.save();
               ctx.translate(vX, vY);
               ctx.scale(depthScale / s, depthScale * s);
               ctx.beginPath();
               ctx.arc(0, 0, 15, 0, Math.PI * 2);
-              ctx.fillStyle = '#dd2c00';
+              ctx.fillStyle = '#e8391f';
               ctx.fill();
               ctx.strokeStyle = '#7a0000';
               ctx.lineWidth = 2.5;
               ctx.stroke();
+              // soft highlight for a glossy cartoon look
+              ctx.beginPath();
+              ctx.ellipse(-5, -6, 5, 3, -0.5, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(255,255,255,0.35)';
+              ctx.fill();
               ctx.restore();
 
               drawSmile(vX, vY + 5 * depthScale, 6.5, depthScale, panic);
-              drawEyes(vX, vY - 4 * depthScale, 6, 5 * depthScale, depthScale, panic);
+              drawEyes(vX, vY - 4 * depthScale, 6, 5 * depthScale, depthScale, panic, t, idx);
+              if (!panic) drawSpeechBubble(vX, vY - 26 * depthScale, depthScale, t, idx);
             } else if (veg.type === 'broccoli') {
               const wobbleSpeed = panic ? 11 : 3.5;
               const wobble = Math.sin(t * wobbleSpeed + idx) * (panic ? 3 : 1) * depthScale;
@@ -569,6 +669,19 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               const cy = vY;
 
               drawLegs(cx, cy + 16 * depthScale, 5, depthScale, wobbleSpeed, idx, panic, t);
+
+              const armWave = panic ? 0 : Math.sin(t * 2.2 + idx) * 4 * depthScale;
+              ctx.strokeStyle = '#3f8f3f';
+              ctx.lineWidth = 2.6 * depthScale;
+              ctx.lineCap = 'round';
+              ctx.beginPath();
+              ctx.moveTo(cx - 8 * depthScale, cy + 3 * depthScale);
+              ctx.lineTo(cx - 13 * depthScale, cy - 4 * depthScale - armWave);
+              ctx.moveTo(cx + 8 * depthScale, cy + 3 * depthScale);
+              ctx.lineTo(cx + 13 * depthScale, cy - 4 * depthScale - armWave);
+              ctx.stroke();
+              drawMitten(cx - 13 * depthScale, cy - 4 * depthScale - armWave, 3 * depthScale, '#3f8f3f');
+              drawMitten(cx + 13 * depthScale, cy - 4 * depthScale - armWave, 3 * depthScale, '#3f8f3f');
 
               ctx.fillStyle = '#c9e4b0';
               ctx.fillRect(cx - 5 * depthScale, cy + 4 * depthScale, 10 * depthScale, 12 * depthScale);
@@ -590,7 +703,8 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               });
 
               drawSmile(cx, cy - 1 * depthScale, 5, depthScale, panic);
-              drawEyes(cx, cy - 3 * depthScale, 5, 4 * depthScale, depthScale, panic);
+              drawEyes(cx, cy - 3 * depthScale, 5, 4 * depthScale, depthScale, panic, t, idx);
+              if (!panic) drawSpeechBubble(cx, cy - 22 * depthScale, depthScale, t, idx);
             } else {
               const breathe = 0.5 + 0.5 * Math.sin(t * 2.2 + idx);
               drawLegs(vX, vY + 15 * depthScale, 5, depthScale, 6, idx, false, t);
@@ -610,7 +724,8 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.lineWidth = 2.5 * depthScale;
               ctx.stroke();
               drawSmile(vX, vY + 4 * depthScale, 5, depthScale, false);
-              drawEyes(vX, vY - 3 * depthScale, 5, 4 * depthScale, depthScale, false);
+              drawEyes(vX, vY - 3 * depthScale, 5, 4 * depthScale, depthScale, false, t, idx);
+              drawSpeechBubble(vX, vY - 26 * depthScale, depthScale, t, idx);
             }
 
             ctx.fillStyle = '#ffffff';
