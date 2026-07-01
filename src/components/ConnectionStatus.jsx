@@ -1,29 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { socket } from '../socket';
 
-function ConnectionStatus() {
-  const [isConnected, setIsConnected] = useState(socket.connected);
+// roomCode: the code this phone is trying to join.
+// Socket contract assumed: server emits 'room-joined' with { roomCode } once
+// this phone is actually synced into the match, separate from raw 'connect'.
+function ConnectionStatus({ roomCode }) {
+  const [phase, setPhase] = useState(socket.connected ? 'connecting' : 'disconnected');
 
   useEffect(() => {
-    // Synchronize initial component local variables state
-    setIsConnected(socket.connected);
+    setPhase(socket.connected ? 'connecting' : 'disconnected');
 
-    const handleConnectEvent = () => setIsConnected(true);
-    const handleDisconnectEvent = () => setIsConnected(false);
+    const handleConnect = () => setPhase('connecting');
+    const handleDisconnect = () => setPhase('disconnected');
+    const handleRoomJoined = () => setPhase('live');
 
-    // Register primary core transport layer event listeners
-    socket.on('connect', handleConnectEvent);
-    socket.on('disconnect', handleDisconnectEvent);
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('room-joined', handleRoomJoined);
 
-    // Clean up connections on unmount to prevent background processing loops
     return () => {
-      socket.off('connect', handleConnectEvent);
-      socket.off('disconnect', handleDisconnectEvent);
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('room-joined', handleRoomJoined);
     };
   }, []);
 
+  const PHASE_CONFIG = {
+    connecting: {
+      label: 'SYNCING GRID...',
+      color: '#ffca28',
+      blink: true
+    },
+    live: {
+      label: `LIVE HANDSHAKE ACCELERATED${roomCode ? ` — ROOM ${roomCode}` : ''}`,
+      color: '#39ff88',
+      blink: false
+    },
+    disconnected: {
+      label: 'OFFLINE - ENGINE SEARCHING',
+      color: '#ff3333',
+      blink: true
+    }
+  };
+
+  const { label, color, blink } = PHASE_CONFIG[phase];
+
   return (
-    <div 
+    <div
       style={{
         position: 'absolute',
         top: '12px',
@@ -32,8 +55,8 @@ function ConnectionStatus() {
         alignItems: 'center',
         gap: '8px',
         padding: '6px 12px',
-        background: isConnected ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 51, 51, 0.1)',
-        border: isConnected ? '1px solid rgba(255, 202, 40, 0.3)' : '1px solid #ff3333',
+        background: phase === 'disconnected' ? 'rgba(255, 51, 51, 0.1)' : 'rgba(0, 0, 0, 0.6)',
+        border: `1px solid ${phase === 'live' ? color : 'rgba(255, 202, 40, 0.3)'}`,
         borderRadius: '20px',
         fontSize: '11px',
         fontWeight: 'bold',
@@ -41,28 +64,37 @@ function ConnectionStatus() {
         fontFamily: 'monospace',
         zIndex: 999,
         pointerEvents: 'none',
-        boxShadow: isConnected ? '0 0 10px rgba(255, 202, 40, 0.05)' : '0 0 15px rgba(255, 51, 51, 0.2)',
+        maxWidth: '90vw',
+        boxSizing: 'border-box',
+        boxShadow:
+          phase === 'disconnected' ? '0 0 15px rgba(255, 51, 51, 0.2)' : '0 0 10px rgba(255, 202, 40, 0.05)',
         transition: 'all 0.3s ease'
       }}
     >
-      {/* The glowing signal element */}
-      <span 
+      <span
         style={{
           width: '6px',
           height: '6px',
           borderRadius: '50%',
-          background: isConnected ? '#ffca28' : '#ff3333',
-          boxShadow: isConnected ? '0 0 8px #ffca28' : '0 0 8px #ff3333',
+          background: color,
+          boxShadow: `0 0 8px ${color}`,
           display: 'inline-block',
-          animation: isConnected ? 'none' : 'blinkAnimation 1s infinite'
+          flexShrink: 0,
+          animation: blink ? 'blinkAnimation 1s infinite' : 'none'
         }}
       />
-      
-      <span style={{ color: isConnected ? '#f5f5f7' : '#ff3333' }}>
-        {isConnected ? 'GRID LINKED' : 'OFFLINE - ENGINE SEARCHING'}
+
+      <span
+        style={{
+          color,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {label}
       </span>
 
-      {/* Global CSS animation rules injected inline safely */}
       <style>{`
         @keyframes blinkAnimation {
           0%, 100% { opacity: 0.2; }
