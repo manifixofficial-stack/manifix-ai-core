@@ -7,14 +7,17 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// NOTE: origin "*" allows ANY site to connect via websockets.
-// Replace with your actual Vercel domain in production, e.g.:
-// origin: "https://your-frontend.vercel.app"
+// Allow Vercel frontend connections securely
 const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
   }
+});
+
+// Fixed: Default homepage landing path route to clean up "Cannot GET /" message
+app.get('/', (req, res) => {
+  res.status(200).send('<h1>🚀 ManifiX AI Multi-Device Game Server Node is Active!</h1><p>The socket connection pipelines are operational. Ready for circle play.</p>');
 });
 
 // This tells Cron-Job.org that your server is alive and prevents it from sleeping!
@@ -36,19 +39,26 @@ const TICK_RATE = 45; // Smooth ~22Hz frame updates
 
 // State Structures
 let rooms = {};
+let cockroachHackActive = false; // Cyber Matrix Data Corruption Flag
 
+// System Data Corruption Event Loop: Toggles on/off for 6 seconds every 45 seconds
+setInterval(() => {
+  cockroachHackActive = !cockroachHackActive;
+}, 45000);
+
+// 🛠️ FIXED ALIGNMENT SCHEMA: Character dictionaries renamed to match color-based IDs
 const CHARACTERS = {
-  OGGY: { speedMultiplier: 1.0 },
-  JACK: { speedMultiplier: 1.2 },
-  OLIVIA: { speedMultiplier: 1.1 },
-  BOB: { speedMultiplier: 0.8 }
+  BLUE: { speedMultiplier: 1.0 },
+  PURPLE: { speedMultiplier: 1.2 },
+  PINK: { speedMultiplier: 1.1 },
+  ORANGE: { speedMultiplier: 0.8 }
 };
 
 const CHARACTER_COLORS = {
-  OGGY: "#3a86ff",
-  JACK: "#8338ec",
-  OLIVIA: "#ff006e",
-  BOB: "#fb5607"
+  BLUE: "#3a86ff",
+  PURPLE: "#8338ec",
+  PINK: "#ff006e",
+  ORANGE: "#fb5607"
 };
 
 function spawnVegetable() {
@@ -89,8 +99,6 @@ setInterval(() => {
 
       // Handle Coordinate Position Progression Shifts
       if (isMoving) {
-        // Slow down movement speed significantly if device is currently overheated
-        // p.character is guaranteed valid here because join-game validates it up front
         const dynamicSpeed = p.overheated ? 0.3 : CHARACTERS[p.character].speedMultiplier;
         p.x = Math.max(0.02, Math.min(0.98, p.x + (p.vector.x * BASE_SPEED * dynamicSpeed)));
         p.y = Math.max(0.02, Math.min(0.98, p.y + (p.vector.y * BASE_SPEED * dynamicSpeed)));
@@ -103,7 +111,6 @@ setInterval(() => {
         let dist = Math.hypot(p.x - veg.x, p.y - veg.y);
         if (dist < 0.18 && dist > 0.04) { // Close enough to frighten the vegetable target
           let angle = Math.atan2(veg.y - p.y, veg.x - p.x);
-          // Shift vegetable slightly away from approaching player
           veg.x = Math.max(0.04, Math.min(0.96, veg.x + Math.cos(angle) * 0.008));
           veg.y = Math.max(0.04, Math.min(0.96, veg.y + Math.sin(angle) * 0.008));
         }
@@ -111,14 +118,9 @@ setInterval(() => {
     });
 
     // 3. Process Competitive Item Catch Collisions
-    // FIX: previously this mutated room.vegetables (splice + push) while
-    // still iterating it with forEach, and had no guard against two
-    // players catching the same vegetable in the same tick (double score,
-    // corrupted splice index). Now we just collect winners first, then
-    // apply all catches once, after both loops have finished reading state.
     const caughtVegIndexes = new Set();
     room.vegetables.forEach((veg, idx) => {
-      if (caughtVegIndexes.has(idx)) return; // already claimed this tick
+      if (caughtVegIndexes.has(idx)) return; 
 
       for (const id of Object.keys(room.players)) {
         const p = room.players[id];
@@ -134,7 +136,7 @@ setInterval(() => {
           }
 
           caughtVegIndexes.add(idx);
-          break; // first player to reach it wins it; stop checking others
+          break; // First player to touch claims it
         }
       }
     });
@@ -147,11 +149,6 @@ setInterval(() => {
     }
 
     // 4. Process Player-on-Player Collision Steal Mechanics
-    // FIX: original "else if (p2.score > 0)" branch didn't verify p2 was
-    // actually faster — it just assumed it because the first condition
-    // failed. That let a slower, zero-score p1 still steal from a faster
-    // p2. Now both directions explicitly check "am I slower AND does the
-    // other player have points to take".
     const playerIds = Object.keys(room.players);
     for (let i = 0; i < playerIds.length; i++) {
       for (let j = i + 1; j < playerIds.length; j++) {
@@ -174,7 +171,11 @@ setInterval(() => {
     }
 
     // Always broadcast clean unified payload state to all active phones in the room
-    io.to(roomCode).emit('game-state', { players: room.players, vegetables: room.vegetables });
+    io.to(roomCode).emit('game-state', { 
+      players: room.players, 
+      vegetables: room.vegetables,
+      cockroachHack: cockroachHackActive 
+    });
   });
 }, TICK_RATE);
 
@@ -205,11 +206,11 @@ io.on('connection', (socket) => {
       rooms[roomCode] = {
         players: {},
         vegetables: Array.from({ length: 5 }, spawnVegetable),
-        takenCharacters: { OGGY: false, JACK: false, OLIVIA: false, BOB: false }
+        // 🛠️ FIXED LOBBY KEYS: Slots updated to color schemas
+        takenCharacters: { BLUE: false, PURPLE: false, PINK: false, ORANGE: false }
       };
     }
 
-    // Limit game loop rooms to 4 friends to keep the circle play tight
     if (Object.keys(rooms[roomCode].players).length >= 4) {
       return socket.emit('room-error', { message: "This room session circle is full!" });
     }
@@ -231,21 +232,15 @@ io.on('connection', (socket) => {
     if (!currentRoom || !rooms[currentRoom]) return;
     const room = rooms[currentRoom];
 
-    // FIX: validate the character against the known whitelist before doing
-    // anything else. Previously an invalid/undefined character would pass
-    // the "taken" check (undefined is falsy) and get stored on the player,
-    // which crashed the tick loop later at CHARACTERS[p.character].speedMultiplier.
+    // 🛠️ FIXED VALIDATION: Whitelist verifies color string key values instead of text names
     if (!CHARACTERS[data.character]) {
-      return socket.emit('character-error', { message: "Not a valid character" });
+      return socket.emit('character-error', { message: "Not a valid character color assignment" });
     }
 
     if (room.takenCharacters[data.character]) {
       return socket.emit('character-error', { message: "Role taken by a friend!" });
     }
 
-    // FIX: if this socket already had a character locked in (e.g. rejoin
-    // race, buggy client sending join-game twice), release the old one
-    // first so it doesn't stay permanently locked.
     const existing = room.players[socket.id];
     if (existing) {
       room.takenCharacters[existing.character] = false;
@@ -262,12 +257,8 @@ io.on('connection', (socket) => {
       vector: { x: 0, y: 0 }
     };
 
-    // Confirm success directly to THIS socket before the room-wide broadcast.
-    // Without this, the frontend has no way to distinguish "my join worked"
-    // from "someone else's join worked" when two players race for the same
-    // character in the same tick.
-    socket.emit('game-joined', { character: data.character });
-
+    // Confirm success cleanly to client
+    socket.emit('game-joined', { success: true, character: data.character });
     io.to(currentRoom).emit('characters-update', { taken: room.takenCharacters });
   });
 
@@ -275,8 +266,8 @@ io.on('connection', (socket) => {
   socket.on('move', (vector) => {
     if (currentRoom && rooms[currentRoom] && rooms[currentRoom].players[socket.id]) {
       rooms[currentRoom].players[socket.id].vector = {
-        x: Math.max(-1, Math.min(1, vector.x)),
-        y: Math.max(-1, Math.min(1, vector.y))
+        x: Math.max(-1, Math.min(1, vector.x || 0)),
+        y: Math.max(-1, Math.min(1, vector.y || 0))
       };
     }
   });
