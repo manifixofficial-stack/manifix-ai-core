@@ -34,6 +34,7 @@ if (!supabase) console.log("⚠️ Supabase credentials missing. High-scores won
 const PORT = process.env.PORT || 5000;
 const TICK_MS = 1000; // 1Hz — real-world movement doesn't need 45Hz like the old joystick did
 const ROUND_DURATION_MS = 5 * 60 * 1000; // 5-minute outdoor round
+const COUNTDOWN_TICK_MS = 1000; // 1 second per 3-2-1 beat
 
 const GLITCH_CYCLE_MS = 45000;
 const GLITCH_DURATION_MS = 6000;
@@ -149,10 +150,42 @@ function makeRoom(originLat, originLng) {
     players: {},
     vegetables: Array.from({ length: VEGETABLE_COUNT }, () => spawnVegetable(originLat, originLng)),
     takenCharacters: { BLUE: false, PURPLE: false, PINK: false, ORANGE: false },
-    roundActive: true,
-    roundStartTime: Date.now(),
-    roundEnded: false
+    // Round no longer starts the instant the room is created — it starts only
+    // after the 3-2-1 countdown finishes (see startCountdown), so vegetables
+    // don't drift and the clock doesn't tick down while players are still
+    // picking their colors in Stage 2.
+    roundActive: false,
+    roundStartTime: null,
+    roundEnded: false,
+    countdownTimer: null
   };
+}
+
+// Fires the 3-2-1-GO sequence for a room once all 4 slots are claimed.
+// Emits 'match-countdown' each beat, then 'match-go' and finally flips
+// roundActive on so the tick loop starts moving vegetables / running the clock.
+function startCountdown(roomCode) {
+  const room = rooms[roomCode];
+  if (!room || room.countdownTimer) return; // already counting down
+
+  let tick = 3;
+  io.to(roomCode).emit('match-countdown', { tick });
+
+  room.countdownTimer = setInterval(() => {
+    tick -= 1;
+    if (tick > 0) {
+      io.to(roomCode).emit('match-countdown', { tick });
+      return;
+    }
+
+    clearInterval(room.countdownTimer);
+    room.countdownTimer = null;
+
+    room.roundActive = true;
+    room.roundEnded = false;
+    room.roundStartTime = Date.now();
+    io.to(roomCode).emit('match-go');
+  }, COUNTDOWN_TICK_MS);
 }
 
 // ==========================================
@@ -175,20 +208,30 @@ setInterval(() => {
         });
 
         const ranked = Object.values(room.players)
-          .map(p => ({ name: p.name, character: p.character, score: p.score }))
+          .map(p => ({ name: p.name, character: p.character, score: p.score, color: p.color }))
           .sort((a, b) => b.score - a.score);
 
-        io.to(roomCode).emit('round-end', { results: ranked });
+        const winner = ranked[0] || null;
+
+        io.to(roomCode).emit('match-ended', {
+          winnerName: winner ? winner.name : null,
+          winnerColor: winner ? winner.color : null,
+          results: ranked
+        });
       }
     }
 
+    // Before the countdown/round has ever started, or between rounds, just
+    // keep clients in sync with player/character state — no vegetable or
+    // steal simulation runs yet.
     if (!room.roundActive) {
       io.to(roomCode).emit('game-state', {
         players: room.players,
-        vegetables: [],
+        vegetables: room.roundStartTime ? [] : room.vegetables,
         cockroachHack: false,
         roundActive: false,
-        roundTimeRemaining: 0
+        roundTimeRemaining: 0,
+        geofence: { lat: room.originLat, lng: room.originLng, radiusMeters: ROOM_RADIUS_METERS }
       });
       return;
     }
@@ -352,6 +395,13 @@ io.on('connection', (socket) => {
 
     socket.emit('game-joined', { success: true, character: data.character });
     io.to(currentRoom).emit('characters-update', { taken: room.takenCharacters });
+
+    // All 4 slots claimed -> kick off the 3-2-1-GO sequence the client
+    // (App.jsx) is already listening for via 'match-countdown' / 'match-go'.
+    const allFilled = Object.values(room.takenCharacters).every(Boolean);
+    if (allFilled) {
+      startCountdown(currentRoom);
+    }
   });
 
   // Client sends real GPS updates from navigator.geolocation.watchPosition.
@@ -383,6 +433,7 @@ io.on('connection', (socket) => {
   socket.on('capture-attempt', (data) => {
     if (!currentRoom || !rooms[currentRoom]) return;
     const room = rooms[currentRoom];
+    if (!room.roundActive) return;
     const p = room.players[socket.id];
     if (!p || !p.lastLocationAt) return;
 
@@ -420,7 +471,9 @@ io.on('connection', (socket) => {
     room.vegetables.push(spawnVegetable(room.originLat, room.originLng));
   });
 
-  socket.on('restart-round', () => {
+  // Renamed from 'restart-round' to 'request-replay' to match the event
+  // App.jsx's handleInstantReplay() actually emits after the victory shield.
+  socket.on('request-replay', () => {
     if (currentRoom && rooms[currentRoom]) {
       const room = rooms[currentRoom];
       Object.values(room.players).forEach(p => {
@@ -428,10 +481,11 @@ io.on('connection', (socket) => {
         p.speedMps = 0;
       });
       room.vegetables = Array.from({ length: VEGETABLE_COUNT }, () => spawnVegetable(room.originLat, room.originLng));
-      room.roundActive = true;
       room.roundEnded = false;
-      room.roundStartTime = Date.now();
-      io.to(currentRoom).emit('round-restarted');
+      room.roundActive = false;
+      room.roundStartTime = null;
+      // Re-run the 3-2-1-GO sequence instead of jumping straight back into play.
+      startCountdown(currentRoom);
     }
   });
 
@@ -444,7 +498,10 @@ io.on('connection', (socket) => {
         delete room.players[socket.id];
         io.to(currentRoom).emit('characters-update', { taken: room.takenCharacters });
       }
-      if (Object.keys(room.players).length === 0) delete rooms[currentRoom];
+      if (Object.keys(room.players).length === 0) {
+        if (room.countdownTimer) clearInterval(room.countdownTimer);
+        delete rooms[currentRoom];
+      }
     }
   });
 });
