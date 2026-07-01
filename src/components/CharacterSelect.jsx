@@ -1,242 +1,216 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { socket } from '../socket';
 
-// Stage 2: The Color Pad Slot Claim Grid
-// Live camera feed streams behind this component (handled by parent layout).
-// This card floats on top with transparent/glass panels so the room stays visible.
+const SLOTS = [
+  { key: 'BLUE', color: '#3a86ff', label: 'BLUE' },
+  { key: 'PURPLE', color: '#8338ec', label: 'PURPLE' },
+  { key: 'PINK', color: '#ff006e', label: 'PINK' },
+  { key: 'ORANGE', color: '#fb5607', label: 'ORANGE' }
+];
 
-function CharacterSelect({ takenChars = {}, onLock = () => {} }) {
-  const colorSlots = [
-    { id: 'BLUE', label: 'BLUE HERO PROFILE', color: '#3a86ff' },
-    { id: 'PURPLE', label: 'FAST PURPLE PROFILE', color: '#8338ec' },
-    { id: 'PINK', label: 'AGILE PINK PROFILE', color: '#ff006e' },
-    { id: 'ORANGE', label: 'HEAVY ORANGE PROFILE', color: '#fb5607' }
-  ];
+// Keep captured faces small — this is what stops the bandwidth problem described above.
+// 96x96 JPEG at 0.7 quality lands around 3-6KB, and it's sent exactly once per player,
+// not on every tick.
+const FACE_CAPTURE_SIZE = 96;
+const FACE_JPEG_QUALITY = 0.7;
 
-  const [drafts, setDrafts] = useState({ BLUE: '', PURPLE: '', PINK: '', ORANGE: '' });
+function CharacterSelect({ roomCode, onJoined }) {
+  const [taken, setTaken] = useState({ BLUE: false, PURPLE: false, PINK: false, ORANGE: false });
+  const [nameInputs, setNameInputs] = useState({ BLUE: '', PURPLE: '', PINK: '', ORANGE: '' });
+  const [claimingSlot, setClaimingSlot] = useState(null); // slot key currently mid-claim
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleChange = (slotId, value) => {
-    if (value.length <= 14) {
-      setDrafts((prev) => ({ ...prev, [slotId]: value }));
+  // Face capture state
+  const [faceDataUrl, setFaceDataUrl] = useState(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+
+  useEffect(() => {
+    socket.emit('request-characters');
+
+    const handleCharactersUpdate = (data) => {
+      setTaken(data.taken);
+    };
+    const handleCharacterError = (data) => {
+      setErrorMsg(data.message || 'Could not claim that slot.');
+      setClaimingSlot(null);
+      setTimeout(() => setErrorMsg(''), 2500);
+    };
+    const handleGameJoined = (data) => {
+      if (data.success) {
+        onJoined && onJoined(data.character);
+      }
+    };
+
+    socket.on('characters-update', handleCharactersUpdate);
+    socket.on('character-error', handleCharacterError);
+    socket.on('game-joined', handleGameJoined);
+
+    return () => {
+      socket.off('characters-update', handleCharactersUpdate);
+      socket.off('character-error', handleCharacterError);
+      socket.off('game-joined', handleGameJoined);
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
     }
+    setCameraOpen(false);
   };
 
-  const handleClaim = (slotId) => {
-    const trimmedName = drafts[slotId].trim();
-    if (trimmedName.length === 0) return;
-    // Fires the precise two-argument callback pattern required by App.jsx natively
-    onLock(slotId, trimmedName);
+  const openCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      // Front-facing camera specifically for a face capture — separate from any
+      // rear-camera AR background stream elsewhere in the app.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 320 } },
+        audio: false
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setCameraOpen(true);
+    } catch (err) {
+      console.error('Face camera blocked:', err);
+      setCameraError('Camera access denied or unavailable. You can still play with a letter avatar.');
+    }
+  }, []);
+
+  const snapFace = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    canvas.width = FACE_CAPTURE_SIZE;
+    canvas.height = FACE_CAPTURE_SIZE;
+    const ctx = canvas.getContext('2d');
+
+    // Center-crop the video frame to a square before downscaling to FACE_CAPTURE_SIZE
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const cropSize = Math.min(vw, vh);
+    const sx = (vw - cropSize) / 2;
+    const sy = (vh - cropSize) / 2;
+
+    ctx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, FACE_CAPTURE_SIZE, FACE_CAPTURE_SIZE);
+    const dataUrl = canvas.toDataURL('image/jpeg', FACE_JPEG_QUALITY);
+    setFaceDataUrl(dataUrl);
+    stopCamera();
+  }, []);
+
+  const retakeFace = () => {
+    setFaceDataUrl(null);
+    openCamera();
   };
 
-  const handleKeyDown = (e, slotId) => {
-    if (e.key === 'Enter') {
-      handleClaim(slotId);
+  const handleClaim = (slotKey) => {
+    const name = (nameInputs[slotKey] || '').trim();
+    if (!name) {
+      setErrorMsg('Enter a name before claiming a slot.');
+      setTimeout(() => setErrorMsg(''), 2000);
+      return;
+    }
+
+    setClaimingSlot(slotKey);
+    socket.emit('join-game', { character: slotKey, name });
+
+    // Face is sent ONCE via its own dedicated event, deliberately kept out of the
+    // 22Hz game-state tick loop. If no face was captured, the server/client just
+    // falls back to the existing colored-letter avatar — nothing breaks.
+    if (faceDataUrl) {
+      socket.emit('set-face', { faceUrl: faceDataUrl });
     }
   };
 
   return (
-    <div
-      className="lobby-card"
-      style={{
-        background: 'rgba(8, 8, 10, 0.55)', // translucent so the live camera room shows through
-        backdropFilter: 'blur(6px)',
-        padding: '20px',
-        borderRadius: '16px'
-      }}
-    >
-      <h1
-        style={{
-          fontFamily: '"Orbitron", sans-serif',
-          letterSpacing: '2px',
-          textAlign: 'center',
-          color: '#fff',
-          textShadow: '0 0 12px rgba(255,255,255,0.4)'
-        }}
-      >
-        MEMBER SELECT
-      </h1>
-      <p style={{ textAlign: 'center', color: '#b6b6c0', fontSize: '13px', marginBottom: '18px' }}>
-        Pick your color and type your name. Each friend locks in their own unique slot:
-      </p>
+    <div style={styles.container}>
+      <div style={styles.faceCaptureCard}>
+        <div style={styles.facePreviewWrap}>
+          {cameraOpen && (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={styles.videoPreview}
+            />
+          )}
+          {!cameraOpen && faceDataUrl && (
+            <img src={faceDataUrl} alt="Your captured face" style={styles.facePreviewImg} />
+          )}
+          {!cameraOpen && !faceDataUrl && (
+            <div style={styles.faceholder}>?</div>
+          )}
+        </div>
 
-      <div className="character-grid" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        {colorSlots.map((slot) => {
-          const lockedName = takenChars[slot.id];
-          const isTaken = Boolean(lockedName);
-          const canClaim = !isTaken && drafts[slot.id].trim().length > 0;
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
 
+        {cameraError && <div style={styles.errorText}>{cameraError}</div>}
+
+        <div style={styles.faceButtonRow}>
+          {!cameraOpen && !faceDataUrl && (
+            <button style={styles.faceBtn} onClick={openCamera}>📷 CAPTURE FACE</button>
+          )}
+          {cameraOpen && (
+            <button style={styles.faceBtnGold} onClick={snapFace}>✓ SNAP</button>
+          )}
+          {!cameraOpen && faceDataUrl && (
+            <button style={styles.faceBtnSecondary} onClick={retakeFace}>↻ RETAKE</button>
+          )}
+        </div>
+      </div>
+
+      {errorMsg && <div style={styles.errorBanner}>{errorMsg}</div>}
+
+      <div style={styles.grid}>
+        {SLOTS.map((slot) => {
+          const isTaken = taken[slot.key];
+          const isClaiming = claimingSlot === slot.key;
           return (
             <div
-              key={slot.id}
+              key={slot.key}
               style={{
-                position: 'relative',
-                overflow: 'hidden',
-                borderRadius: '10px',
-                boxSizing: 'border-box'
+                ...styles.slot,
+                borderColor: slot.color,
+                boxShadow: `0 0 14px ${slot.color}55`
               }}
             >
-              {/* Neon glowing frame track */}
-              <motion.div
-                animate={
-                  isTaken
-                    ? { borderColor: '#1c1c24', boxShadow: '0 0 0 rgba(0,0,0,0)' }
-                    : {
-                        borderColor: slot.color,
-                        boxShadow: [
-                          `0 0 6px ${slot.color}55`,
-                          `0 0 16px ${slot.color}aa`,
-                          `0 0 6px ${slot.color}55`
-                        ]
-                      }
-                }
-                transition={
-                  isTaken
-                    ? { duration: 0.4 }
-                    : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }
-                }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  background: 'rgba(18, 18, 23, 0.75)',
-                  border: '1.5px solid',
-                  borderRadius: '10px'
-                }}
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  {isTaken ? (
-                    // LOCKED STATE — slide-in swipe animation
-                    <motion.div
-                      key="locked"
-                      initial={{ x: '-100%', opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        width: '100%'
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#ffffff' }}>
-                          {lockedName}
-                        </span>
-                        <small style={{ fontSize: '10px', color: '#8a8a93', marginTop: '2px' }}>
-                          {slot.label}
-                        </small>
-                      </div>
-
-                      {/* Stamp effect */}
-                      <motion.div
-                        initial={{ scale: 2, opacity: 0, rotate: -8 }}
-                        animate={{ scale: 1, opacity: 1, rotate: -8 }}
-                        transition={{ delay: 0.15, type: 'spring', stiffness: 400, damping: 14 }}
-                        style={{
-                          background: '#2a2a31',
-                          border: '2px solid #8b0000',
-                          color: '#e63946',
-                          fontFamily: '"Orbitron", sans-serif',
-                          fontWeight: 'bold',
-                          fontSize: '11px',
-                          letterSpacing: '1px',
-                          padding: '6px 10px',
-                          borderRadius: '4px',
-                          textShadow: '0 0 6px rgba(230,57,70,0.6)'
-                        }}
-                      >
-                        IN GAME
-                      </motion.div>
-                    </motion.div>
-                  ) : (
-                    // OPEN STATE — input + claim button
-                    <motion.div
-                      key="open"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        width: '100%'
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', flex: 1, marginRight: '12px' }}>
-                        <div style={{ position: 'relative' }}>
-                          <input
-                            type="text"
-                            value={drafts[slot.id]}
-                            onChange={(e) => handleChange(slot.id, e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, slot.id)}
-                            placeholder=" "
-                            maxLength={14}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              borderBottom: `1px solid ${slot.color}`,
-                              color: '#ffffff',
-                              fontFamily: 'inherit',
-                              fontSize: '14px',
-                              fontWeight: 'bold',
-                              padding: '4px 0',
-                              outline: 'none',
-                              width: '100%',
-                              textAlign: 'left'
-                            }}
-                          />
-                          {drafts[slot.id].length === 0 && (
-                            <motion.span
-                              animate={{ opacity: [0.35, 1, 0.35] }}
-                              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-                              style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: '4px',
-                                fontSize: '13px',
-                                fontWeight: 'bold',
-                                letterSpacing: '0.5px',
-                                color: `${slot.color}aa`,
-                                pointerEvents: 'none'
-                              }}
-                            >
-                              ENTER YOUR NAME
-                            </motion.span>
-                          )}
-                        </div>
-                        <small style={{ fontSize: '10px', color: '#8a8a93', marginTop: '6px' }}>
-                          {slot.label}
-                        </small>
-                      </div>
-
-                      <motion.button
-                        whileTap={canClaim ? { scale: 0.96 } : {}}
-                        onClick={() => handleClaim(slot.id)}
-                        disabled={!canClaim}
-                        style={{
-                          background: canClaim
-                            ? `linear-gradient(180deg, ${slot.color}, ${slot.color}cc)`
-                            : '#1c1c24',
-                          color: canClaim ? '#080808' : '#8a8a93',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '10px 16px',
-                          fontFamily: '"Orbitron", sans-serif',
-                          fontWeight: 'bold',
-                          fontSize: '12px',
-                          letterSpacing: '0.5px',
-                          cursor: canClaim ? 'pointer' : 'not-allowed',
-                          whiteSpace: 'nowrap',
-                          boxShadow: canClaim ? `0 0 10px ${slot.color}88` : 'none'
-                        }}
-                      >
-                        CLAIM
-                      </motion.button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
+              {isTaken ? (
+                <div style={styles.lockedPlate}>
+                  <span style={styles.lockedText}>IN GAME</span>
+                </div>
+              ) : (
+                <>
+                  <input
+                    style={styles.nameInput}
+                    placeholder="ENTER YOUR NAME"
+                    maxLength={12}
+                    value={nameInputs[slot.key]}
+                    onChange={(e) =>
+                      setNameInputs((prev) => ({ ...prev, [slot.key]: e.target.value }))
+                    }
+                  />
+                  <button
+                    style={{ ...styles.claimBtn, backgroundColor: slot.color }}
+                    onClick={() => handleClaim(slot.key)}
+                    disabled={isClaiming}
+                  >
+                    {isClaiming ? '...' : 'CLAIM'}
+                  </button>
+                </>
+              )}
+              <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.label}</span>
             </div>
           );
         })}
@@ -245,37 +219,158 @@ function CharacterSelect({ takenChars = {}, onLock = () => {} }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Standalone demo wrapper — only used when this file is previewed
-// on its own (e.g. as an artifact). In the real app, App.jsx renders
-// <CharacterSelect takenChars={...} onLock={...} /> directly and this
-// wrapper is unused.
-// ─────────────────────────────────────────────────────────────
-export function CharacterSelectDemo() {
-  const [takenChars, setTakenChars] = useState({});
-
-  const handleLock = (slotId, name) => {
-    setTakenChars((prev) => ({ ...prev, [slotId]: name }));
-  };
-
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background:
-          'radial-gradient(circle at 50% 20%, #1a1a22 0%, #08080a 70%)',
-        padding: '24px',
-        boxSizing: 'border-box'
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: '420px' }}>
-        <CharacterSelect takenChars={takenChars} onLock={handleLock} />
-      </div>
-    </div>
-  );
-}
+const styles = {
+  container: {
+    position: 'relative',
+    width: '100%',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+    zIndex: 10
+  },
+  faceCaptureCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '10px',
+    background: 'rgba(8,8,10,0.6)',
+    borderRadius: '16px',
+    padding: '14px',
+    border: '1px solid rgba(255,255,255,0.08)'
+  },
+  facePreviewWrap: {
+    width: '96px',
+    height: '96px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    border: '2px solid #ffc83c',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#111'
+  },
+  videoPreview: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    transform: 'scaleX(-1)' // mirror front camera, feels natural for a selfie
+  },
+  facePreviewImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover'
+  },
+  faceholder: {
+    color: '#666',
+    fontSize: '28px',
+    fontFamily: 'monospace'
+  },
+  faceButtonRow: {
+    display: 'flex',
+    gap: '10px'
+  },
+  faceBtn: {
+    background: 'transparent',
+    border: '1px solid #ffc83c',
+    color: '#ffc83c',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  faceBtnGold: {
+    background: '#ffc83c',
+    border: 'none',
+    color: '#08080a',
+    padding: '8px 18px',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  faceBtnSecondary: {
+    background: 'transparent',
+    border: '1px solid #666',
+    color: '#aaa',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: '11px',
+    textAlign: 'center'
+  },
+  errorBanner: {
+    background: 'rgba(220,38,38,0.15)',
+    border: '1px solid rgba(220,38,38,0.5)',
+    color: '#ff6b6b',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    fontSize: '12px',
+    textAlign: 'center'
+  },
+  grid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  slot: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    background: 'rgba(8,8,10,0.55)',
+    border: '2px solid',
+    borderRadius: '12px',
+    padding: '10px 14px',
+    position: 'relative'
+  },
+  slotLabel: {
+    marginLeft: 'auto',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    fontFamily: 'monospace',
+    letterSpacing: '1px'
+  },
+  nameInput: {
+    flex: 1,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: '8px',
+    padding: '8px 10px',
+    color: '#fff',
+    fontSize: '13px',
+    outline: 'none'
+  },
+  claimBtn: {
+    border: 'none',
+    borderRadius: '8px',
+    padding: '8px 16px',
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    cursor: 'pointer'
+  },
+  lockedPlate: {
+    flex: 1,
+    background: '#1c1c24',
+    borderRadius: '8px',
+    padding: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  lockedText: {
+    color: '#dc2626',
+    fontWeight: '900',
+    fontSize: '13px',
+    letterSpacing: '1px',
+    fontFamily: 'monospace'
+  }
+};
 
 export default CharacterSelect;
