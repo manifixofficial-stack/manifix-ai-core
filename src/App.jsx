@@ -4,7 +4,7 @@ import { socket } from './socket';
 import RoomJoin from './components/RoomJoin';
 import CharacterSelect from './components/CharacterSelect';
 import ConnectionStatus from './components/ConnectionStatus';
-import GameCanvas from './components/GameCanvas';
+import GameARView from './components/GameARView';
 import Scoreboard from './components/Scoreboard';
 
 const SLOT_COLORS = {
@@ -26,9 +26,10 @@ function App() {
   const [stage, setStage] = useState(1); // 1: Room Entry, 2: Slot Claim, 3: Match Arena
   const [roomCode, setRoomCode] = useState('');
   const [takenChars, setTakenChars] = useState({ BLUE: null, PURPLE: null, PINK: null, ORANGE: null });
-  const [gameState, setGameState] = useState({ players: {}, vegetables: [], cockroachHack: false });
+  const [gameState, setGameState] = useState({ players: {}, vegetables: [], cockroachHack: false, geofence: null });
   const [mySlot, setMySlot] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [joining, setJoining] = useState(false); // true while awaiting GPS fix + server ack
 
   // ── Match phase / countdown / victory state ─────────────────────────
   const [matchPhase, setMatchPhase] = useState(null); // null until 4th slot secures
@@ -40,11 +41,13 @@ function App() {
   useEffect(() => {
     // Named handlers so cleanup only removes THIS component's listeners
     const handleRoomJoined = (data) => {
+      setJoining(false);
       setRoomCode(data.room);
       setStage(2);
       socket.emit('request-characters');
     };
     const handleRoomError = (data) => {
+      setJoining(false);
       setErrorMessage(data.message);
     };
     const handleCharactersUpdate = (data) => {
@@ -108,10 +111,35 @@ function App() {
     };
   }, []);
 
+  // FIXED: the server's join-room handler requires real lat/lng to center the
+  // outdoor geofence (see server.js). We now grab a GPS fix BEFORE emitting,
+  // instead of sending { room: code } alone and hitting the server's
+  // "Location permission is required..." rejection every time.
   const handleJoinRoom = (code) => {
     setErrorMessage('');
+
+    if (!navigator.geolocation) {
+      setErrorMessage('This device does not support location services.');
+      return;
+    }
+
+    setJoining(true);
     if (!socket.connected) socket.connect();
-    socket.emit('join-room', { room: code });
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        socket.emit('join-room', {
+          room: code,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
+      },
+      (err) => {
+        setJoining(false);
+        setErrorMessage('Location permission is required to create or join this outdoor room.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
   };
 
   const handleLockCharacter = (slotId, claimedName) => {
@@ -139,7 +167,7 @@ function App() {
       <ConnectionStatus roomCode={roomCode} />
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
-      {stage === 1 && <RoomJoin onJoin={handleJoinRoom} />}
+      {stage === 1 && <RoomJoin onJoin={handleJoinRoom} error={errorMessage} connecting={joining} />}
       {stage === 2 && <CharacterSelect takenChars={takenChars} onLock={handleLockCharacter} />}
 
       {stage === 3 && (
@@ -152,11 +180,11 @@ function App() {
             </h3>
           </div>
           <div className="arena-grid">
-            <GameCanvas
+            <GameARView
               gameState={gameState}
               roomCode={roomCode}
               mySlot={mySlot}
-              inputLocked={inputLocked}
+              geofence={gameState.geofence}
             />
             <Scoreboard players={gameState.players} mySlot={mySlot} />
           </div>
