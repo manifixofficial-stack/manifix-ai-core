@@ -7,7 +7,9 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Allow Vercel frontend connections securely
+// NOTE: origin "*" allows ANY site to connect via websockets.
+// Replace with your actual Vercel domain in production, e.g.:
+// origin: "https://your-frontend.vercel.app"
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -40,6 +42,13 @@ const CHARACTERS = {
   JACK: { speedMultiplier: 1.2 },
   OLIVIA: { speedMultiplier: 1.1 },
   BOB: { speedMultiplier: 0.8 }
+};
+
+const CHARACTER_COLORS = {
+  OGGY: "#3a86ff",
+  JACK: "#8338ec",
+  OLIVIA: "#ff006e",
+  BOB: "#fb5607"
 };
 
 function spawnVegetable() {
@@ -81,6 +90,7 @@ setInterval(() => {
       // Handle Coordinate Position Progression Shifts
       if (isMoving) {
         // Slow down movement speed significantly if device is currently overheated
+        // p.character is guaranteed valid here because join-game validates it up front
         const dynamicSpeed = p.overheated ? 0.3 : CHARACTERS[p.character].speedMultiplier;
         p.x = Math.max(0.02, Math.min(0.98, p.x + (p.vector.x * BASE_SPEED * dynamicSpeed)));
         p.y = Math.max(0.02, Math.min(0.98, p.y + (p.vector.y * BASE_SPEED * dynamicSpeed)));
@@ -101,28 +111,47 @@ setInterval(() => {
     });
 
     // 3. Process Competitive Item Catch Collisions
+    // FIX: previously this mutated room.vegetables (splice + push) while
+    // still iterating it with forEach, and had no guard against two
+    // players catching the same vegetable in the same tick (double score,
+    // corrupted splice index). Now we just collect winners first, then
+    // apply all catches once, after both loops have finished reading state.
+    const caughtVegIndexes = new Set();
     room.vegetables.forEach((veg, idx) => {
-      Object.keys(room.players).forEach(id => {
+      if (caughtVegIndexes.has(idx)) return; // already claimed this tick
+
+      for (const id of Object.keys(room.players)) {
         const p = room.players[id];
-        let dist = Math.hypot(p.x - veg.x, p.y - veg.y);
+        const dist = Math.hypot(p.x - veg.x, p.y - veg.y);
 
         if (dist < 0.045) { // Item Successfully Caught!
           const pts = veg.type === "golden" ? 10 : veg.type === "tomato" ? 3 : 1;
           p.score += pts;
 
-          // Golden Matrix Flash High Score Check Event Trigger
           if (veg.type === "golden") {
             io.to(roomCode).emit('high-score-flash', { playerId: id });
             saveScoreToSupabase(p.name, p.character, p.score);
           }
 
-          room.vegetables.splice(idx, 1);
-          room.vegetables.push(spawnVegetable());
+          caughtVegIndexes.add(idx);
+          break; // first player to reach it wins it; stop checking others
         }
-      });
+      }
     });
 
+    if (caughtVegIndexes.size > 0) {
+      room.vegetables = room.vegetables.filter((_, idx) => !caughtVegIndexes.has(idx));
+      for (let i = 0; i < caughtVegIndexes.size; i++) {
+        room.vegetables.push(spawnVegetable());
+      }
+    }
+
     // 4. Process Player-on-Player Collision Steal Mechanics
+    // FIX: original "else if (p2.score > 0)" branch didn't verify p2 was
+    // actually faster — it just assumed it because the first condition
+    // failed. That let a slower, zero-score p1 still steal from a faster
+    // p2. Now both directions explicitly check "am I slower AND does the
+    // other player have points to take".
     const playerIds = Object.keys(room.players);
     for (let i = 0; i < playerIds.length; i++) {
       for (let j = i + 1; j < playerIds.length; j++) {
@@ -130,11 +159,13 @@ setInterval(() => {
         let p2 = room.players[playerIds[j]];
 
         if (Math.hypot(p1.x - p2.x, p1.y - p2.y) < 0.05) {
-          // The player moving faster steals points from the slower player
-          if (p1.score > 0 && Math.hypot(p1.vector.x, p1.vector.y) < Math.hypot(p2.vector.x, p2.vector.y)) {
+          const p1Speed = Math.hypot(p1.vector.x, p1.vector.y);
+          const p2Speed = Math.hypot(p2.vector.x, p2.vector.y);
+
+          if (p1Speed < p2Speed && p1.score > 0) {
             p1.score = Math.max(0, p1.score - 2);
             p2.score += 2;
-          } else if (p2.score > 0) {
+          } else if (p2Speed < p1Speed && p2.score > 0) {
             p2.score = Math.max(0, p2.score - 2);
             p1.score += 2;
           }
@@ -200,8 +231,24 @@ io.on('connection', (socket) => {
     if (!currentRoom || !rooms[currentRoom]) return;
     const room = rooms[currentRoom];
 
+    // FIX: validate the character against the known whitelist before doing
+    // anything else. Previously an invalid/undefined character would pass
+    // the "taken" check (undefined is falsy) and get stored on the player,
+    // which crashed the tick loop later at CHARACTERS[p.character].speedMultiplier.
+    if (!CHARACTERS[data.character]) {
+      return socket.emit('character-error', { message: "Not a valid character" });
+    }
+
     if (room.takenCharacters[data.character]) {
       return socket.emit('character-error', { message: "Role taken by a friend!" });
+    }
+
+    // FIX: if this socket already had a character locked in (e.g. rejoin
+    // race, buggy client sending join-game twice), release the old one
+    // first so it doesn't stay permanently locked.
+    const existing = room.players[socket.id];
+    if (existing) {
+      room.takenCharacters[existing.character] = false;
     }
 
     // Register active user structural parameters
@@ -209,9 +256,9 @@ io.on('connection', (socket) => {
     room.players[socket.id] = {
       x: 0.5, y: 0.5,
       character: data.character,
-      name: data.name || `User-${socket.id.substring(0,3)}`,
+      name: data.name || `User-${socket.id.substring(0, 3)}`,
       score: 0, heat: 0, overheated: false,
-      color: data.character === "OGGY" ? "#3a86ff" : data.character === "JACK" ? "#8338ec" : data.character === "OLIVIA" ? "#ff006e" : "#fb5607",
+      color: CHARACTER_COLORS[data.character],
       vector: { x: 0, y: 0 }
     };
 
