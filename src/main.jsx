@@ -1,14 +1,61 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "./styles.css"; // Injects your premium gold and black styles globally
 
-// This register block tells the browser to safely run your public/sw.js script in the background
+// Injecting your premium gold and black cyber global layouts right through the code string to prevent file lookup crashes!
+const injectGlobalGameStyles = () => {
+  const cssId = "manifix-arcade-core-theme";
+  if (document.getElementById(cssId)) return;
+  const styleElement = document.createElement("style");
+  styleElement.id = cssId;
+  styleElement.textContent = `
+    @import url('https://googleapis.com');
+    
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background-color: #08080a; color: #f5f5f7;
+      font-family: 'JetBrains Mono', monospace; overflow: hidden;
+      user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none;
+    }
+    #root, .app-container {
+      width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative;
+    }
+    .lobby-card {
+      text-align: center; background: #121217; padding: 35px 25px; border-radius: 20px; border: 2px solid #ffca28; box-shadow: 0 0 30px rgba(255, 202, 40, 0.2); width: 85%; max-width: 320px; box-sizing: border-box;
+    }
+    .lobby-card h1 { font-family: 'Orbitron', sans-serif; color: #ffca28; font-size: 1.8rem; margin: 0 0 12px; line-height: 1.2; letter-spacing: 2px; }
+    .lobby-card p { font-family: 'Fredoka', sans-serif; color: #8a8a93; font-size: 13px; line-height: 1.5; margin: 0 0 25px; }
+    .lobby-card input { box-sizing: border-box; padding: 14px; font-size: 15px; border-radius: 8px; width: 100%; border: 1px solid #2d2d3f; background: #000000; color: #ffca28; text-align: center; font-weight: bold; margin-bottom: 16px; outline: none; }
+    .gold-btn { padding: 14px; font-size: 15px; font-weight: bold; background: linear-gradient(135deg, #ffca28, #b58900); color: #000000; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(255, 202, 40, 0.2); }
+    .character-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+    .char-button { padding: 15px 20px; font-size: 15px; font-weight: bold; color: #f5f5f7; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; cursor: pointer; background: rgba(255, 255, 255, 0.02); display: flex; justify-content: space-between; align-items: center; font-family: 'Orbitron', sans-serif; transition: all 0.2s ease; }
+    .char-button.disabled { background: #17171d !important; color: #3e3e4d !important; border-color: #1c1c24 !important; cursor: not-allowed; }
+    .arena-wrapper { width: 100%; height: 100%; display: flex; flex-direction: column; padding: 15px; box-sizing: border-box; }
+    .arena-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1c1c24; padding-bottom: 10px; margin-bottom: 12px; }
+    .arena-header h2 { margin: 0; font-size: 13px; color: #ffca28; font-family: 'Orbitron', sans-serif; }
+    .arena-grid { flex: 1; display: flex; flex-direction: column; gap: 15px; position: relative; }
+    .battle-canvas { background: #000000; border: 3px solid #ffca28; border-radius: 12px; box-shadow: 0 0 25px rgba(255, 202, 40, 0.08); width: 100%; height: auto; aspect-ratio: 4/3; box-sizing: border-box; display: block; }
+    .sidebar-rankings { background: #121217; padding: 14px; border-radius: 12px; border: 1px solid #1c1c24; display: flex; flex-direction: column; gap: 8px; }
+    .sidebar-rankings h3 { margin: 0 0 4px; font-size: 12px; color: #8a8a93; font-family: 'Orbitron', sans-serif; }
+    .touch-joystick-base { width: 100px; height: 100px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 202, 40, 0.25); border-radius: 50%; margin: 10px auto 5px; display: flex; justify-content: center; align-items: center; position: relative; }
+    .touch-joystick-knob { width: 40px; height: 40px; background: #ffca28; border-radius: 50%; position: absolute; pointer-events: none; box-shadow: 0 0 15px #ffca28; }
+    .hack-alert-banner { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(255, 10, 50, 0.9); color: white; padding: 12px 24px; font-weight: bold; font-family: 'Orbitron', sans-serif; border-radius: 6px; font-size: 11px; text-align: center; z-index: 10; animation: crashShake 0.15s infinite; }
+    .error-banner { position: absolute; top: 15px; background: rgba(255, 51, 51, 0.15); color: #ff3333; border: 1px solid #ff3333; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: bold; z-index: 100; }
+    @keyframes crashShake { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-49%) translateY(1px); } }
+    .flash-gold { animation: dynamicFlashEffect 0.4s ease-out; }
+    @keyframes dynamicFlashEffect { 0% { box-shadow: inset 0 0 120px rgba(255, 202, 40, 0.95); } }
+  `;
+  document.head.appendChild(styleElement);
+};
+
+injectGlobalGameStyles();
+
+// Register clean background Service Worker script
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js")
-      .then(() => console.log("🤖 Game Service Worker Registered Successfully"))
-      .catch((err) => console.warn("Service Worker connection failed:", err));
+      .then(() => console.log("🤖 Game Service Worker Live"))
+      .catch((err) => console.warn("SW status failure:", err));
   });
 }
 
