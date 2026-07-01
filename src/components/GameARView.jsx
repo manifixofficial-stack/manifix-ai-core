@@ -46,13 +46,10 @@ function bearingDegrees(lat1, lng1, lat2, lng2) {
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
-// Normalize a bearing-minus-heading difference into [-180, 180]
 function normalizeRelAngle(deg) {
   return ((deg + 540) % 360) - 180;
 }
 
-// Same perspective feel as the old virtual-room canvas, but now nx/ny come from
-// real compass-relative bearing and real distance instead of a stored 0-1 grid.
 function project(nx, ny, width, height) {
   const zFactor = 0.7 + (1.0 - ny) * 0.9;
   const centerX = width / 2;
@@ -67,13 +64,13 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
 
-  const [permissionStage, setPermissionStage] = useState('idle'); // idle | requesting | ready | denied
+  const [permissionStage, setPermissionStage] = useState('idle');
   const [permissionError, setPermissionError] = useState('');
   const [flashActive, setFlashActive] = useState(false);
   const [captureOverlay, setCaptureOverlay] = useState(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [displayScore, setDisplayScore] = useState(0);
-  const [nearestCatchable, setNearestCatchable] = useState(null); // { id, distance }
+  const [nearestCatchable, setNearestCatchable] = useState(null);
   const [captureToast, setCaptureToast] = useState('');
   const [leavingPlayArea, setLeavingPlayArea] = useState(false);
 
@@ -84,8 +81,8 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
   const gameStateRef = useRef(gameState);
   const mySlotRef = useRef(mySlot);
   const geofenceRef = useRef(geofence);
-  const myLocationRef = useRef(null); // { lat, lng }
-  const headingRef = useRef(0); // compass degrees, 0 = north
+  const myLocationRef = useRef(null);
+  const headingRef = useRef(0);
   const nearestCatchableRef = useRef(null);
   const watchIdRef = useRef(null);
   const streamRef = useRef(null);
@@ -107,16 +104,11 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
     }
   }, []);
 
-  // ---- Compass heading listener ----
   const startCompass = useCallback(() => {
     const handleOrientation = (event) => {
       if (typeof event.webkitCompassHeading === 'number') {
-        // iOS Safari: already true-north-corrected
         headingRef.current = event.webkitCompassHeading;
       } else if (typeof event.alpha === 'number') {
-        // Android / others: approximate. 'deviceorientationabsolute' gives a
-        // true-north-referenced alpha when available; this can still drift
-        // without periodic figure-8 calibration on some devices.
         headingRef.current = (360 - event.alpha) % 360;
       }
     };
@@ -129,7 +121,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
     return () => window.removeEventListener('deviceorientation', handleOrientation, true);
   }, []);
 
-  // ---- Geolocation watch ----
   const startGeolocation = useCallback(() => {
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -145,48 +136,47 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
     );
   }, []);
 
- const requestPermissions = useCallback(async () => {
-  setPermissionStage('requesting');
-  setPermissionError('');
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }, audio: false
-    });
-    streamRef.current = stream;
-    if (videoRef.current) videoRef.current.srcObject = stream;
+  const requestPermissions = useCallback(async () => {
+    setPermissionStage('requesting');
+    setPermissionError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }, audio: false
+      });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
 
-    if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
-      const result = await DeviceOrientationEvent.requestPermission();
-      if (result !== 'granted') {
-        throw new Error('Compass permission was denied.');
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const result = await DeviceOrientationEvent.requestPermission();
+        if (result !== 'granted') {
+          throw new Error('Compass permission was denied.');
+        }
       }
+
+      if (!navigator.geolocation) {
+        throw new Error('This device does not support location services.');
+      }
+
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            myLocationRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            resolve();
+          },
+          (err) => reject(new Error('Location permission denied or unavailable: ' + err.message)),
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+
+      startCompass();
+      startGeolocation();
+      setPermissionStage('ready');
+    } catch (err) {
+      setPermissionError(err.message || 'Permission was denied.');
+      setPermissionStage('denied');
     }
-
-    if (!navigator.geolocation) {
-      throw new Error('This device does not support location services.');
-    }
-
-    // ✅ actually WAIT for a real GPS fix before declaring success
-    await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          myLocationRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          resolve();
-        },
-        (err) => reject(new Error('Location permission denied or unavailable: ' + err.message)),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    });
-
-    startCompass();
-    startGeolocation();
-    setPermissionStage('ready');
-  } catch (err) {
-    setPermissionError(err.message || 'Permission was denied.');
-    setPermissionStage('denied');
-  }
-}, [startCompass, startGeolocation]);
+  }, [startCompass, startGeolocation]);
 
   useEffect(() => {
     return () => {
@@ -197,7 +187,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
     };
   }, []);
 
-  // ---- Socket event handlers ----
   useEffect(() => {
     const handleFlash = (data) => {
       if (data.playerId === socket.id) {
@@ -284,7 +273,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
     socket.emit('capture-attempt', { vegId: nearestCatchableRef.current.id });
   }, []);
 
-  // ---- Render loop ----
   useEffect(() => {
     if (permissionStage !== 'ready') return;
     const canvas = canvasRef.current;
@@ -300,6 +288,8 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
       ctx.closePath();
     };
 
+    // Always-on big cartoon eyes (no longer conditional on panic — every
+    // veggie is cute all the time, panic just makes the pupils jitter).
     const drawEyes = (cx, eyeY, spacing, eyeR, depthScale, panic) => {
       [-spacing, spacing].forEach(ex => {
         ctx.beginPath();
@@ -312,6 +302,56 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
         ctx.beginPath();
         ctx.arc(cx + ex * depthScale + (panic ? 1.5 : 0), eyeY, eyeR * 0.45, 0, Math.PI * 2);
         ctx.fillStyle = '#000000';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + ex * depthScale - eyeR * 0.2, eyeY - eyeR * 0.2, eyeR * 0.15, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      });
+    };
+
+    // Permanent open, toothy grin — always visible now, just widens when panicked.
+    const drawSmile = (cx, cy, width, depthScale, panic) => {
+      const w = width * depthScale;
+      const h = (panic ? 0.85 : 0.55) * w;
+      ctx.beginPath();
+      ctx.moveTo(cx - w, cy);
+      ctx.quadraticCurveTo(cx, cy + h, cx + w, cy);
+      ctx.quadraticCurveTo(cx, cy + h * 0.35, cx - w, cy);
+      ctx.closePath();
+      ctx.fillStyle = '#4a0000';
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      const toothCount = 5;
+      for (let k = 0; k < toothCount; k++) {
+        const tx = cx - w + (w * 2 * (k + 0.5)) / toothCount;
+        ctx.fillRect(tx - w * 0.09, cy, w * 0.16, h * 0.35);
+      }
+    };
+
+    // Two marching "in place" legs — sells a walking/alive feel even though
+    // the character's screen position is anchored by real GPS bearing, not
+    // by simulated horizontal movement.
+    const drawLegs = (cx, baseY, spacing, depthScale, walkSpeed, idx, panic, t) => {
+      const legLen = 11 * depthScale;
+      const legW = 4.5 * depthScale;
+      [-1, 1].forEach((side) => {
+        const phase = t * walkSpeed + idx + (side === 1 ? Math.PI : 0);
+        const lift = Math.max(0, Math.sin(phase)) * (panic ? 7 : 3) * depthScale;
+        const legX = cx + side * spacing * depthScale;
+        const footY = baseY + legLen - lift;
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = legW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(legX, baseY);
+        ctx.lineTo(legX + side * 3 * depthScale, footY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(legX + side * 3 * depthScale, footY, legW * 0.9, legW * 0.5, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fill();
       });
     };
@@ -368,7 +408,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
 
       const glitch = !!state.cockroachHack;
 
-      // Radar sweep tint while active
       if (!glitch) {
         const sweepCycle = 2.6;
         const sweepProgress = (t % sweepCycle) / sweepCycle;
@@ -388,8 +427,19 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
 
       let newNearest = null;
 
+      const huntersNear = {};
       if (myLoc) {
-        // ---- Vegetables ----
+        (state.vegetables || []).forEach((veg) => {
+          let count = 0;
+          Object.values(state.players || {}).forEach((p) => {
+            if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return;
+            if (distanceMeters(p.lat, p.lng, veg.lat, veg.lng) < VEG_PANIC_RADIUS_M) count++;
+          });
+          huntersNear[veg.id] = count;
+        });
+      }
+
+      if (myLoc) {
         if (!glitch) {
           (state.vegetables || []).forEach((veg, idx) => {
             const dist = distanceMeters(myLoc.lat, myLoc.lng, veg.lat, veg.lng);
@@ -433,6 +483,8 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               const cx = vX + shiverX;
               const cy = vY - hop;
 
+              drawLegs(cx, vY + 12 * depthScale, 6, depthScale, hopSpeed, idx, panic, t);
+
               ctx.strokeStyle = '#ff7a00';
               ctx.lineWidth = 3 * depthScale;
               ctx.lineCap = 'round';
@@ -459,13 +511,16 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.lineWidth = 2.5 * depthScale;
               ctx.stroke();
 
-              drawEyes(cx, cy - 3 * depthScale, 5, 4 * depthScale, depthScale, panic);
+              drawSmile(cx, cy + 4 * depthScale, 6, depthScale, panic);
+              drawEyes(cx, cy - 3 * depthScale, 5, 4.5 * depthScale, depthScale, panic);
             } else if (veg.type === 'tomato') {
               const squishSpeed = panic ? 10 : 3;
               const squish = panic ? 0.35 : 0.1;
               const s = 1 + Math.sin(t * squishSpeed + idx) * squish;
               const armSwing = Math.sin(t * squishSpeed * 1.5 + idx) * 9 * depthScale;
               const armLift = panic ? 6 * depthScale : 0;
+
+              drawLegs(vX, vY + 14 * depthScale, 7, depthScale, squishSpeed, idx, panic, t);
 
               ctx.strokeStyle = '#dd2c00';
               ctx.lineWidth = 3 * depthScale;
@@ -504,23 +559,16 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.stroke();
               ctx.restore();
 
-              if (panic) {
-                const mouthY = vY + 5 * depthScale;
-                ctx.beginPath();
-                ctx.ellipse(vX, mouthY, 6 * depthScale, 4 * depthScale, 0, 0, Math.PI * 2);
-                ctx.fillStyle = '#4a0000';
-                ctx.fill();
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(vX - 3 * depthScale, mouthY - 3 * depthScale, 2 * depthScale, 3 * depthScale);
-                ctx.fillRect(vX + 1 * depthScale, mouthY - 3 * depthScale, 2 * depthScale, 3 * depthScale);
-              }
-              drawEyes(vX, vY - 4 * depthScale, 6, 4.5 * depthScale, depthScale, panic);
+              drawSmile(vX, vY + 5 * depthScale, 6.5, depthScale, panic);
+              drawEyes(vX, vY - 4 * depthScale, 6, 5 * depthScale, depthScale, panic);
             } else if (veg.type === 'broccoli') {
               const wobbleSpeed = panic ? 11 : 3.5;
               const wobble = Math.sin(t * wobbleSpeed + idx) * (panic ? 3 : 1) * depthScale;
               const shiverX = panic ? (Math.random() - 0.5) * 2.5 * depthScale : 0;
               const cx = vX + shiverX + wobble;
               const cy = vY;
+
+              drawLegs(cx, cy + 16 * depthScale, 5, depthScale, wobbleSpeed, idx, panic, t);
 
               ctx.fillStyle = '#c9e4b0';
               ctx.fillRect(cx - 5 * depthScale, cy + 4 * depthScale, 10 * depthScale, 12 * depthScale);
@@ -541,9 +589,11 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
                 ctx.stroke();
               });
 
-              drawEyes(cx, cy - 2 * depthScale, 5, 3.5 * depthScale, depthScale, panic);
+              drawSmile(cx, cy - 1 * depthScale, 5, depthScale, panic);
+              drawEyes(cx, cy - 3 * depthScale, 5, 4 * depthScale, depthScale, panic);
             } else {
               const breathe = 0.5 + 0.5 * Math.sin(t * 2.2 + idx);
+              drawLegs(vX, vY + 15 * depthScale, 5, depthScale, 6, idx, false, t);
               for (let ring = 0; ring < 3; ring++) {
                 const ringRadius = (15 + ring * 6 + breathe * 8) * depthScale;
                 ctx.beginPath();
@@ -559,17 +609,23 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.strokeStyle = '#ffffff';
               ctx.lineWidth = 2.5 * depthScale;
               ctx.stroke();
+              drawSmile(vX, vY + 4 * depthScale, 5, depthScale, false);
+              drawEyes(vX, vY - 3 * depthScale, 5, 4 * depthScale, depthScale, false);
             }
 
-            // Distance label under each visible vegetable
             ctx.fillStyle = '#ffffff';
             ctx.font = `bold ${Math.round(10 * depthScale)}px monospace`;
             ctx.textAlign = 'center';
             ctx.fillText(`${Math.round(dist)}m`, vX, vY + 30 * depthScale);
+
+            if (huntersNear[veg.id] >= 2) {
+              ctx.fillStyle = '#facc15';
+              ctx.font = `bold ${Math.round(9 * depthScale)}px monospace`;
+              ctx.fillText(`👥 ${huntersNear[veg.id]} HUNTERS CLOSING IN`, vX, vY - 42 * depthScale);
+            }
           });
         }
 
-        // ---- Other players ----
         Object.values(state.players || {}).forEach((p) => {
           if (p.character === localMySlot) return;
           if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return;
@@ -616,7 +672,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
         setNearestCatchable(newNearest);
       }
 
-      // ---- Scoreboard ----
       const scoreboardX = 14;
       let scoreboardY = 14;
       const sortedPlayers = Object.values(state.players || {}).sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -639,14 +694,12 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
         scoreboardY += 26;
       });
 
-      // ---- Geofence warning ----
       if (myLoc && geofenceRef.current) {
         const gf = geofenceRef.current;
         const distFromCenter = distanceMeters(myLoc.lat, myLoc.lng, gf.lat, gf.lng);
         setLeavingPlayArea(distFromCenter > gf.radiusMeters * 0.85);
       }
 
-      // ---- Particles ----
       const particles = particlesRef.current;
       for (let i = particles.length - 1; i >= 0; i--) {
         const pt = particles[i];
