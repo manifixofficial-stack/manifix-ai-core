@@ -7,15 +7,18 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const [flashActive, setFlashActive] = useState(false);
-  const [captureOverlay, setCaptureOverlay] = useState(null); // { type, score, color, name }
+  const [captureOverlay, setCaptureOverlay] = useState(null); // { type, color, name, targetScore }
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const [displayScore, setDisplayScore] = useState(0); // animated count-up value shown in the overlay
   const lastMoveSentRef = useRef(0);
 
   const rafRef = useRef(null);
+  const scoreRafRef = useRef(null);
   const startTimeRef = useRef(performance.now());
   const particlesRef = useRef([]); // { x, y, vx, vy, life, maxLife }
   const gameStateRef = useRef(gameState);
   const mySlotRef = useRef(mySlot);
+  const faceImagesRef = useRef({}); // cache: character -> HTMLImageElement
   gameStateRef.current = gameState;
   mySlotRef.current = mySlot;
 
@@ -53,7 +56,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
     }
   }, []);
 
-  // ---- Rear camera activation (live viewfinder background) ----
+  // ---- Rear camera activation ----
   useEffect(() => {
     let cameraStream = null;
     async function activateCamera() {
@@ -72,6 +75,19 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
     };
   }, []);
+
+  // ---- Preload player face images (falls back to initial-letter avatar if none supplied) ----
+  useEffect(() => {
+    const players = Object.values(gameState.players || {});
+    players.forEach((p) => {
+      if (p.faceUrl && !faceImagesRef.current[p.character]) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = p.faceUrl;
+        faceImagesRef.current[p.character] = img; // stored even before load completes; drawImage checks .complete
+      }
+    });
+  }, [gameState.players]);
 
   useEffect(() => {
     const handleFlash = (data) => {
@@ -98,15 +114,45 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       }
     };
 
-    // Spotlight "first catch" card — CARROTATOR / TOMATOR popup w/ vignette fade
+    // Spotlight "first catch" card — score is the player's REAL running total from the
+    // authoritative server tick, not a static fallback number. We animate a count-up
+    // from the player's pre-catch score to their new post-catch score.
     const handleVeggieCaught = (data) => {
+      const players = gameStateRef.current?.players || {};
+      const player = players[data.playerId] || Object.values(players).find(p => p.character === data.playerColor);
+      const newTotal = typeof data.newScore === 'number'
+        ? data.newScore
+        : (player?.score || 0) + (data.points || 0);
+      const startFrom = typeof data.newScore === 'number'
+        ? newTotal - (data.points || 0)
+        : (player?.score || 0);
+
       setCaptureOverlay({
         type: data.veggieType === 'carrot' ? 'CARROTATOR' : 'TOMATOR',
-        score: data.points || 7058,
-        color: data.playerColor || '#fb5607',
-        name: data.playerName || 'Player'
+        color: data.playerColor || player?.character && SLOT_THEMES[player.character]?.color || '#fb5607',
+        name: data.playerName || player?.name || 'Player',
+        targetScore: newTotal
       });
+      setDisplayScore(startFrom);
+
       requestAnimationFrame(() => setOverlayVisible(true));
+
+      // Animate count-up over ~600ms
+      const animStart = performance.now();
+      const animDuration = 600;
+      const from = startFrom;
+      const to = newTotal;
+      if (scoreRafRef.current) cancelAnimationFrame(scoreRafRef.current);
+      const stepScore = (now) => {
+        const progress = Math.min(1, (now - animStart) / animDuration);
+        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+        setDisplayScore(Math.round(from + (to - from) * eased));
+        if (progress < 1) {
+          scoreRafRef.current = requestAnimationFrame(stepScore);
+        }
+      };
+      scoreRafRef.current = requestAnimationFrame(stepScore);
+
       setTimeout(() => setOverlayVisible(false), 1700);
       setTimeout(() => setCaptureOverlay(null), 2200);
     };
@@ -118,6 +164,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       socket.off('high-score-flash', handleFlash);
       socket.off('point-steal', handleTackle);
       socket.off('veggieCaught', handleVeggieCaught);
+      if (scoreRafRef.current) cancelAnimationFrame(scoreRafRef.current);
     };
   }, [spawnParticleRing]);
 
@@ -165,6 +212,29 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       });
     };
 
+    // Bracket-corner lock-on frame — four independent corner brackets instead of a closed box
+    const drawBracketLockOn = (boxW, boxH, depthScale) => {
+      const armLen = boxW * 0.28;
+      const hw = boxW / 2;
+      const hh = boxH / 2;
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 2.5 * depthScale;
+      ctx.lineCap = 'round';
+      const corners = [
+        [-hw, -hh, 1, 1],   // top-left
+        [hw, -hh, -1, 1],   // top-right
+        [-hw, hh, 1, -1],   // bottom-left
+        [hw, hh, -1, -1]    // bottom-right
+      ];
+      corners.forEach(([cx, cy, dx, dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + armLen * dy);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx + armLen * dx, cy);
+        ctx.stroke();
+      });
+    };
+
     const tick = () => {
       const state = gameStateRef.current || {};
       const localMySlot = mySlotRef.current;
@@ -198,6 +268,25 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         ctx.beginPath(); ctx.moveTo(left.x, left.y); ctx.lineTo(right.x, right.y); ctx.stroke();
       });
 
+      // ---- 2. Radar sweep beam — sweeps top to bottom, lightweight single gradient bar ----
+      if (!glitch) {
+        const sweepCycle = 2.6; // seconds per full sweep
+        const sweepProgress = (t % sweepCycle) / sweepCycle;
+        const sweepY = sweepProgress * height;
+        const sweepGrad = ctx.createLinearGradient(0, sweepY - 40, 0, sweepY + 40);
+        sweepGrad.addColorStop(0, 'rgba(250, 204, 21, 0)');
+        sweepGrad.addColorStop(0.5, 'rgba(250, 204, 21, 0.28)');
+        sweepGrad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+        ctx.fillStyle = sweepGrad;
+        ctx.fillRect(0, sweepY - 40, width, 80);
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, sweepY);
+        ctx.lineTo(width, sweepY);
+        ctx.stroke();
+      }
+
       const players = Object.values(state.players || {});
 
       const proximityAt = (nx, ny) => {
@@ -209,7 +298,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         return closest;
       };
 
-      // ---- 2. Vegetables — cartoon features + dashed rotating lock-on box ----
+      // ---- 3. Vegetables — cartoon features + bracket lock-on ----
       if (!glitch) {
         (state.vegetables || []).forEach((veg, idx) => {
           const proj = project(veg.x, veg.y, width, height);
@@ -219,20 +308,15 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
           const prox = proximityAt(veg.x, veg.y);
           const panic = prox < 0.18;
 
-          // --- Dashed, rotating radar lock-on box (drawn first, behind the veggie) ---
+          // Rotating dashed bracket lock-on (behind veggie)
           const targetBoxW = 85 * depthScale;
           const targetBoxH = 85 * depthScale;
           const rotationSpeed = panic ? 3.5 : 1.2;
-
           ctx.save();
           ctx.translate(vX, vY);
           ctx.rotate(t * rotationSpeed);
-          ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 2.5 * depthScale;
-          ctx.setLineDash([8 * depthScale, 4 * depthScale]);
-          ctx.lineDashOffset = -t * 40;
-          ctx.strokeRect(-targetBoxW / 2, -targetBoxH / 2, targetBoxW, targetBoxH);
           ctx.setLineDash([]);
+          drawBracketLockOn(targetBoxW, targetBoxH, depthScale);
           ctx.restore();
 
           if (veg.type === 'carrot') {
@@ -245,7 +329,6 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
             const cx = vX + shiverX;
             const cy = vY - hop;
 
-            // Running arm limbs (behind body)
             ctx.strokeStyle = '#ff7a00';
             ctx.lineWidth = 3 * depthScale;
             ctx.lineCap = 'round';
@@ -256,7 +339,16 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
             ctx.lineTo(cx + 8 * depthScale - armSwing, cy + 16 * depthScale);
             ctx.stroke();
 
-            // Body
+            // Leafy tuft
+            ctx.strokeStyle = '#2e7d32';
+            ctx.lineWidth = 2.5 * depthScale;
+            [-4, 0, 4].forEach(lx => {
+              ctx.beginPath();
+              ctx.moveTo(cx + lx * depthScale, cy - 14 * depthScale);
+              ctx.lineTo(cx + lx * 1.4 * depthScale, cy - 22 * depthScale);
+              ctx.stroke();
+            });
+
             drawTriangle(cx, vY, 14 * depthScale, hop);
             ctx.fillStyle = '#ff7a00';
             ctx.fill();
@@ -264,24 +356,45 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
             ctx.lineWidth = 2.5 * depthScale;
             ctx.stroke();
 
-            // Wide cartoon eyes
             drawEyes(cx, cy - 3 * depthScale, 5, 4 * depthScale, depthScale, panic);
           } else if (veg.type === 'tomato') {
             const squishSpeed = panic ? 10 : 3;
             const squish = panic ? 0.35 : 0.1;
             const s = 1 + Math.sin(t * squishSpeed + idx) * squish;
             const armSwing = Math.sin(t * squishSpeed * 1.5 + idx) * 9 * depthScale;
+            const armLift = panic ? 6 * depthScale : 0; // arms raise higher when fleeing (boxing-glove pose)
 
-            // Running arm limbs
+            // Arms with rounded "glove" tips
             ctx.strokeStyle = '#dd2c00';
             ctx.lineWidth = 3 * depthScale;
             ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(vX - 12 * depthScale, vY + 2 * depthScale);
-            ctx.lineTo(vX - 12 * depthScale + armSwing, vY + 14 * depthScale);
-            ctx.moveTo(vX + 12 * depthScale, vY + 2 * depthScale);
-            ctx.lineTo(vX + 12 * depthScale - armSwing, vY + 14 * depthScale);
+            ctx.moveTo(vX - 12 * depthScale, vY + 2 * depthScale - armLift);
+            ctx.lineTo(vX - 12 * depthScale + armSwing, vY + 14 * depthScale - armLift);
+            ctx.moveTo(vX + 12 * depthScale, vY + 2 * depthScale - armLift);
+            ctx.lineTo(vX + 12 * depthScale - armSwing, vY + 14 * depthScale - armLift);
             ctx.stroke();
+            // Glove tips
+            ctx.fillStyle = '#b71c1c';
+            [-1, 1].forEach(side => {
+              ctx.beginPath();
+              ctx.arc(
+                vX + side * 12 * depthScale - side * armSwing,
+                vY + 14 * depthScale - armLift,
+                3.5 * depthScale, 0, Math.PI * 2
+              );
+              ctx.fill();
+            });
+
+            // Leafy tuft on top
+            ctx.strokeStyle = '#2e7d32';
+            ctx.lineWidth = 2.5 * depthScale;
+            [-4, 0, 4].forEach(lx => {
+              ctx.beginPath();
+              ctx.moveTo(vX + lx * depthScale, vY - 13 * depthScale);
+              ctx.lineTo(vX + lx * 1.4 * depthScale, vY - 21 * depthScale);
+              ctx.stroke();
+            });
 
             // Body
             ctx.save();
@@ -296,10 +409,20 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
             ctx.stroke();
             ctx.restore();
 
-            // Wide cartoon eyes
+            // Open mouth with two teeth (only while panicked/fleeing)
+            if (panic) {
+              const mouthY = vY + 5 * depthScale;
+              ctx.beginPath();
+              ctx.ellipse(vX, mouthY, 6 * depthScale, 4 * depthScale, 0, 0, Math.PI * 2);
+              ctx.fillStyle = '#4a0000';
+              ctx.fill();
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(vX - 3 * depthScale, mouthY - 3 * depthScale, 2 * depthScale, 3 * depthScale);
+              ctx.fillRect(vX + 1 * depthScale, mouthY - 3 * depthScale, 2 * depthScale, 3 * depthScale);
+            }
+
             drawEyes(vX, vY - 4 * depthScale, 6, 4.5 * depthScale, depthScale, panic);
           } else {
-            // Rare Golden Matrix Node — breathing halo rings, unchanged
             const breathe = 0.5 + 0.5 * Math.sin(t * 2.2 + idx);
             for (let ring = 0; ring < 3; ring++) {
               const ringRadius = (15 + ring * 6 + breathe * 8) * depthScale;
@@ -320,7 +443,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         });
       }
 
-      // ---- 3. Player Avatars ----
+      // ---- 4. Player Avatars — circular face-plate frames ----
       players.forEach((p) => {
         const proj = project(p.x, p.y, width, height);
         const slotConfig = SLOT_THEMES[p.character] || { color: '#ffffff', label: '?' };
@@ -330,24 +453,52 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         const dynBarW = 34 * proj.scale;
         const dynBarH = 4 * proj.scale;
 
+        const faceImg = faceImagesRef.current[p.character];
+        const hasFace = faceImg && faceImg.complete && faceImg.naturalWidth > 0;
+
+        if (hasFace) {
+          // Circular clipped face-plate
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(proj.x, proj.y, dynRadius, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(faceImg, proj.x - dynRadius, proj.y - dynRadius, dynRadius * 2, dynRadius * 2);
+          ctx.restore();
+        } else {
+          // Fallback: colored plate with initial letter
+          ctx.beginPath();
+          ctx.arc(proj.x, proj.y, dynRadius, 0, Math.PI * 2);
+          ctx.fillStyle = p.overheated ? '#1c1c24' : slotConfig.color;
+          ctx.fill();
+          ctx.closePath();
+
+          ctx.fillStyle = p.overheated ? '#ff3333' : '#000000';
+          ctx.font = `bold ${Math.round(16 * proj.scale)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(p.overheated ? '!' : slotConfig.label, proj.x, proj.y + (1 * proj.scale));
+        }
+
+        // Ring frame around the face-plate (color-coded, gold if it's you)
         ctx.beginPath();
         ctx.arc(proj.x, proj.y, dynRadius, 0, Math.PI * 2);
-        ctx.fillStyle = p.overheated ? '#1c1c24' : slotConfig.color;
-        ctx.fill();
         ctx.strokeStyle = p.overheated ? '#ff3333' : isMe ? '#ffc83c' : '#ffffff';
         ctx.lineWidth = (p.overheated ? 3 : isMe ? 3 : 1.5) * proj.scale;
         ctx.stroke();
-        ctx.closePath();
 
-        ctx.fillStyle = p.overheated ? '#ff3333' : '#000000';
-        ctx.font = `bold ${Math.round(16 * proj.scale)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(p.overheated ? '!' : slotConfig.label, proj.x, proj.y + (1 * proj.scale));
+        if (p.overheated && hasFace) {
+          ctx.fillStyle = '#ff3333';
+          ctx.font = `bold ${Math.round(16 * proj.scale)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('!', proj.x, proj.y + (1 * proj.scale));
+        }
 
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${Math.round(11 * proj.scale)}px monospace`;
         ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'center';
         ctx.fillText(p.name, proj.x, proj.y - (30 * proj.scale));
 
         ctx.fillStyle = '#08080a';
@@ -356,7 +507,30 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         ctx.fillRect(proj.x - dynBarW / 2, proj.y + (28 * proj.scale), dynBarW * ((p.heat || 0) / 100), dynBarH);
       });
 
-      // ---- 4. Particle ring explosions ----
+      // ---- 5. Floating scoreboard indicators inside the canvas viewport ----
+      const scoreboardX = 14;
+      let scoreboardY = 14;
+      const sortedPlayers = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
+      sortedPlayers.forEach((p) => {
+        const theme = SLOT_THEMES[p.character] || { color: '#ffffff' };
+        ctx.fillStyle = 'rgba(8, 8, 10, 0.55)';
+        ctx.fillRect(scoreboardX, scoreboardY, 118, 22);
+        ctx.fillStyle = theme.color;
+        ctx.beginPath();
+        ctx.arc(scoreboardX + 12, scoreboardY + 11, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText((p.name || '').slice(0, 8), scoreboardX + 22, scoreboardY + 11);
+        ctx.fillStyle = '#facc15';
+        ctx.textAlign = 'right';
+        ctx.fillText(String(p.score || 0), scoreboardX + 112, scoreboardY + 11);
+        scoreboardY += 26;
+      });
+
+      // ---- 6. Particle ring explosions ----
       const particles = particlesRef.current;
       for (let i = particles.length - 1; i >= 0; i--) {
         const pt = particles[i];
@@ -399,15 +573,31 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
   return (
     <div
       className="canvas-container"
-      style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', borderRadius: '10px' }}
+      style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', borderRadius: '10px', perspective: '600px' }}
     >
-      {/* Live rear-camera viewfinder background */}
+      {/*
+        Live rear-camera background, warped toward a horizon using a cheap
+        GPU-composited CSS 3D transform instead of per-frame canvas pixel-slicing.
+        Per-frame drawImage slicing (40-60+ calls/frame) is measurably heavier on
+        mobile GPUs than a single transformed layer — this gets a very similar
+        "stretch toward the horizon" look for near-zero extra render cost.
+      */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
+        style={{
+          position: 'absolute',
+          top: '-15%',
+          left: '-10%',
+          width: '120%',
+          height: '130%',
+          objectFit: 'cover',
+          zIndex: 0,
+          transform: 'rotateX(18deg) scale(1.08)',
+          transformOrigin: 'center 30%'
+        }}
       />
 
       {gameState.cockroachHack && (
@@ -423,7 +613,6 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         </div>
       )}
 
-      {/* Transparent canvas so the live camera shows through underneath */}
       <canvas
         ref={canvasRef}
         width={800}
@@ -437,7 +626,6 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         }`}
       />
 
-      {/* Spotlight first-catch card — vignette + blur fade transition */}
       {captureOverlay && (
         <div
           style={{
@@ -470,6 +658,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
             {captureOverlay.type}
           </h2>
 
+          {/* Dynamic, real-time animated score readout — counts up from pre-catch to post-catch total */}
           <div
             style={{
               display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px',
@@ -487,13 +676,12 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
               {captureOverlay.name.charAt(0).toUpperCase()}
             </div>
             <span style={{ color: '#facc15', fontWeight: 'bold', fontSize: '22px', fontFamily: 'monospace' }}>
-              {captureOverlay.score.toString().padStart(4, '0')}
+              {displayScore.toString().padStart(4, '0')}
             </span>
           </div>
         </div>
       )}
 
-      {/* Floating Joystick */}
       <div
         style={{ position: 'absolute', bottom: '16px', left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 40 }}
       >
