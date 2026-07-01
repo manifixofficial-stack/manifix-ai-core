@@ -39,14 +39,28 @@ const TICK_RATE = 45; // Smooth ~22Hz frame updates
 const OVERHEAT_LOCK_MS = 3000; // Fixed 3-second input lock, independent of heat decay
 const ROUND_DURATION_MS = 60000; // 60-Second Round Concluded Lock
 
+// FIX #2: Glitch timing constants — was toggling ON/OFF every 45s (45s blind, 45s clear).
+// Correct behavior: ON for 6 seconds, once every 45-second cycle.
+const GLITCH_CYCLE_MS = 45000;
+const GLITCH_DURATION_MS = 6000;
+
+// FIX #3: Wall bounce constants for fleeing vegetables
+const VEG_WALL_MIN = 0.04;
+const VEG_WALL_MAX = 0.96;
+const VEG_FLEE_SPEED = 0.008;
+
 // State Structures
 let rooms = {};
 let cockroachHackActive = false; // Cyber Matrix Data Corruption Flag
+let glitchCycleStart = Date.now();
 
-// System Data Corruption Event Loop: Toggles on/off for 6 seconds every 45 seconds
+// FIX #2: Corrected System Data Corruption Event Loop.
+// Runs every tick, checks position within the 45s cycle, and is only
+// true during the first 6 seconds of each cycle.
 setInterval(() => {
-  cockroachHackActive = !cockroachHackActive;
-}, 45000);
+  const elapsed = (Date.now() - glitchCycleStart) % GLITCH_CYCLE_MS;
+  cockroachHackActive = elapsed < GLITCH_DURATION_MS;
+}, 250);
 
 // 🛠️ FIXED ALIGNMENT SCHEMA: Character dictionaries renamed to match color-based IDs
 const CHARACTERS = {
@@ -63,17 +77,29 @@ const CHARACTER_COLORS = {
   ORANGE: "#fb5607"
 };
 
+// FIX #4: Point values centralized so scoring and spawn-weighting can't drift apart.
+// NOTE: your GameCanvas.jsx currently has no render branch for "broccoli" — it falls
+// through to the golden-node visual (glowing rings) despite only being worth 1 point.
+// This is a real mismatch between what players SEE (looks like a rare 10pt gold catch)
+// and what they GET (1 point). Fix it on either side — either give broccoli its own
+// sprite in GameCanvas.jsx, or drop it from spawnVegetable() until it does.
+const VEGGIE_POINTS = { golden: 10, tomato: 3, broccoli: 1, carrot: 1 };
+
 function spawnVegetable() {
   const typeChance = Math.random();
   let type = "carrot";
-  if (typeChance > 0.94) type = "golden"; // ManifiX Booster
+  if (typeChance > 0.94) type = "golden";
   else if (typeChance > 0.70) type = "tomato";
   else if (typeChance > 0.40) type = "broccoli";
 
   return {
     id: `veg-${Math.random().toString(36).substring(2, 9)}`,
-    x: Math.random() * 0.88 + 0.06, // Avoid extreme wall edges
+    x: Math.random() * 0.88 + 0.06,
     y: Math.random() * 0.88 + 0.06,
+    // FIX #3: velocity vector so fleeing vegetables can bounce off walls instead
+    // of just clamping and stopping dead at the edge.
+    vx: 0,
+    vy: 0,
     type: type
   };
 }
@@ -82,7 +108,6 @@ function makeRoom() {
   return {
     players: {},
     vegetables: Array.from({ length: 5 }, spawnVegetable),
-    // 🛠️ FIXED LOBBY KEYS: Slots updated to color schemas
     takenCharacters: { BLUE: false, PURPLE: false, PINK: false, ORANGE: false },
     roundActive: true,
     roundStartTime: Date.now(),
@@ -105,10 +130,8 @@ setInterval(() => {
         room.roundActive = false;
         room.roundEnded = true;
 
-        // Freeze movement vectors so nobody drifts after the buzzer
         Object.values(room.players).forEach(p => { p.vector = { x: 0, y: 0 }; });
 
-        // Save every player's final standing to the leaderboard hall of fame
         Object.values(room.players).forEach(p => {
           saveScoreToSupabase(p.name, p.character, p.score);
         });
@@ -122,8 +145,6 @@ setInterval(() => {
     }
 
     if (!room.roundActive) {
-      // While concluded, still broadcast a frozen state so late joiners see the victory card,
-      // but skip all movement/collision/veggie processing below.
       io.to(roomCode).emit('game-state', {
         players: room.players,
         vegetables: [],
@@ -139,10 +160,7 @@ setInterval(() => {
       const p = room.players[id];
       const isMoving = p.vector.x !== 0 || p.vector.y !== 0;
 
-      // Handle Device Heat Engine Calculations
       if (p.overheated) {
-        // Fixed 3-second input lock — release strictly on the timer, not on heat level,
-        // so opponents get a reliable window to catch up.
         if (now >= p.overheatUntil) {
           p.overheated = false;
           p.heat = 0;
@@ -157,7 +175,6 @@ setInterval(() => {
         p.heat = Math.max(0, p.heat - 0.8);
       }
 
-      // Handle Coordinate Position Progression Shifts
       if (isMoving && !p.overheated) {
         const dynamicSpeed = CHARACTERS[p.character].speedMultiplier;
         p.x = Math.max(0.02, Math.min(0.98, p.x + (p.vector.x * BASE_SPEED * dynamicSpeed)));
@@ -165,19 +182,51 @@ setInterval(() => {
       }
     });
 
-    // 2. Process Fleeing Runaway Target Vegetables
+    // 2. Process Fleeing Runaway Target Vegetables — FIX #3: real wall-bounce physics
     room.vegetables.forEach(veg => {
+      // Determine flee vector from nearest threatening player
+      let fleeX = 0;
+      let fleeY = 0;
+      let frightened = false;
+
       Object.values(room.players).forEach(p => {
-        let dist = Math.hypot(p.x - veg.x, p.y - veg.y);
-        if (dist < 0.18 && dist > 0.04) { // Close enough to frighten the vegetable target
-          let angle = Math.atan2(veg.y - p.y, veg.x - p.x);
-          veg.x = Math.max(0.04, Math.min(0.96, veg.x + Math.cos(angle) * 0.008));
-          veg.y = Math.max(0.04, Math.min(0.96, veg.y + Math.sin(angle) * 0.008));
+        const dist = Math.hypot(p.x - veg.x, p.y - veg.y);
+        if (dist < 0.18 && dist > 0.04) {
+          const angle = Math.atan2(veg.y - p.y, veg.x - p.x);
+          fleeX += Math.cos(angle);
+          fleeY += Math.sin(angle);
+          frightened = true;
         }
       });
+
+      if (frightened) {
+        // Set velocity toward the flee direction (normalized-ish, not perfectly unit)
+        veg.vx = fleeX * VEG_FLEE_SPEED;
+        veg.vy = fleeY * VEG_FLEE_SPEED;
+      } else {
+        // Gentle decay back to rest when no one is nearby
+        veg.vx *= 0.9;
+        veg.vy *= 0.9;
+      }
+
+      let nextX = veg.x + veg.vx;
+      let nextY = veg.y + veg.vy;
+
+      // Wall bounce: reverse velocity component instead of just clamping dead
+      if (nextX <= VEG_WALL_MIN || nextX >= VEG_WALL_MAX) {
+        veg.vx *= -1;
+        nextX = Math.max(VEG_WALL_MIN, Math.min(VEG_WALL_MAX, nextX));
+      }
+      if (nextY <= VEG_WALL_MIN || nextY >= VEG_WALL_MAX) {
+        veg.vy *= -1;
+        nextY = Math.max(VEG_WALL_MIN, Math.min(VEG_WALL_MAX, nextY));
+      }
+
+      veg.x = nextX;
+      veg.y = nextY;
     });
 
-    // 3. Process Competitive Item Catch Collisions
+    // 3. Process Competitive Item Catch Collisions — FIX #1: emit veggieCaught
     const caughtVegIndexes = new Set();
     room.vegetables.forEach((veg, idx) => {
       if (caughtVegIndexes.has(idx)) return;
@@ -186,9 +235,23 @@ setInterval(() => {
         const p = room.players[id];
         const dist = Math.hypot(p.x - veg.x, p.y - veg.y);
 
-        if (dist < 0.045) { // Item Successfully Caught!
-          const pts = veg.type === "golden" ? 10 : veg.type === "tomato" ? 3 : 1;
+        if (dist < 0.045) {
+          const pts = VEGGIE_POINTS[veg.type] ?? 1;
           p.score += pts;
+
+          // FIX #1: this event was calculated but never emitted. GameCanvas.jsx's
+          // spotlight overlay (TOMATOR/CARROTATOR card + score count-up) listens
+          // for exactly this event and had nothing to trigger it until now.
+          io.to(roomCode).emit('veggieCaught', {
+            playerId: id,
+            playerName: p.name,
+            playerColor: p.character,
+            veggieType: veg.type,
+            points: pts,
+            newScore: p.score,
+            x: veg.x,
+            y: veg.y
+          });
 
           if (veg.type === "golden") {
             io.to(roomCode).emit('high-score-flash', { playerId: id });
@@ -196,7 +259,7 @@ setInterval(() => {
           }
 
           caughtVegIndexes.add(idx);
-          break; // First player to touch claims it
+          break;
         }
       }
     });
@@ -269,7 +332,6 @@ async function saveScoreToSupabase(name, character, finalScore) {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  // Client Stage 1 Join Room request
   socket.on('join-room', (data) => {
     const roomCode = data.room;
     if (!roomCode) return socket.emit('room-error', { message: "Invalid Room Code Input" });
@@ -287,19 +349,16 @@ io.on('connection', (socket) => {
     socket.emit('room-joined', { room: roomCode });
   });
 
-  // Client Stage 2 Character Grid mount request
   socket.on('request-characters', () => {
     if (currentRoom && rooms[currentRoom]) {
       socket.emit('characters-update', { taken: rooms[currentRoom].takenCharacters });
     }
   });
 
-  // Character selection lock toggle
   socket.on('join-game', (data) => {
     if (!currentRoom || !rooms[currentRoom]) return;
     const room = rooms[currentRoom];
 
-    // 🛠️ FIXED VALIDATION: Whitelist verifies color string key values instead of text names
     if (!CHARACTERS[data.character]) {
       return socket.emit('character-error', { message: "Not a valid character color assignment" });
     }
@@ -313,7 +372,6 @@ io.on('connection', (socket) => {
       room.takenCharacters[existing.character] = false;
     }
 
-    // Register active user structural parameters
     room.takenCharacters[data.character] = true;
     room.players[socket.id] = {
       x: 0.5, y: 0.5,
@@ -324,12 +382,10 @@ io.on('connection', (socket) => {
       vector: { x: 0, y: 0 }
     };
 
-    // Confirm success cleanly to client
     socket.emit('game-joined', { success: true, character: data.character });
     io.to(currentRoom).emit('characters-update', { taken: room.takenCharacters });
   });
 
-  // Live real-time direction vector processing stream updates
   socket.on('move', (vector) => {
     if (currentRoom && rooms[currentRoom] && rooms[currentRoom].players[socket.id]) {
       rooms[currentRoom].players[socket.id].vector = {
@@ -339,7 +395,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Instant Replay — any player in a concluded room can reset scores and drop back into countdown
   socket.on('restart-round', () => {
     if (currentRoom && rooms[currentRoom]) {
       const room = rooms[currentRoom];
@@ -358,13 +413,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Safe disconnection clearing loops
   socket.on('disconnect', () => {
     if (currentRoom && rooms[currentRoom]) {
       const room = rooms[currentRoom];
       if (room.players[socket.id]) {
         const char = room.players[socket.id].character;
-        room.takenCharacters[char] = false; // Release character lock
+        room.takenCharacters[char] = false;
         delete room.players[socket.id];
 
         io.to(currentRoom).emit('characters-update', { taken: room.takenCharacters });
