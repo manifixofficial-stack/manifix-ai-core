@@ -1,39 +1,19 @@
-// Bump this on every deploy that changes cached assets — forces old caches to clear.
-const CACHE_VERSION = 'manifix-veggie-v1';
-const CORE_ASSETS = ['/', '/index.html'];
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./styles.css"; // Injects your premium gold and black styles globally
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(CORE_ASSETS))
-  );
-  self.skipWaiting();
-});
+// This register block tells the browser to safely run your public/sw.js script in the background
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js")
+      .then(() => console.log("🤖 Game Service Worker Registered Successfully"))
+      .catch((err) => console.warn("Service Worker connection failed:", err));
+  });
+}
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_VERSION)
-          .map((key) => caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
-});
-
-// Network-first: always try the live server first so new deploys are picked up
-// immediately. Falls back to cache only if the network request fails (offline).
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
-});
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
