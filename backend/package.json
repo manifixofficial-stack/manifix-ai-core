@@ -1,0 +1,13 @@
+{
+  "name": "manifix-veggie-backend",
+  "version": "1.0.0",
+  "description": "Real-time server for ManifiX AI: Veggie Rush",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-client": "^2.48.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "
