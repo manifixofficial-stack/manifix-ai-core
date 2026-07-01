@@ -5,7 +5,9 @@ import confetti from 'canvas-confetti';
 
 function GameCanvas({ gameState, roomCode, mySlot }) {
   const canvasRef = useRef(null);
+  const videoRef = useRef(null);
   const [flashActive, setFlashActive] = useState(false);
+  const [captureOverlay, setCaptureOverlay] = useState(null); // { type, score, color, name }
   const lastMoveSentRef = useRef(0);
 
   const rafRef = useRef(null);
@@ -24,10 +26,8 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
   };
 
   // 3D Perspective Matrix Translation Function
-  // Converts normalized (nx, ny) [0..1] game coordinates into projected
-  // canvas pixel coordinates + a scale factor (closer = bigger, y=1 is foreground).
   const project = useCallback((nx, ny, width, height) => {
-    const zFactor = 0.7 + (1.0 - ny) * 0.9; // smaller y (further back) -> bigger zFactor -> smaller/compressed
+    const zFactor = 0.7 + (1.0 - ny) * 0.9;
     const centerX = width / 2;
     return {
       x: centerX + ((nx - 0.5) * width) / zFactor,
@@ -40,7 +40,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
     const count = 12;
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
-      const speed = (2.4 + Math.random() * 1.6) * (1.1 / zFactor); // slower in the distance
+      const speed = (2.4 + Math.random() * 1.6) * (1.1 / zFactor);
       particlesRef.current.push({
         x: cx,
         y: cy,
@@ -52,6 +52,26 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
     }
   }, []);
 
+  // ---- Rear camera activation (live viewfinder background) ----
+  useEffect(() => {
+    let cameraStream = null;
+    async function activateCamera() {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', aspectRatio: 1.3333 },
+          audio: false
+        });
+        if (videoRef.current) videoRef.current.srcObject = cameraStream;
+      } catch (err) {
+        console.error('Camera channel blocked:', err);
+      }
+    }
+    activateCamera();
+    return () => {
+      if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
   useEffect(() => {
     const handleFlash = (data) => {
       if (data.playerId === socket.id) {
@@ -61,7 +81,6 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       setTimeout(() => setFlashActive(false), 400);
     };
 
-    // Point-steal / tackle collision — anchored to the projected 3D viewport position
     const handleTackle = (data) => {
       const canvas = canvasRef.current;
       if (canvas && typeof data.x === 'number' && typeof data.y === 'number') {
@@ -74,15 +93,28 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       }
       const involvesMe = data.attackerId === socket.id || data.victimId === socket.id;
       if (involvesMe && 'vibrate' in navigator) {
-        navigator.vibrate([40, 30, 15]); // heavy buzz, short break, light buzz
+        navigator.vibrate([40, 30, 15]);
       }
+    };
+
+    // Spotlight "first catch" card — CARROTATOR / TOMATOR popup
+    const handleVeggieCaught = (data) => {
+      setCaptureOverlay({
+        type: data.veggieType === 'carrot' ? 'CARROTATOR' : 'TOMATOR',
+        score: data.points || 7058,
+        color: data.playerColor || '#fb5607',
+        name: data.playerName || 'Player'
+      });
+      setTimeout(() => setCaptureOverlay(null), 2200);
     };
 
     socket.on('high-score-flash', handleFlash);
     socket.on('point-steal', handleTackle);
+    socket.on('veggieCaught', handleVeggieCaught);
     return () => {
       socket.off('high-score-flash', handleFlash);
       socket.off('point-steal', handleTackle);
+      socket.off('veggieCaught', handleVeggieCaught);
     };
   }, [spawnParticleRing]);
 
@@ -122,7 +154,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
 
       ctx.clearRect(0, 0, width, height);
 
-      // ---- 1. Perspective Grid Mesh (converging vanishing-point lines) ----
+      // ---- 1. Perspective Grid Mesh ----
       const glitch = !!state.cockroachHack;
       ctx.lineWidth = 1.5;
       if (glitch) {
@@ -130,7 +162,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         const r = Math.round(48 + pulse * 160);
         ctx.strokeStyle = `rgb(${r}, 16, 20)`;
       } else {
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)'; // cartoon amber line mesh tone
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
       }
 
       const verticalTracks = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
@@ -158,7 +190,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         return closest;
       };
 
-      // ---- 2. Vegetables — projected into 3D space, scaled by depth ----
+      // ---- 2. Vegetables — projected, depth-scaled, with lock-on tracker box ----
       if (!glitch) {
         (state.vegetables || []).forEach((veg, idx) => {
           const proj = project(veg.x, veg.y, width, height);
@@ -167,6 +199,13 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
           const depthScale = proj.scale;
           const prox = proximityAt(veg.x, veg.y);
           const panic = prox < 0.18;
+
+          // Target lock-on tracker box — follows the veggie, scales with depth
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 2.5;
+          const targetBoxW = 85 * depthScale;
+          const targetBoxH = 85 * depthScale;
+          ctx.strokeRect(vX - targetBoxW / 2, vY - targetBoxH / 2, targetBoxW, targetBoxH);
 
           if (veg.type === 'carrot') {
             const hopSpeed = panic ? 14 : 4;
@@ -212,7 +251,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         });
       }
 
-      // ---- 3. Player Avatars — projected + depth-scaled labels & heat bars ----
+      // ---- 3. Player Avatars ----
       players.forEach((p) => {
         const proj = project(p.x, p.y, width, height);
         const slotConfig = SLOT_THEMES[p.character] || { color: '#ffffff', label: '?' };
@@ -248,7 +287,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         ctx.fillRect(proj.x - dynBarW / 2, proj.y + (28 * proj.scale), dynBarW * ((p.heat || 0) / 100), dynBarH);
       });
 
-      // ---- 4. Particle ring explosions (already anchored in projected space) ----
+      // ---- 4. Particle ring explosions ----
       const particles = particlesRef.current;
       for (let i = particles.length - 1; i >= 0; i--) {
         const pt = particles[i];
@@ -289,22 +328,100 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
   }, [project]);
 
   return (
-    <div className="canvas-container" style={{ position: 'relative', width: '100%' }}>
+    <div
+      className="canvas-container"
+      style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', borderRadius: '10px' }}
+    >
+      {/* Live rear-camera viewfinder background */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
+      />
+
       {gameState.cockroachHack && (
-        <div className="hack-alert-banner">🚨 SYSTEM DATA CORRUPTION: RADAR DATA BLINDED! ⚡</div>
+        <div
+          className="hack-alert-banner"
+          style={{
+            position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)',
+            zIndex: 20, background: 'rgba(220,38,38,0.9)', color: 'white', padding: '6px 16px',
+            borderRadius: '6px', fontWeight: 'black', fontSize: '12px'
+          }}
+        >
+          🚨 SYSTEM DATA CORRUPTION: RADAR DATA BLINDED! ⚡
+        </div>
       )}
 
+      {/* Transparent canvas so the live camera shows through underneath */}
       <canvas
         ref={canvasRef}
         width={800}
         height={600}
-        style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '10px' }}
+        style={{
+          width: '100%', height: 'auto', display: 'block', position: 'relative',
+          backgroundColor: 'transparent', zIndex: 10
+        }}
         className={`battle-canvas ${flashActive ? 'flash-gold' : ''} ${
           gameState.cockroachHack ? 'canvas-glitch' : ''
         }`}
       />
 
-      <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+      {/* Spotlight first-catch card — CARROTATOR / TOMATOR popup */}
+      {captureOverlay && (
+        <div
+          style={{
+            position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 30,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div
+            style={{
+              width: '185px', height: '185px', borderRadius: '50%', backgroundColor: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 65px white'
+            }}
+          >
+            <span style={{ fontSize: '72px' }}>{captureOverlay.type === 'TOMATOR' ? '🍅' : '🥕'}</span>
+          </div>
+
+          <h2
+            style={{
+              fontSize: '38px', fontWeight: '950', marginTop: '20px', color: '#ef4444',
+              WebkitTextStroke: '2px #facc15', textShadow: '2px 2px 0px #000',
+              fontFamily: 'Impact, sans-serif', letterSpacing: '2px'
+            }}
+          >
+            {captureOverlay.type}
+          </h2>
+
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px',
+              background: 'rgba(0,0,0,0.5)', padding: '6px 18px', borderRadius: '20px',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}
+          >
+            <div
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%', backgroundColor: captureOverlay.color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+                fontWeight: 'bold', fontSize: '12px'
+              }}
+            >
+              {captureOverlay.name.charAt(0).toUpperCase()}
+            </div>
+            <span style={{ color: '#facc15', fontWeight: 'bold', fontSize: '22px', fontFamily: 'monospace' }}>
+              {captureOverlay.score.toString().padStart(4, '0')}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Joystick */}
+      <div
+        style={{ position: 'absolute', bottom: '16px', left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 40 }}
+      >
         <Joystick onMove={handleJoystickMove} />
       </div>
     </div>
