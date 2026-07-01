@@ -8,6 +8,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
   const videoRef = useRef(null);
   const [flashActive, setFlashActive] = useState(false);
   const [captureOverlay, setCaptureOverlay] = useState(null); // { type, score, color, name }
+  const [overlayVisible, setOverlayVisible] = useState(false);
   const lastMoveSentRef = useRef(0);
 
   const rafRef = useRef(null);
@@ -97,7 +98,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       }
     };
 
-    // Spotlight "first catch" card — CARROTATOR / TOMATOR popup
+    // Spotlight "first catch" card — CARROTATOR / TOMATOR popup w/ vignette fade
     const handleVeggieCaught = (data) => {
       setCaptureOverlay({
         type: data.veggieType === 'carrot' ? 'CARROTATOR' : 'TOMATOR',
@@ -105,6 +106,8 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         color: data.playerColor || '#fb5607',
         name: data.playerName || 'Player'
       });
+      requestAnimationFrame(() => setOverlayVisible(true));
+      setTimeout(() => setOverlayVisible(false), 1700);
       setTimeout(() => setCaptureOverlay(null), 2200);
     };
 
@@ -144,6 +147,22 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
       ctx.lineTo(cx - size, y + size * 0.8);
       ctx.lineTo(cx + size, y + size * 0.8);
       ctx.closePath();
+    };
+
+    const drawEyes = (cx, eyeY, spacing, eyeR, depthScale, panic) => {
+      [-spacing, spacing].forEach(ex => {
+        ctx.beginPath();
+        ctx.arc(cx + ex * depthScale, eyeY, eyeR, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1 * depthScale;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + ex * depthScale + (panic ? 1.5 : 0), eyeY, eyeR * 0.45, 0, Math.PI * 2);
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+      });
     };
 
     const tick = () => {
@@ -190,7 +209,7 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         return closest;
       };
 
-      // ---- 2. Vegetables — projected, depth-scaled, with lock-on tracker box ----
+      // ---- 2. Vegetables — cartoon features + dashed rotating lock-on box ----
       if (!glitch) {
         (state.vegetables || []).forEach((veg, idx) => {
           const proj = project(veg.x, veg.y, width, height);
@@ -200,28 +219,71 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
           const prox = proximityAt(veg.x, veg.y);
           const panic = prox < 0.18;
 
-          // Target lock-on tracker box — follows the veggie, scales with depth
-          ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 2.5;
+          // --- Dashed, rotating radar lock-on box (drawn first, behind the veggie) ---
           const targetBoxW = 85 * depthScale;
           const targetBoxH = 85 * depthScale;
-          ctx.strokeRect(vX - targetBoxW / 2, vY - targetBoxH / 2, targetBoxW, targetBoxH);
+          const rotationSpeed = panic ? 3.5 : 1.2;
+
+          ctx.save();
+          ctx.translate(vX, vY);
+          ctx.rotate(t * rotationSpeed);
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 2.5 * depthScale;
+          ctx.setLineDash([8 * depthScale, 4 * depthScale]);
+          ctx.lineDashOffset = -t * 40;
+          ctx.strokeRect(-targetBoxW / 2, -targetBoxH / 2, targetBoxW, targetBoxH);
+          ctx.setLineDash([]);
+          ctx.restore();
 
           if (veg.type === 'carrot') {
             const hopSpeed = panic ? 14 : 4;
             const hopHeight = (panic ? 6 : 3) * depthScale;
             const hop = Math.abs(Math.sin(t * hopSpeed + idx)) * hopHeight;
             const shiverX = panic ? (Math.random() - 0.5) * 3 * depthScale : 0;
-            drawTriangle(vX + shiverX, vY, 14 * depthScale, hop);
+            const armSwing = Math.sin(t * hopSpeed * 1.5 + idx) * 10 * depthScale;
+
+            const cx = vX + shiverX;
+            const cy = vY - hop;
+
+            // Running arm limbs (behind body)
+            ctx.strokeStyle = '#ff7a00';
+            ctx.lineWidth = 3 * depthScale;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(cx - 8 * depthScale, cy + 4 * depthScale);
+            ctx.lineTo(cx - 8 * depthScale + armSwing, cy + 16 * depthScale);
+            ctx.moveTo(cx + 8 * depthScale, cy + 4 * depthScale);
+            ctx.lineTo(cx + 8 * depthScale - armSwing, cy + 16 * depthScale);
+            ctx.stroke();
+
+            // Body
+            drawTriangle(cx, vY, 14 * depthScale, hop);
             ctx.fillStyle = '#ff7a00';
             ctx.fill();
-            ctx.strokeStyle = '#ffb066';
-            ctx.lineWidth = 1.5 * depthScale;
+            ctx.strokeStyle = '#7a3d00';
+            ctx.lineWidth = 2.5 * depthScale;
             ctx.stroke();
+
+            // Wide cartoon eyes
+            drawEyes(cx, cy - 3 * depthScale, 5, 4 * depthScale, depthScale, panic);
           } else if (veg.type === 'tomato') {
             const squishSpeed = panic ? 10 : 3;
             const squish = panic ? 0.35 : 0.1;
             const s = 1 + Math.sin(t * squishSpeed + idx) * squish;
+            const armSwing = Math.sin(t * squishSpeed * 1.5 + idx) * 9 * depthScale;
+
+            // Running arm limbs
+            ctx.strokeStyle = '#dd2c00';
+            ctx.lineWidth = 3 * depthScale;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(vX - 12 * depthScale, vY + 2 * depthScale);
+            ctx.lineTo(vX - 12 * depthScale + armSwing, vY + 14 * depthScale);
+            ctx.moveTo(vX + 12 * depthScale, vY + 2 * depthScale);
+            ctx.lineTo(vX + 12 * depthScale - armSwing, vY + 14 * depthScale);
+            ctx.stroke();
+
+            // Body
             ctx.save();
             ctx.translate(vX, vY);
             ctx.scale(depthScale / s, depthScale * s);
@@ -229,8 +291,15 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
             ctx.arc(0, 0, 15, 0, Math.PI * 2);
             ctx.fillStyle = '#dd2c00';
             ctx.fill();
+            ctx.strokeStyle = '#7a0000';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
             ctx.restore();
+
+            // Wide cartoon eyes
+            drawEyes(vX, vY - 4 * depthScale, 6, 4.5 * depthScale, depthScale, panic);
           } else {
+            // Rare Golden Matrix Node — breathing halo rings, unchanged
             const breathe = 0.5 + 0.5 * Math.sin(t * 2.2 + idx);
             for (let ring = 0; ring < 3; ring++) {
               const ringRadius = (15 + ring * 6 + breathe * 8) * depthScale;
@@ -368,12 +437,18 @@ function GameCanvas({ gameState, roomCode, mySlot }) {
         }`}
       />
 
-      {/* Spotlight first-catch card — CARROTATOR / TOMATOR popup */}
+      {/* Spotlight first-catch card — vignette + blur fade transition */}
       {captureOverlay && (
         <div
           style={{
-            position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 30,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+            position: 'absolute', inset: 0, zIndex: 30,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: 'radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.85) 72%)',
+            backdropFilter: overlayVisible ? 'blur(6px)' : 'blur(0px)',
+            WebkitBackdropFilter: overlayVisible ? 'blur(6px)' : 'blur(0px)',
+            opacity: overlayVisible ? 1 : 0,
+            transition: 'opacity 0.45s ease, backdrop-filter 0.45s ease',
+            pointerEvents: 'none'
           }}
         >
           <div
