@@ -3,12 +3,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // gameState.players shape: { [slotId]: { name, character, score, color? } }
 // mySlot: the current phone's slot id, used to highlight their own row.
+//
+// FIX: SLOT_COLORS was keyed by BLUE/PURPLE/PINK/ORANGE, a leftover from
+// before the character-slot rename. Every real slot id in this app is
+// oggy-blue / jack-green / olivia-pink / bob-purple (see App.jsx,
+// gameClient.js, CharacterSelect.jsx), so the old keys never matched and
+// every row fell back to the gray default (#8a8a93). Updated to match.
 function Scoreboard({ players, mySlot }) {
   const SLOT_COLORS = {
-    BLUE: '#3a86ff',
-    PURPLE: '#8338ec',
-    PINK: '#ff006e',
-    ORANGE: '#fb5607'
+    'oggy-blue': '#3a86ff',
+    'jack-green': '#2ecc71',
+    'olivia-pink': '#ff006e',
+    'bob-purple': '#8338ec'
   };
 
   const ranked = useMemo(() => {
