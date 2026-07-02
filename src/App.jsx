@@ -4,7 +4,7 @@ import { socket } from './socket';
 import RoomJoin from './components/RoomJoin';
 import CharacterSelect from './components/CharacterSelect';
 import ConnectionStatus from './components/ConnectionStatus';
-import GameARView from './components/GameCanva';
+import GameARView from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
 
 const SLOT_COLORS = {
