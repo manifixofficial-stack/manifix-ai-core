@@ -14,7 +14,6 @@ import {
 } from './lib/gameClient';
 import { connectTickServer } from './lib/tickClient';
 
-// CARTOON FIX: Keys updated to match your exact Supabase slot_id row properties
 const SLOT_COLORS = {
   'oggy-blue': '#3a86ff',
   'jack-green': '#2ecc71',
@@ -31,26 +30,29 @@ const MATCH_PHASE = {
 function App() {
   const [stage, setStage] = useState(1); // 1: Room Entry, 2: Slot Claim, 3: Match Arena
   const [roomCode, setRoomCode] = useState('');
-  // CARTOON FIX: Initial state map aligned to exact database slot names
-  const [takenChars, setTakenChars] = useState({ 
-    'oggy-blue': null, 
-    'jack-green': null, 
-    'olivia-pink': null, 
-    'bob-purple': null 
+  const [takenChars, setTakenChars] = useState({
+    'oggy-blue': null,
+    'jack-green': null,
+    'olivia-pink': null,
+    'bob-purple': null
   });
-  const [players, setPlayers] = useState([]); 
+  const [players, setPlayers] = useState([]);
   const [mySlot, setMySlot] = useState(null);
-  const [myPlayerId, setMyPlayerId] = useState(null); 
+  const [myPlayerId, setMyPlayerId] = useState(null);
+  // FIX: track the player's live position + chosen name so claimCharacter()
+  // and GameCanvas both have what they need — neither was available before.
+  const [myPosition, setMyPosition] = useState(null);
+  const [myName, setMyName] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [joining, setJoining] = useState(false);
-  const [lockResult, setLockResult] = useState(null); 
+  const [lockResult, setLockResult] = useState(null);
 
   const [matchPhase, setMatchPhase] = useState(null);
   const [countdownTick, setCountdownTick] = useState(3);
   const [showGoBurst, setShowGoBurst] = useState(false);
   const [victoryData, setVictoryData] = useState(null);
   const [currentLeaderName, setCurrentLeaderName] = useState(null);
-  const [tickStatus, setTickStatus] = useState('idle'); 
+  const [tickStatus, setTickStatus] = useState('idle');
   const goAudioRef = useRef(null);
   const tickConnectionRef = useRef(null);
 
@@ -67,9 +69,8 @@ function App() {
         fetchPlayers(roomCode)
           .then((rows) => {
             setPlayers(rows);
-            // CARTOON FIX: Clear mapping properties correctly
             const taken = { 'oggy-blue': null, 'jack-green': null, 'olivia-pink': null, 'bob-purple': null };
-            rows.forEach((r) => { if(r.slot_id) taken[r.slot_id] = r.name; });
+            rows.forEach((r) => { if (r.slot_id) taken[r.slot_id] = r.name; });
             setTakenChars(taken);
           })
           .catch((err) => console.error('[App] player refetch failed', err));
@@ -133,7 +134,14 @@ function App() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          await joinRoom(pos.coords.latitude, pos.coords.longitude, code);
+          const { latitude, longitude } = pos.coords;
+          setMyPosition({ lat: latitude, lng: longitude });
+
+          // FIX: correct arg order (roomCode, lat, lng) — was (lat, lng, roomCode).
+          // Also now capturing the result so we have player_id for claimCharacter().
+          const joinResult = await joinRoom(code, latitude, longitude);
+          setMyPlayerId(joinResult.player_id);
+
           const taken = await fetchTakenCharacters(code);
           setTakenChars(taken);
           setRoomCode(code.toUpperCase());
@@ -155,13 +163,29 @@ function App() {
 
   const handleLockCharacter = async (slotId, claimedName) => {
     setErrorMessage('');
+
+    if (!myPlayerId || !myPosition) {
+      setErrorMessage('Still setting up your session — try again in a moment.');
+      return;
+    }
+
     try {
-      // CARTOON FIX: Arguments passing matches your 3-parameter DB function signature perfectly
-      const result = await claimCharacter(claimedName, roomCode, slotId);
-      setLockResult({ slotId, success: result.status === 'success' });
-      if (result.status === 'success') {
+      // FIX: correct arg order + all 6 params claim_character() requires.
+      // Was: claimCharacter(claimedName, roomCode, slotId) — wrong order,
+      // missing playerId/lat/lng entirely.
+      const result = await claimCharacter(
+        roomCode,
+        slotId,
+        claimedName,
+        myPlayerId,
+        myPosition.lat,
+        myPosition.lng
+      );
+      const success = result.status === 'success' || result.success === true;
+      setLockResult({ slotId, success });
+      if (success) {
         setMySlot(result.slot_id);
-        setMyPlayerId(result.player_id);
+        setMyName(claimedName);
       } else {
         setErrorMessage(result.message || 'Slot selection failed.');
       }
@@ -177,10 +201,17 @@ function App() {
     window.location.reload();
   };
 
+  // FIX: GameCanvas expects an onExit handler for its ✕ button; nothing
+  // was wired up before.
+  const handleExitGame = () => {
+    tickConnectionRef.current?.disconnect();
+    window.location.reload();
+  };
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: '#111' }}>
       <ConnectionStatus roomCode={roomCode} />
-      
+
       <audio ref={goAudioRef} src="/sounds/chii-chiip.mp3" preload="auto" />
 
       {stage === 1 && (
@@ -188,9 +219,9 @@ function App() {
       )}
 
       {stage === 2 && (
-        <CharacterSelect 
-          takenChars={takenChars} 
-          onSelect={handleLockCharacter} 
+        <CharacterSelect
+          takenChars={takenChars}
+          onSelect={handleLockCharacter}
           lockResult={lockResult}
           error={errorMessage}
         />
@@ -199,12 +230,15 @@ function App() {
       {stage === 3 && (
         <>
           <Scoreboard players={players} />
-          
-          <GameARView 
+
+          {/* FIX: prop names now match GameCanvas's actual signature
+              (roomCode, nickname, playerId, onExit) — was passing
+              myPlayerId/mySlot with no nickname or onExit at all. */}
+          <GameARView
             roomCode={roomCode}
-            myPlayerId={myPlayerId}
-            mySlot={mySlot}
-            matchPhase={matchPhase}
+            nickname={myName}
+            playerId={myPlayerId}
+            onExit={handleExitGame}
           />
 
           {matchPhase === MATCH_PHASE.COUNTDOWN && (
@@ -219,7 +253,7 @@ function App() {
             {showGoBurst && (
               <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1.2 }} exit={{ opacity: 0 }} style={styles.goBurst}>
                 SATELLITE GO! 🚀
-                  </motion.div>
+              </motion.div>
             )}
           </AnimatePresence>
 
