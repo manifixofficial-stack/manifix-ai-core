@@ -27,8 +27,8 @@ const ALL_SLOTS = [
 ];
 
 const LOBBY_SIZES = [
-  { size: 1, label: "SOLO RUN", sub: "just you vs. the garden", icon: "🎯" },
   { size: 2, label: "DUO", sub: "you + one bestie", icon: "🤝" },
+  { size: 3, label: "TRIO", sub: "three's the vibe", icon: "3️⃣" },
   { size: 4, label: "SQUAD", sub: "full 4-player chaos", icon: "🔥" },
 ];
 
@@ -135,8 +135,8 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
         <div
           style={{
             ...styles.grid,
-            gridTemplateColumns: lobbySize === 1 ? "1fr" : "1fr 1fr",
-            maxWidth: lobbySize === 1 ? 200 : 300,
+            gridTemplateColumns: "1fr 1fr",
+            maxWidth: 300,
           }}
         >
           <AnimatePresence>
@@ -158,7 +158,7 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
                   disabled={disabled}
                   style={{
                     ...styles.slotCard,
-                    aspectRatio: lobbySize === 1 ? "4 / 3" : "1",
+                    aspectRatio: "1",
                     border: `2px solid ${slot.color}`,
                     background: takenBy
                       ? `${slot.color}22`
@@ -178,7 +178,7 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
                       transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut" }}
                     />
                   )}
-                  <span style={{ fontSize: lobbySize === 1 ? 40 : 28 }}>{slot.icon}</span>
+                  <span style={{ fontSize: 28 }}>{slot.icon}</span>
                   <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.id}</span>
                   <span style={styles.slotStatus}>
                     {takenBy ? takenBy : isPending ? "locking in…" : `open · ${slot.vibe}`}
@@ -191,9 +191,9 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
 
         {lobbySize < 4 && (
           <p style={styles.hint}>
-            {lobbySize === 1
-              ? "Solo mode: it's you against the clock and the veggies."
-              : "Duo mode: split the garden, split the glory."}
+            {lobbySize === 2
+              ? "Duo mode: split the garden, split the glory."
+              : "Trio mode: three-way chaos, one garden."}
           </p>
         )}
       </motion.div>
