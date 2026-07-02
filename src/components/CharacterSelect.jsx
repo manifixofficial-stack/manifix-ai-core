@@ -1,376 +1,356 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { socket } from '../socket';
+import React, { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-const SLOTS = [
-  { key: 'BLUE', color: '#3a86ff', label: 'BLUE' },
-  { key: 'PURPLE', color: '#8338ec', label: 'PURPLE' },
-  { key: 'PINK', color: '#ff006e', label: 'PINK' },
-  { key: 'ORANGE', color: '#fb5607', label: 'ORANGE' }
+// src/components/CharacterSelect.jsx — Stage 2: Squad Up
+//
+// Still a dumb/presentational component: only claims a color slot and
+// hands off to App.jsx via onLock(slotId, name). App.jsx + server.js keep
+// owning match-start logic.
+//
+// Visual shell (ambient orbs, scanline grid, glass gold-bordered card) is
+// now shared 1:1 with RoomJoin.jsx so Stage 1 -> Stage 2 reads as one
+// continuous interface instead of two different apps stitched together.
+//
+// KNOWN GAP (still true, still flagged): App.jsx only flips to Stage 3
+// once ALL 4 slots in `taken` are filled — there's no lobby-size concept
+// on the server yet. The Solo/Duo/Squad picker below is fully functional
+// UI and calls `onLobbySizeChange`, ready to drive real logic, but until
+// App.jsx's `allFilled` check and server.js both understand lobby size,
+// picking Solo or Duo will leave the game waiting on slots nobody fills.
+const SLOT_COLORS = ["#3a86ff", "#8338ec", "#ff006e", "#fb5607"];
+
+const ALL_SLOTS = [
+  { id: "BLUE", color: "#3a86ff", icon: "🥕", vibe: "chill" },
+  { id: "PURPLE", color: "#8338ec", icon: "🍆", vibe: "wild" },
+  { id: "PINK", color: "#ff006e", icon: "🍓", vibe: "unbothered" },
+  { id: "ORANGE", color: "#fb5607", icon: "🎃", vibe: "menace" },
 ];
 
-// Keep captured faces small — this is what stops the bandwidth problem described above.
-// 96x96 JPEG at 0.7 quality lands around 3-6KB, and it's sent exactly once per player,
-// not on every tick.
-const FACE_CAPTURE_SIZE = 96;
-const FACE_JPEG_QUALITY = 0.7;
+const LOBBY_SIZES = [
+  { size: 1, label: "SOLO RUN", sub: "just you vs. the garden", icon: "🎯" },
+  { size: 2, label: "DUO", sub: "you + one bestie", icon: "🤝" },
+  { size: 4, label: "SQUAD", sub: "full 4-player chaos", icon: "🔥" },
+];
 
-function CharacterSelect({ roomCode, onJoined }) {
-  const [taken, setTaken] = useState({ BLUE: false, PURPLE: false, PINK: false, ORANGE: false });
-  const [nameInputs, setNameInputs] = useState({ BLUE: '', PURPLE: '', PINK: '', ORANGE: '' });
-  const [claimingSlot, setClaimingSlot] = useState(null); // slot key currently mid-claim
-  const [errorMsg, setErrorMsg] = useState('');
+export default function CharacterSelect({ takenChars = {}, onLock = () => {}, onLobbySizeChange }) {
+  const [name, setName] = useState("");
+  const [pending, setPending] = useState(null);
+  const [lobbySize, setLobbySize] = useState(4);
 
-  // Face capture state
-  const [faceDataUrl, setFaceDataUrl] = useState(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
+  const reduceMotion = useMemo(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+    []
+  );
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
+  const activeSlots = useMemo(() => ALL_SLOTS.slice(0, lobbySize), [lobbySize]);
+  const filledCount = activeSlots.filter((s) => takenChars[s.id]).length;
 
-  useEffect(() => {
-    socket.emit('request-characters');
-
-    const handleCharactersUpdate = (data) => {
-      setTaken(data.taken);
-    };
-    const handleCharacterError = (data) => {
-      setErrorMsg(data.message || 'Could not claim that slot.');
-      setClaimingSlot(null);
-      setTimeout(() => setErrorMsg(''), 2500);
-    };
-    const handleGameJoined = (data) => {
-      if (data.success) {
-        onJoined && onJoined(data.character);
-      }
-    };
-
-    socket.on('characters-update', handleCharactersUpdate);
-    socket.on('character-error', handleCharacterError);
-    socket.on('game-joined', handleGameJoined);
-
-    return () => {
-      socket.off('characters-update', handleCharactersUpdate);
-      socket.off('character-error', handleCharacterError);
-      socket.off('game-joined', handleGameJoined);
-      stopCamera();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    setCameraOpen(false);
+  const changeLobbySize = (size) => {
+    if (pending) return; // don't let the size shift mid-claim
+    setLobbySize(size);
+    onLobbySizeChange?.(size);
   };
 
-  const openCamera = useCallback(async () => {
-    setCameraError(null);
-    try {
-      // Front-facing camera specifically for a face capture — separate from any
-      // rear-camera AR background stream elsewhere in the app.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 320 } },
-        audio: false
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setCameraOpen(true);
-    } catch (err) {
-      console.error('Face camera blocked:', err);
-      setCameraError('Camera access denied or unavailable. You can still play with a letter avatar.');
-    }
-  }, []);
-
-  const snapFace = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-
-    canvas.width = FACE_CAPTURE_SIZE;
-    canvas.height = FACE_CAPTURE_SIZE;
-    const ctx = canvas.getContext('2d');
-
-    // Center-crop the video frame to a square before downscaling to FACE_CAPTURE_SIZE
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const cropSize = Math.min(vw, vh);
-    const sx = (vw - cropSize) / 2;
-    const sy = (vh - cropSize) / 2;
-
-    ctx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, FACE_CAPTURE_SIZE, FACE_CAPTURE_SIZE);
-    const dataUrl = canvas.toDataURL('image/jpeg', FACE_JPEG_QUALITY);
-    setFaceDataUrl(dataUrl);
-    stopCamera();
-  }, []);
-
-  const retakeFace = () => {
-    setFaceDataUrl(null);
-    openCamera();
-  };
-
-  const handleClaim = (slotKey) => {
-    const name = (nameInputs[slotKey] || '').trim();
-    if (!name) {
-      setErrorMsg('Enter a name before claiming a slot.');
-      setTimeout(() => setErrorMsg(''), 2000);
-      return;
-    }
-
-    setClaimingSlot(slotKey);
-    socket.emit('join-game', { character: slotKey, name });
-
-    // Face is sent ONCE via its own dedicated event, deliberately kept out of the
-    // 22Hz game-state tick loop. If no face was captured, the server/client just
-    // falls back to the existing colored-letter avatar — nothing breaks.
-    if (faceDataUrl) {
-      socket.emit('set-face', { faceUrl: faceDataUrl });
-    }
+  const handlePick = (slotId) => {
+    if (takenChars[slotId] || pending) return;
+    const claimedName = name.trim() || `Player ${slotId[0]}`;
+    setPending(slotId);
+    onLock(slotId, claimedName);
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.faceCaptureCard}>
-        <div style={styles.facePreviewWrap}>
-          {cameraOpen && (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              style={styles.videoPreview}
-            />
-          )}
-          {!cameraOpen && faceDataUrl && (
-            <img src={faceDataUrl} alt="Your captured face" style={styles.facePreviewImg} />
-          )}
-          {!cameraOpen && !faceDataUrl && (
-            <div style={styles.faceholder}>?</div>
-          )}
+    <div style={styles.screen}>
+      {/* Ambient color-bloom orbs — same signature as RoomJoin */}
+      {!reduceMotion &&
+        SLOT_COLORS.map((color, i) => (
+          <motion.div
+            key={color}
+            style={{ ...styles.orb, background: color, left: `${10 + i * 24}%`, top: `${8 + (i % 2) * 55}%` }}
+            animate={{
+              x: [0, 22, -14, 0],
+              y: [0, -18, 14, 0],
+              opacity: [0.16, 0.28, 0.16],
+            }}
+            transition={{ duration: 9 + i * 1.4, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ))}
+
+      {/* Faint holographic scanline grid — same signature as RoomJoin */}
+      <div style={styles.scanGrid} />
+
+      <motion.div
+        style={styles.card}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h1 style={styles.title}>MANIFIX VEGGIE GO</h1>
+        <p style={styles.subtitle}>Pick your crew size, drop a name, lock your color.</p>
+
+        {/* Lobby size selector — solo, duo, or full squad */}
+        <div style={styles.sizeRow}>
+          {LOBBY_SIZES.map((opt) => {
+            const active = lobbySize === opt.size;
+            return (
+              <motion.button
+                key={opt.size}
+                type="button"
+                onClick={() => changeLobbySize(opt.size)}
+                disabled={Boolean(pending)}
+                whileTap={!pending ? { scale: 0.95 } : {}}
+                style={{
+                  ...styles.sizeChip,
+                  borderColor: active ? "#FFD700" : "rgba(255,215,0,0.18)",
+                  background: active ? "rgba(255,215,0,0.12)" : "rgba(0,0,0,0.3)",
+                  opacity: pending ? 0.5 : 1,
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{opt.icon}</span>
+                <span style={styles.sizeChipLabel}>{opt.label}</span>
+                <span style={styles.sizeChipSub}>{opt.sub}</span>
+              </motion.button>
+            );
+          })}
         </div>
 
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <motion.input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="YOUR CALLSIGN (OPTIONAL)"
+          maxLength={16}
+          whileFocus={{
+            boxShadow: "0 0 0 2px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.35)",
+          }}
+          style={styles.nameInput}
+        />
 
-        {cameraError && <div style={styles.errorText}>{cameraError}</div>}
+        {/* Live fill progress */}
+        <p style={styles.progressLine}>
+          {filledCount} / {activeSlots.length} LOCKED IN
+          {filledCount === activeSlots.length && activeSlots.length > 0 && (
+            <span style={{ color: "#39ff88" }}> — LET'S GOOO</span>
+          )}
+        </p>
 
-        <div style={styles.faceButtonRow}>
-          {!cameraOpen && !faceDataUrl && (
-            <button style={styles.faceBtn} onClick={openCamera}>📷 CAPTURE FACE</button>
-          )}
-          {cameraOpen && (
-            <button style={styles.faceBtnGold} onClick={snapFace}>✓ SNAP</button>
-          )}
-          {!cameraOpen && faceDataUrl && (
-            <button style={styles.faceBtnSecondary} onClick={retakeFace}>↻ RETAKE</button>
-          )}
+        <div
+          style={{
+            ...styles.grid,
+            gridTemplateColumns: lobbySize === 1 ? "1fr" : "1fr 1fr",
+            maxWidth: lobbySize === 1 ? 200 : 300,
+          }}
+        >
+          <AnimatePresence>
+            {activeSlots.map((slot) => {
+              const takenBy = takenChars[slot.id];
+              const isPending = pending === slot.id;
+              const disabled = Boolean(takenBy) || Boolean(pending);
+
+              return (
+                <motion.button
+                  key={slot.id}
+                  type="button"
+                  layout
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.85 }}
+                  whileTap={!disabled ? { scale: 0.94 } : {}}
+                  onClick={() => handlePick(slot.id)}
+                  disabled={disabled}
+                  style={{
+                    ...styles.slotCard,
+                    aspectRatio: lobbySize === 1 ? "4 / 3" : "1",
+                    border: `2px solid ${slot.color}`,
+                    background: takenBy
+                      ? `${slot.color}22`
+                      : isPending
+                      ? `${slot.color}44`
+                      : "rgba(0,0,0,0.3)",
+                    opacity: takenBy && !isPending ? 0.5 : 1,
+                    boxShadow: isPending ? `0 0 24px ${slot.color}` : "none",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isPending && (
+                    <motion.div
+                      style={{ ...styles.pulseRing, borderColor: slot.color }}
+                      initial={{ scale: 0.7, opacity: 0.8 }}
+                      animate={{ scale: 1.4, opacity: 0 }}
+                      transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut" }}
+                    />
+                  )}
+                  <span style={{ fontSize: lobbySize === 1 ? 40 : 28 }}>{slot.icon}</span>
+                  <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.id}</span>
+                  <span style={styles.slotStatus}>
+                    {takenBy ? takenBy : isPending ? "locking in…" : `open · ${slot.vibe}`}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </AnimatePresence>
         </div>
-      </div>
 
-      {errorMsg && <div style={styles.errorBanner}>{errorMsg}</div>}
-
-      <div style={styles.grid}>
-        {SLOTS.map((slot) => {
-          const isTaken = taken[slot.key];
-          const isClaiming = claimingSlot === slot.key;
-          return (
-            <div
-              key={slot.key}
-              style={{
-                ...styles.slot,
-                borderColor: slot.color,
-                boxShadow: `0 0 14px ${slot.color}55`
-              }}
-            >
-              {isTaken ? (
-                <div style={styles.lockedPlate}>
-                  <span style={styles.lockedText}>IN GAME</span>
-                </div>
-              ) : (
-                <>
-                  <input
-                    style={styles.nameInput}
-                    placeholder="ENTER YOUR NAME"
-                    maxLength={12}
-                    value={nameInputs[slot.key]}
-                    onChange={(e) =>
-                      setNameInputs((prev) => ({ ...prev, [slot.key]: e.target.value }))
-                    }
-                  />
-                  <button
-                    style={{ ...styles.claimBtn, backgroundColor: slot.color }}
-                    onClick={() => handleClaim(slot.key)}
-                    disabled={isClaiming}
-                  >
-                    {isClaiming ? '...' : 'CLAIM'}
-                  </button>
-                </>
-              )}
-              <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.label}</span>
-            </div>
-          );
-        })}
-      </div>
+        {lobbySize < 4 && (
+          <p style={styles.hint}>
+            {lobbySize === 1
+              ? "Solo mode: it's you against the clock and the veggies."
+              : "Duo mode: split the garden, split the glory."}
+          </p>
+        )}
+      </motion.div>
     </div>
   );
 }
 
 const styles = {
-  container: {
-    position: 'relative',
-    width: '100%',
-    padding: '16px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-    zIndex: 10
+  screen: {
+    position: "fixed",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#08080a",
+    overflow: "hidden",
   },
-  faceCaptureCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '10px',
-    background: 'rgba(8,8,10,0.6)',
-    borderRadius: '16px',
-    padding: '14px',
-    border: '1px solid rgba(255,255,255,0.08)'
+  orb: {
+    position: "absolute",
+    width: "160px",
+    height: "160px",
+    borderRadius: "50%",
+    filter: "blur(50px)",
+    pointerEvents: "none",
+    zIndex: 0,
   },
-  facePreviewWrap: {
-    width: '96px',
-    height: '96px',
-    borderRadius: '50%',
-    overflow: 'hidden',
-    border: '2px solid #ffc83c',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#111'
+  scanGrid: {
+    position: "absolute",
+    inset: 0,
+    zIndex: 0,
+    backgroundImage:
+      "linear-gradient(rgba(255,215,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,215,0,0.05) 1px, transparent 1px)",
+    backgroundSize: "34px 34px",
+    maskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)",
+    WebkitMaskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)",
   },
-  videoPreview: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    transform: 'scaleX(-1)' // mirror front camera, feels natural for a selfie
+  card: {
+    position: "relative",
+    zIndex: 2,
+    width: "min(92vw, 400px)",
+    maxHeight: "88vh",
+    overflowY: "auto",
+    padding: "28px 24px",
+    borderRadius: "20px",
+    background: "rgba(18, 16, 12, 0.72)",
+    border: "1px solid rgba(255, 215, 0, 0.35)",
+    boxShadow: "0 0 40px rgba(255, 215, 0, 0.08), inset 0 0 30px rgba(0,0,0,0.4)",
+    backdropFilter: "blur(10px)",
+    textAlign: "center",
+    fontFamily: "'Fredoka', sans-serif",
+    color: "#F5F0E8",
   },
-  facePreviewImg: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover'
+  title: {
+    fontFamily: "'Orbitron', sans-serif",
+    fontWeight: 800,
+    fontSize: 20,
+    letterSpacing: 1,
+    color: "#FFD700",
+    margin: "0 0 6px",
   },
-  faceholder: {
-    color: '#666',
-    fontSize: '28px',
-    fontFamily: 'monospace'
+  subtitle: {
+    fontSize: 12,
+    opacity: 0.75,
+    margin: "0 0 18px",
   },
-  faceButtonRow: {
-    display: 'flex',
-    gap: '10px'
+  sizeRow: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 16,
   },
-  faceBtn: {
-    background: 'transparent',
-    border: '1px solid #ffc83c',
-    color: '#ffc83c',
-    padding: '8px 14px',
-    borderRadius: '8px',
-    fontWeight: 'bold',
-    fontSize: '12px',
-    cursor: 'pointer'
+  sizeChip: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    padding: "10px 6px",
+    borderRadius: 12,
+    border: "1px solid",
+    color: "#F5F0E8",
+    cursor: "pointer",
   },
-  faceBtnGold: {
-    background: '#ffc83c',
-    border: 'none',
-    color: '#08080a',
-    padding: '8px 18px',
-    borderRadius: '8px',
-    fontWeight: 'bold',
-    fontSize: '12px',
-    cursor: 'pointer'
+  sizeChipLabel: {
+    fontFamily: "'Orbitron', sans-serif",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: 0.5,
   },
-  faceBtnSecondary: {
-    background: 'transparent',
-    border: '1px solid #666',
-    color: '#aaa',
-    padding: '8px 14px',
-    borderRadius: '8px',
-    fontWeight: 'bold',
-    fontSize: '12px',
-    cursor: 'pointer'
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: '11px',
-    textAlign: 'center'
-  },
-  errorBanner: {
-    background: 'rgba(220,38,38,0.15)',
-    border: '1px solid rgba(220,38,38,0.5)',
-    color: '#ff6b6b',
-    padding: '8px 12px',
-    borderRadius: '8px',
-    fontSize: '12px',
-    textAlign: 'center'
-  },
-  grid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px'
-  },
-  slot: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    background: 'rgba(8,8,10,0.55)',
-    border: '2px solid',
-    borderRadius: '12px',
-    padding: '10px 14px',
-    position: 'relative'
-  },
-  slotLabel: {
-    marginLeft: 'auto',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    fontFamily: 'monospace',
-    letterSpacing: '1px'
+  sizeChipSub: {
+    fontSize: 9,
+    opacity: 0.55,
+    textAlign: "center",
   },
   nameInput: {
-    flex: 1,
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    borderRadius: '8px',
-    padding: '8px 10px',
-    color: '#fff',
-    fontSize: '13px',
-    outline: 'none'
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "12px 14px",
+    marginBottom: 10,
+    borderRadius: 10,
+    border: "1px solid rgba(255,215,0,0.4)",
+    background: "rgba(0,0,0,0.5)",
+    color: "#FFD700",
+    fontFamily: "'Orbitron', monospace",
+    fontSize: 12,
+    letterSpacing: 1,
+    textAlign: "center",
+    outline: "none",
   },
-  claimBtn: {
-    border: 'none',
-    borderRadius: '8px',
-    padding: '8px 16px',
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: '12px',
-    cursor: 'pointer'
+  progressLine: {
+    fontFamily: "'Orbitron', monospace",
+    fontSize: 11,
+    letterSpacing: 0.5,
+    opacity: 0.75,
+    marginBottom: 18,
   },
-  lockedPlate: {
-    flex: 1,
-    background: '#1c1c24',
-    borderRadius: '8px',
-    padding: '10px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center'
+  grid: {
+    display: "grid",
+    gap: 12,
+    width: "100%",
+    margin: "0 auto",
   },
-  lockedText: {
-    color: '#dc2626',
-    fontWeight: '900',
-    fontSize: '13px',
-    letterSpacing: '1px',
-    fontFamily: 'monospace'
-  }
+  slotCard: {
+    position: "relative",
+    borderRadius: 14,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    color: "#fff",
+    overflow: "hidden",
+  },
+  pulseRing: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: 14,
+    border: "2px solid",
+    pointerEvents: "none",
+  },
+  slotLabel: {
+    fontFamily: "'Orbitron', sans-serif",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+  },
+  slotStatus: {
+    fontSize: 10,
+    opacity: 0.7,
+    maxWidth: "90%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  hint: {
+    marginTop: 16,
+    fontSize: 11,
+    opacity: 0.6,
+    textAlign: "center",
+  },
 };
-
-export default CharacterSelect;
