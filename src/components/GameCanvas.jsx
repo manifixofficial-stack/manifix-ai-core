@@ -410,15 +410,18 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   // has to match the request up after the fact.
   const handleCatch = useCallback(
     async (veggieId) => {
-      if (controlsLocked || !playerId) return;
+      if (controlsLocked || !playerId || !playerPos) return;
       try {
-        const result = await captureVeggie(veggieId, playerId);
-        if (!result?.success) return; // someone else caught it first — no UI needed, it'll vanish from `veggies` via realtime
+        // FIX: capture_veggie requires p_player_lat/p_player_lng for its
+        // server-side proximity check — these were missing, so every
+        // capture call was failing at the PostgREST layer.
+        const result = await captureVeggie(veggieId, playerId, playerPos.lat, playerPos.lng);
+        if (!result?.success) return; // someone else caught it first — vanishes via realtime
 
         setVeggies((prev) => prev.filter((v) => v.id !== veggieId));
         setFlashPoints(result.points);
         setCaptureOverlay({
-          veggieType: 'carrot', // capture_veggie doesn't return the caught type; safe default sprite for the flash
+          veggieType: 'carrot',
           points: result.points,
           playerName: result.player_name,
           newScore: result.new_score,
@@ -430,7 +433,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         console.error('[GameCanvas] capture failed', err);
       }
     },
-    [playerId, controlsLocked]
+    [playerId, playerPos, controlsLocked]
   );
 
   const crosshairX = dims.w / 2;
