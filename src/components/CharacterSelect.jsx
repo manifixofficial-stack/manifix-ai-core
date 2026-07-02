@@ -1,24 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// src/components/CharacterSelect.jsx — Stage 2: Squad Up
-//
-// UPDATED for Supabase: this component never talks to Supabase directly —
-// App.jsx owns the claimCharacter() RPC call and passes the outcome back
-// down via `lockResult`. That's the one behavior change from the Socket.io
-// version: because claim_character is now atomic at the DB level (unique
-// constraint on room_code+slot_id), a claim can genuinely fail if someone
-// else's insert won the race in the same instant. `lockResult` lets this
-// component un-stick the "locking in…" state instead of hanging forever.
-//
-// lockResult shape: { slotId: string, success: boolean } | null
-const SLOT_COLORS = ["#3a86ff", "#8338ec", "#ff006e", "#fb5607"];
+const SLOT_COLORS = ["#3a86ff", "#2ecc71", "#ff006e", "#8338ec"];
 
 const ALL_SLOTS = [
-  { id: "BLUE", color: "#3a86ff", icon: "🥕", vibe: "chill" },
-  { id: "PURPLE", color: "#8338ec", icon: "🍆", vibe: "wild" },
-  { id: "PINK", color: "#ff006e", icon: "🍓", vibe: "unbothered" },
-  { id: "ORANGE", color: "#fb5607", icon: "🎃", vibe: "menace" },
+  { id: "oggy-blue", color: "#3a86ff", icon: "🥕", vibe: "chill", display: "BLUE" },
+  { id: "jack-green", color: "#2ecc71", icon: "🍆", vibe: "wild", display: "GREEN" },
+  { id: "olivia-pink", color: "#ff006e", icon: "🍓", vibe: "unbothered", display: "PINK" },
+  { id: "bob-purple", color: "#8338ec", icon: "🎃", vibe: "menace", display: "PURPLE" },
 ];
 
 const LOBBY_SIZES = [
@@ -29,9 +18,15 @@ const LOBBY_SIZES = [
 
 export default function CharacterSelect({
   takenChars = {},
-  onLock = () => {},
+  onSelect = () => {},
   onLobbySizeChange,
   lockResult = null,
+  error = "", // FIX: this prop was already being passed in from App.jsx but
+              // never rendered anywhere — so any claimCharacter() failure
+              // (bad RPC args, network error, RLS rejection, etc.) was
+              // completely invisible. The "locking in…" spinner would just
+              // sit there forever with zero on-screen indication that
+              // anything had gone wrong. Rendered below the name input.
 }) {
   const [name, setName] = useState("");
   const [pending, setPending] = useState(null);
@@ -46,40 +41,56 @@ export default function CharacterSelect({
   const activeSlots = useMemo(() => ALL_SLOTS.slice(0, lobbySize), [lobbySize]);
   const filledCount = activeSlots.filter((s) => takenChars[s.id]).length;
 
-  // React to the claim result coming back from App.jsx's atomic RPC call.
   useEffect(() => {
     if (!lockResult) return;
     if (lockResult.slotId !== pending) return;
 
     if (lockResult.success) {
-      // takenChars will update via the realtime subscription momentarily;
-      // just clear the local "pending" spinner state.
       setPending(null);
     } else {
-      // Someone else's claim landed first — release the slot back to the
-      // grid instead of leaving it stuck on "locking in…" forever.
       setPending(null);
       setSlotTakenError(lockResult.slotId);
       setTimeout(() => setSlotTakenError(null), 2000);
     }
   }, [lockResult, pending]);
 
+  // FIX: if App.jsx's handleLockCharacter ever hits its own guard clause
+  // (e.g. myPlayerId/myPosition not ready yet) and returns *without*
+  // calling setLockResult at all, `pending` would never clear via the
+  // effect above — it would just hang on "locking in…" indefinitely with
+  // no error shown, no timeout, nothing. This safety-net timeout clears
+  // pending and shows a message if no lockResult arrives within 8s of a
+  // pick, so the UI can never get permanently stuck even if the parent
+  // fails silently.
+  useEffect(() => {
+    if (!pending) return undefined;
+    const timeout = setTimeout(() => {
+      setPending((current) => {
+        if (current) {
+          setSlotTakenError(current);
+          setTimeout(() => setSlotTakenError(null), 2500);
+        }
+        return null;
+      });
+    }, 8000);
+    return () => clearTimeout(timeout);
+  }, [pending]);
+
   const changeLobbySize = (size) => {
-    if (pending) return; // don't let the size shift mid-claim
+    if (pending) return;
     setLobbySize(size);
     onLobbySizeChange?.(size);
   };
 
   const handlePick = (slotId) => {
     if (takenChars[slotId] || pending) return;
-    const claimedName = name.trim() || `Player ${slotId[0]}`;
+    const claimedName = name.trim() || `Player-${slotId.split('-')[0].toUpperCase()}`;
     setPending(slotId);
-    onLock(slotId, claimedName);
+    onSelect(slotId, claimedName, lobbySize);
   };
 
   return (
     <div style={styles.screen}>
-      {/* Ambient color-bloom orbs — same signature as RoomJoin */}
       {!reduceMotion &&
         SLOT_COLORS.map((color, i) => (
           <motion.div
@@ -94,7 +105,6 @@ export default function CharacterSelect({
           />
         ))}
 
-      {/* Faint holographic scanline grid — same signature as RoomJoin */}
       <div style={styles.scanGrid} />
 
       <motion.div
@@ -106,7 +116,6 @@ export default function CharacterSelect({
         <h1 style={styles.title}>MANIFIX VEGGIE GO</h1>
         <p style={styles.subtitle}>Pick your crew size, drop a name, lock your color.</p>
 
-        {/* Lobby size selector — solo, duo, or full squad */}
         <div style={styles.sizeRow}>
           {LOBBY_SIZES.map((opt) => {
             const active = lobbySize === opt.size;
@@ -143,7 +152,9 @@ export default function CharacterSelect({
           style={styles.nameInput}
         />
 
-        {/* Live fill progress */}
+        {/* FIX: error prop is now actually rendered. */}
+        {error ? <p style={styles.errorLine}>{error}</p> : null}
+
         <p style={styles.progressLine}>
           {filledCount} / {activeSlots.length} LOCKED IN
           {filledCount === activeSlots.length && activeSlots.length > 0 && (
@@ -151,13 +162,7 @@ export default function CharacterSelect({
           )}
         </p>
 
-        <div
-          style={{
-            ...styles.grid,
-            gridTemplateColumns: "1fr 1fr",
-            maxWidth: 300,
-          }}
-        >
+        <div style={styles.grid}>
           <AnimatePresence>
             {activeSlots.map((slot) => {
               const takenBy = takenChars[slot.id];
@@ -178,7 +183,6 @@ export default function CharacterSelect({
                   disabled={disabled}
                   style={{
                     ...styles.slotCard,
-                    aspectRatio: "1",
                     border: `2px solid ${justFailed ? "#ff5c5c" : slot.color}`,
                     background: takenBy
                       ? `${slot.color}22`
@@ -199,7 +203,7 @@ export default function CharacterSelect({
                     />
                   )}
                   <span style={{ fontSize: 28 }}>{slot.icon}</span>
-                  <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.id}</span>
+                  <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.display}</span>
                   <span style={styles.slotStatus}>
                     {justFailed
                       ? "just taken!"
@@ -228,155 +232,23 @@ export default function CharacterSelect({
 }
 
 const styles = {
-  screen: {
-    position: "fixed",
-    inset: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#08080a",
-    overflow: "hidden",
-  },
-  orb: {
-    position: "absolute",
-    width: "160px",
-    height: "160px",
-    borderRadius: "50%",
-    filter: "blur(50px)",
-    pointerEvents: "none",
-    zIndex: 0,
-  },
-  scanGrid: {
-    position: "absolute",
-    inset: 0,
-    zIndex: 0,
-    backgroundImage:
-      "linear-gradient(rgba(255,215,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,215,0,0.05) 1px, transparent 1px)",
-    backgroundSize: "34px 34px",
-    maskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)",
-    WebkitMaskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)",
-  },
-  card: {
-    position: "relative",
-    zIndex: 2,
-    width: "min(92vw, 400px)",
-    maxHeight: "88vh",
-    overflowY: "auto",
-    padding: "28px 24px",
-    borderRadius: "20px",
-    background: "rgba(18, 16, 12, 0.72)",
-    border: "1px solid rgba(255, 215, 0, 0.35)",
-    boxShadow: "0 0 40px rgba(255, 215, 0, 0.08), inset 0 0 30px rgba(0,0,0,0.4)",
-    backdropFilter: "blur(10px)",
-    textAlign: "center",
-    fontFamily: "'Fredoka', sans-serif",
-    color: "#F5F0E8",
-  },
-  title: {
-    fontFamily: "'Orbitron', sans-serif",
-    fontWeight: 800,
-    fontSize: 20,
-    letterSpacing: 1,
-    color: "#FFD700",
-    margin: "0 0 6px",
-  },
-  subtitle: {
-    fontSize: 12,
-    opacity: 0.75,
-    margin: "0 0 18px",
-  },
-  sizeRow: {
-    display: "flex",
-    gap: 8,
-    marginBottom: 16,
-  },
-  sizeChip: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 2,
-    padding: "10px 6px",
-    borderRadius: 12,
-    border: "1px solid",
-    color: "#F5F0E8",
-    cursor: "pointer",
-  },
-  sizeChipLabel: {
-    fontFamily: "'Orbitron', sans-serif",
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: 0.5,
-  },
-  sizeChipSub: {
-    fontSize: 9,
-    opacity: 0.55,
-    textAlign: "center",
-  },
-  nameInput: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px 14px",
-    marginBottom: 10,
-    borderRadius: 10,
-    border: "1px solid rgba(255,215,0,0.4)",
-    background: "rgba(0,0,0,0.5)",
-    color: "#FFD700",
-    fontFamily: "'Orbitron', monospace",
-    fontSize: 12,
-    letterSpacing: 1,
-    textAlign: "center",
-    outline: "none",
-  },
-  progressLine: {
-    fontFamily: "'Orbitron', monospace",
-    fontSize: 11,
-    letterSpacing: 0.5,
-    opacity: 0.75,
-    marginBottom: 18,
-  },
-  grid: {
-    display: "grid",
-    gap: 12,
-    width: "100%",
-    margin: "0 auto",
-  },
-  slotCard: {
-    position: "relative",
-    borderRadius: 14,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    color: "#fff",
-    overflow: "hidden",
-  },
-  pulseRing: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: 14,
-    border: "2px solid",
-    pointerEvents: "none",
-  },
-  slotLabel: {
-    fontFamily: "'Orbitron', sans-serif",
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: 0.5,
-  },
-  slotStatus: {
-    fontSize: 10,
-    opacity: 0.7,
-    maxWidth: "90%",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  hint: {
-    marginTop: 16,
-    fontSize: 11,
-    opacity: 0.6,
-    textAlign: "center",
-  },
+  screen: { position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#08080a", overflow: "hidden" },
+  orb: { position: "absolute", width: "160px", height: "160px", borderRadius: "50%", filter: "blur(50px)", pointerEvents: "none", zIndex: 0 },
+  scanGrid: { position: "absolute", inset: 0, zIndex: 0, backgroundImage: "linear-gradient(rgba(255,215,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,215,0,0.05) 1px, transparent 1px)", backgroundSize: "34px 34px", maskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)" },
+  card: { position: "relative", zIndex: 2, width: "min(92vw, 400px)", maxHeight: "88vh", overflowY: "auto", padding: "28px 24px", borderRadius: "20px", background: "rgba(18, 16, 12, 0.72)", border: "1px solid rgba(255, 215, 0, 0.35)", boxShadow: "0 0 40px rgba(255, 215, 0, 0.08), inset 0 0 30px rgba(0,0,0,0.4)", backdropFilter: "blur(10px)", textAlign: "center", fontFamily: "'Fredoka', sans-serif", color: "#F5F0E8" },
+  title: { fontFamily: "'Orbitron', sans-serif", fontWeight: 800, fontSize: 20, letterSpacing: 1, color: "#FFD700", margin: "0 0 6px" },
+  subtitle: { fontSize: 12, opacity: 0.75, margin: "0 0 18px" },
+  sizeRow: { display: "flex", gap: 8, marginBottom: 16 },
+  sizeChip: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "10px 6px", borderRadius: 12, border: "1px solid", color: "#F5F0E8", cursor: "pointer" },
+  sizeChipLabel: { fontFamily: "'Orbitron', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 0.5 },
+  sizeChipSub: { fontSize: 9, opacity: 0.55, textAlign: "center" },
+  nameInput: { width: "100%", boxSizing: "border-box", padding: "12px 14px", marginBottom: 10, borderRadius: 10, border: "1px solid rgba(255,215,0,0.4)", background: "rgba(0,0,0,0.5)", color: "#FFD700", fontFamily: "'Orbitron', monospace", fontSize: 12, letterSpacing: 1, textAlign: "center", outline: "none" },
+  errorLine: { fontSize: 11, color: "#ff5c5c", marginBottom: 12, fontFamily: "'Orbitron', monospace" },
+  progressLine: { fontFamily: "'Orbitron', monospace", fontSize: 11, letterSpacing: 0.5, opacity: 0.75, marginBottom: 18 },
+  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, width: "100%", margin: "0 auto" },
+  slotCard: { position: "relative", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, color: "#fff", overflow: "hidden", aspectRatio: "1" },
+  pulseRing: { position: "absolute", inset: 0, borderRadius: 14, border: "2px solid", pointerEvents: "none" },
+  slotLabel: { fontFamily: "'Orbitron', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 },
+  slotStatus: { fontSize: 10, opacity: 0.7, maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  hint: { marginTop: 16, fontSize: 11, opacity: 0.6, textAlign: "center" },
 };
