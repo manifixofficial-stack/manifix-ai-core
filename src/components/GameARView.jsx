@@ -454,7 +454,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
       const armLen = boxW * 0.28;
       const hw = boxW / 2;
       const hh = boxH / 2;
-      ctx.strokeStyle = '#facc15';
+      ctx.strokeStyle = '#FFD700';
       ctx.lineWidth = 2.5 * depthScale;
       ctx.lineCap = 'round';
       const corners = [
@@ -485,7 +485,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
       ctx.fill();
       ctx.restore();
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px monospace';
+      ctx.font = 'bold 10px "Orbitron", monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`${Math.round(distance)}m`, x, y + (side === 'left' ? 26 : 26));
     };
@@ -500,16 +500,16 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
 
       ctx.clearRect(0, 0, width, height);
 
-      const glitch = !!state.cockroachHack;
+      const glitch = !!state.systemGlitch;
 
       if (!glitch) {
         const sweepCycle = 2.6;
         const sweepProgress = (t % sweepCycle) / sweepCycle;
         const sweepY = sweepProgress * height;
         const sweepGrad = ctx.createLinearGradient(0, sweepY - 40, 0, sweepY + 40);
-        sweepGrad.addColorStop(0, 'rgba(250, 204, 21, 0)');
-        sweepGrad.addColorStop(0.5, 'rgba(250, 204, 21, 0.18)');
-        sweepGrad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+        sweepGrad.addColorStop(0, 'rgba(255, 215, 0, 0)');
+        sweepGrad.addColorStop(0.5, 'rgba(255, 215, 0, 0.18)');
+        sweepGrad.addColorStop(1, 'rgba(255, 215, 0, 0)');
         ctx.fillStyle = sweepGrad;
         ctx.fillRect(0, sweepY - 40, width, 80);
       } else {
@@ -548,7 +548,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
             const panic = dist < VEG_PANIC_RADIUS_M;
 
             if (Math.abs(relAngle) > FOV_DEG / 2) {
-              drawEdgeIndicator(relAngle, dist, '#facc15', width, height);
+              drawEdgeIndicator(relAngle, dist, '#FFD700', width, height);
               return;
             }
 
@@ -573,8 +573,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               const hopHeight = (panic ? 6 : 3) * depthScale;
               const hop = Math.abs(Math.sin(t * hopSpeed + idx)) * hopHeight;
               const shiverX = panic ? (Math.random() - 0.5) * 3 * depthScale : 0;
-              // Idle: arms wave up in a friendly "hii" greeting. Panic: arms
-              // pump fast like a sprinting getaway.
               const waveAngle = panic
                 ? Math.sin(t * hopSpeed * 1.5 + idx) * 10 * depthScale
                 : Math.sin(t * 2.2 + idx) * 6 * depthScale;
@@ -612,16 +610,12 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               const squishSpeed = panic ? 10 : 3;
               const squish = panic ? 0.35 : 0.1;
               const s = 1 + Math.sin(t * squishSpeed + idx) * squish;
-              // Idle: both mitten arms raised up beside the head like the
-              // reference art (a permanent "hii!" wave). Panic: arms drop and
-              // pump like a sprint.
               const idleRaise = Math.sin(t * 2.4 + idx) * 3 * depthScale;
               const armSwing = panic ? Math.sin(t * squishSpeed * 1.5 + idx) * 9 * depthScale : 0;
               const armLift = panic ? -4 * depthScale : (14 * depthScale + idleRaise);
 
               drawLegs(vX, vY + 14 * depthScale, 7, depthScale, squishSpeed, idx, panic, t);
 
-              const armY = vY + 2 * depthScale - armLift;
               const handX1 = vX - 14 * depthScale + armSwing;
               const handY1 = vY + 4 * depthScale - armLift;
               const handX2 = vX + 14 * depthScale - armSwing;
@@ -651,7 +645,6 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
               ctx.strokeStyle = '#7a0000';
               ctx.lineWidth = 2.5;
               ctx.stroke();
-              // soft highlight for a glossy cartoon look
               ctx.beginPath();
               ctx.ellipse(-5, -6, 5, 3, -0.5, 0, Math.PI * 2);
               ctx.fillStyle = 'rgba(255,255,255,0.35)';
@@ -712,13 +705,13 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
                 const ringRadius = (15 + ring * 6 + breathe * 8) * depthScale;
                 ctx.beginPath();
                 ctx.arc(vX, vY, ringRadius, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(255, 202, 40, ${0.35 - ring * 0.1})`;
+                ctx.strokeStyle = `rgba(255, 215, 0, ${0.35 - ring * 0.1})`;
                 ctx.lineWidth = 2 * depthScale;
                 ctx.stroke();
               }
               ctx.beginPath();
               ctx.arc(vX, vY, 15 * depthScale, 0, Math.PI * 2);
-              ctx.fillStyle = '#ffca28';
+              ctx.fillStyle = '#FFD700';
               ctx.fill();
               ctx.strokeStyle = '#ffffff';
               ctx.lineWidth = 2.5 * depthScale;
@@ -729,13 +722,13 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
             }
 
             ctx.fillStyle = '#ffffff';
-            ctx.font = `bold ${Math.round(10 * depthScale)}px monospace`;
+            ctx.font = `bold ${Math.round(10 * depthScale)}px "Orbitron", monospace`;
             ctx.textAlign = 'center';
             ctx.fillText(`${Math.round(dist)}m`, vX, vY + 30 * depthScale);
 
             if (huntersNear[veg.id] >= 2) {
-              ctx.fillStyle = '#facc15';
-              ctx.font = `bold ${Math.round(9 * depthScale)}px monospace`;
+              ctx.fillStyle = '#FFD700';
+              ctx.font = `bold ${Math.round(9 * depthScale)}px "Orbitron", monospace`;
               ctx.fillText(`👥 ${huntersNear[veg.id]} HUNTERS CLOSING IN`, vX, vY - 42 * depthScale);
             }
           });
@@ -775,7 +768,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
           ctx.fillText(theme.label, proj.x, proj.y + proj.scale);
 
           ctx.fillStyle = '#ffffff';
-          ctx.font = `bold ${Math.round(10 * proj.scale)}px monospace`;
+          ctx.font = `bold ${Math.round(10 * proj.scale)}px "Orbitron", monospace`;
           ctx.textBaseline = 'alphabetic';
           ctx.fillText(p.name || '', proj.x, proj.y - 24 * proj.scale);
         });
@@ -799,11 +792,11 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
         ctx.arc(scoreboardX + 12, scoreboardY + 11, 6, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 10px monospace';
+        ctx.font = 'bold 10px "Orbitron", monospace';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText((p.name || '').slice(0, 8), scoreboardX + 22, scoreboardY + 11);
-        ctx.fillStyle = '#facc15';
+        ctx.fillStyle = '#FFD700';
         ctx.textAlign = 'right';
         ctx.fillText(String(p.score || 0), scoreboardX + 112, scoreboardY + 11);
         scoreboardY += 26;
@@ -835,7 +828,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
           ctx.lineTo(Math.cos(innerAngle) * size * 0.45, Math.sin(innerAngle) * size * 0.45);
         }
         ctx.closePath();
-        ctx.fillStyle = `rgba(255, 202, 40, ${alpha})`;
+        ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
         ctx.fill();
         ctx.restore();
       }
@@ -868,7 +861,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', backgroundColor: '#000000' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', backgroundColor: '#08080a' }}>
       <video
         ref={videoRef}
         autoPlay
@@ -877,8 +870,8 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
       />
 
-      {gameState.cockroachHack && (
-        <div style={styles.hackBanner}>🚨 SYSTEM DATA CORRUPTION: RADAR DATA BLINDED! ⚡</div>
+      {gameState.systemGlitch && (
+        <div style={styles.glitchBanner}>🚨 SYSTEM DATA CORRUPTION: RADAR DATA BLINDED! ⚡</div>
       )}
 
       {leavingPlayArea && (
@@ -913,7 +906,7 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
       )}
 
       <div style={styles.crosshairWrap}>
-        <div style={{ ...styles.crosshair, borderColor: nearestCatchable ? '#ffc83c' : 'rgba(255,255,255,0.5)' }} />
+        <div style={{ ...styles.crosshair, borderColor: nearestCatchable ? '#FFD700' : 'rgba(255,255,255,0.5)' }} />
       </div>
 
       <button
@@ -929,32 +922,32 @@ function GameARView({ gameState, roomCode, mySlot, geofence }) {
 
 const styles = {
   permissionWrapper: {
-    minHeight: '100vh', backgroundColor: '#080808', color: '#ffffff',
+    minHeight: '100vh', backgroundColor: '#08080a', color: '#F5F0E8',
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    padding: '32px', fontFamily: '"DM Mono", monospace', textAlign: 'center'
+    padding: '32px', fontFamily: "'Fredoka', sans-serif", textAlign: 'center'
   },
-  permissionTitle: { fontFamily: '"Bebas Neue", sans-serif', fontSize: '32px', color: '#ffc83c', letterSpacing: '2px', marginBottom: '16px' },
-  permissionText: { fontSize: '14px', color: '#c8a84b', maxWidth: '320px', marginBottom: '24px', lineHeight: 1.5 },
+  permissionTitle: { fontFamily: "'Orbitron', sans-serif", fontWeight: 800, fontSize: '30px', color: '#FFD700', letterSpacing: '2px', marginBottom: '16px' },
+  permissionText: { fontSize: '14px', color: '#e0c98a', maxWidth: '320px', marginBottom: '24px', lineHeight: 1.5 },
   permissionError: { color: '#ff5c5c', fontSize: '13px', marginBottom: '16px', maxWidth: '320px' },
   permissionButton: {
-    backgroundColor: '#ffc83c', color: '#080808', fontFamily: '"Bebas Neue", sans-serif',
-    fontSize: '18px', letterSpacing: '2px', border: 'none', borderRadius: '8px',
+    background: 'linear-gradient(180deg, #FFD700, #B8860B)', color: '#08080a', fontFamily: "'Orbitron', sans-serif",
+    fontWeight: 700, fontSize: '17px', letterSpacing: '1.5px', border: 'none', borderRadius: '10px',
     padding: '14px 36px', cursor: 'pointer'
   },
-  hackBanner: {
+  glitchBanner: {
     position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)', zIndex: 20,
     background: 'rgba(220,38,38,0.9)', color: 'white', padding: '6px 16px', borderRadius: '6px',
-    fontWeight: 'black', fontSize: '12px'
+    fontWeight: 800, fontFamily: "'Orbitron', sans-serif", fontSize: '11px'
   },
   geofenceBanner: {
     position: 'absolute', top: '56px', left: '50%', transform: 'translateX(-50%)', zIndex: 20,
-    background: 'rgba(255,200,60,0.9)', color: '#080808', padding: '6px 16px', borderRadius: '6px',
-    fontWeight: 'black', fontSize: '12px'
+    background: 'rgba(255,215,0,0.92)', color: '#08080a', padding: '6px 16px', borderRadius: '6px',
+    fontWeight: 800, fontFamily: "'Orbitron', sans-serif", fontSize: '11px'
   },
   toast: {
     position: 'absolute', top: '96px', left: '50%', transform: 'translateX(-50%)', zIndex: 25,
-    background: 'rgba(0,0,0,0.75)', color: '#ffc83c', padding: '8px 18px', borderRadius: '20px',
-    fontSize: '12px', fontFamily: '"DM Mono", monospace'
+    background: 'rgba(8,8,10,0.8)', color: '#FFD700', padding: '8px 18px', borderRadius: '20px',
+    fontSize: '12px', fontFamily: "'Orbitron', monospace", border: '1px solid rgba(255,215,0,0.3)'
   },
   crosshairWrap: {
     position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -963,35 +956,34 @@ const styles = {
   crosshair: { width: '46px', height: '46px', borderRadius: '50%', border: '2px solid', boxSizing: 'border-box' },
   captureButton: {
     position: 'absolute', bottom: '28px', left: '50%', transform: 'translateX(-50%)', zIndex: 40,
-    backgroundColor: '#ffc83c', color: '#080808', fontFamily: '"Bebas Neue", sans-serif',
-    fontSize: '18px', letterSpacing: '1.5px', border: 'none', borderRadius: '32px',
+    background: 'linear-gradient(180deg, #FFD700, #B8860B)', color: '#08080a', fontFamily: "'Orbitron', sans-serif",
+    fontWeight: 700, fontSize: '17px', letterSpacing: '1px', border: 'none', borderRadius: '32px',
     padding: '16px 32px', cursor: 'pointer'
   },
   captureVignette: {
     position: 'absolute', inset: 0, zIndex: 30, display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
-    background: 'radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.85) 72%)',
+    background: 'radial-gradient(circle at center, transparent 0%, rgba(8,8,10,0.9) 72%)',
     transition: 'opacity 0.45s ease', pointerEvents: 'none'
   },
   captureCircle: {
-    width: '185px', height: '185px', borderRadius: '50%', backgroundColor: 'white',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 65px white'
+    width: '185px', height: '185px', borderRadius: '50%', backgroundColor: '#F5F0E8',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 65px #FFD700'
   },
   captureLabel: {
-    fontSize: '38px', fontWeight: '950', marginTop: '20px', color: '#ef4444',
-    WebkitTextStroke: '2px #facc15', textShadow: '2px 2px 0px #000',
-    fontFamily: 'Impact, sans-serif', letterSpacing: '2px'
+    fontSize: '32px', fontWeight: 800, marginTop: '20px', color: '#FFD700',
+    textShadow: '2px 2px 0px #000', fontFamily: "'Orbitron', sans-serif", letterSpacing: '2px'
   },
   captureScoreRow: {
     display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px',
-    background: 'rgba(0,0,0,0.5)', padding: '6px 18px', borderRadius: '20px',
-    border: '1px solid rgba(255,255,255,0.1)'
+    background: 'rgba(8,8,10,0.6)', padding: '6px 18px', borderRadius: '20px',
+    border: '1px solid rgba(255,215,0,0.25)'
   },
   captureAvatar: {
     width: '32px', height: '32px', borderRadius: '50%', display: 'flex',
     alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '12px'
   },
-  captureScoreText: { color: '#facc15', fontWeight: 'bold', fontSize: '22px', fontFamily: 'monospace' }
+  captureScoreText: { color: '#FFD700', fontWeight: 'bold', fontSize: '22px', fontFamily: "'Orbitron', monospace" }
 };
 
 export default GameARView;
