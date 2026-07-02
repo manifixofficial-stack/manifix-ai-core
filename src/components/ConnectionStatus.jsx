@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { socket } from '../socket';
 
 // src/components/ConnectionStatus.jsx — The Veggie GO Radar Network Badge
 //
-// Controlled usage (recommended): pass `phase` down from whatever component
-// called connectToRoom(roomCode, onStateChange) in socket.js — that callback
-// already produces 'syncing' | 'connected' | 'disconnected', so this badge
-// and your actual game logic never disagree about connection state.
+// FIX: this component used to import `socket` from '../socket' (the old
+// Socket.IO file) and fall back to listening on it whenever no `phase`
+// prop was supplied. But App.jsx never actually connects that socket —
+// the app moved to Supabase RPC + a separate tick server a while back —
+// so the badge sat on "disconnected/red" forever even while the game was
+// working fine.
 //
-// Uncontrolled fallback: if no `phase` prop is given, this listens to the
-// raw socket 'connect'/'disconnect' events itself. NOTE: it does NOT assume
-// a 'room-joined' server event — that contract isn't confirmed against
-// backend/server.js yet. Once we review the backend, we can wire a real
-// "actually synced into the room" signal here instead of just raw connect.
+// socket.js is dead code at this point, so rather than patch the fallback
+// to point at yet another listener, ConnectionStatus is now a pure
+// controlled component: it only reads the `phase` prop. App.jsx supplies
+// this from `tickStatus`, which is set by connectTickServer's
+// onStatusChange callback in src/lib/tickClient.js and takes one of:
+// 'idle' | 'syncing' | 'connected' | 'disconnected'.
 //
 // Copy pass: consumer-app cartoon voice, not network-engineer jargon
 // ("SATELLITE SCANNING AREA…" not "SYNCING"). On connect, the badge also
@@ -24,33 +26,14 @@ import { socket } from '../socket';
 // (rgba(18,16,12,0.72), gold-tinted border, backdrop blur), same Orbitron
 // badge typography, and motion handled via framer-motion (not raw CSS
 // @keyframes) so every animated element in the app speaks one language.
-function ConnectionStatus({ roomCode, phase: controlledPhase }) {
-  const [internalPhase, setInternalPhase] = useState(
-    socket.connected ? 'connected' : 'disconnected'
-  );
-
-  useEffect(() => {
-    if (controlledPhase) return; // parent owns state — skip internal listeners
-
-    setInternalPhase(socket.connected ? 'connected' : 'disconnected');
-    const handleConnect = () => setInternalPhase('connected');
-    const handleDisconnect = () => setInternalPhase('disconnected');
-    const handleReconnectAttempt = () => setInternalPhase('syncing');
-
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('reconnect_attempt', handleReconnectAttempt);
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('reconnect_attempt', handleReconnectAttempt);
-    };
-  }, [controlledPhase]);
-
-  const phase = controlledPhase || internalPhase;
-
+function ConnectionStatus({ roomCode, phase }) {
   const PHASE_CONFIG = {
+    idle: {
+      label: 'SATELLITE SCANNING AREA…',
+      sublabel: null,
+      color: '#FFC93C', // amber
+      pulse: 'blink',
+    },
     syncing: {
       label: 'SATELLITE SCANNING AREA…',
       sublabel: null,
@@ -71,7 +54,7 @@ function ConnectionStatus({ roomCode, phase: controlledPhase }) {
     },
   };
 
-  const { label, sublabel, color, pulse } = PHASE_CONFIG[phase] || PHASE_CONFIG.disconnected;
+  const { label, sublabel, color, pulse } = PHASE_CONFIG[phase] || PHASE_CONFIG.idle;
 
   const dotAnimation =
     pulse === 'blink'
