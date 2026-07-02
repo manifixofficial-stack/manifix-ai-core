@@ -5,30 +5,40 @@
 // named-function surface socket.js used to provide, so the migration in
 // each component is a call-site swap rather than a redesign.
 //
-// What changed vs. socket.js, and why:
-//   - No more raw event names to keep in sync between client/server
-//     (that was the exact bug flagged in the old socket.js comments —
-//     'join-room' vs 'join_room' silently breaking joins). Realtime
-//     subscriptions are typed by table + event, not free-text strings.
-//   - Character claim and veggie capture go through Postgres RPC
-//     functions (claim_character, capture_veggie) so the race conditions
-//     that a client-side "check then act" pattern can't prevent are
-//     handled atomically in the DB. See supabase/schema.sql.
-//   - GPS writes are throttled here (distance + time gate) before they
-//     ever hit the network, because unthrottled writes on every
-//     watchPosition tick will blow through Realtime message quota in
-//     hours on the free tier.
+// ---------------------------------------------------------------------------
+// FIX (this version): claimCharacter() and captureVeggie() were calling
+// their RPCs with fewer arguments than the Postgres functions in
+// supabase/schema.sql require, which means PostgREST rejects both calls
+// outright (no matching function overload) — character claiming and
+// vegetable capture fail every time as originally written.
+//
+//   claim_character(p_id, p_lat, p_lng, p_name, p_room_code, p_slot_id)
+//     — was only sending p_room_code, p_slot_id, p_name.
+//   capture_veggie(p_player_id, p_veggie_id, p_player_lat, p_player_lng)
+//     — was only sending p_veggie_id, p_player_id.
+//
+// Since gameClient.js holds no state of its own, both functions below now
+// take playerId/lat/lng as explicit parameters instead of guessing where
+// your component keeps them. You'll need to update the two call sites:
+//
+//   claimCharacter(roomCode, slotId, name)
+//     -> claimCharacter(roomCode, slotId, name, playerId, lat, lng)
+//
+//   captureVeggie(veggieId, playerId)
+//     -> captureVeggie(veggieId, playerId, lat, lng)
+//
+// playerId is whatever join_room()'s response returned as `player_id` —
+// make sure that's the value being threaded through, not a socket id or
+// slot_id. lat/lng should be the player's current live GPS position at
+// the moment of the claim/capture (same source you feed into
+// makeThrottledLocationWriter).
+// ---------------------------------------------------------------------------
 import { supabase } from './supabase';
 
 // ---------------------------------------------------------------------------
 // Room lifecycle
 // ---------------------------------------------------------------------------
 
-// Creates the room if it doesn't exist yet (first player), otherwise just
-// confirms it's there. Mirrors socket.js's old 'join-room' emit + the
-// server's now-removed lat/lng-required check — this RPC accepts lat/lng
-// unconditionally since Postgres doesn't need it for anything but seeding
-// center_lat/center_lng on first insert.
 export async function joinRoom(roomCode, lat, lng) {
   const { data, error } = await supabase.rpc('join_room', {
     p_room_code: roomCode,
@@ -36,12 +46,9 @@ export async function joinRoom(roomCode, lat, lng) {
     p_lng: lng,
   });
   if (error) throw error;
-  return data; // game_rooms row
+  return data; // { status, success, player_id, room_code, name }
 }
 
-// Fetches the current taken-slots map once, e.g. right after joining a room
-// and before the realtime subscription below is wired up, so the UI isn't
-// empty for the first render.
 export async function fetchTakenCharacters(roomCode) {
   const { data, error } = await supabase
     .from('player_scores')
@@ -56,17 +63,21 @@ export async function fetchTakenCharacters(roomCode) {
   return taken;
 }
 
-// Atomic color claim. Returns { success, player_id, slot_id, name } or
-// { success: false, reason: 'slot_taken' } — the client never has to guess
-// whether an insert failure means "someone beat you to it" vs. a real error.
-export async function claimCharacter(roomCode, slotId, name) {
+// FIXED: now sends all six params claim_character() requires. playerId
+// must be the `player_id` returned by joinRoom(); lat/lng should be the
+// player's current position (the same values you'd hand to
+// makeThrottledLocationWriter).
+export async function claimCharacter(roomCode, slotId, name, playerId, lat, lng) {
   const { data, error } = await supabase.rpc('claim_character', {
+    p_id: playerId,
+    p_lat: lat,
+    p_lng: lng,
+    p_name: name,
     p_room_code: roomCode,
     p_slot_id: slotId,
-    p_name: name,
   });
   if (error) throw error;
-  return data;
+  return data; // { status, success, player_id, slot_id, room_code, name } or { success:false, message }
 }
 
 // ---------------------------------------------------------------------------
@@ -91,17 +102,19 @@ export async function fetchVeggies(roomCode) {
   return data || [];
 }
 
-// Atomic capture. Returns { success:false, reason:'already_gone' } if
-// another player's swipe landed first in the same tick — the DB is the
-// source of truth, not a client-side "is this veggie still in my array"
-// check, which is what made the old design double-award possible.
-export async function captureVeggie(veggieId, playerId) {
+// FIXED: now sends p_player_lat/p_player_lng, which capture_veggie() needs
+// to run its server-side haversine anti-cheat proximity check (25m
+// radius). Without these the RPC call fails outright — it isn't optional
+// data, the function has no default for them.
+export async function captureVeggie(veggieId, playerId, lat, lng) {
   const { data, error } = await supabase.rpc('capture_veggie', {
-    p_veggie_id: veggieId,
     p_player_id: playerId,
+    p_veggie_id: veggieId,
+    p_player_lat: lat,
+    p_player_lng: lng,
   });
   if (error) throw error;
-  return data;
+  return data; // { success:true, points_gained, updated_score } or { success:false, message }
 }
 
 // Raw location write — call via makeThrottledLocationWriter() below rather
@@ -115,10 +128,6 @@ export async function updateLocation(playerId, lat, lng) {
   if (error) throw error;
 }
 
-// Returns a function you call on every raw GPS fix; it only actually hits
-// the network if enough time AND enough distance have passed. Distance
-// check uses a cheap haversine (good enough at foot-traffic scale — this
-// doesn't need to be precise, just needs to not fire on GPS jitter).
 const EARTH_RADIUS_M = 6371000;
 function metersBetween(a, b) {
   if (!a || !b) return Infinity;
@@ -158,10 +167,6 @@ export function makeThrottledLocationWriter(playerId, { minIntervalMs = 3000, mi
 
 // ---------------------------------------------------------------------------
 // Realtime subscriptions
-//
-// One channel per room, fanning out postgres_changes on the three tables.
-// Call subscribeToRoom once after joining; call the returned unsubscribe()
-// on unmount/room-leave.
 // ---------------------------------------------------------------------------
 export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayerChange, onVeggieChange } = {}) {
   const channel = supabase
