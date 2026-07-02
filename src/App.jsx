@@ -4,7 +4,7 @@ import { socket } from './socket';
 import RoomJoin from './components/RoomJoin';
 import CharacterSelect from './components/CharacterSelect';
 import ConnectionStatus from './components/ConnectionStatus';
-import GameARView from './components/GameARView';
+import GameARView from './components/GameCanva';
 import Scoreboard from './components/Scoreboard';
 
 const SLOT_COLORS = {
@@ -185,6 +185,7 @@ function App() {
               roomCode={roomCode}
               mySlot={mySlot}
               geofence={gameState.geofence}
+              inputLocked={inputLocked}
             />
             <Scoreboard players={gameState.players} mySlot={mySlot} />
           </div>
