@@ -1,22 +1,17 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // src/components/CharacterSelect.jsx — Stage 2: Squad Up
 //
-// Still a dumb/presentational component: only claims a color slot and
-// hands off to App.jsx via onLock(slotId, name). App.jsx + server.js keep
-// owning match-start logic.
+// UPDATED for Supabase: this component never talks to Supabase directly —
+// App.jsx owns the claimCharacter() RPC call and passes the outcome back
+// down via `lockResult`. That's the one behavior change from the Socket.io
+// version: because claim_character is now atomic at the DB level (unique
+// constraint on room_code+slot_id), a claim can genuinely fail if someone
+// else's insert won the race in the same instant. `lockResult` lets this
+// component un-stick the "locking in…" state instead of hanging forever.
 //
-// Visual shell (ambient orbs, scanline grid, glass gold-bordered card) is
-// now shared 1:1 with RoomJoin.jsx so Stage 1 -> Stage 2 reads as one
-// continuous interface instead of two different apps stitched together.
-//
-// KNOWN GAP (still true, still flagged): App.jsx only flips to Stage 3
-// once ALL 4 slots in `taken` are filled — there's no lobby-size concept
-// on the server yet. The Solo/Duo/Squad picker below is fully functional
-// UI and calls `onLobbySizeChange`, ready to drive real logic, but until
-// App.jsx's `allFilled` check and server.js both understand lobby size,
-// picking Solo or Duo will leave the game waiting on slots nobody fills.
+// lockResult shape: { slotId: string, success: boolean } | null
 const SLOT_COLORS = ["#3a86ff", "#8338ec", "#ff006e", "#fb5607"];
 
 const ALL_SLOTS = [
@@ -32,9 +27,15 @@ const LOBBY_SIZES = [
   { size: 4, label: "SQUAD", sub: "full 4-player chaos", icon: "🔥" },
 ];
 
-export default function CharacterSelect({ takenChars = {}, onLock = () => {}, onLobbySizeChange }) {
+export default function CharacterSelect({
+  takenChars = {},
+  onLock = () => {},
+  onLobbySizeChange,
+  lockResult = null,
+}) {
   const [name, setName] = useState("");
   const [pending, setPending] = useState(null);
+  const [slotTakenError, setSlotTakenError] = useState(null);
   const [lobbySize, setLobbySize] = useState(4);
 
   const reduceMotion = useMemo(
@@ -44,6 +45,24 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
 
   const activeSlots = useMemo(() => ALL_SLOTS.slice(0, lobbySize), [lobbySize]);
   const filledCount = activeSlots.filter((s) => takenChars[s.id]).length;
+
+  // React to the claim result coming back from App.jsx's atomic RPC call.
+  useEffect(() => {
+    if (!lockResult) return;
+    if (lockResult.slotId !== pending) return;
+
+    if (lockResult.success) {
+      // takenChars will update via the realtime subscription momentarily;
+      // just clear the local "pending" spinner state.
+      setPending(null);
+    } else {
+      // Someone else's claim landed first — release the slot back to the
+      // grid instead of leaving it stuck on "locking in…" forever.
+      setPending(null);
+      setSlotTakenError(lockResult.slotId);
+      setTimeout(() => setSlotTakenError(null), 2000);
+    }
+  }, [lockResult, pending]);
 
   const changeLobbySize = (size) => {
     if (pending) return; // don't let the size shift mid-claim
@@ -143,6 +162,7 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
             {activeSlots.map((slot) => {
               const takenBy = takenChars[slot.id];
               const isPending = pending === slot.id;
+              const justFailed = slotTakenError === slot.id;
               const disabled = Boolean(takenBy) || Boolean(pending);
 
               return (
@@ -159,7 +179,7 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
                   style={{
                     ...styles.slotCard,
                     aspectRatio: "1",
-                    border: `2px solid ${slot.color}`,
+                    border: `2px solid ${justFailed ? "#ff5c5c" : slot.color}`,
                     background: takenBy
                       ? `${slot.color}22`
                       : isPending
@@ -181,7 +201,13 @@ export default function CharacterSelect({ takenChars = {}, onLock = () => {}, on
                   <span style={{ fontSize: 28 }}>{slot.icon}</span>
                   <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.id}</span>
                   <span style={styles.slotStatus}>
-                    {takenBy ? takenBy : isPending ? "locking in…" : `open · ${slot.vibe}`}
+                    {justFailed
+                      ? "just taken!"
+                      : takenBy
+                      ? takenBy
+                      : isPending
+                      ? "locking in…"
+                      : `open · ${slot.vibe}`}
                   </span>
                 </motion.button>
               );
