@@ -1,11 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { socket } from './socket';
 import RoomJoin from './components/RoomJoin';
 import CharacterSelect from './components/CharacterSelect';
 import ConnectionStatus from './components/ConnectionStatus';
 import GameARView from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
+import {
+  joinRoom,
+  fetchTakenCharacters,
+  claimCharacter,
+  fetchPlayers,
+  subscribeToRoom,
+} from './lib/gameClient';
 
 const SLOT_COLORS = {
   BLUE: '#3a86ff',
@@ -14,108 +20,148 @@ const SLOT_COLORS = {
   ORANGE: '#fb5607'
 };
 
-// Match phases within Stage 3 (the arena). These ride on top of `stage`
-// so App.jsx stays the single router for the whole app, per spec.
 const MATCH_PHASE = {
-  COUNTDOWN: 'COUNTDOWN', // 3-2-1 glass shield, thumbs locked
-  ACTIVE: 'ACTIVE',       // GO! fired, joysticks live
-  ENDED: 'ENDED'          // victory shield / instant replay
+  COUNTDOWN: 'COUNTDOWN',
+  ACTIVE: 'ACTIVE',
+  ENDED: 'ENDED'
 };
+
+// How long a round runs once GO! fires. There's no server tick engine
+// anymore (see note below), so this is enforced client-side per phone.
+const ROUND_DURATION_MS = 3 * 60 * 1000;
 
 function App() {
   const [stage, setStage] = useState(1); // 1: Room Entry, 2: Slot Claim, 3: Match Arena
   const [roomCode, setRoomCode] = useState('');
   const [takenChars, setTakenChars] = useState({ BLUE: null, PURPLE: null, PINK: null, ORANGE: null });
-  const [gameState, setGameState] = useState({ players: {}, vegetables: [], cockroachHack: false, geofence: null });
+  const [players, setPlayers] = useState([]); // raw player_scores rows for the room
   const [mySlot, setMySlot] = useState(null);
+  const [myPlayerId, setMyPlayerId] = useState(null); // player_scores.id (uuid) — replaces socket.id
   const [errorMessage, setErrorMessage] = useState('');
-  const [joining, setJoining] = useState(false); // true while awaiting GPS fix + server ack
+  const [joining, setJoining] = useState(false);
+  const [lockResult, setLockResult] = useState(null); // { slotId, success } — see CharacterSelect.jsx
 
   // ── Match phase / countdown / victory state ─────────────────────────
-  const [matchPhase, setMatchPhase] = useState(null); // null until 4th slot secures
-  const [countdownTick, setCountdownTick] = useState(3); // 3, 2, 1
+  const [matchPhase, setMatchPhase] = useState(null);
+  const [countdownTick, setCountdownTick] = useState(3);
   const [showGoBurst, setShowGoBurst] = useState(false);
-  const [victoryData, setVictoryData] = useState(null); // { winnerName, winnerColor, results: [...] }
+  const [victoryData, setVictoryData] = useState(null);
+  const [currentLeaderName, setCurrentLeaderName] = useState(null);
   const goAudioRef = useRef(null);
+  const roundTimerRef = useRef(null);
+  const countdownStartedRef = useRef(false); // guards against re-triggering the countdown on every realtime tick
+
+  // -------------------------------------------------------------------
+  // Realtime subscription for the room: player_scores changes drive the
+  // taken-slots map + the all-filled -> countdown trigger; game_rooms
+  // UPDATE drives the golden-crown leader flash (RoomJoin's old
+  // 'current_leader_name' listener, now sourced straight from the DB
+  // column that capture_veggie's refresh_leader() keeps in sync).
+  // -------------------------------------------------------------------
+  useEffect(() => {
+    if (!roomCode || stage < 2) return undefined;
+
+    const unsubscribe = subscribeToRoom(roomCode, {
+      onRoomUpdate: (room) => {
+        if (room.current_leader_name && room.current_leader_name !== currentLeaderName) {
+          setCurrentLeaderName(room.current_leader_name);
+          // Golden crown celebration — same trigger point RoomJoin.jsx's
+          // Realtime listener described in the original spec.
+        }
+      },
+      onPlayerChange: () => {
+        // Any insert/update/delete on player_scores — just refetch the
+        // room's players rather than hand-patching, since the derived
+        // "taken" map and "all filled" check both need the full set.
+        fetchPlayers(roomCode)
+          .then((rows) => {
+            setPlayers(rows);
+            const taken = { BLUE: null, PURPLE: null, PINK: null, ORANGE: null };
+            rows.forEach((r) => { taken[r.slot_id] = r.name; });
+            setTakenChars(taken);
+
+            const filledCount = Object.values(taken).filter(Boolean).length;
+            if (filledCount >= 4 && !countdownStartedRef.current) {
+              countdownStartedRef.current = true;
+              setStage(3);
+              beginLocalCountdown();
+            }
+          })
+          .catch((err) => console.error('[App] player refetch failed', err));
+      },
+    });
+
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode, stage]);
+
+  // -------------------------------------------------------------------
+  // Local match-phase orchestration.
+  //
+  // IMPORTANT GAP vs. the old Socket.io server: backend/server.js used to
+  // be the single authority driving 3-2-1 -> GO! -> round-timer -> ENDED
+  // for every connected phone in lockstep. Supabase Realtime is passive —
+  // it broadcasts DB changes, it doesn't run a clock. Each phone now runs
+  // its own countdown/round timer locally instead. For a casual
+  // same-room party game the drift is a beat or two, not something
+  // players will fight you about — but it is NOT server-authoritative.
+  // If you need real sync later, drive match_phase/countdown_tick from a
+  // Supabase Edge Function on a cron schedule and have clients just
+  // *read* game_rooms instead of computing their own timer.
+  // -------------------------------------------------------------------
+  const beginLocalCountdown = useCallback(() => {
+    setMatchPhase(MATCH_PHASE.COUNTDOWN);
+    setCountdownTick(3);
+
+    let tick = 3;
+    const interval = setInterval(() => {
+      tick -= 1;
+      if (tick <= 0) {
+        clearInterval(interval);
+        setMatchPhase(MATCH_PHASE.ACTIVE);
+        setShowGoBurst(true);
+        goAudioRef.current?.play().catch(() => {});
+        setTimeout(() => setShowGoBurst(false), 650);
+
+        roundTimerRef.current = setTimeout(() => {
+          endRoundLocally();
+        }, ROUND_DURATION_MS);
+      } else {
+        setCountdownTick(tick);
+      }
+    }, 1000);
+  }, []);
+
+  const endRoundLocally = useCallback(() => {
+    setPlayers((currentPlayers) => {
+      const results = [...currentPlayers]
+        .sort((a, b) => b.score - a.score)
+        .map((p) => ({ name: p.name, score: p.score, color: SLOT_COLORS[p.slot_id] }));
+      const winner = results[0];
+      setVictoryData({
+        winnerName: winner?.name || 'WINNER',
+        winnerColor: winner?.color || '#ffd60a',
+        results,
+      });
+      setMatchPhase(MATCH_PHASE.ENDED);
+      return currentPlayers;
+    });
+  }, []);
 
   useEffect(() => {
-    // Named handlers so cleanup only removes THIS component's listeners
-    const handleRoomJoined = (data) => {
-      setJoining(false);
-      setRoomCode(data.room);
-      setStage(2);
-      socket.emit('request-characters');
-    };
-    const handleRoomError = (data) => {
-      setJoining(false);
-      setErrorMessage(data.message);
-    };
-    const handleCharactersUpdate = (data) => {
-      setTakenChars(data.taken);
-      // Deploy the countdown shield the instant all 4 slots lock in.
-      const allFilled = Object.values(data.taken).every(Boolean);
-      if (allFilled) {
-        setStage(3);
-        setMatchPhase(MATCH_PHASE.COUNTDOWN);
-        setCountdownTick(3);
-      }
-    };
-    // Correctly reads the server handshake block object response
-    const handleGameJoined = (data) => {
-      setMySlot(data.character);
-      setStage(3);
-    };
-    const handleGameState = (state) => {
-      setGameState(state);
-    };
-
-    // Server-driven countdown ticks: { tick: 3 | 2 | 1 }
-    const handleMatchCountdown = (data) => {
-      setMatchPhase(MATCH_PHASE.COUNTDOWN);
-      setCountdownTick(data.tick);
-    };
-
-    // Server fires this the instant the clock hits zero
-    const handleMatchGo = () => {
-      setMatchPhase(MATCH_PHASE.ACTIVE);
-      setShowGoBurst(true);
-      goAudioRef.current?.play().catch(() => {});
-      // Let the emerald shockwave graphic play out, then clear it
-      setTimeout(() => setShowGoBurst(false), 650);
-    };
-
-    // Server fires this when the round timer hits 0s: { winnerName, winnerColor, results }
-    const handleMatchEnded = (data) => {
-      setMatchPhase(MATCH_PHASE.ENDED);
-      setVictoryData(data);
-    };
-
-    socket.on('room-joined', handleRoomJoined);
-    socket.on('room-error', handleRoomError);
-    socket.on('characters-update', handleCharactersUpdate);
-    socket.on('game-joined', handleGameJoined);
-    socket.on('game-state', handleGameState);
-    socket.on('match-countdown', handleMatchCountdown);
-    socket.on('match-go', handleMatchGo);
-    socket.on('match-ended', handleMatchEnded);
-
     return () => {
-      socket.off('room-joined', handleRoomJoined);
-      socket.off('room-error', handleRoomError);
-      socket.off('characters-update', handleCharactersUpdate);
-      socket.off('game-joined', handleGameJoined);
-      socket.off('game-state', handleGameState);
-      socket.off('match-countdown', handleMatchCountdown);
-      socket.off('match-go', handleMatchGo);
-      socket.off('match-ended', handleMatchEnded);
+      if (roundTimerRef.current) clearTimeout(roundTimerRef.current);
     };
   }, []);
 
-  // FIXED: the server's join-room handler requires real lat/lng to center the
-  // outdoor geofence (see server.js). We now grab a GPS fix BEFORE emitting,
-  // instead of sending { room: code } alone and hitting the server's
-  // "Location permission is required..." rejection every time.
-  const handleJoinRoom = (code) => {
+  // -------------------------------------------------------------------
+  // Room join — replaces the old socket 'join-room' emit. Gets a GPS fix
+  // first (join_room seeds game_rooms.center_lat/lng from it), then hits
+  // the RPC. join_room is idempotent (insert ... on conflict do nothing)
+  // so this works the same whether you're creating the room or joining
+  // one a teammate already opened.
+  // -------------------------------------------------------------------
+  const handleJoinRoom = async (code) => {
     setErrorMessage('');
 
     if (!navigator.geolocation) {
@@ -124,17 +170,23 @@ function App() {
     }
 
     setJoining(true);
-    if (!socket.connected) socket.connect();
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        socket.emit('join-room', {
-          room: code,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        });
+      async (pos) => {
+        try {
+          await joinRoom(code, pos.coords.latitude, pos.coords.longitude);
+          const taken = await fetchTakenCharacters(code);
+          setTakenChars(taken);
+          setRoomCode(code.toUpperCase());
+          setJoining(false);
+          setStage(2);
+        } catch (err) {
+          console.error('[App] joinRoom failed', err);
+          setJoining(false);
+          setErrorMessage('Could not reach the game server. Check your connection and try again.');
+        }
       },
-      (err) => {
+      () => {
         setJoining(false);
         setErrorMessage('Location permission is required to create or join this outdoor room.');
       },
@@ -142,25 +194,46 @@ function App() {
     );
   };
 
-  const handleLockCharacter = (slotId, claimedName) => {
+  // -------------------------------------------------------------------
+  // Character claim — replaces the old 'join-game' emit. Uses the atomic
+  // claim_character RPC (see supabase/schema.sql); lockResult is handed
+  // to CharacterSelect.jsx so it can un-stick a losing claim instead of
+  // spinning forever.
+  // -------------------------------------------------------------------
+  const handleLockCharacter = async (slotId, claimedName) => {
     setErrorMessage('');
-    socket.emit('join-game', { character: slotId, name: claimedName });
+    try {
+      const result = await claimCharacter(roomCode, slotId, claimedName);
+      setLockResult({ slotId, success: result.success });
+      if (result.success) {
+        setMySlot(result.slot_id);
+        setMyPlayerId(result.player_id);
+      }
+    } catch (err) {
+      console.error('[App] claimCharacter failed', err);
+      setLockResult({ slotId, success: false });
+      setErrorMessage('Could not claim that slot — try again.');
+    }
   };
 
   const handleInstantReplay = () => {
     setVictoryData(null);
-    setMatchPhase(MATCH_PHASE.COUNTDOWN);
-    setCountdownTick(3);
-    socket.emit('request-replay', { room: roomCode });
+    countdownStartedRef.current = false;
+    // Simplest reset for a demo: reload into the same room. A "real" replay
+    // (reset scores, respawn veggies, keep the same 4 players) would need
+    // its own RPC — flagging as a follow-up rather than guessing at scope.
+    window.location.reload();
   };
 
-  // ✅ FIXED LOOKUP ENGINE: Searches your active socket list map rows correctly!
   const myColor = mySlot ? SLOT_COLORS[mySlot] : '#ffffff';
-  const localPlayerObject = Object.values(gameState.players).find(p => p.character === mySlot);
-  const myName = localPlayerObject ? localPlayerObject.name : mySlot;
+  const myPlayerRow = players.find((p) => p.id === myPlayerId);
+  const myName = myPlayerRow ? myPlayerRow.name : mySlot;
 
-  // Joysticks/input only live once GO! has fired and the round hasn't ended
   const inputLocked = matchPhase !== MATCH_PHASE.ACTIVE;
+
+  const playersMap = Object.fromEntries(
+    players.map((p) => [p.slot_id, { name: p.name, score: p.score, character: p.slot_id }])
+  );
 
   return (
     <div className="app-container">
@@ -168,7 +241,9 @@ function App() {
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
       {stage === 1 && <RoomJoin onJoin={handleJoinRoom} error={errorMessage} connecting={joining} />}
-      {stage === 2 && <CharacterSelect takenChars={takenChars} onLock={handleLockCharacter} />}
+      {stage === 2 && (
+        <CharacterSelect takenChars={takenChars} onLock={handleLockCharacter} lockResult={lockResult} />
+      )}
 
       {stage === 3 && (
         <div className="arena-wrapper">
@@ -181,13 +256,12 @@ function App() {
           </div>
           <div className="arena-grid">
             <GameARView
-              gameState={gameState}
               roomCode={roomCode}
-              mySlot={mySlot}
-              geofence={gameState.geofence}
-              inputLocked={inputLocked}
+              nickname={myName}
+              playerId={myPlayerId}
+              onExit={() => setStage(2)}
             />
-            <Scoreboard players={gameState.players} mySlot={mySlot} />
+            <Scoreboard players={playersMap} mySlot={mySlot} />
           </div>
         </div>
       )}
@@ -221,7 +295,6 @@ function App() {
                 transition={{ duration: 0.5, ease: 'easeOut' }}
                 style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                {/* Halo pulse rings */}
                 {[0, 1, 2].map((i) => (
                   <motion.div
                     key={i}
@@ -303,7 +376,6 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Low bass arcade thump — drop a BOOM.mp3 asset in /public/audio/ */}
       <audio ref={goAudioRef} src="/audio/go-boom.mp3" preload="auto" />
 
       {/* ── Concluded Victory Shield ─────────────────────────────────── */}
