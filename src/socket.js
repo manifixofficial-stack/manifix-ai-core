@@ -64,9 +64,9 @@ export const EVENTS = {
 };
 
 // Connection state machine matching the ConnectionStatus.jsx badge:
-//   'syncing'      -> amber pulsing dot   (SYNCING TO ROOM...)
-//   'connected'    -> green glowing dot   (LIVE HANDSHAKE ACCELERATED)
-//   'disconnected' -> red blinking dot    (CONNECTION LOST — RETRYING)
+//   'syncing'      -> amber pulsing dot   (SATELLITE SCANNING AREA...)
+//   'connected'    -> green glowing dot   (VEGGIE NETWORK ACTIVE)
+//   'disconnected' -> red blinking dot    (NETWORK CRASHED — RECONNECTING)
 //
 // `location` is required on the *first* join for a brand-new room code —
 // server.js's join-room handler rejects room creation without a starting
