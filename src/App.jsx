@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import RoomJoin from './components/RoomJoin';
 import CharacterSelect from './components/CharacterSelect';
@@ -12,6 +12,7 @@ import {
   fetchPlayers,
   subscribeToRoom,
 } from './lib/gameClient';
+import { connectTickServer } from './lib/tickClient';
 
 const SLOT_COLORS = {
   BLUE: '#3a86ff',
@@ -26,10 +27,6 @@ const MATCH_PHASE = {
   ENDED: 'ENDED'
 };
 
-// How long a round runs once GO! fires. There's no server tick engine
-// anymore (see note below), so this is enforced client-side per phone.
-const ROUND_DURATION_MS = 3 * 60 * 1000;
-
 function App() {
   const [stage, setStage] = useState(1); // 1: Room Entry, 2: Slot Claim, 3: Match Arena
   const [roomCode, setRoomCode] = useState('');
@@ -42,21 +39,27 @@ function App() {
   const [lockResult, setLockResult] = useState(null); // { slotId, success } — see CharacterSelect.jsx
 
   // ── Match phase / countdown / victory state ─────────────────────────
+  // These now only ever change in response to tickClient events — App.jsx
+  // no longer runs its own setInterval/setTimeout for any of this. The
+  // tick server (backend/tickserver.js) is the single clock authority;
+  // every phone in the room reacts to the same broadcast instead of
+  // computing its own timer.
   const [matchPhase, setMatchPhase] = useState(null);
   const [countdownTick, setCountdownTick] = useState(3);
   const [showGoBurst, setShowGoBurst] = useState(false);
   const [victoryData, setVictoryData] = useState(null);
   const [currentLeaderName, setCurrentLeaderName] = useState(null);
+  const [tickStatus, setTickStatus] = useState('idle'); // connecting | connected | reconnecting | disconnected
   const goAudioRef = useRef(null);
-  const roundTimerRef = useRef(null);
-  const countdownStartedRef = useRef(false); // guards against re-triggering the countdown on every realtime tick
+  const tickConnectionRef = useRef(null);
 
   // -------------------------------------------------------------------
-  // Realtime subscription for the room: player_scores changes drive the
-  // taken-slots map + the all-filled -> countdown trigger; game_rooms
-  // UPDATE drives the golden-crown leader flash (RoomJoin's old
-  // 'current_leader_name' listener, now sourced straight from the DB
-  // column that capture_veggie's refresh_leader() keeps in sync).
+  // Realtime subscription for the room: player_scores changes still drive
+  // the taken-slots map and the scoreboard, but no longer decide when the
+  // countdown starts — that call belongs to the tick server now, which is
+  // watching Supabase independently and broadcasting to every phone at
+  // once instead of each phone deciding "4 filled" on its own and racing
+  // to start a local timer.
   // -------------------------------------------------------------------
   useEffect(() => {
     if (!roomCode || stage < 2) return undefined;
@@ -65,27 +68,16 @@ function App() {
       onRoomUpdate: (room) => {
         if (room.current_leader_name && room.current_leader_name !== currentLeaderName) {
           setCurrentLeaderName(room.current_leader_name);
-          // Golden crown celebration — same trigger point RoomJoin.jsx's
-          // Realtime listener described in the original spec.
+          // Golden crown celebration trigger point.
         }
       },
       onPlayerChange: () => {
-        // Any insert/update/delete on player_scores — just refetch the
-        // room's players rather than hand-patching, since the derived
-        // "taken" map and "all filled" check both need the full set.
         fetchPlayers(roomCode)
           .then((rows) => {
             setPlayers(rows);
             const taken = { BLUE: null, PURPLE: null, PINK: null, ORANGE: null };
             rows.forEach((r) => { taken[r.slot_id] = r.name; });
             setTakenChars(taken);
-
-            const filledCount = Object.values(taken).filter(Boolean).length;
-            if (filledCount >= 4 && !countdownStartedRef.current) {
-              countdownStartedRef.current = true;
-              setStage(3);
-              beginLocalCountdown();
-            }
           })
           .catch((err) => console.error('[App] player refetch failed', err));
       },
@@ -96,63 +88,55 @@ function App() {
   }, [roomCode, stage]);
 
   // -------------------------------------------------------------------
-  // Local match-phase orchestration.
+  // Tick server connection — the clock. Connects as soon as we have a
+  // roomCode (i.e. right after stage 2 begins) so it's already listening
+  // by the time the 4th slot gets claimed; no need to wait for stage 3.
   //
-  // IMPORTANT GAP vs. the old Socket.io server: backend/server.js used to
-  // be the single authority driving 3-2-1 -> GO! -> round-timer -> ENDED
-  // for every connected phone in lockstep. Supabase Realtime is passive —
-  // it broadcasts DB changes, it doesn't run a clock. Each phone now runs
-  // its own countdown/round timer locally instead. For a casual
-  // same-room party game the drift is a beat or two, not something
-  // players will fight you about — but it is NOT server-authoritative.
-  // If you need real sync later, drive match_phase/countdown_tick from a
-  // Supabase Edge Function on a cron schedule and have clients just
-  // *read* game_rooms instead of computing their own timer.
+  // onTick fires as soon as the server starts counting, which is also our
+  // cue to jump to the arena view — this replaces the old
+  // "filledCount >= 4 -> setStage(3)" check that used to live in the
+  // player-change handler above.
   // -------------------------------------------------------------------
-  const beginLocalCountdown = useCallback(() => {
-    setMatchPhase(MATCH_PHASE.COUNTDOWN);
-    setCountdownTick(3);
+  useEffect(() => {
+    if (!roomCode) return undefined;
 
-    let tick = 3;
-    const interval = setInterval(() => {
-      tick -= 1;
-      if (tick <= 0) {
-        clearInterval(interval);
+    tickConnectionRef.current = connectTickServer(roomCode, {
+      onStatusChange: setTickStatus,
+
+      onTick: (n) => {
+        setStage(3);
+        setMatchPhase(MATCH_PHASE.COUNTDOWN);
+        setCountdownTick(n);
+      },
+
+      onGo: () => {
         setMatchPhase(MATCH_PHASE.ACTIVE);
         setShowGoBurst(true);
         goAudioRef.current?.play().catch(() => {});
         setTimeout(() => setShowGoBurst(false), 650);
+      },
 
-        roundTimerRef.current = setTimeout(() => {
-          endRoundLocally();
-        }, ROUND_DURATION_MS);
-      } else {
-        setCountdownTick(tick);
-      }
-    }, 1000);
-  }, []);
-
-  const endRoundLocally = useCallback(() => {
-    setPlayers((currentPlayers) => {
-      const results = [...currentPlayers]
-        .sort((a, b) => b.score - a.score)
-        .map((p) => ({ name: p.name, score: p.score, color: SLOT_COLORS[p.slot_id] }));
-      const winner = results[0];
-      setVictoryData({
-        winnerName: winner?.name || 'WINNER',
-        winnerColor: winner?.color || '#ffd60a',
-        results,
-      });
-      setMatchPhase(MATCH_PHASE.ENDED);
-      return currentPlayers;
+      onRoundEnd: (results) => {
+        const mapped = (results || []).map((r) => ({
+          name: r.name,
+          score: r.score,
+          color: SLOT_COLORS[r.slot_id] || '#ffd60a',
+        }));
+        const winner = mapped[0];
+        setVictoryData({
+          winnerName: winner?.name || 'WINNER',
+          winnerColor: winner?.color || '#ffd60a',
+          results: mapped,
+        });
+        setMatchPhase(MATCH_PHASE.ENDED);
+      },
     });
-  }, []);
 
-  useEffect(() => {
     return () => {
-      if (roundTimerRef.current) clearTimeout(roundTimerRef.current);
+      tickConnectionRef.current?.disconnect();
+      tickConnectionRef.current = null;
     };
-  }, []);
+  }, [roomCode]);
 
   // -------------------------------------------------------------------
   // Room join — replaces the old socket 'join-room' emit. Gets a GPS fix
@@ -218,10 +202,11 @@ function App() {
 
   const handleInstantReplay = () => {
     setVictoryData(null);
-    countdownStartedRef.current = false;
-    // Simplest reset for a demo: reload into the same room. A "real" replay
-    // (reset scores, respawn veggies, keep the same 4 players) would need
-    // its own RPC — flagging as a follow-up rather than guessing at scope.
+    // Still a hard reload for now — see MIGRATION_NOTES.md gap #3. The
+    // tick server resets its own per-room state to 'idle' after
+    // round-end, so a fresh 4-slot fill in this room code would
+    // re-trigger a real countdown if you build a proper replay RPC later;
+    // reload is just the simplest thing that works today.
     window.location.reload();
   };
 
@@ -237,7 +222,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <ConnectionStatus roomCode={roomCode} />
+      <ConnectionStatus roomCode={roomCode} tickStatus={tickStatus} />
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
       {stage === 1 && <RoomJoin onJoin={handleJoinRoom} error={errorMessage} connecting={joining} />}
