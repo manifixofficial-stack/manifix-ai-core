@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/socket.io/:path*",
+      "destination": "https://supabase.co"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
