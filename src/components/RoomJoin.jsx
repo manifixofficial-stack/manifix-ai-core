@@ -5,9 +5,15 @@ import confetti from "canvas-confetti";
 // src/components/RoomJoin.jsx — Stage 1: The Biometric "Hii!" Face Scanner Gate
 //
 // Still a dumb/presentational component: only collects the room code and
-// hands off to App.jsx via onJoin(). App.jsx keeps owning all socket.io
+// hands off to App.jsx via onJoin(). App.jsx keeps owning all connection
 // logic. The camera feed here is purely decorative background — it is
 // NEVER captured, analyzed, or sent anywhere. No ML, no frame grabbing.
+//
+// FIX: this component used to destructure `connecting` from props, but
+// App.jsx has always passed `joining={joining}` — the names never matched,
+// so the "CONNECTING…" disabled-button state never activated and a user
+// could double-submit while geolocation was still resolving. Renamed the
+// prop (and every internal reference) to `joining` to match the call site.
 //
 // Signature element: the four slot colors (BLUE/PURPLE/PINK/ORANGE) that
 // define who-you-are once you're in the arena show up HERE FIRST, as a
@@ -15,7 +21,7 @@ import confetti from "canvas-confetti";
 // system is the thing that welcomes you, not a generic loading spinner.
 const SLOT_COLORS = ["#3a86ff", "#8338ec", "#ff006e", "#fb5607"];
 
-export default function RoomJoin({ onJoin, error, connecting }) {
+export default function RoomJoin({ onJoin, error, joining }) {
   const [roomCode, setRoomCode] = useState("");
   const [gateStage, setGateStage] = useState("greeting"); // greeting -> scanning -> verified -> form
   const [cameraReady, setCameraReady] = useState(false);
@@ -82,7 +88,7 @@ export default function RoomJoin({ onJoin, error, connecting }) {
   const handleFormSubmit = (e) => {
     e.preventDefault();
     const room = roomCode.trim().toUpperCase();
-    if (!room || connecting) return;
+    if (!room || joining) return;
     onJoin(room);
   };
 
@@ -269,11 +275,11 @@ export default function RoomJoin({ onJoin, error, connecting }) {
               <motion.button
                 type="submit"
                 style={styles.joinBtn}
-                disabled={connecting}
+                disabled={joining}
                 whileTap={{ scale: 0.96 }}
-                whileHover={connecting ? {} : { boxShadow: "0 0 26px rgba(255,215,0,0.55)" }}
+                whileHover={joining ? {} : { boxShadow: "0 0 26px rgba(255,215,0,0.55)" }}
               >
-                {connecting ? "CONNECTING…" : "CONNECT LOBBY"}
+                {joining ? "CONNECTING…" : "CONNECT LOBBY"}
               </motion.button>
             </form>
           </motion.div>
