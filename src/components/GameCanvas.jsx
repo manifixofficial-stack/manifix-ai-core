@@ -6,7 +6,13 @@ import RadarIndicator from './RadarIndicator.jsx';
 import ObstacleCollisionOverlay from './ObstacleCollisionOverlay.jsx';
 import PlayerStampedeOverlay from './PlayerStampedeOverlay.jsx';
 import { OBSTACLE_ZONES } from '../config/obstacles.js';
-import { socket, EVENTS } from '../socket.js';
+import {
+  fetchPlayers,
+  fetchVeggies,
+  subscribeToRoom,
+  captureVeggie,
+  makeThrottledLocationWriter,
+} from '../lib/gameClient.js';
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -19,6 +25,13 @@ const TRACKING_RADIUS_METERS = 300;    // radar arrow tracks veggies out to this
 const SIM_METERS_PER_SEC = 4;          // keyboard-simulated walking speed
 const FOV_DEG = 65;                    // assumed horizontal FOV of a rear phone camera
 const OBSTACLE_TRIGGER_METERS = 8;
+
+// GPS write throttle — see gameClient.makeThrottledLocationWriter. Tuned to
+// stay well under Supabase Realtime's free-tier message quota with a few
+// concurrent players: ~1 write per 3s per player, or on a 5m move,
+// whichever comes first.
+const LOCATION_WRITE_MIN_INTERVAL_MS = 3000;
+const LOCATION_WRITE_MIN_DISTANCE_M = 5;
 
 // ---------------------------------------------------------------------------
 // Geo math — accurate haversine distance/bearing (good at any latitude,
@@ -53,9 +66,7 @@ function normalizeRelAngle(deg) {
 
 // Projects a veggie into screen space using its bearing *relative to where
 // the phone is actually pointing* (heading), not a fixed north-up radial
-// layout. This is what makes objects stay pinned to their real-world spot
-// as the player physically turns — the piece the north-fixed version was
-// missing.
+// layout.
 function bearingScreenPos(relAngle, dist, screenW, screenH) {
   const nx = 0.5 + (relAngle / (FOV_DEG / 2)) * 0.5;
   const ny = Math.max(0.02, Math.min(1, 1 - dist / VISIBILITY_RADIUS_METERS));
@@ -66,7 +77,10 @@ function bearingScreenPos(relAngle, dist, screenW, screenH) {
   return { x, y, scale };
 }
 
-export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
+// `playerId` here is the player_scores.id UUID from claim_character — this
+// replaces the old Socket.io `selfId` (socket.id), since identity now lives
+// in Postgres, not in a transient socket connection.
+export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -78,9 +92,7 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
   const [flashPoints, setFlashPoints] = useState(null);
   const [controlsLocked, setControlsLocked] = useState(false);
 
-  // Permission gate (camera + geolocation + compass), mirroring the
-  // explicit idle -> requesting -> ready/denied flow so failures surface a
-  // real message instead of silently falling back.
+  // Permission gate (camera + geolocation + compass)
   const [permissionStage, setPermissionStage] = useState('idle');
   const [permissionError, setPermissionError] = useState('');
 
@@ -95,6 +107,7 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
   const streamRef = useRef(null);
   const watchIdRef = useRef(null);
   const orientationCleanupRef = useRef(null);
+  const locationWriterRef = useRef(null);
 
   // -------------------------------------------------------------------
   // Compass tracking
@@ -127,16 +140,11 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
   const startGeolocation = useCallback(() => {
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => setPlayerPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}, // keep whatever the last known position was rather than hard-failing mid-game
+      () => {},
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
   }, []);
 
-  // -------------------------------------------------------------------
-  // Unified permission request: camera -> compass (iOS gesture-gated) ->
-  // one-shot location fix -> start watchers. Falls back to keyboard-driven
-  // simulation mode on request if the person doesn't have/want camera+GPS.
-  // -------------------------------------------------------------------
   const requestPermissions = useCallback(async () => {
     setPermissionStage('requesting');
     setPermissionError('');
@@ -194,25 +202,17 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
     };
   }, []);
 
-  // -------------------------------------------------------------------
-  // Viewport size tracking
-  // -------------------------------------------------------------------
   useEffect(() => {
     const onResize = () => setDims({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Seed a fake origin once simulation mode kicks in
   useEffect(() => {
     if (simMode && !playerPos) setPlayerPos({ lat: 37.7749, lng: -122.4194 });
   }, [simMode, playerPos]);
 
-  // Keyboard-driven sim movement (WASD / arrow keys) — replaces the old
-  // on-screen joystick. Holding a direction key sets a unit velocity vector;
-  // releasing it clears that axis. There's no real compass in sim mode, so
-  // movement direction also drives a virtual heading, keeping the same
-  // FOV-relative projection logic used for real AR play.
+  // Keyboard-driven sim movement (WASD / arrow keys)
   useEffect(() => {
     if (!simMode) return undefined;
 
@@ -280,50 +280,81 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
   }, [simMode, playerPos]);
 
   // -------------------------------------------------------------------
-  // Socket wiring
+  // Supabase: initial fetch + realtime subscription
+  //
+  // Replaces the old single 'game-state' socket event. Postgres doesn't
+  // push a full-state snapshot on every change the way the old tick engine
+  // did — instead we seed local state once via fetch, then patch it
+  // incrementally from postgres_changes payloads.
   // -------------------------------------------------------------------
   useEffect(() => {
-    const onGameState = (state) => {
-      setPlayers(state.players || []);
-      setVeggies(state.vegetables || []);
-    };
-    const onCaptureResult = ({ veggieId, success, points, veggieType, playerName, playerColor, newScore }) => {
-      if (success) {
-        setVeggies((prev) => prev.filter((v) => v.id !== veggieId));
-        setFlashPoints(points);
-        setCaptureOverlay({ veggieType: veggieType || 'carrot', points, playerName, playerColor, newScore });
-        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
-        setTimeout(() => setFlashPoints(null), 1200);
-        setTimeout(() => setCaptureOverlay(null), 1800);
-      }
-    };
-    const onPointSteal = ({ targetId }) => {
-      if (targetId === selfId) {
-        confetti({ particleCount: 20, spread: 40, colors: ['#f87171'], origin: { y: 0.3 } });
-        if ('vibrate' in navigator) navigator.vibrate([40, 30, 15]);
-      }
-    };
+    if (!roomCode) return undefined;
+    let cancelled = false;
 
-    socket.on(EVENTS.GAME_STATE, onGameState);
-    socket.on(EVENTS.CAPTURE_RESULT, onCaptureResult);
-    socket.on(EVENTS.POINT_STEAL, onPointSteal);
+    (async () => {
+      try {
+        const [initialPlayers, initialVeggies] = await Promise.all([
+          fetchPlayers(roomCode),
+          fetchVeggies(roomCode),
+        ]);
+        if (!cancelled) {
+          setPlayers(initialPlayers);
+          setVeggies(initialVeggies);
+        }
+      } catch (err) {
+        console.error('[GameCanvas] initial fetch failed', err);
+      }
+    })();
+
+    const unsubscribe = subscribeToRoom(roomCode, {
+      onPlayerChange: (payload) => {
+        setPlayers((prev) => {
+          if (payload.eventType === 'DELETE') {
+            return prev.filter((p) => p.id !== payload.old.id);
+          }
+          const idx = prev.findIndex((p) => p.id === payload.new.id);
+          if (idx === -1) return [...prev, payload.new];
+          const next = [...prev];
+          next[idx] = payload.new;
+          return next;
+        });
+      },
+      onVeggieChange: (payload) => {
+        setVeggies((prev) => {
+          if (payload.eventType === 'DELETE') {
+            return prev.filter((v) => v.id !== payload.old.id);
+          }
+          const idx = prev.findIndex((v) => v.id === payload.new.id);
+          if (idx === -1) return [...prev, payload.new];
+          const next = [...prev];
+          next[idx] = payload.new;
+          return next;
+        });
+      },
+    });
 
     return () => {
-      socket.off(EVENTS.GAME_STATE, onGameState);
-      socket.off(EVENTS.CAPTURE_RESULT, onCaptureResult);
-      socket.off(EVENTS.POINT_STEAL, onPointSteal);
+      cancelled = true;
+      unsubscribe();
     };
-  }, [selfId]);
+  }, [roomCode]);
 
-  // Push location updates to the server
+  // Throttled GPS writer — one instance per playerId for the life of the match.
+  useEffect(() => {
+    if (!playerId) return;
+    locationWriterRef.current = makeThrottledLocationWriter(playerId, {
+      minIntervalMs: LOCATION_WRITE_MIN_INTERVAL_MS,
+      minDistanceMeters: LOCATION_WRITE_MIN_DISTANCE_M,
+    });
+  }, [playerId]);
+
   useEffect(() => {
     if (!playerPos) return;
-    socket.emit(EVENTS.LOCATION_UPDATE, { roomCode, lat: playerPos.lat, lng: playerPos.lng });
-  }, [playerPos, roomCode]);
+    locationWriterRef.current?.(playerPos.lat, playerPos.lng);
+  }, [playerPos]);
 
   // -------------------------------------------------------------------
-  // Obstacle zones — flag when the player walks into one, and let a
-  // nearby-stampede warning fire if several other players converge nearby.
+  // Obstacle zones + nearby-stampede warning
   // -------------------------------------------------------------------
   useEffect(() => {
     if (!playerPos) return;
@@ -337,11 +368,11 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
   useEffect(() => {
     if (!playerPos) return;
     const nearbyCount = players.filter(
-      (p) => p.id !== selfId && p.lat != null && p.lng != null &&
-        metersBetween(playerPos, p) <= CAMOUFLAGE_DISTANCE_METERS
+      (p) => p.id !== playerId && p.latitude != null && p.longitude != null &&
+        metersBetween(playerPos, { lat: p.latitude, lng: p.longitude }) <= CAMOUFLAGE_DISTANCE_METERS
     ).length;
     setNearbyStampede(nearbyCount >= 3 ? nearbyCount : null);
-  }, [players, playerPos, selfId]);
+  }, [players, playerPos, playerId]);
 
   // -------------------------------------------------------------------
   // Derived view data — bearing-relative, heading-corrected positions
@@ -352,46 +383,59 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
 
   if (playerPos) {
     veggies.forEach((v) => {
-      const dist = metersBetween(playerPos, v);
-      const bearing = bearingDegrees(playerPos, v);
+      const vPos = { lat: v.latitude, lng: v.longitude };
+      const dist = metersBetween(playerPos, vPos);
+      const bearing = bearingDegrees(playerPos, vPos);
       const relAngle = normalizeRelAngle(bearing - headingRef.current);
 
       if (dist <= VISIBILITY_RADIUS_METERS) {
         if (Math.abs(relAngle) <= FOV_DEG / 2) {
           const screenPos = bearingScreenPos(relAngle, dist, dims.w, dims.h);
-          visibleVeggies.push({ ...v, distance: dist, relAngle, ...screenPos });
+          visibleVeggies.push({ ...v, type: v.veggie_type, distance: dist, relAngle, ...screenPos });
         } else {
-          // In range but outside the camera's field of view — show as an
-          // edge indicator instead of just disappearing.
           edgeVeggies.push({ ...v, distance: dist, relAngle, side: relAngle < 0 ? 'left' : 'right' });
         }
       } else if (dist <= TRACKING_RADIUS_METERS) {
         if (!nearestTracked || dist < nearestTracked.distance) {
-          nearestTracked = { ...v, distance: dist, bearing };
+          nearestTracked = { ...v, type: v.veggie_type, distance: dist, bearing };
         }
       }
     });
   }
 
+  // Capture now goes through the atomic capture_veggie RPC instead of an
+  // 'capture-attempt' emit + waiting on a 'veggieCaught' broadcast. The
+  // response comes back synchronously from the same call, so success/fail
+  // handling lives right here instead of in a separate event listener that
+  // has to match the request up after the fact.
   const handleCatch = useCallback(
-    (veggieId) => {
-      if (controlsLocked) return;
-      socket.emit(EVENTS.CAPTURE_ATTEMPT, { roomCode, veggieId });
-    },
-    [roomCode, controlsLocked]
-  );
+    async (veggieId) => {
+      if (controlsLocked || !playerId) return;
+      try {
+        const result = await captureVeggie(veggieId, playerId);
+        if (!result?.success) return; // someone else caught it first — no UI needed, it'll vanish from `veggies` via realtime
 
-  const handleTackleNearest = useCallback(() => {
-    if (controlsLocked) return;
-    socket.emit(EVENTS.ATTEMPT_TACKLE, { roomCode });
-  }, [roomCode, controlsLocked]);
+        setVeggies((prev) => prev.filter((v) => v.id !== veggieId));
+        setFlashPoints(result.points);
+        setCaptureOverlay({
+          veggieType: 'carrot', // capture_veggie doesn't return the caught type; safe default sprite for the flash
+          points: result.points,
+          playerName: result.player_name,
+          newScore: result.new_score,
+        });
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => setFlashPoints(null), 1200);
+        setTimeout(() => setCaptureOverlay(null), 1800);
+      } catch (err) {
+        console.error('[GameCanvas] capture failed', err);
+      }
+    },
+    [playerId, controlsLocked]
+  );
 
   const crosshairX = dims.w / 2;
   const crosshairY = dims.h / 2;
 
-  // -------------------------------------------------------------------
-  // Permission gate screen
-  // -------------------------------------------------------------------
   if (permissionStage !== 'ready') {
     return (
       <div style={styles.permissionWrapper}>
@@ -423,7 +467,11 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
       )}
       {simMode && <div style={styles.simBackground} />}
 
-      <Scoreboard players={players} selfId={selfId} flashPoints={flashPoints} />
+      <Scoreboard
+        players={Object.fromEntries(players.map((p) => [p.slot_id, { name: p.name, score: p.score }]))}
+        mySlot={players.find((p) => p.id === playerId)?.slot_id}
+        flashPoints={flashPoints}
+      />
 
       <button style={styles.exitBtn} onClick={onExit}>✕</button>
 
@@ -458,7 +506,6 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
         </div>
       ))}
 
-      {/* Crosshair, always centered */}
       <div style={{ ...styles.crosshair, left: crosshairX - 14, top: crosshairY - 14 }} />
 
       {visibleVeggies.map((v) => (
@@ -495,7 +542,7 @@ export default function GameCanvas({ roomCode, nickname, selfId, onExit }) {
       {simMode && <div style={styles.simHint}>WASD / Arrow keys to move</div>}
 
       <div style={styles.bottomBar}>
-        <button style={styles.catchBtn} onClick={handleTackleNearest} disabled={controlsLocked}>
+        <button style={styles.catchBtn} disabled={controlsLocked}>
           TACKLE
         </button>
       </div>
