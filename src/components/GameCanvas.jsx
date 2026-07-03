@@ -1,3 +1,4 @@
+// components/GameCanvas.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import VeggieSprite from './veggies/VeggieSprite.jsx';
@@ -111,6 +112,18 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const [flashPoints, setFlashPoints] = useState(null);
   const [controlsLocked, setControlsLocked] = useState(false);
 
+  // NEW: set of veggie ids currently under an active CaptureThrow net-lock.
+  // Fed by onLockStart/onMiss/onHit from CaptureThrow below, and consumed
+  // by each VeggieSprite's `locked` prop so its evasion AI freezes in
+  // place instead of fighting the net. This is purely a local/visual
+  // concept right now — it does NOT stop another player's client from
+  // also locking the same veggie. That needs the capture_attempts table +
+  // two-phase RPC already scoped separately; until that exists, two
+  // players' nets can both land on the same veggie and only one capture
+  // call will actually succeed (the loser just sees their lock silently
+  // do nothing when captureVeggie() comes back { success: false }).
+  const [lockedVeggieIds, setLockedVeggieIds] = useState(() => new Set());
+
   // Permission gate (camera + geolocation + compass)
   const [permissionStage, setPermissionStage] = useState('idle');
   const [permissionError, setPermissionError] = useState('');
@@ -174,16 +187,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     );
   }, []);
 
-  // FIX (camera not showing): previously this function assigned
-  // `videoRef.current.srcObject = stream` inline, at a moment when the
-  // <video> element did NOT exist yet — the permission-gate branch renders
-  // a completely different tree with no <video> in it at all, and the
-  // element only mounts after `permissionStage` flips to 'ready'. So
-  // `videoRef.current` was always null here, the assignment silently did
-  // nothing, and the freshly-mounted <video> came up with no stream
-  // attached. The stream is now only stored in streamRef; the actual
-  // attach happens in the effect below, which runs *after* the ready-state
-  // render puts <video> in the DOM.
   const requestPermissions = useCallback(async () => {
     setPermissionStage('requesting');
     setPermissionError('');
@@ -227,12 +230,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     }
   }, [startCompass, startGeolocation]);
 
-  // FIX (camera not showing), part 2: attach the already-granted stream to
-  // the <video> element once it actually exists in the DOM (permissionStage
-  // === 'ready' && !simMode), and explicitly call .play(). Some in-app
-  // WebViews (e.g. Android WebView-based wrappers) won't autoplay a video
-  // whose srcObject was set post-mount even with the `autoPlay` attribute
-  // present, so the explicit play() call matters here.
   useEffect(() => {
     if (permissionStage === 'ready' && !simMode && videoRef.current && streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
@@ -337,14 +334,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     return () => cancelAnimationFrame(raf);
   }, [simMode, playerPos]);
 
-  // -------------------------------------------------------------------
-  // Supabase: initial fetch + realtime subscription
-  //
-  // Replaces the old single 'game-state' socket event. Postgres doesn't
-  // push a full-state snapshot on every change the way the old tick engine
-  // did — instead we seed local state once via fetch, then patch it
-  // incrementally from postgres_changes payloads.
-  // -------------------------------------------------------------------
   useEffect(() => {
     if (!roomCode) return undefined;
     let cancelled = false;
@@ -411,20 +400,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     locationWriterRef.current?.(playerPos.lat, playerPos.lng);
   }, [playerPos]);
 
-  // -------------------------------------------------------------------
-  // Obstacle zones + nearby-stampede warning
-  //
-  // FIX: previously duplicated ObstacleCollisionOverlay/PlayerStampede-
-  // Overlay's own internal logic here (activeObstacle/nearbyStampede
-  // state) and then rendered those components with props they don't
-  // actually accept (`obstacle`, `count`) — so the real components' own
-  // proximity checks, cooldown timers, and rendering never ran; only this
-  // dead parallel logic did. Both components are now handed the raw
-  // inputs they're actually built for (playerPos/obstacles/onLockChange
-  // and players/selfId/playerPos/screenW/screenH) and manage their own
-  // state internally — see render section below. controlsLocked is now
-  // driven purely by ObstacleCollisionOverlay's onLockChange callback.
-  // -------------------------------------------------------------------
   const stampedePlayers = useMemo(
     () =>
       players
@@ -439,9 +414,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     [players]
   );
 
-  // -------------------------------------------------------------------
-  // Derived view data — bearing-relative, heading-corrected positions
-  // -------------------------------------------------------------------
   const { visibleVeggies, edgeVeggies, nearestTracked } = useMemo(() => {
     const visible = [];
     const edge = [];
@@ -472,24 +444,10 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     return { visibleVeggies: visible, edgeVeggies: edge, nearestTracked: nearest };
   }, [veggies, playerPos, dims.w, dims.h, heading]);
 
-  // Spatialized taunt audio — feeds whatever's currently in view (on-screen
-  // + just-off-screen) to useVeggieTaunt, which handles its own per-veggie
-  // cooldown and distance falloff. Was built (useVeggieTaunt.js) but never
-  // actually called from anywhere before this.
   useEffect(() => {
     tauntFromFrame([...visibleVeggies, ...edgeVeggies]);
   }, [visibleVeggies, edgeVeggies, tauntFromFrame]);
 
-  // -------------------------------------------------------------------
-  // Directional audio radar — proximity "ping" via Web Audio, distinct
-  // from useVeggieTaunt's per-veggie taunt lines. Pings against whichever
-  // veggie is closest overall: visible on-screen, just off-screen at the
-  // edge, or tracked-but-far (nearestTracked). Ping cadence scales with
-  // distance — closer = faster pings — mirroring the reference game's
-  // "pinging that grows faster and louder as the player approaches."
-  // Requires an explicit opt-in (radarAudioEnabled) since audio-context
-  // creation needs a user gesture and shouldn't just start blaring.
-  // -------------------------------------------------------------------
   const closestOverallDistance = useMemo(() => {
     const candidates = [
       ...visibleVeggies.map((v) => v.distance),
@@ -511,7 +469,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
     if (!audioCtxRef.current) {
       const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return undefined; // unsupported browser — silently no-op
+      if (!Ctx) return undefined;
       audioCtxRef.current = new Ctx();
     }
     const ctx = audioCtxRef.current;
@@ -536,7 +494,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       const clamped = Math.max(CATCH_RADIUS_METERS, Math.min(TRACKING_RADIUS_METERS, closestOverallDistance));
       const t = (clamped - CATCH_RADIUS_METERS) / (TRACKING_RADIUS_METERS - CATCH_RADIUS_METERS);
       const interval = PING_INTERVAL_MIN_MS + t * (PING_INTERVAL_MAX_MS - PING_INTERVAL_MIN_MS);
-      const gainLevel = 0.05 + (1 - t) * 0.15; // louder as it gets closer
+      const gainLevel = 0.05 + (1 - t) * 0.15;
       playPing(gainLevel);
       pingTimeoutRef.current = setTimeout(scheduleNext, interval);
     };
@@ -552,8 +510,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     setRadarAudioEnabled((prev) => !prev);
   }, []);
 
-  // CaptureThrow needs {id, x, y, radius} targets in screen space — only
-  // sensible for veggies already projected onto the visible AR view.
   const throwTargets = useMemo(
     () =>
       visibleVeggies.map((v) => ({
@@ -568,9 +524,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const crosshairX = dims.w / 2;
   const crosshairY = dims.h / 2;
 
-  // Vanguard viewfinder lock-on: true when any currently-visible veggie's
-  // projected screen position falls inside the centered ViewfinderBox.
-  // Drives ViewfinderBox's highlighted/pulsing state.
   const targetInFrame = useMemo(
     () =>
       visibleVeggies.some(
@@ -581,37 +534,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     [visibleVeggies, crosshairX, crosshairY]
   );
 
-  // Capture now goes through the atomic capture_veggie RPC instead of an
-  // 'capture-attempt' emit + waiting on a 'veggieCaught' broadcast. The
-  // response comes back synchronously from the same call, so success/fail
-  // handling lives right here instead of in a separate event listener that
-  // has to match the request up after the fact.
-  //
-  // FIX: captureVeggie() per gameClient.js's real signature only takes
-  // (veggieId, playerId) — the extra playerPos.lat/lng args previously
-  // sent here were silently dropped by JS (not a hard error), but they
-  // implied a server-side proximity check that capture_veggie() doesn't
-  // currently perform. Flagging rather than inventing one: if you want
-  // anti-cheat distance validation on captures, that needs to be added to
-  // capture_veggie() in supabase/schema.sql and gameClient.js's wrapper
-  // updated to send lat/lng again — this call now just matches what
-  // actually exists today.
-  //
-  // FIX: the captured veggie's real type is now looked up locally
-  // (from the last-known `veggies` state, before it's removed) instead
-  // of hardcoding 'carrot' in the celebration popup.
-  //
-  // NOTE: capture_veggie()'s success-case return shape isn't documented
-  // in gameClient.js's comments (only the failure shape is:
-  // { success:false, reason:'already_gone' }). The field reads below
-  // try a couple of plausible names defensively — confirm the real
-  // column/return names against supabase/schema.sql and simplify once
-  // confirmed.
-  //
-  // NEW: also looks the veggie up in `visibleVeggies` (not just `veggies`)
-  // to grab its last-known screen x/y, so the floating "+points" popup
-  // (ScorePopup) spawns at the exact spot the veggie was caught instead of
-  // defaulting to screen center.
+  // FIX: on a successful catch, also clear the veggie out of
+  // lockedVeggieIds. Without this, if capture_veggie() ever comes back
+  // successful for an id that's still marked locked (shouldn't normally
+  // race, but state cleanup should never depend on "shouldn't"), the
+  // Set would keep a dead entry forever since nothing else ever clears it
+  // once the veggie itself is gone from `veggies`.
   const handleCatch = useCallback(
     async (veggieId) => {
       if (controlsLocked || !playerId) return;
@@ -619,6 +547,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       const caughtScreenPos = visibleVeggies.find((v) => v.id === veggieId);
       try {
         const result = await captureVeggie(veggieId, playerId);
+        setLockedVeggieIds((prev) => {
+          if (!prev.has(veggieId)) return prev;
+          const next = new Set(prev);
+          next.delete(veggieId);
+          return next;
+        });
         if (!result?.success) return; // someone else caught it first, or it's already gone
 
         setVeggies((prev) => prev.filter((v) => v.id !== veggieId));
@@ -644,15 +578,45 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         setTimeout(() => setCaptureOverlay(null), 1800);
       } catch (err) {
         console.error('[GameCanvas] capture failed', err);
+        setLockedVeggieIds((prev) => {
+          if (!prev.has(veggieId)) return prev;
+          const next = new Set(prev);
+          next.delete(veggieId);
+          return next;
+        });
       }
     },
     [playerId, controlsLocked, veggies, visibleVeggies, nickname, spawnPopup, crosshairX, crosshairY]
   );
 
-  // Bottom CATCH button — grabs whichever visible veggie is currently
-  // within CATCH_RADIUS_METERS, if any. CaptureThrow (the swipe-fling
-  // gesture layer) remains available at the same time for the more
-  // active capture mechanic; this button is the simple one-tap fallback.
+  // NEW: fires the instant CaptureThrow's net lands on a target, before
+  // its hold timer starts. Marks the veggie as locked so its VeggieSprite
+  // freezes evasion. This is also the seam for a future server-side
+  // optimistic-lock call (capture_attempts insert) — nothing hits the
+  // network here yet, it's purely local UI state.
+  const handleLockStart = useCallback((veggieId) => {
+    setLockedVeggieIds((prev) => {
+      if (prev.has(veggieId)) return prev;
+      const next = new Set(prev);
+      next.add(veggieId);
+      return next;
+    });
+  }, []);
+
+  // NEW: fires when a projectile misses in flight (no veggieId) or when a
+  // lock breaks — target vanished or drifted out of LOCK_BREAK_RADIUS_PX
+  // (has a veggieId). Only clears lockedVeggieIds when an id is actually
+  // present; a plain flight-miss has nothing to clear.
+  const handleThrowMiss = useCallback((veggieId) => {
+    if (!veggieId) return;
+    setLockedVeggieIds((prev) => {
+      if (!prev.has(veggieId)) return prev;
+      const next = new Set(prev);
+      next.delete(veggieId);
+      return next;
+    });
+  }, []);
+
   const nearestCatchable = visibleVeggies.find((v) => v.distance <= CATCH_RADIUS_METERS);
   const handleCatchButtonTap = useCallback(() => {
     if (nearestCatchable) handleCatch(nearestCatchable.id);
@@ -689,7 +653,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       )}
       {simMode && <div style={styles.simBackground} />}
 
-      {/* 3D vanishing-point radar grid, drawn directly over the camera feed */}
       <PerspectiveGridOverlay />
 
       <Scoreboard
@@ -700,9 +663,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       <button style={styles.exitBtn} onClick={onExit}>✕</button>
 
-      {/* Directional audio radar toggle — opt-in ping that speeds up as
-          the nearest veggie gets closer. Positioned next to the exit
-          button so it stays reachable one-handed. */}
       <button
         style={{
           ...styles.radarAudioBtn,
@@ -715,17 +675,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         {radarAudioEnabled ? '🔊' : '🔈'}
       </button>
 
-      {/* FIX: real props this component actually accepts — it manages its
-          own proximity detection, cooldown, and lockout timing internally
-          and reports lock state back up via onLockChange. */}
       <ObstacleCollisionOverlay
         playerPos={playerPos}
         obstacles={OBSTACLE_ZONES}
         onLockChange={setControlsLocked}
       />
 
-      {/* FIX: real props this component actually accepts — it computes
-          who's nearby (and from which real-world bearing) internally. */}
       <PlayerStampedeOverlay
         players={stampedePlayers}
         selfId={playerId}
@@ -759,9 +714,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         </div>
       ))}
 
-      {/* Vanguard viewfinder — replaces the old plain circular crosshair.
-          Lights up green + shows a lock label once a visible veggie's
-          projected position sits inside it (targetInFrame). */}
       <ViewfinderBox centerX={crosshairX} centerY={crosshairY} active={targetInFrame} size={VIEWFINDER_SIZE_PX} />
 
       {visibleVeggies.map((v) => (
@@ -776,6 +728,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
           gpsY={v.y}
           scale={v.scale}
           catchMode={v.distance <= CATCH_RADIUS_METERS}
+          locked={lockedVeggieIds.has(v.id)}
           screenW={dims.w}
           screenH={dims.h}
           crosshairX={crosshairX}
@@ -784,20 +737,22 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         />
       ))}
 
-      {/* FIX: was built but never mounted. Full-screen swipe-to-throw
-          gesture layer, sits above the camera/sprites but below the exit
-          button and capture popup (z-index 38 vs 45/50). Disabled during
-          an obstacle lockout same as the rest of the controls. */}
+      {/* FIX: now wires onLockStart (marks lockedVeggieIds) and onMiss
+          (clears it on a broken/expired lock) alongside the existing
+          onHit. Previously onMiss was a no-op — that was fine when a miss
+          couldn't have a target attached to it, but now a broken lock
+          does carry a veggieId that needs cleaning up, or that veggie's
+          sprite would stay frozen forever thinking it's still netted. */}
       <CaptureThrow
         targets={throwTargets}
         onHit={handleCatch}
-        onMiss={() => {}}
+        onMiss={handleThrowMiss}
+        onLockStart={handleLockStart}
         screenW={dims.w}
         screenH={dims.h}
         disabled={controlsLocked}
       />
 
-      {/* Floating "+points" LED popups, one per recent catch */}
       <ScorePopupLayer popups={scorePopups} onPopupDone={removePopup} />
 
       {captureOverlay && (
@@ -814,9 +769,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       {simMode && <div style={styles.simHint}>WASD / Arrow keys to move</div>}
 
       <div style={styles.bottomBar}>
-        {/* FIX: previously had no onClick at all — a fully inert button.
-            Now catches whichever visible veggie is in range, as a simple
-            one-tap alternative to the CaptureThrow swipe gesture above. */}
         <button
           style={{
             ...styles.catchBtn,
