@@ -54,6 +54,15 @@ const OBSTACLE_TRIGGER_METERS = 8;
 const THROW_TARGET_RADIUS_PX = 32;     // hit radius CaptureThrow uses against on-screen veggies
 const VIEWFINDER_SIZE_PX = 96;         // must match ViewfinderBox's default `size` prop
 
+// Viewfinder proximity-scale — how far (in meters) out the reticle starts
+// growing as the nearest tracked veggie closes in, and the max multiplier
+// it can reach right at catch range. Mirrors the "expand as you get
+// physically closer" feel from the AR mock, but driven off the same
+// closestOverallDistance signal the audio radar already uses, so both
+// features agree on what "close" means.
+const VIEWFINDER_SCALE_RANGE_METERS = 30;
+const VIEWFINDER_MAX_SCALE_BONUS = 0.4;
+
 // Herd-multiplier threshold — see PlayerStampedeOverlay integration below.
 // Matches the "45m radius" nearby-player range already described in that
 // component's docs; once more than this many players are inside it, we
@@ -623,6 +632,18 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     return Math.min(...candidates);
   }, [visibleVeggies, edgeVeggies, nearestTracked]);
 
+  // NEW: viewfinder proximity scale — grows the reticle toward
+  // 1 + VIEWFINDER_MAX_SCALE_BONUS as closestOverallDistance shrinks
+  // toward CATCH_RADIUS_METERS, using the same distance signal that
+  // already drives the audio radar's ping rate. Sits at 1.0 with nothing
+  // nearby so the box doesn't shrink below its base size while scanning.
+  const nearestTargetScale = useMemo(() => {
+    if (closestOverallDistance == null) return 1.0;
+    const clamped = Math.max(CATCH_RADIUS_METERS, Math.min(VIEWFINDER_SCALE_RANGE_METERS, closestOverallDistance));
+    const t = 1 - (clamped - CATCH_RADIUS_METERS) / (VIEWFINDER_SCALE_RANGE_METERS - CATCH_RADIUS_METERS);
+    return 1.0 + t * VIEWFINDER_MAX_SCALE_BONUS;
+  }, [closestOverallDistance]);
+
   useEffect(() => {
     if (!radarAudioEnabled) {
       if (pingTimeoutRef.current) {
@@ -950,7 +971,19 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         </div>
       ))}
 
-      <ViewfinderBox centerX={crosshairX} centerY={crosshairY} active={targetInFrame} size={VIEWFINDER_SIZE_PX} />
+      {/* NEW: activeScale/status feed the dynamic proximity-zoom + label
+          behavior — see ViewfinderBox.jsx. `status` flips to 'locking'
+          while CaptureThrow has an active net-lock (lockedVeggieIds
+          non-empty), so the reticle's "SYNCING..." flash lines up with a
+          real lock/hold cycle rather than being purely decorative. */}
+      <ViewfinderBox
+        centerX={crosshairX}
+        centerY={crosshairY}
+        active={targetInFrame}
+        size={VIEWFINDER_SIZE_PX}
+        status={lockedVeggieIds.size > 0 ? 'locking' : 'searching'}
+        activeScale={nearestTargetScale}
+      />
 
       {visibleVeggies.map((v) =>
         v.type === HACKED_TARGET_VEGGIE_TYPE ? (
@@ -1083,10 +1116,6 @@ const styles = {
     position: 'absolute', inset: 0,
     background: 'linear-gradient(180deg, #6ee7b7 0%, #86efac 45%, #4ade80 100%)',
   },
-  // BUG FIX: explicit stacking layer for Scoreboard, above the grid
-  // overlay/video (z-index 0-10 range) and below the top-right icon row
-  // (z-index 50), with its own top/left inset so it can't be pushed under
-  // anything positioned at top:10 like the icon buttons are.
   scoreboardLayer: {
     position: 'absolute', top: 0, left: 0, right: 90, zIndex: 30, pointerEvents: 'none',
   },
@@ -1126,11 +1155,6 @@ const styles = {
     background: 'rgba(57,255,136,0.85)', color: '#08080a', fontWeight: 800, fontSize: 14, letterSpacing: 1,
     cursor: 'pointer',
   },
-  // BUG FIX: edge label now isolates its own stacking context (isolation
-  // creates a new one implicitly given position:absolute + zIndex) at a
-  // zIndex above PerspectiveGridOverlay's grid lines, so the grid can no
-  // longer paint through the label's bounding box regardless of DOM order
-  // relative to that overlay.
   edgeIndicator: {
     position: 'absolute', zIndex: 35, isolation: 'isolate', color: '#FFD700', fontWeight: 800, fontSize: 11,
     fontFamily: "'Orbitron', monospace", textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
