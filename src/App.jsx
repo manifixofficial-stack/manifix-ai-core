@@ -161,9 +161,16 @@ function App() {
   // idempotent (insert ... on conflict do nothing) so this works the same
   // whether you're creating the room or joining one a teammate opened.
   //
-  // FIX: now captures joinRoom()'s response instead of discarding it —
-  // claimCharacter() needs player_id, and MapView/GameCanvas both need
-  // a live lat/lng, none of which were being stored before.
+  // FIX: joinRoom() returns a game_rooms ROW (room_code, center_lat,
+  // center_lng, etc.) per gameClient.js's own comment — it has no
+  // player_id field at all. player_id doesn't exist until
+  // claimCharacter() creates the player_scores row in stage 2. Reading
+  // joinResult.player_id here was always undefined, which meant
+  // myPlayerId never got set — every tap on a character slot in stage 2
+  // then hit handleLockCharacter's own guard clause and showed "Still
+  // setting up your session" before claimCharacter() was ever called.
+  // Only myPosition is captured here now; myPlayerId is set later, from
+  // claimCharacter()'s response, in handleLockCharacter below.
   // -------------------------------------------------------------------
   const handleJoinRoom = async (code) => {
     setErrorMessage('');
@@ -179,8 +186,7 @@ function App() {
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
-          const joinResult = await joinRoom(code, latitude, longitude);
-          setMyPlayerId(joinResult.player_id);
+          await joinRoom(code, latitude, longitude); // creates/confirms the room only
           setMyPosition({ lat: latitude, lng: longitude });
 
           const taken = await fetchTakenCharacters(code);
@@ -205,15 +211,19 @@ function App() {
   // -------------------------------------------------------------------
   // Character claim.
   //
-  // FIX: now sends all 6 params claim_character() requires
-  // (p_id, p_lat, p_lng, p_name, p_room_code, p_slot_id) via
-  // gameClient.js's claimCharacter(roomCode, slotId, name, playerId, lat, lng)
-  // — previously only 3 args were sent, so the RPC call rejected outright
-  // with no matching function overload, and every claim silently failed.
+  // FIX: claim_character() only takes 3 params — (roomCode, slotId, name)
+  // — per gameClient.js's real signature. It's the RPC that CREATES the
+  // player_scores row and hands back player_id for the first time; it
+  // does not need a pre-existing playerId or lat/lng as input.
   //
-  // FIX: reads result.message on failure, not result.reason — matches
-  // what claim_character() actually returns per gameClient.js's own
-  // documented shape ({ success:false, message }).
+  // FIX: myPlayerId is now set HERE, from result.player_id, instead of
+  // (incorrectly) expected to already exist from joinRoom(). The guard
+  // clause above only checks myPosition now, since that's the only piece
+  // handleJoinRoom is actually responsible for populating.
+  //
+  // FIX: reads result.reason on failure (e.g. 'slot_taken'), matching
+  // gameClient.js's documented claimCharacter() return shape
+  // ({ success:false, reason }), not result.message.
   //
   // On success, advances to stage 3 (MapView) — the player can now walk
   // around and see live veggie blips while waiting for the room to fill.
@@ -227,27 +237,25 @@ function App() {
   const handleLockCharacter = async (slotId, claimedName /*, lobbySize */) => {
     setErrorMessage('');
 
-    if (!myPlayerId || !myPosition) {
-      setErrorMessage('Still setting up your session — try again in a moment.');
+    if (!myPosition) {
+      setErrorMessage('Still locking your position — try again in a moment.');
       return;
     }
 
     try {
-      const result = await claimCharacter(
-        roomCode,
-        slotId,
-        claimedName,
-        myPlayerId,
-        myPosition.lat,
-        myPosition.lng
-      );
-      const success = result.status === 'success' || result.success === true;
+      const result = await claimCharacter(roomCode, slotId, claimedName);
+      const success = result?.success === true;
       setLockResult({ slotId, success });
       if (success) {
         setMySlot(result.slot_id);
+        setMyPlayerId(result.player_id);
         setStage(3);
       } else {
-        setErrorMessage(result.message || 'Could not claim that slot — try again.');
+        setErrorMessage(
+          result?.reason === 'slot_taken'
+            ? 'Someone just grabbed that slot — pick another.'
+            : 'Could not claim that slot — try again.'
+        );
       }
     } catch (err) {
       console.error('[App] claimCharacter failed', err);
