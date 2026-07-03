@@ -219,12 +219,7 @@ function App() {
       )}
 
       {stage === 2 && (
-        <CharacterSelect
-          takenChars={takenChars}
-          onSelect={handleLockCharacter}
-          lockResult={lockResult}
-          error={errorMessage}
-        />
+       <CharacterSelect takenChars={takenChars} onSelect={handleLockCharacter} lockResult={lockResult} error={errorMessage} />
       )}
 
       {stage === 3 && (
