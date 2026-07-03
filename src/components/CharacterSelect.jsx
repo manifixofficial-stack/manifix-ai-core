@@ -1,200 +1,209 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { socket, EVENTS, joinCharacter, requestCharacters } from "../socket.js";
 
-// ---------------------------------------------------------------------------
-// STANDALONE VERSION — no database / Supabase connection.
-//
-// All "taken slot" and "lock in" state lives entirely in local React state
-// (useState) inside this component. Nothing here makes a network call of
-// any kind.
-// ---------------------------------------------------------------------------
+// Must mirror backend/server.js's CHARACTERS / CHARACTER_COLORS exactly — the
+// server is the source of truth for which slot keys are valid and what
+// speedMultiplier each grants. There's no shared package between
+// frontend/backend in this repo, so keep these two lists in sync by hand.
+const CHARACTER_ORDER = ["BLUE", "PURPLE", "PINK", "ORANGE"];
 
-const SLOT_COLORS = ["#3a86ff", "#2ecc71", "#ff006e", "#8338ec"];
-
-const ALL_SLOTS = [
-  { id: "slot-blue", color: "#3a86ff", icon: "🥕", vibe: "chill", display: "BLUE" },
-  { id: "slot-green", color: "#2ecc71", icon: "🍆", vibe: "wild", display: "GREEN" },
-  { id: "slot-pink", color: "#ff006e", icon: "🍓", vibe: "unbothered", display: "PINK" },
-  { id: "slot-purple", color: "#8338ec", icon: "🎃", vibe: "menace", display: "PURPLE" },
-];
-
-const LOBBY_SIZES = [
-  { size: 2, label: "DUO", sub: "you + one bestie", icon: "🤝" },
-  { size: 3, label: "TRIO", sub: "three's the vibe", icon: "3️⃣" },
-  { size: 4, label: "SQUAD", sub: "full 4-player chaos", icon: "🔥" },
-];
-
-const EMPTY_TAKEN = {
-  "slot-blue": null,
-  "slot-green": null,
-  "slot-pink": null,
-  "slot-purple": null,
+const CHARACTER_META = {
+  BLUE: { label: "AQUA DASH", icon: "🔵", color: "#3a86ff", tagline: "Balanced pace" },
+  PURPLE: { label: "VOID SPRINTER", icon: "🟣", color: "#8338ec", tagline: "Fastest (1.2x)" },
+  PINK: { label: "NEON BLUR", icon: "🌸", color: "#ff006e", tagline: "Swift (1.1x)" },
+  ORANGE: { label: "EMBER TANK", icon: "🟠", color: "#fb5607", tagline: "Heavy hitter (0.8x)" },
 };
 
-// onLockedIn(slotId, name, lobbySize) fires once a slot is "claimed" locally
-// — wire this up to whatever you want to happen next (e.g. advancing to the
-// next screen) instead of a database call.
-export default function CharacterSelect({ onLockedIn = () => {} }) {
-  const [name, setName] = useState("");
-  const [pending, setPending] = useState(null);
-  const [slotTakenError, setSlotTakenError] = useState(null);
+const LOBBY_SIZE_OPTIONS = [
+  { size: 2, label: "DUO", sub: "2 players" },
+  { size: 3, label: "TRIO", sub: "3 players" },
+  { size: 4, label: "QUAD", sub: "4 players" },
+];
+
+const NAME_MAX_LEN = 20; // mirrors PLAYER_NAME_MAX_LEN in backend/server.js
+
+export default function CharacterSelect({ roomCode, onCharacterConfirmed }) {
   const [lobbySize, setLobbySize] = useState(4);
-  const [takenChars, setTakenChars] = useState(EMPTY_TAKEN);
+  const [name, setName] = useState("");
+  const [takenCharacters, setTakenCharacters] = useState({
+    BLUE: false,
+    PURPLE: false,
+    PINK: false,
+    ORANGE: false,
+  });
+  const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [error, setError] = useState("");
 
-  const reduceMotion = useMemo(
-    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-    []
+  useEffect(() => {
+    requestCharacters();
+
+    const handleCharactersUpdate = (data) => {
+      setTakenCharacters(data?.taken || {});
+    };
+    const handleCharacterError = (data) => {
+      setError(data?.message || "That role isn't available.");
+    };
+    const handleGameJoined = (data) => {
+      if (data?.success) {
+        setSelectedCharacter(data.character);
+        setError("");
+        onCharacterConfirmed?.(data.character);
+      }
+    };
+    const handleLobbySizeUpdate = (data) => {
+      if (typeof data?.size === "number") setLobbySize(data.size);
+    };
+
+    socket.on(EVENTS.CHARACTERS_UPDATE, handleCharactersUpdate);
+    socket.on(EVENTS.CHARACTER_ERROR, handleCharacterError);
+    socket.on(EVENTS.GAME_JOINED, handleGameJoined);
+    // Not implemented in backend/server.js yet — see the comment on
+    // handleLobbySizeSelect below for why this is a soft, not-yet-load-bearing
+    // sync channel rather than the thing that actually gates round start.
+    socket.on("lobby-size-update", handleLobbySizeUpdate);
+
+    return () => {
+      socket.off(EVENTS.CHARACTERS_UPDATE, handleCharactersUpdate);
+      socket.off(EVENTS.CHARACTER_ERROR, handleCharacterError);
+      socket.off(EVENTS.GAME_JOINED, handleGameJoined);
+      socket.off("lobby-size-update", handleLobbySizeUpdate);
+    };
+  }, [onCharacterConfirmed]);
+
+  // Auto-dismiss error toasts instead of leaving them stuck on screen.
+  useEffect(() => {
+    if (!error) return undefined;
+    const t = setTimeout(() => setError(""), 2600);
+    return () => clearTimeout(t);
+  }, [error]);
+
+  // IMPORTANT: this broadcasts the chosen lobby size, but backend/server.js
+  // has no 'set-lobby-size' handler yet, and its round-start check —
+  // `Object.values(room.takenCharacters).every(Boolean)` — always waits for
+  // all 4 slots no matter what's picked here. Selecting Duo/Trio will
+  // visually lock the extra slot(s) client-side, but the round will never
+  // auto-start with fewer than 4 players until the server is patched to
+  // track a per-room max size and check against that instead of a hardcoded
+  // 4. Flagging inline rather than shipping a silent dead end.
+  const handleLobbySizeSelect = useCallback((size) => {
+    setLobbySize(size);
+    socket.emit("set-lobby-size", { size });
+  }, []);
+
+  const handleSelect = useCallback(
+    (charKey, slotIndex) => {
+      if (slotIndex >= lobbySize) return; // locked slot for this lobby size
+      if (name.trim().length === 0) {
+        setError("Enter a call sign first.");
+        return;
+      }
+      if (takenCharacters[charKey] && charKey !== selectedCharacter) {
+        setError("Role taken by a friend!");
+        return;
+      }
+      joinCharacter(charKey, name.trim().slice(0, NAME_MAX_LEN));
+    },
+    [lobbySize, name, takenCharacters, selectedCharacter]
   );
 
-  const activeSlots = useMemo(() => ALL_SLOTS.slice(0, lobbySize), [lobbySize]);
-  const filledCount = activeSlots.filter((s) => takenChars[s.id]).length;
-
-  const changeLobbySize = (size) => {
-    if (pending) return;
-    setLobbySize(size);
-  };
-
-  // Simulates a "claim" locally — no network call, no race condition to
-  // worry about since there's only one local player. Resolves almost
-  // instantly (small delay just to keep the "locking in…" UI feeling
-  // intentional instead of instantaneous/jarring).
-  const handlePick = (slotId) => {
-    if (takenChars[slotId] || pending) return;
-
-    setError("");
-    const claimedName = name.trim() || `Player-${slotId.split("-")[1]?.toUpperCase() || slotId.toUpperCase()}`;
-    setPending(slotId);
-
-    setTimeout(() => {
-      setTakenChars((prev) => ({ ...prev, [slotId]: claimedName }));
-      setPending(null);
-      onLockedIn(slotId, claimedName, lobbySize);
-    }, 400);
-  };
+  const readyCount = CHARACTER_ORDER.slice(0, lobbySize).filter((c) => takenCharacters[c]).length;
 
   return (
     <div style={styles.screen}>
-      {!reduceMotion &&
-        SLOT_COLORS.map((color, i) => (
-          <motion.div
-            key={color}
-            style={{ ...styles.orb, background: color, left: `${10 + i * 24}%`, top: `${8 + (i % 2) * 55}%` }}
-            animate={{
-              x: [0, 22, -14, 0],
-              y: [0, -18, 14, 0],
-              opacity: [0.16, 0.28, 0.16],
-            }}
-            transition={{ duration: 9 + i * 1.4, repeat: Infinity, ease: "easeInOut" }}
-          />
-        ))}
-
       <div style={styles.scanGrid} />
+      <div style={{ ...styles.orb, top: "-40px", left: "-40px", background: "#FFD700" }} />
+      <div style={{ ...styles.orb, bottom: "-40px", right: "-40px", background: "#8338ec" }} />
 
       <motion.div
         style={styles.card}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        initial={{ opacity: 0, y: 24, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
       >
-        <h1 style={styles.title}>MANIFIX VEGGIE GO</h1>
-        <p style={styles.subtitle}>Pick your crew size, drop a name, lock your color.</p>
+        <h1 style={styles.title}>CHOOSE YOUR HUNTER</h1>
+        <p style={styles.subtitle}>Room {roomCode} — pick a lobby size and lock in your color.</p>
 
         <div style={styles.sizeRow}>
-          {LOBBY_SIZES.map((opt) => {
-            const active = lobbySize === opt.size;
+          {LOBBY_SIZE_OPTIONS.map((opt) => {
+            const active = opt.size === lobbySize;
             return (
-              <motion.button
+              <div
                 key={opt.size}
-                type="button"
-                onClick={() => changeLobbySize(opt.size)}
-                disabled={Boolean(pending)}
-                whileTap={!pending ? { scale: 0.95 } : {}}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleLobbySizeSelect(opt.size)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") handleLobbySizeSelect(opt.size);
+                }}
                 style={{
                   ...styles.sizeChip,
-                  borderColor: active ? "#FFD700" : "rgba(255,215,0,0.18)",
-                  background: active ? "rgba(255,215,0,0.12)" : "rgba(0,0,0,0.3)",
-                  opacity: pending ? 0.5 : 1,
+                  borderColor: active ? "#FFD700" : "rgba(255,255,255,0.12)",
+                  background: active ? "rgba(255,215,0,0.08)" : "rgba(255,255,255,0.02)",
                 }}
               >
-                <span style={{ fontSize: 18 }}>{opt.icon}</span>
-                <span style={styles.sizeChipLabel}>{opt.label}</span>
+                <span style={{ ...styles.sizeChipLabel, color: active ? "#FFD700" : "#F5F0E8" }}>
+                  {opt.label}
+                </span>
                 <span style={styles.sizeChipSub}>{opt.sub}</span>
-              </motion.button>
+              </div>
             );
           })}
         </div>
 
-        <motion.input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="YOUR CALLSIGN (OPTIONAL)"
-          maxLength={16}
-          whileFocus={{
-            boxShadow: "0 0 0 2px rgba(255,215,0,0.55), 0 0 24px rgba(255,215,0,0.35)",
-          }}
+        <input
           style={styles.nameInput}
+          value={name}
+          maxLength={NAME_MAX_LEN}
+          placeholder="CALL SIGN"
+          onChange={(e) => setName(e.target.value)}
+          disabled={!!selectedCharacter}
         />
 
         {error ? <p style={styles.errorLine}>{error}</p> : null}
 
         <p style={styles.progressLine}>
-          {filledCount} / {activeSlots.length} LOCKED IN
-          {filledCount === activeSlots.length && activeSlots.length > 0 && (
-            <span style={{ color: "#39ff88" }}> — LET'S GOOO</span>
-          )}
+          {readyCount} / {lobbySize} explorers ready
         </p>
 
         <div style={styles.grid}>
           <AnimatePresence>
-            {activeSlots.map((slot) => {
-              const takenBy = takenChars[slot.id];
-              const isPending = pending === slot.id;
-              const justFailed = slotTakenError === slot.id;
-              const disabled = Boolean(takenBy) || Boolean(pending);
+            {CHARACTER_ORDER.map((charKey, slotIndex) => {
+              const meta = CHARACTER_META[charKey];
+              const locked = slotIndex >= lobbySize;
+              const takenByOther = takenCharacters[charKey] && charKey !== selectedCharacter;
+              const isMine = charKey === selectedCharacter;
 
               return (
                 <motion.button
-                  key={slot.id}
-                  type="button"
+                  key={charKey}
                   layout
                   initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
+                  animate={{ opacity: locked ? 0.35 : 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.85 }}
-                  whileTap={!disabled ? { scale: 0.94 } : {}}
-                  onClick={() => handlePick(slot.id)}
-                  disabled={disabled}
+                  whileTap={locked || takenByOther ? {} : { scale: 0.95 }}
+                  onClick={() => handleSelect(charKey, slotIndex)}
+                  disabled={locked || takenByOther}
                   style={{
                     ...styles.slotCard,
-                    border: `2px solid ${justFailed ? "#ff5c5c" : slot.color}`,
-                    background: takenBy
-                      ? `${slot.color}22`
-                      : isPending
-                      ? `${slot.color}44`
-                      : "rgba(0,0,0,0.3)",
-                    opacity: takenBy && !isPending ? 0.5 : 1,
-                    boxShadow: isPending ? `0 0 24px ${slot.color}` : "none",
-                    cursor: disabled ? "not-allowed" : "pointer",
+                    background: isMine
+                      ? `linear-gradient(135deg, ${meta.color}55, ${meta.color}22)`
+                      : "rgba(255,255,255,0.02)",
+                    border: `1px solid ${isMine ? meta.color : "rgba(255,255,255,0.08)"}`,
+                    cursor: locked || takenByOther ? "not-allowed" : "pointer",
                   }}
                 >
-                  {isPending && (
-                    <motion.div
-                      style={{ ...styles.pulseRing, borderColor: slot.color }}
-                      initial={{ scale: 0.7, opacity: 0.8 }}
-                      animate={{ scale: 1.4, opacity: 0 }}
-                      transition={{ duration: 0.9, repeat: Infinity, ease: "easeOut" }}
-                    />
-                  )}
-                  <span style={{ fontSize: 28 }}>{slot.icon}</span>
-                  <span style={{ ...styles.slotLabel, color: slot.color }}>{slot.display}</span>
+                  {isMine && <span style={{ ...styles.pulseRing, borderColor: meta.color }} />}
+                  <span style={{ fontSize: 26 }}>{locked ? "🔒" : meta.icon}</span>
+                  <span style={styles.slotLabel}>{meta.label}</span>
                   <span style={styles.slotStatus}>
-                    {justFailed
-                      ? "just taken!"
-                      : takenBy
-                      ? takenBy
-                      : isPending
-                      ? "locking in…"
-                      : `open · ${slot.vibe}`}
+                    {locked
+                      ? "Locked for this lobby size"
+                      : isMine
+                      ? "YOU"
+                      : takenByOther
+                      ? "Taken"
+                      : meta.tagline}
                   </span>
                 </motion.button>
               );
