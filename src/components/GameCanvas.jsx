@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import VeggieSprite from './veggies/VeggieSprite.jsx';
+import HackedTargetSprite from './veggies/HackedTargetSprite.jsx';
 import CaptureThrow from './CaptureThrow.jsx';
 import Scoreboard from './Scoreboard.jsx';
 import RadarIndicator from './RadarIndicator.jsx';
@@ -9,10 +10,17 @@ import ObstacleCollisionOverlay from './ObstacleCollisionOverlay.jsx';
 import PlayerStampedeOverlay from './PlayerStampedeOverlay.jsx';
 import PerspectiveGridOverlay from './PerspectiveGridOverlay.jsx';
 import ViewfinderBox from './ViewfinderBox.jsx';
+import BatteryDrainSim, { useBatteryDrainSim } from './BatteryDrainSim.jsx';
 import { ScorePopupLayer, useScorePopups } from './ScorePopup.jsx';
 import { useVeggieTaunt } from './veggies/useVeggieTaunt.js';
 import useARPlaneDetection from '../hooks/useARPlaneDetection.js';
 import { OBSTACLE_ZONES } from '../config/obstacles.js';
+import {
+  metersBetween,
+  bearingDegrees,
+  normalizeRelAngle,
+  bearingScreenPos,
+} from '../utils/spatialGeoMath.js';
 import {
   fetchPlayers,
   fetchVeggies,
@@ -26,6 +34,11 @@ import {
   startDepthLoop,
   sampleCenterDepthMeters,
 } from '../lib/arDepthClient.js';
+import {
+  HACKED_TARGET_VEGGIE_TYPE,
+  subscribeToHackedFlag,
+  spawnHackedTarget,
+} from '../lib/hackedEventClient.js';
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -40,6 +53,14 @@ const FOV_DEG = 65;                    // assumed horizontal FOV of a rear phone
 const OBSTACLE_TRIGGER_METERS = 8;
 const THROW_TARGET_RADIUS_PX = 32;     // hit radius CaptureThrow uses against on-screen veggies
 const VIEWFINDER_SIZE_PX = 96;         // must match ViewfinderBox's default `size` prop
+
+// Herd-multiplier threshold — see PlayerStampedeOverlay integration below.
+// Matches the "45m radius" nearby-player range already described in that
+// component's docs; once more than this many players are inside it, we
+// ask PlayerStampedeOverlay to render its heavier "herd" visual instead
+// of just the plain proximity warning.
+const STAMPEDE_HERD_THRESHOLD = 3;
+const STAMPEDE_HERD_RADIUS_METERS = 45;
 
 // GPS write throttle — see gameClient.makeThrottledLocationWriter. Tuned to
 // stay well under Supabase Realtime's free-tier message quota with a few
@@ -69,50 +90,6 @@ const PING_FREQ_HZ = 880;
 // is probably pointed at a wall/hand and not an open catch lane).
 const AR_DEPTH_WALL_GATE_METERS = 0.6;
 
-// ---------------------------------------------------------------------------
-// Geo math — accurate haversine distance/bearing (good at any latitude,
-// unlike a flat equirectangular approximation).
-// ---------------------------------------------------------------------------
-const EARTH_RADIUS_M = 6371000;
-const toRad = (deg) => (deg * Math.PI) / 180;
-const toDeg = (rad) => (rad * 180) / Math.PI;
-
-function metersBetween(a, b) {
-  if (!a || !b) return Infinity;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
-}
-
-function bearingDegrees(a, b) {
-  const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
-  const x =
-    Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) -
-    Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lng - a.lng));
-  return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
-// Wrap a bearing delta to (-180, 180]
-function normalizeRelAngle(deg) {
-  return ((deg + 540) % 360) - 180;
-}
-
-// Projects a veggie into screen space using its bearing *relative to where
-// the phone is actually pointing* (heading), not a fixed north-up radial
-// layout.
-function bearingScreenPos(relAngle, dist, screenW, screenH) {
-  const nx = 0.5 + (relAngle / (FOV_DEG / 2)) * 0.5;
-  const ny = Math.max(0.02, Math.min(1, 1 - dist / VISIBILITY_RADIUS_METERS));
-  const zFactor = 0.7 + (1.0 - ny) * 0.9;
-  const x = screenW / 2 + (nx - 0.5) * screenW / zFactor;
-  const y = screenH * (0.15 + ny * 0.8);
-  const scale = 1.1 / zFactor;
-  return { x, y, scale };
-}
-
 const VEGGIE_ICON = { carrot: '🥕', tomato: '🍅', broccoli: '🥦', golden: '⭐' };
 
 // `playerId` here is the player_scores.id UUID from claim_character — this
@@ -130,12 +107,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const [flashPoints, setFlashPoints] = useState(null);
   const [controlsLocked, setControlsLocked] = useState(false);
 
-  // NEW: set of veggie ids currently under an active CaptureThrow net-lock.
-  // Fed by onLockStart/onMiss/onHit from CaptureThrow below, and consumed
-  // by each VeggieSprite's `locked` prop so its evasion AI freezes in
-  // place instead of fighting the net. This is purely a local/visual
-  // concept right now — it does NOT stop another player's client from
-  // also locking the same veggie. That needs the capture_attempts table +
+  // Set of veggie ids currently under an active CaptureThrow net-lock. Fed
+  // by onLockStart/onMiss/onHit from CaptureThrow below, and consumed by
+  // each VeggieSprite's `locked` prop so its evasion AI freezes in place
+  // instead of fighting the net. This is purely a local/visual concept
+  // right now — it does NOT stop another player's client from also
+  // locking the same veggie. That needs the capture_attempts table +
   // two-phase RPC already scoped separately; until that exists, two
   // players' nets can both land on the same veggie and only one capture
   // call will actually succeed (the loser just sees their lock silently
@@ -154,8 +131,8 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   // shared spaces). Player flips this on from the in-game control.
   const [radarAudioEnabled, setRadarAudioEnabled] = useState(false);
 
-  // NEW: AR depth-sensing state. `arDepthSupported` is null until we've
-  // checked (avoids flashing the button then hiding it), then true/false.
+  // AR depth-sensing state. `arDepthSupported` is null until we've checked
+  // (avoids flashing the button then hiding it), then true/false.
   // `arDepthActive` reflects whether an immersive-ar XRSession is
   // currently live. `xrHandle` holds { xrSession, referenceSpace, stop }
   // from arDepthClient — kept in state (not just a ref) because
@@ -166,6 +143,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const [arDepthError, setARDepthError] = useState('');
   const [xrHandle, setXrHandle] = useState(null);
   const [centerDepthMeters, setCenterDepthMeters] = useState(null);
+
+  // NEW: whether the room's is_hacked flag is currently on. Drives the
+  // one-shot Hacked Target spawn effect below — see
+  // lib/hackedEventClient.js for the actual DB read/insert.
+  const [roomHacked, setRoomHacked] = useState(false);
+  const hackedSpawnAttemptedRef = useRef(false);
 
   const keyVelRef = useRef({ x: 0, y: 0 });
   const keysHeldRef = useRef(new Set());
@@ -183,15 +166,28 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   // Floating "+points" popups fired on capture — see ScorePopup.jsx
   const { popups: scorePopups, spawnPopup, removePopup } = useScorePopups();
 
-  // NEW: live plane tracking, driven by the active XR depth session (if
-  // any). No-ops (empty planes, isSupported stays null) whenever
-  // xrHandle is null, i.e. for the entire camera+GPS AR flow this game
-  // normally runs — this hook only does anything once a player has
-  // explicitly opted into AR depth mode.
+  // Live plane tracking, driven by the active XR depth session (if any).
+  // No-ops (empty planes, isSupported stays null) whenever xrHandle is
+  // null, i.e. for the entire camera+GPS AR flow this game normally
+  // runs — this hook only does anything once a player has explicitly
+  // opted into AR depth mode.
   const { planes: arPlanes, planeCount: arPlaneCount, wallPlanes, floorPlanes } = useARPlaneDetection({
     xrSession: xrHandle?.xrSession ?? null,
     referenceSpace: xrHandle?.referenceSpace ?? null,
     enabled: arDepthActive,
+  });
+
+  // NEW: in-game battery drain sim. Reads heading turn-rate (live AR mode)
+  // or keyboard velocity magnitude (sim mode) to derive drain — see
+  // components/BatteryDrainSim.jsx for the actual math. `batteryLocked`
+  // gets OR'd into the same controlsLocked gate ObstacleCollisionOverlay
+  // already drives, so CATCH/movement respects whichever lock is active
+  // without the two systems needing to know about each other.
+  const { energyPercent, locked: batteryLocked, plugInPowerBank } = useBatteryDrainSim({
+    headingDeg: heading,
+    simVelocity: keyVelRef.current,
+    simMode,
+    enabled: permissionStage === 'ready',
   });
 
   // -------------------------------------------------------------------
@@ -290,7 +286,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     setPermissionStage('ready');
   }, []);
 
-  // NEW: once the base AR flow is up (or we're in sim mode — checking is
+  // Once the base AR flow is up (or we're in sim mode — checking is
   // harmless either way), probe whether this browser/device can even
   // negotiate an immersive-ar + depth-sensing session. This is read-only
   // capability detection, no permission prompt involved, so it's safe to
@@ -319,11 +315,11 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     setCenterDepthMeters(null);
   }, [xrHandle]);
 
-  // NEW: user-gesture-gated toggle for AR depth mode. Requesting the
-  // session can fail for lots of legitimate reasons (device asleep on
-  // depth hardware, another app holding the camera, user backed out of
-  // the native AR permission prompt) — surfaced via arDepthError instead
-  // of throwing, since a failed depth session should never take down the
+  // User-gesture-gated toggle for AR depth mode. Requesting the session
+  // can fail for lots of legitimate reasons (device asleep on depth
+  // hardware, another app holding the camera, user backed out of the
+  // native AR permission prompt) — surfaced via arDepthError instead of
+  // throwing, since a failed depth session should never take down the
   // base camera+GPS game underneath it.
   const toggleARDepth = useCallback(async () => {
     if (arDepthActive) {
@@ -413,7 +409,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
     const handleKeyDown = (e) => {
       const k = e.key.toLowerCase();
-      if (!KEY_VECTORS[k] || controlsLocked) return;
+      if (!KEY_VECTORS[k] || controlsLocked || batteryLocked) return;
       keysHeldRef.current.add(k);
       recomputeVelocity();
     };
@@ -431,7 +427,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       keysHeldRef.current.clear();
       keyVelRef.current = { x: 0, y: 0 };
     };
-  }, [simMode, controlsLocked]);
+  }, [simMode, controlsLocked, batteryLocked]);
 
   useEffect(() => {
     if (!simMode) return undefined;
@@ -446,9 +442,10 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
           lat: p.lat - (y * SIM_METERS_PER_SEC * dt) / 111320,
           lng: p.lng + (x * SIM_METERS_PER_SEC * dt) / (111320 * Math.cos((p.lat * Math.PI) / 180)),
         }));
-        const targetHeading = (toDeg(Math.atan2(x, -y)) + 360) % 360;
-        headingRef.current = targetHeading;
-        setHeading(targetHeading);
+        const targetHeading = (Math.atan2(x, -y) * 180) / Math.PI;
+        const normalizedHeading = (targetHeading + 360) % 360;
+        headingRef.current = normalizedHeading;
+        setHeading(normalizedHeading);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -508,6 +505,34 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     };
   }, [roomCode]);
 
+  // NEW: subscribe to the room's is_hacked flag. See
+  // lib/hackedEventClient.js for the read/realtime-subscribe details.
+  useEffect(() => {
+    if (!roomCode) return undefined;
+    const unsubscribe = subscribeToHackedFlag(roomCode, setRoomHacked);
+    return unsubscribe;
+  }, [roomCode]);
+
+  // NEW: once we're hacked AND we have a live player position, spawn the
+  // Hacked Target pinned to that position — once per mount, guarded by
+  // hackedSpawnAttemptedRef so a GPS update a moment later doesn't fire a
+  // second spawn attempt (spawnHackedTarget() is itself idempotent
+  // server-side too, this is just to avoid a burst of redundant calls
+  // from every client in the room reacting to the same flag flip at
+  // once).
+  useEffect(() => {
+    if (!roomHacked || !playerPos || !roomCode) return;
+    if (hackedSpawnAttemptedRef.current) return;
+    hackedSpawnAttemptedRef.current = true;
+
+    spawnHackedTarget(roomCode, playerPos).catch((err) => {
+      console.error('[GameCanvas] hacked target spawn failed', err);
+      // Allow a retry on the next position update rather than getting
+      // stuck permanently un-spawned after one transient failure.
+      hackedSpawnAttemptedRef.current = false;
+    });
+  }, [roomHacked, playerPos, roomCode]);
+
   // Throttled GPS writer — one instance per playerId for the life of the match.
   useEffect(() => {
     if (!playerId) return;
@@ -536,6 +561,21 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     [players]
   );
 
+  // NEW: count of other players inside the herd radius, computed from the
+  // same haversine math everything else uses. This is purely a derived
+  // number handed to PlayerStampedeOverlay as a prop — the overlay itself
+  // owns whether/how to render the heavier "herd" visual once this
+  // crosses STAMPEDE_HERD_THRESHOLD; GameCanvas just supplies the count so
+  // PlayerStampedeOverlay doesn't have to duplicate haversine math for
+  // itself.
+  const nearbyPlayerCount = useMemo(() => {
+    if (!playerPos) return 0;
+    return stampedePlayers.filter(
+      (p) => p.id !== playerId && metersBetween(playerPos, p) <= STAMPEDE_HERD_RADIUS_METERS
+    ).length;
+  }, [stampedePlayers, playerPos, playerId]);
+  const herdModeActive = nearbyPlayerCount > STAMPEDE_HERD_THRESHOLD;
+
   const { visibleVeggies, edgeVeggies, nearestTracked } = useMemo(() => {
     const visible = [];
     const edge = [];
@@ -550,7 +590,10 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
         if (dist <= VISIBILITY_RADIUS_METERS) {
           if (Math.abs(relAngle) <= FOV_DEG / 2) {
-            const screenPos = bearingScreenPos(relAngle, dist, dims.w, dims.h);
+            const screenPos = bearingScreenPos(relAngle, dist, dims.w, dims.h, {
+              fovDeg: FOV_DEG,
+              visibilityRadiusM: VISIBILITY_RADIUS_METERS,
+            });
             visible.push({ ...v, type: v.veggie_type, distance: dist, relAngle, ...screenPos });
           } else {
             edge.push({ ...v, type: v.veggie_type, distance: dist, relAngle, side: relAngle < 0 ? 'left' : 'right' });
@@ -656,15 +699,15 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     [visibleVeggies, crosshairX, crosshairY]
   );
 
-  // FIX: on a successful catch, also clear the veggie out of
-  // lockedVeggieIds. Without this, if capture_veggie() ever comes back
-  // successful for an id that's still marked locked (shouldn't normally
-  // race, but state cleanup should never depend on "shouldn't"), the
-  // Set would keep a dead entry forever since nothing else ever clears it
-  // once the veggie itself is gone from `veggies`.
+  // On a successful catch, also clear the veggie out of lockedVeggieIds.
+  // Without this, if capture_veggie() ever comes back successful for an
+  // id that's still marked locked (shouldn't normally race, but state
+  // cleanup should never depend on "shouldn't"), the Set would keep a
+  // dead entry forever since nothing else ever clears it once the veggie
+  // itself is gone from `veggies`.
   const handleCatch = useCallback(
     async (veggieId) => {
-      if (controlsLocked || !playerId) return;
+      if (controlsLocked || batteryLocked || !playerId) return;
       const caughtVeggie = veggies.find((v) => v.id === veggieId);
       const caughtScreenPos = visibleVeggies.find((v) => v.id === veggieId);
       try {
@@ -682,6 +725,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         const points = result.points ?? result.points_gained ?? 0;
         const newScore = result.new_score ?? result.updated_score ?? null;
         const playerName = result.player_name ?? nickname;
+        const isHackedCatch = caughtVeggie?.veggie_type === HACKED_TARGET_VEGGIE_TYPE;
 
         setFlashPoints(points);
         setCaptureOverlay({
@@ -689,15 +733,20 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
           points,
           playerName,
           newScore,
+          legendary: isHackedCatch,
         });
         spawnPopup({
           x: caughtScreenPos?.x ?? crosshairX,
           y: caughtScreenPos?.y ?? crosshairY,
           value: points,
         });
-        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+        confetti({
+          particleCount: isHackedCatch ? 160 : 60,
+          spread: isHackedCatch ? 100 : 70,
+          origin: { y: 0.6 },
+        });
         setTimeout(() => setFlashPoints(null), 1200);
-        setTimeout(() => setCaptureOverlay(null), 1800);
+        setTimeout(() => setCaptureOverlay(null), isHackedCatch ? 2600 : 1800);
       } catch (err) {
         console.error('[GameCanvas] capture failed', err);
         setLockedVeggieIds((prev) => {
@@ -708,11 +757,11 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         });
       }
     },
-    [playerId, controlsLocked, veggies, visibleVeggies, nickname, spawnPopup, crosshairX, crosshairY]
+    [playerId, controlsLocked, batteryLocked, veggies, visibleVeggies, nickname, spawnPopup, crosshairX, crosshairY]
   );
 
-  // NEW: fires the instant CaptureThrow's net lands on a target, before
-  // its hold timer starts. Marks the veggie as locked so its VeggieSprite
+  // Fires the instant CaptureThrow's net lands on a target, before its
+  // hold timer starts. Marks the veggie as locked so its VeggieSprite
   // freezes evasion. This is also the seam for a future server-side
   // optimistic-lock call (capture_attempts insert) — nothing hits the
   // network here yet, it's purely local UI state.
@@ -725,9 +774,9 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     });
   }, []);
 
-  // NEW: fires when a projectile misses in flight (no veggieId) or when a
-  // lock breaks — target vanished or drifted out of LOCK_BREAK_RADIUS_PX
-  // (has a veggieId). Only clears lockedVeggieIds when an id is actually
+  // Fires when a projectile misses in flight (no veggieId) or when a lock
+  // breaks — target vanished or drifted out of LOCK_BREAK_RADIUS_PX (has
+  // a veggieId). Only clears lockedVeggieIds when an id is actually
   // present; a plain flight-miss has nothing to clear.
   const handleThrowMiss = useCallback((veggieId) => {
     if (!veggieId) return;
@@ -739,7 +788,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     });
   }, []);
 
-  // NEW: if AR depth mode is active and the center of the viewport reads
+  // If AR depth mode is active and the center of the viewport reads
   // implausibly close, the player is almost certainly aiming at a wall,
   // their own hand, or another obstruction rather than an actual catch
   // lane. Soft-gate (not hard block) the button in that case — this
@@ -749,9 +798,10 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     arDepthActive && centerDepthMeters != null && centerDepthMeters < AR_DEPTH_WALL_GATE_METERS;
 
   const nearestCatchable = visibleVeggies.find((v) => v.distance <= CATCH_RADIUS_METERS);
+  const catchDisabled = controlsLocked || batteryLocked || !nearestCatchable || arWallBlocked;
   const handleCatchButtonTap = useCallback(() => {
-    if (nearestCatchable && !arWallBlocked) handleCatch(nearestCatchable.id);
-  }, [nearestCatchable, arWallBlocked, handleCatch]);
+    if (nearestCatchable && !arWallBlocked && !batteryLocked) handleCatch(nearestCatchable.id);
+  }, [nearestCatchable, arWallBlocked, batteryLocked, handleCatch]);
 
   if (permissionStage !== 'ready') {
     return (
@@ -786,11 +836,26 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       <PerspectiveGridOverlay />
 
-      <Scoreboard
-        players={Object.fromEntries(players.map((p) => [p.slot_id, { name: p.name, score: p.score }]))}
-        mySlot={players.find((p) => p.id === playerId)?.slot_id}
-        flashPoints={flashPoints}
-      />
+      {/* BUG FIX (leaderboard collision): Scoreboard now sits in its own
+          stacking context above the top-right icon row via explicit
+          zIndex, and the icon row (exit / radar-audio / AR-depth) is
+          anchored far enough right (see styles.exitBtn/.radarAudioBtn/
+          .arDepthBtn `right` offsets below) that it can't overlap
+          Scoreboard's own layout even on narrow viewports. If you still
+          see a leftover "Leaderboard X ⬜" label after this, that text
+          isn't coming from Scoreboard.jsx or GameCanvas.jsx at all —
+          it's very likely a stray/legacy debug overlay component still
+          mounted somewhere in MainLayout.jsx or AppRouter.jsx. Grep your
+          repo for the literal string "Leaderboard" (capital L) — that
+          component's name doesn't match your actual Scoreboard.jsx, which
+          is the fastest way it could be surviving a refactor unnoticed. */}
+      <div style={styles.scoreboardLayer}>
+        <Scoreboard
+          players={Object.fromEntries(players.map((p) => [p.slot_id, { name: p.name, score: p.score }]))}
+          mySlot={players.find((p) => p.id === playerId)?.slot_id}
+          flashPoints={flashPoints}
+        />
+      </div>
 
       <button style={styles.exitBtn} onClick={onExit}>✕</button>
 
@@ -806,11 +871,11 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         {radarAudioEnabled ? '🔊' : '🔈'}
       </button>
 
-      {/* NEW: AR depth-sensing toggle. Only rendered once capability
-          detection has resolved true — no point showing a button that
-          will just error out on unsupported browsers/devices. Sim mode
-          has no camera/XR surface to anchor a session to, so it's hidden
-          there too. */}
+      {/* AR depth-sensing toggle. Only rendered once capability detection
+          has resolved true — no point showing a button that will just
+          error out on unsupported browsers/devices. Sim mode has no
+          camera/XR surface to anchor a session to, so it's hidden there
+          too. */}
       {!simMode && arDepthSupported && (
         <button
           style={{
@@ -825,18 +890,32 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         </button>
       )}
 
+      {/* NEW: in-game battery meter + out-of-battery lockout gate. */}
+      <BatteryDrainSim
+        energyPercent={energyPercent}
+        locked={batteryLocked}
+        onPlugIn={plugInPowerBank}
+      />
+
       <ObstacleCollisionOverlay
         playerPos={playerPos}
         obstacles={OBSTACLE_ZONES}
         onLockChange={setControlsLocked}
       />
 
+      {/* NEW: nearbyPlayerCount/herdModeActive feed the heavier "herd"
+          visual — see PlayerStampedeOverlay.jsx for the actual rendering
+          of the extra sprinting silhouettes. Passing the pre-computed
+          count avoids that component needing its own haversine math. */}
       <PlayerStampedeOverlay
         players={stampedePlayers}
         selfId={playerId}
         playerPos={playerPos}
         screenW={dims.w}
         screenH={dims.h}
+        nearbyPlayerCount={nearbyPlayerCount}
+        herdModeActive={herdModeActive}
+        herdThreshold={STAMPEDE_HERD_THRESHOLD}
       />
 
       {nearestTracked && (
@@ -848,6 +927,13 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         />
       )}
 
+      {/* BUG FIX (canvas projection clipping): the "Xm away" edge label
+          previously sat in the same stacking context as the veggie icons
+          below it with no explicit isolation, so PerspectiveGridOverlay's
+          grid lines (drawn after it in some paint orders) could clip
+          through the label. Wrapping each label in its own
+          isolate-stacking div with a higher zIndex than the grid overlay
+          fixes the paint order regardless of DOM position. */}
       {edgeVeggies.map((v) => (
         <div
           key={`edge-${v.id}`}
@@ -866,33 +952,58 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       <ViewfinderBox centerX={crosshairX} centerY={crosshairY} active={targetInFrame} size={VIEWFINDER_SIZE_PX} />
 
-      {visibleVeggies.map((v) => (
-        <VeggieSprite
-          key={v.id}
-          id={v.id}
-          type={v.type}
-          distance={v.distance}
-          camouflageDistance={CAMOUFLAGE_DISTANCE_METERS}
-          revealDistance={REVEAL_DISTANCE_METERS}
-          gpsX={v.x}
-          gpsY={v.y}
-          scale={v.scale}
-          catchMode={v.distance <= CATCH_RADIUS_METERS}
-          locked={lockedVeggieIds.has(v.id)}
-          screenW={dims.w}
-          screenH={dims.h}
-          crosshairX={crosshairX}
-          crosshairY={crosshairY}
-          onCatch={handleCatch}
-        />
-      ))}
+      {visibleVeggies.map((v) =>
+        v.type === HACKED_TARGET_VEGGIE_TYPE ? (
+          // NEW: legendary hacked-target entity — rendered with its own
+          // sprite (original design, see HackedTargetSprite.jsx) rather
+          // than going through VeggieSprite's normal camouflage/reveal
+          // pipeline, since it should never be hidden once spawned.
+          <div
+            key={v.id}
+            style={{
+              position: 'absolute',
+              left: v.x,
+              top: v.y,
+              transform: `translate(-50%, -50%) scale(${v.scale || 1})`,
+              zIndex: 25,
+              cursor: v.distance <= CATCH_RADIUS_METERS ? 'pointer' : 'default',
+            }}
+            onClick={() => v.distance <= CATCH_RADIUS_METERS && handleCatch(v.id)}
+          >
+            <HackedTargetSprite
+              scale={v.scale}
+              catchMode={v.distance <= CATCH_RADIUS_METERS}
+              locked={lockedVeggieIds.has(v.id)}
+            />
+          </div>
+        ) : (
+          <VeggieSprite
+            key={v.id}
+            id={v.id}
+            type={v.type}
+            distance={v.distance}
+            camouflageDistance={CAMOUFLAGE_DISTANCE_METERS}
+            revealDistance={REVEAL_DISTANCE_METERS}
+            gpsX={v.x}
+            gpsY={v.y}
+            scale={v.scale}
+            catchMode={v.distance <= CATCH_RADIUS_METERS}
+            locked={lockedVeggieIds.has(v.id)}
+            screenW={dims.w}
+            screenH={dims.h}
+            crosshairX={crosshairX}
+            crosshairY={crosshairY}
+            onCatch={handleCatch}
+          />
+        )
+      )}
 
-      {/* FIX: now wires onLockStart (marks lockedVeggieIds) and onMiss
-          (clears it on a broken/expired lock) alongside the existing
-          onHit. Previously onMiss was a no-op — that was fine when a miss
-          couldn't have a target attached to it, but now a broken lock
-          does carry a veggieId that needs cleaning up, or that veggie's
-          sprite would stay frozen forever thinking it's still netted. */}
+      {/* Wires onLockStart (marks lockedVeggieIds) and onMiss (clears it
+          on a broken/expired lock) alongside the existing onHit. Previously
+          onMiss was a no-op — that was fine when a miss couldn't have a
+          target attached to it, but now a broken lock does carry a
+          veggieId that needs cleaning up, or that veggie's sprite would
+          stay frozen forever thinking it's still netted. */}
       <CaptureThrow
         targets={throwTargets}
         onHit={handleCatch}
@@ -900,16 +1011,16 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         onLockStart={handleLockStart}
         screenW={dims.w}
         screenH={dims.h}
-        disabled={controlsLocked}
+        disabled={controlsLocked || batteryLocked}
       />
 
       <ScorePopupLayer popups={scorePopups} onPopupDone={removePopup} />
 
-      {/* NEW: minimal AR depth HUD — surface count + center-of-frame
-          distance, plus the wall-gate warning when it's actively
-          suppressing the CATCH button. Deliberately not drawing plane
-          outlines here (that's a bigger perspective-projection job left
-          for PerspectiveGridOverlay/a follow-up); this is just enough
+      {/* Minimal AR depth HUD — surface count + center-of-frame distance,
+          plus the wall-gate warning when it's actively suppressing the
+          CATCH button. Deliberately not drawing plane outlines here
+          (that's a bigger perspective-projection job left for
+          PerspectiveGridOverlay/a follow-up); this is just enough
           feedback for a player to understand why CATCH might be
           disabled. */}
       {arDepthActive && (
@@ -925,12 +1036,25 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       {captureOverlay && (
         <div style={styles.captureVignette}>
-          <div style={styles.captureCircle}>
+          <div
+            style={{
+              ...styles.captureCircle,
+              boxShadow: captureOverlay.legendary ? '0 0 90px #ff3355' : '0 0 60px #FFD700',
+            }}
+          >
             <span style={{ fontSize: '64px' }}>
-              {VEGGIE_ICON[captureOverlay.veggieType] || '🥕'}
+              {captureOverlay.legendary ? '⚠' : VEGGIE_ICON[captureOverlay.veggieType] || '🥕'}
             </span>
           </div>
-          <h2 style={styles.captureLabel}>+{captureOverlay.points || 0}</h2>
+          <h2
+            style={{
+              ...styles.captureLabel,
+              color: captureOverlay.legendary ? '#ff3355' : '#FFD700',
+            }}
+          >
+            +{captureOverlay.points || 0}
+          </h2>
+          {captureOverlay.legendary && <p style={styles.legendaryLabel}>HACKED TARGET NEUTRALIZED</p>}
         </div>
       )}
 
@@ -940,9 +1064,9 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         <button
           style={{
             ...styles.catchBtn,
-            opacity: nearestCatchable && !arWallBlocked ? 1 : 0.5,
+            opacity: nearestCatchable && !arWallBlocked && !batteryLocked ? 1 : 0.5,
           }}
-          disabled={controlsLocked || !nearestCatchable || arWallBlocked}
+          disabled={catchDisabled}
           onClick={handleCatchButtonTap}
         >
           CATCH
@@ -959,16 +1083,23 @@ const styles = {
     position: 'absolute', inset: 0,
     background: 'linear-gradient(180deg, #6ee7b7 0%, #86efac 45%, #4ade80 100%)',
   },
+  // BUG FIX: explicit stacking layer for Scoreboard, above the grid
+  // overlay/video (z-index 0-10 range) and below the top-right icon row
+  // (z-index 50), with its own top/left inset so it can't be pushed under
+  // anything positioned at top:10 like the icon buttons are.
+  scoreboardLayer: {
+    position: 'absolute', top: 0, left: 0, right: 90, zIndex: 30, pointerEvents: 'none',
+  },
   exitBtn: {
-    position: 'absolute', top: 10, right: 100, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
+    position: 'absolute', top: 10, right: 140, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
     background: 'rgba(0,0,0,0.4)', color: '#fff', border: 'none', fontSize: 14, cursor: 'pointer',
   },
   radarAudioBtn: {
-    position: 'absolute', top: 10, right: 60, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
+    position: 'absolute', top: 10, right: 100, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
     border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   arDepthBtn: {
-    position: 'absolute', top: 10, right: 20, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
+    position: 'absolute', top: 10, right: 60, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
     border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   arDepthHud: {
@@ -995,10 +1126,15 @@ const styles = {
     background: 'rgba(57,255,136,0.85)', color: '#08080a', fontWeight: 800, fontSize: 14, letterSpacing: 1,
     cursor: 'pointer',
   },
+  // BUG FIX: edge label now isolates its own stacking context (isolation
+  // creates a new one implicitly given position:absolute + zIndex) at a
+  // zIndex above PerspectiveGridOverlay's grid lines, so the grid can no
+  // longer paint through the label's bounding box regardless of DOM order
+  // relative to that overlay.
   edgeIndicator: {
-    position: 'absolute', zIndex: 20, color: '#FFD700', fontWeight: 800, fontSize: 11,
+    position: 'absolute', zIndex: 35, isolation: 'isolate', color: '#FFD700', fontWeight: 800, fontSize: 11,
     fontFamily: "'Orbitron', monospace", textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-    pointerEvents: 'none',
+    pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'visible',
   },
   captureVignette: {
     position: 'absolute', inset: 0, zIndex: 45, display: 'flex', flexDirection: 'column',
@@ -1008,11 +1144,15 @@ const styles = {
   },
   captureCircle: {
     width: '150px', height: '150px', borderRadius: '50%', backgroundColor: '#F5F0E8',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 60px #FFD700',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   captureLabel: {
-    fontSize: '28px', fontWeight: 800, marginTop: '16px', color: '#FFD700',
+    fontSize: '28px', fontWeight: 800, marginTop: '16px',
     textShadow: '2px 2px 0px #000', fontFamily: "'Orbitron', sans-serif", letterSpacing: '1px',
+  },
+  legendaryLabel: {
+    marginTop: 6, fontSize: 11, letterSpacing: 2, color: '#ff3355',
+    fontFamily: "'Orbitron', sans-serif", fontWeight: 700,
   },
   permissionWrapper: {
     minHeight: '100vh', backgroundColor: '#08080a', color: '#F5F0E8',
