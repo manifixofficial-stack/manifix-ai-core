@@ -29,6 +29,14 @@ const MAX_VEGGIES = 8;
 const SPAWN_RADIUS_METERS = 120;
 const SPAWN_INTERVAL_MS = 15000;
 
+// NEW (TACKLE net-lock): how long a lock reservation is honored before
+// it's treated as abandoned and auto-expires. Set comfortably above
+// CaptureThrow.jsx's own LOCK_DURATION_MS (1300ms) so a normal successful
+// hold always resolves well inside the reservation window — this is just
+// a safety net for a lock that's never explicitly released (e.g. the tab
+// gets backgrounded mid-throw).
+const LOCK_TIMEOUT_MS = 4000;
+
 let uidCounter = 0;
 function uid(prefix) {
   uidCounter += 1;
@@ -67,6 +75,8 @@ function spawnVeggie(room) {
     points: meta.points,
     latitude: pos.lat,
     longitude: pos.lng,
+    // locked_by / lock_expires_at are added later by attemptCaptureLock —
+    // deliberately absent here so a fresh veggie is unlocked by default.
   };
 }
 
@@ -114,6 +124,10 @@ function notify(room, kind) {
       console.error('[gameClient] listener error', err);
     }
   });
+}
+
+function findRoomByVeggieId(veggieId) {
+  return [...ROOMS.values()].find((r) => r.veggies.some((v) => v.id === veggieId));
 }
 
 // ---------------------------------------------------------------------------
@@ -180,20 +194,81 @@ export async function fetchVeggies(roomCode) {
   return room ? [...room.veggies] : [];
 }
 
-// Local capture — no other device can beat you to it, so 'already_gone'
-// only fires if the veggie already got picked up on this same device
-// (e.g. a double-tap) or has aged out of the room.
+function isLockActive(veggie) {
+  return !!veggie.locked_by && !!veggie.lock_expires_at && veggie.lock_expires_at > Date.now();
+}
+
+// ---------------------------------------------------------------------------
+// NEW (TACKLE net-lock)
+//
+// Reserves a veggie for `playerId` for the duration CaptureThrow.jsx holds
+// its net over it (see LOCK_DURATION_MS there). Local/offline play is
+// single-device, so lock contention between two *different* players is
+// mostly theoretical right now — but this keeps the same shape a real
+// multiplayer backend would need (e.g. a locked_by/lock_expires_at column
+// pair + an RPC guard in supabase/schema.sql), so callers in GameCanvas.jsx
+// don't have to change if this gets wired back up to Supabase later.
+// ---------------------------------------------------------------------------
+
+export async function attemptCaptureLock(veggieId, playerId) {
+  const room = findRoomByVeggieId(veggieId);
+  if (!room) return { success: false, reason: 'already_gone' };
+  const veggie = room.veggies.find((v) => v.id === veggieId);
+  if (!veggie) return { success: false, reason: 'already_gone' };
+
+  if (isLockActive(veggie) && veggie.locked_by !== playerId) {
+    return { success: false, reason: 'locked_by_other' };
+  }
+
+  veggie.locked_by = playerId;
+  veggie.lock_expires_at = Date.now() + LOCK_TIMEOUT_MS;
+  notify(room, 'veggies');
+  return { success: true, expiresAt: veggie.lock_expires_at };
+}
+
+// Releases a lock this player holds — called when a net-lock hold breaks
+// or times out (CaptureThrow.jsx's onLockBreak), so the veggie becomes
+// catchable again immediately instead of waiting out LOCK_TIMEOUT_MS.
+export async function releaseCaptureLock(veggieId, playerId) {
+  const room = findRoomByVeggieId(veggieId);
+  if (!room) return { success: false, reason: 'already_gone' };
+  const veggie = room.veggies.find((v) => v.id === veggieId);
+  if (!veggie) return { success: false, reason: 'already_gone' };
+
+  if (veggie.locked_by !== playerId) {
+    return { success: false, reason: 'not_lock_owner' };
+  }
+
+  delete veggie.locked_by;
+  delete veggie.lock_expires_at;
+  notify(room, 'veggies');
+  return { success: true };
+}
+
+// Local capture — no other device can beat you to it in offline mode, so
+// 'already_gone' mostly fires on a stale double-tap or an aged-out veggie.
+//
+// FIX (TACKLE net-lock): now also respects an active lock held by a
+// *different* player (see attemptCaptureLock above) — a no-op branch in
+// today's single-device mode, but load-bearing the moment this is wired
+// back up to a real multiplayer backend, so it's worth having correct now
+// rather than retrofitting later.
 export async function captureVeggie(veggieId, playerId) {
-  const room = [...ROOMS.values()].find((r) => r.veggies.some((v) => v.id === veggieId));
+  const room = findRoomByVeggieId(veggieId);
   if (!room) return { success: false, reason: 'already_gone' };
 
   const veggieIdx = room.veggies.findIndex((v) => v.id === veggieId);
   if (veggieIdx === -1) return { success: false, reason: 'already_gone' };
 
+  const veggie = room.veggies[veggieIdx];
+  if (isLockActive(veggie) && veggie.locked_by !== playerId) {
+    return { success: false, reason: 'locked_by_other' };
+  }
+
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return { success: false, reason: 'player_not_found' };
 
-  const [veggie] = room.veggies.splice(veggieIdx, 1);
+  room.veggies.splice(veggieIdx, 1);
   player.score += veggie.points;
 
   const topScore = Math.max(...room.players.map((p) => p.score));
