@@ -31,6 +31,14 @@ const EMPTY_TAKEN = {
   'bob-purple': null,
 };
 
+// Human-readable text for claim_character's `reason` field (see
+// supabase/schema.sql). The RPC only ever returns 'slot_taken' today, but
+// this map is kept open-ended rather than hardcoding a single string, since
+// a DB-side change could add more reasons without a matching frontend change.
+const CLAIM_FAILURE_MESSAGES = {
+  slot_taken: 'That color was just claimed by someone else — pick another.',
+};
+
 const MATCH_PHASE = {
   COUNTDOWN: 'COUNTDOWN',
   ACTIVE: 'ACTIVE',
@@ -158,17 +166,11 @@ function App() {
   // idempotent (insert ... on conflict do nothing) so this works the same
   // whether you're creating the room or joining one a teammate opened.
   //
-  // FIX: the room code is now normalized to uppercase ONCE, up front
-  // (normalizedCode), and that exact same string is used for every call
-  // that follows — joinRoom(), fetchTakenCharacters(), and setRoomCode().
-  // Previously joinRoom() was called with the raw, as-typed `code` while
-  // roomCode state was set to code.toUpperCase() — if a player typed a
-  // room code in lowercase, the room got CREATED under the lowercase
-  // string but every later lookup (claimCharacter, subscribeToRoom, etc)
-  // searched for the uppercase version, which doesn't exist as far as
-  // Postgres string equality is concerned. That silently broke every
-  // claim attempt after the room was joined, always falling through to
-  // "Could not claim that slot — try again." in handleLockCharacter below.
+  // Room code is normalized to uppercase ONCE, up front (normalizedCode),
+  // and that exact same string is used for every call that follows —
+  // joinRoom(), fetchTakenCharacters(), and setRoomCode(). See prior
+  // comment history: a mismatch here (raw code vs. .toUpperCase()) used to
+  // silently break every claim after the first join.
   // -------------------------------------------------------------------
   const handleJoinRoom = async (code) => {
     setErrorMessage('');
@@ -218,15 +220,24 @@ function App() {
   //
   // claim_character() takes 3 params — (roomCode, slotId, name) — per
   // gameClient.js's signature. It's the RPC that CREATES the
-  // player_scores row and hands back player_id for the first time.
+  // player_scores row and hands back player_id for the first time — it is
+  // a plain INSERT, not an update-then-check, so there is no such thing
+  // as a missing "session profile" to claim into. The only failure mode
+  // per supabase/schema.sql is a unique_violation on (room_code, slot_id),
+  // which the RPC catches and returns as {success:false, reason:'slot_taken'}.
+  //
+  // FIX (confirmed against the real claim_character RPC in schema.sql):
+  // the RPC's actual return shape is
+  //   { success: boolean, reason?: string, player_id?, slot_id?, name? }
+  // — NOT { status: 'ok'|'error', message }, which is what this handler
+  // used to check. That mismatch meant even a *successful* claim was
+  // being treated as a failure client-side, because `result.status` and
+  // `result.message` don't exist on this RPC's response at all. If you
+  // were seeing an error on every claim attempt regardless of what
+  // actually happened in the database, this was why.
   //
   // myPlayerId is set HERE, from result.player_id, since joinRoom()
   // only ever returns a game_rooms row (no player_id field).
-  //
-  // DEBUG: logging the raw RPC result so the real `reason` string is
-  // visible in the console if a claim ever fails for something other
-  // than 'slot_taken' — remove this console.log once claims are working
-  // reliably, or leave it, it's harmless in production.
   //
   // On success, advances to stage 3 (MapView) — the player can now walk
   // around and see live veggie blips while waiting for the room to fill.
@@ -236,41 +247,42 @@ function App() {
   // there's no lobby_size handling wired into claim_character or the
   // tick server yet.
   // -------------------------------------------------------------------
-const handleLockCharacter = async (slotId, claimedName) => {
-  setErrorMessage('');
+  const handleLockCharacter = async (slotId, claimedName) => {
+    setErrorMessage('');
 
-  if (!myPosition) {
-    setErrorMessage('Still locking your position — try again in a moment.');
-    return;
-  }
-
-  if (!roomCode) {
-    setErrorMessage('No room code set — go back and rejoin the room.');
-    return;
-  }
-
-  try {
-    const result = await claimCharacter(roomCode, slotId, claimedName);
-    console.log('[App] claimCharacter result:', result);
-
-    // FIX: the real RPC returns { status: 'ok'|'error', message, ... }
-    // not { success: boolean, reason: string } as previously assumed.
-    const success = result?.status === 'ok' || result?.status === 'success';
-    setLockResult({ slotId, success });
-
-    if (success) {
-      setMySlot(result.slot_id);
-      setMyPlayerId(result.player_id);
-      setStage(3);
-    } else {
-      setErrorMessage(result?.message || 'Could not claim that slot — try again.');
+    if (!myPosition) {
+      setErrorMessage('Still locking your position — try again in a moment.');
+      return;
     }
-  } catch (err) {
-    console.error('[App] claimCharacter failed', err);
-    setLockResult({ slotId, success: false });
-    setErrorMessage('Could not reach the game server — check your connection and try again.');
-  }
-};
+
+    if (!roomCode) {
+      setErrorMessage('No room code set — go back and rejoin the room.');
+      return;
+    }
+
+    try {
+      const result = await claimCharacter(roomCode, slotId, claimedName);
+
+      // Matches claim_character's real jsonb_build_object() output in
+      // supabase/schema.sql — success is a boolean, failures carry
+      // `reason` (currently only 'slot_taken'), never `status`/`message`.
+      const success = result?.success === true;
+      setLockResult({ slotId, success });
+
+      if (success) {
+        setMySlot(result.slot_id);
+        setMyPlayerId(result.player_id);
+        setStage(3);
+      } else {
+        const reason = result?.reason;
+        setErrorMessage(CLAIM_FAILURE_MESSAGES[reason] || 'Could not claim that slot — try again.');
+      }
+    } catch (err) {
+      console.error('[App] claimCharacter failed', err);
+      setLockResult({ slotId, success: false });
+      setErrorMessage('Could not reach the game server — check your connection and try again.');
+    }
+  };
 
   const handleInstantReplay = () => {
     setVictoryData(null);
