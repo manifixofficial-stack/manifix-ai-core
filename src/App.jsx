@@ -236,44 +236,41 @@ function App() {
   // there's no lobby_size handling wired into claim_character or the
   // tick server yet.
   // -------------------------------------------------------------------
-  const handleLockCharacter = async (slotId, claimedName /*, lobbySize */) => {
-    setErrorMessage('');
+const handleLockCharacter = async (slotId, claimedName) => {
+  setErrorMessage('');
 
-    if (!myPosition) {
-      setErrorMessage('Still locking your position — try again in a moment.');
-      return;
+  if (!myPosition) {
+    setErrorMessage('Still locking your position — try again in a moment.');
+    return;
+  }
+
+  if (!roomCode) {
+    setErrorMessage('No room code set — go back and rejoin the room.');
+    return;
+  }
+
+  try {
+    const result = await claimCharacter(roomCode, slotId, claimedName);
+    console.log('[App] claimCharacter result:', result);
+
+    // FIX: the real RPC returns { status: 'ok'|'error', message, ... }
+    // not { success: boolean, reason: string } as previously assumed.
+    const success = result?.status === 'ok' || result?.status === 'success';
+    setLockResult({ slotId, success });
+
+    if (success) {
+      setMySlot(result.slot_id);
+      setMyPlayerId(result.player_id);
+      setStage(3);
+    } else {
+      setErrorMessage(result?.message || 'Could not claim that slot — try again.');
     }
-
-    if (!roomCode) {
-      setErrorMessage('No room code set — go back and rejoin the room.');
-      return;
-    }
-
-    try {
-      const result = await claimCharacter(roomCode, slotId, claimedName);
-      console.log('[App] claimCharacter result:', result); // ← DEBUG: check this if claims fail
-
-      const success = result?.success === true;
-      setLockResult({ slotId, success });
-      if (success) {
-        setMySlot(result.slot_id);
-        setMyPlayerId(result.player_id);
-        setStage(3);
-      } else {
-        setErrorMessage(
-          result?.reason === 'slot_taken'
-            ? 'Someone just grabbed that slot — pick another.'
-            : result?.reason === 'room_not_found'
-            ? 'Room not found — go back and rejoin.'
-            : `Could not claim that slot (${result?.reason || 'unknown reason'}) — try again.`
-        );
-      }
-    } catch (err) {
-      console.error('[App] claimCharacter failed', err);
-      setLockResult({ slotId, success: false });
-      setErrorMessage('Could not reach the game server — check your connection and try again.');
-    }
-  };
+  } catch (err) {
+    console.error('[App] claimCharacter failed', err);
+    setLockResult({ slotId, success: false });
+    setErrorMessage('Could not reach the game server — check your connection and try again.');
+  }
+};
 
   const handleInstantReplay = () => {
     setVictoryData(null);
