@@ -15,8 +15,8 @@ import {
 } from './lib/gameClient';
 import { connectTickServer } from './lib/tickClient';
 
-// Must match CharacterSelect.jsx's ALL_SLOTS ids exactly, and schema.sql's
-// slot_id CHECK constraint.
+// Must match CharacterSelect.jsx's SLOT_ORDER/SLOT_META ids exactly, and
+// schema.sql's slot_id CHECK constraint.
 const SLOT_COLORS = {
   'oggy-blue': '#3a86ff',
   'jack-green': '#2ecc71',
@@ -55,9 +55,6 @@ function App() {
   const [players, setPlayers] = useState([]); // raw player_scores rows for the room
   const [mySlot, setMySlot] = useState(null);
   const [myPlayerId, setMyPlayerId] = useState(null); // player_scores.id (uuid)
-  // FIX: joinRoom()'s response was previously discarded. claimCharacter()
-  // requires the player_id it returns, plus the player's current lat/lng —
-  // both are captured here now and threaded into handleLockCharacter.
   const [myPosition, setMyPosition] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [joining, setJoining] = useState(false);
@@ -161,19 +158,27 @@ function App() {
   // idempotent (insert ... on conflict do nothing) so this works the same
   // whether you're creating the room or joining one a teammate opened.
   //
-  // FIX: joinRoom() returns a game_rooms ROW (room_code, center_lat,
-  // center_lng, etc.) per gameClient.js's own comment — it has no
-  // player_id field at all. player_id doesn't exist until
-  // claimCharacter() creates the player_scores row in stage 2. Reading
-  // joinResult.player_id here was always undefined, which meant
-  // myPlayerId never got set — every tap on a character slot in stage 2
-  // then hit handleLockCharacter's own guard clause and showed "Still
-  // setting up your session" before claimCharacter() was ever called.
-  // Only myPosition is captured here now; myPlayerId is set later, from
-  // claimCharacter()'s response, in handleLockCharacter below.
+  // FIX: the room code is now normalized to uppercase ONCE, up front
+  // (normalizedCode), and that exact same string is used for every call
+  // that follows — joinRoom(), fetchTakenCharacters(), and setRoomCode().
+  // Previously joinRoom() was called with the raw, as-typed `code` while
+  // roomCode state was set to code.toUpperCase() — if a player typed a
+  // room code in lowercase, the room got CREATED under the lowercase
+  // string but every later lookup (claimCharacter, subscribeToRoom, etc)
+  // searched for the uppercase version, which doesn't exist as far as
+  // Postgres string equality is concerned. That silently broke every
+  // claim attempt after the room was joined, always falling through to
+  // "Could not claim that slot — try again." in handleLockCharacter below.
   // -------------------------------------------------------------------
   const handleJoinRoom = async (code) => {
     setErrorMessage('');
+
+    const normalizedCode = code.trim().toUpperCase();
+
+    if (!normalizedCode) {
+      setErrorMessage('Enter a room code first.');
+      return;
+    }
 
     if (!navigator.geolocation) {
       setErrorMessage('This device does not support location services.');
@@ -186,12 +191,12 @@ function App() {
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
-          await joinRoom(code, latitude, longitude); // creates/confirms the room only
+          await joinRoom(normalizedCode, latitude, longitude); // creates/confirms the room only
           setMyPosition({ lat: latitude, lng: longitude });
 
-          const taken = await fetchTakenCharacters(code);
+          const taken = await fetchTakenCharacters(normalizedCode);
           setTakenChars(taken);
-          setRoomCode(code.toUpperCase());
+          setRoomCode(normalizedCode);
           setJoining(false);
           setStage(2);
         } catch (err) {
@@ -211,28 +216,25 @@ function App() {
   // -------------------------------------------------------------------
   // Character claim.
   //
-  // FIX: claim_character() only takes 3 params — (roomCode, slotId, name)
-  // — per gameClient.js's real signature. It's the RPC that CREATES the
-  // player_scores row and hands back player_id for the first time; it
-  // does not need a pre-existing playerId or lat/lng as input.
+  // claim_character() takes 3 params — (roomCode, slotId, name) — per
+  // gameClient.js's signature. It's the RPC that CREATES the
+  // player_scores row and hands back player_id for the first time.
   //
-  // FIX: myPlayerId is now set HERE, from result.player_id, instead of
-  // (incorrectly) expected to already exist from joinRoom(). The guard
-  // clause above only checks myPosition now, since that's the only piece
-  // handleJoinRoom is actually responsible for populating.
+  // myPlayerId is set HERE, from result.player_id, since joinRoom()
+  // only ever returns a game_rooms row (no player_id field).
   //
-  // FIX: reads result.reason on failure (e.g. 'slot_taken'), matching
-  // gameClient.js's documented claimCharacter() return shape
-  // ({ success:false, reason }), not result.message.
+  // DEBUG: logging the raw RPC result so the real `reason` string is
+  // visible in the console if a claim ever fails for something other
+  // than 'slot_taken' — remove this console.log once claims are working
+  // reliably, or leave it, it's harmless in production.
   //
   // On success, advances to stage 3 (MapView) — the player can now walk
   // around and see live veggie blips while waiting for the room to fill.
   //
-  // CharacterSelect also passes a 3rd argument (lobbySize) that this
-  // function intentionally ignores for now — there's no lobby_size
-  // handling wired into claim_character or the tick server yet, so
-  // Duo/Trio mode doesn't change server behavior yet. Extra JS args are
-  // harmless (just unused), this is not a bug, just an unbuilt feature.
+  // CharacterSelect also may pass a 3rd argument (lobbySize) in the
+  // future — this function intentionally ignores it for now, since
+  // there's no lobby_size handling wired into claim_character or the
+  // tick server yet.
   // -------------------------------------------------------------------
   const handleLockCharacter = async (slotId, claimedName /*, lobbySize */) => {
     setErrorMessage('');
@@ -242,8 +244,15 @@ function App() {
       return;
     }
 
+    if (!roomCode) {
+      setErrorMessage('No room code set — go back and rejoin the room.');
+      return;
+    }
+
     try {
       const result = await claimCharacter(roomCode, slotId, claimedName);
+      console.log('[App] claimCharacter result:', result); // ← DEBUG: check this if claims fail
+
       const success = result?.success === true;
       setLockResult({ slotId, success });
       if (success) {
@@ -254,7 +263,9 @@ function App() {
         setErrorMessage(
           result?.reason === 'slot_taken'
             ? 'Someone just grabbed that slot — pick another.'
-            : 'Could not claim that slot — try again.'
+            : result?.reason === 'room_not_found'
+            ? 'Room not found — go back and rejoin.'
+            : `Could not claim that slot (${result?.reason || 'unknown reason'}) — try again.`
         );
       }
     } catch (err) {
@@ -290,12 +301,11 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* FIX: this component reads a `phase` prop, not `tickStatus` —
-          renamed here to match. */}
+      {/* ConnectionStatus reads a `phase` prop, not `tickStatus` — renamed here to match. */}
       <ConnectionStatus roomCode={roomCode} phase={tickStatus} />
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
-      {stage === 1 && <RoomJoin onJoin={handleJoinRoom} error={errorMessage} connecting={joining} />}
+      {stage === 1 && <RoomJoin onJoin={handleJoinRoom} error={errorMessage} joining={joining} />}
 
       {stage === 2 && (
         <CharacterSelect
@@ -447,10 +457,8 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* FIX: pointed at an asset that doesn't exist anywhere in
-          public/sounds/ (go-boom.mp3). Using chii-chiip.mp3, which is
-          the one confirmed asset in the project tree — swap back once
-          a real "go" sound effect is added to public/sounds/. */}
+      {/* Uses chii-chiip.mp3, the one confirmed asset in public/sounds/ —
+          swap in a dedicated "go" sound effect once one is added there. */}
       <audio ref={goAudioRef} src="/sounds/chii-chiip.mp3" preload="auto" />
 
       {/* ── Concluded Victory Shield ─────────────────────────────────── */}
