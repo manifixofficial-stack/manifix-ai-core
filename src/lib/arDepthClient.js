@@ -1,41 +1,48 @@
-// arDepthClient.js
+// lib/arDepthClient.js
 //
-// Thin wrapper around the WebXR Device API's 'immersive-ar' session with
-// the 'depth-sensing' feature. This is NOT compatible with the current
-// GameCanvas.jsx camera pipeline (getUserMedia + <video> element) — WebXR
-// AR sessions own the camera/render loop themselves via
-// XRSession.requestAnimationFrame, so adopting this means restructuring
-// the render path, not adding a helper alongside the existing one.
+// Thin wrapper around the WebXR Device API's 'immersive-ar' session mode,
+// with the 'depth-sensing' and 'plane-detection' optional features. Mirrors
+// the wrapper pattern of gameClient.js/tickClient.js — this module owns the
+// raw session lifecycle; GameCanvas.jsx and useARPlaneDetection.js consume
+// it, they don't touch navigator.xr directly.
 //
-// Browser support (check before building on this): Chrome/Edge on
-// ARCore-capable Android devices support 'immersive-ar' + 'depth-sensing'.
-// Safari/iOS has no WebXR AR support at all — this will silently fail
-// isSupported() there. There is no cross-platform fallback baked in here;
-// callers must handle isSupported() === false explicitly (e.g. keep the
-// existing 2D bearing-projection mode as the fallback for unsupported
-// devices, same as today's simMode fallback pattern).
+// Browser support caveat: as of today this is a Chrome/ARCore-only surface
+// (practically: Android Chrome). Safari/iOS has no WebXR AR support at all,
+// and depth-sensing specifically is not implemented in every Chromium
+// build that otherwise supports immersive-ar. Always gate UI on
+// isARDepthSupported() rather than assuming — and even when it resolves
+// true, requestARDepthSession() can still fail at the actual permission
+// prompt (user backs out, camera held by another app, hardware asleep),
+// which is why that call is wrapped in try/catch by its caller rather than
+// assumed to always resolve.
 
-const DEPTH_FEATURE = 'depth-sensing';
+// Preferred depth usage/format hints, per the WebXR Depth Sensing spec.
+// 'cpu-optimized' + 'luminance-alpha' is the broadly-supported combo for
+// reading raw depth values off the main thread (as opposed to
+// 'gpu-optimized', which is meant for shader sampling and isn't what
+// sampleCenterDepthMeters needs here).
+const DEPTH_USAGE_PREFERENCE = ['cpu-optimized'];
+const DEPTH_FORMAT_PREFERENCE = ['luminance-alpha', 'float32'];
 
 /**
- * Checks whether this browser/device can run an immersive-ar session with
- * depth sensing. Always await this before calling startSession() — do not
- * assume support based on 'xr' in navigator alone, since that only tells
- * you the API surface exists, not that immersive-ar + depth-sensing is
- * actually available on this hardware.
+ * Resolves whether this browser/device can negotiate an 'immersive-ar'
+ * session with the 'depth-sensing' feature. Read-only capability check —
+ * does NOT prompt for camera/XR permission, so it's safe to call without a
+ * user gesture (e.g. from a useEffect on mount).
+ *
+ * @returns {Promise<boolean>}
  */
-export async function isDepthSensingSupported() {
-  if (!navigator.xr || typeof navigator.xr.isSessionSupported !== 'function') {
-    return false;
-  }
+export async function isARDepthSupported() {
+  if (typeof navigator === 'undefined' || !navigator.xr) return false;
   try {
     const arSupported = await navigator.xr.isSessionSupported('immersive-ar');
+    // isSessionSupported only confirms the session *mode* is available,
+    // not that depth-sensing specifically is — there's no separate
+    // capability query for an individual optional feature ahead of an
+    // actual session request, so this is the closest pre-check available.
+    // requestARDepthSession() is still the source of truth and can fail
+    // even when this resolves true.
     return !!arSupported;
-    // Note: isSessionSupported() confirms 'immersive-ar' is available, but
-    // NOT that 'depth-sensing' specifically will be granted — that's only
-    // knowable after requestSession() resolves and you check
-    // session.depthUsage / session.enabledFeatures. Treat depth as
-    // "requested, not guaranteed" throughout this file.
   } catch (err) {
     console.error('[arDepthClient] isSessionSupported check failed', err);
     return false;
@@ -43,116 +50,170 @@ export async function isDepthSensingSupported() {
 }
 
 /**
- * Starts an immersive-ar XRSession requesting depth-sensing (and
- * plane-detection, since useARPlaneDetection.js depends on the same
- * session). Returns { session, referenceSpace, depthSupported } or throws.
+ * Requests an 'immersive-ar' XRSession with depth-sensing (required) and
+ * plane-detection + dom-overlay (optional — session still succeeds without
+ * them, just with those features unavailable to callers).
  *
- * gl: a WebGL2 context already configured with
- *   { xrCompatible: true } — required by WebXR's makeXRCompatible/
- *   baseLayer setup. This module does not create the canvas/GL context
- *   itself; the caller owns that, since it's tightly coupled to whatever
- *   renderer (three.js, raw WebGL, etc.) actually draws the frame.
+ * Must be called from within a user gesture (e.g. a button onClick), per
+ * the WebXR spec — this is why GameCanvas.jsx only calls this from
+ * toggleARDepth(), never automatically.
+ *
+ * @param {Object} params
+ * @param {HTMLElement|null} params.domOverlayRoot - element to use as the
+ *   dom-overlay root (lets our existing HUD/buttons render on top of the
+ *   XR camera feed instead of being hidden behind it). Optional — if
+ *   null/undefined, dom-overlay is simply not requested.
+ * @param {() => void} [params.onSessionEnd] - called when the session ends
+ *   for any reason we didn't initiate ourselves (user backs out via the
+ *   browser/OS AR UI, tracking lost permanently, etc.)
+ * @returns {Promise<{ xrSession: XRSession, referenceSpace: XRReferenceSpace, stop: () => Promise<void> }>}
  */
-export async function startSession(gl, {
-  depthUsagePreference = ['cpu-optimized', 'gpu-optimized'],
-  depthFormatPreference = ['luminance-alpha', 'float32'],
-} = {}) {
-  if (!gl) {
-    throw new Error('[arDepthClient] startSession requires an XR-compatible WebGL2 context.');
-  }
-  if (!navigator.xr) {
-    throw new Error('[arDepthClient] navigator.xr is unavailable in this browser.');
+export async function requestARDepthSession({ domOverlayRoot, onSessionEnd } = {}) {
+  if (typeof navigator === 'undefined' || !navigator.xr) {
+    throw new Error('WebXR is not available in this browser.');
   }
 
-  let session;
-  try {
-    session = await navigator.xr.requestSession('immersive-ar', {
-      requiredFeatures: ['local-floor'],
-      optionalFeatures: [DEPTH_FEATURE, 'plane-detection', 'hit-test'],
-      depthSensing: {
-        usagePreference: depthUsagePreference,
-        dataFormatPreference: depthFormatPreference,
-      },
-    });
-  } catch (err) {
-    throw new Error(`[arDepthClient] requestSession failed: ${err.message}`);
+  const optionalFeatures = ['plane-detection'];
+  if (domOverlayRoot) optionalFeatures.push('dom-overlay');
+
+  const sessionInit = {
+    requiredFeatures: ['depth-sensing'],
+    optionalFeatures,
+    depthSensing: {
+      usagePreference: DEPTH_USAGE_PREFERENCE,
+      dataFormatPreference: DEPTH_FORMAT_PREFERENCE,
+    },
+  };
+  if (domOverlayRoot) {
+    sessionInit.domOverlay = { root: domOverlayRoot };
   }
 
-  // depth-sensing is optional — the session can start without it granting.
-  // Check enabledFeatures rather than assuming the optionalFeatures list
-  // was honored.
-  const depthSupported = session.enabledFeatures
-    ? session.enabledFeatures.includes(DEPTH_FEATURE)
-    : false;
-
-  const xrLayer = new XRWebGLLayer(session, gl);
-  session.updateRenderState({ baseLayer: xrLayer });
+  const xrSession = await navigator.xr.requestSession('immersive-ar', sessionInit);
 
   let referenceSpace;
   try {
-    referenceSpace = await session.requestReferenceSpace('local-floor');
+    // 'local' is the right reference space for a handheld/walk-around AR
+    // session — tracks relative to where tracking started, doesn't assume
+    // a seated/stationary rig like 'local-floor' can on some devices.
+    referenceSpace = await xrSession.requestReferenceSpace('local');
   } catch (err) {
-    // local-floor requires a floor estimate; fall back to 'local' if the
-    // device can't provide one (still valid for depth/plane data, just no
-    // guaranteed floor-level origin).
-    referenceSpace = await session.requestReferenceSpace('local');
+    // Session was granted but the reference space failed — don't leave a
+    // half-open XRSession dangling.
+    await xrSession.end().catch(() => {});
+    throw err;
   }
 
-  return { session, referenceSpace, depthSupported };
+  let ended = false;
+  const handleSessionEnd = () => {
+    if (ended) return;
+    ended = true;
+    xrSession.removeEventListener('end', handleSessionEnd);
+    if (typeof onSessionEnd === 'function') onSessionEnd();
+  };
+  xrSession.addEventListener('end', handleSessionEnd);
+
+  const stop = async () => {
+    if (ended) return;
+    // Mark ended immediately so the 'end' listener above (which will
+    // still fire from session.end()) doesn't also call onSessionEnd —
+    // that callback exists specifically for the *unrequested* end case
+    // (user backing out via native UI), not for our own stop() calls.
+    ended = true;
+    xrSession.removeEventListener('end', handleSessionEnd);
+    try {
+      await xrSession.end();
+    } catch (err) {
+      // Session may already be ending/ended (e.g. OS reclaimed the
+      // camera) — nothing more to clean up on our side either way.
+      console.error('[arDepthClient] session.end() failed', err);
+    }
+  };
+
+  return { xrSession, referenceSpace, stop };
 }
 
 /**
- * Pulls per-frame CPU depth data for a given XRView, if depth-sensing was
- * granted. Returns null if unsupported/unavailable for this frame — this
- * is a normal, expected outcome (device dropped tracking, view has no
- * depth this frame) and callers should skip occlusion for that frame
- * rather than treat it as an error.
+ * Starts an XRSession.requestAnimationFrame loop and invokes onFrame with
+ * { frame, view } once per XR frame, for as long as the session has a
+ * usable pose. Returns a stop function that cancels the loop (does NOT end
+ * the session itself — that's requestARDepthSession()'s returned `stop`).
  *
- * Must be called once per XRView, inside the session's XRFrame callback —
- * depth data is only valid for the frame it was retrieved in.
+ * @param {Object} params
+ * @param {XRSession} params.xrSession
+ * @param {XRReferenceSpace} params.referenceSpace
+ * @param {(ctx: { frame: XRFrame, view: XRView }) => void} params.onFrame
+ * @returns {() => void} stop - cancels the frame loop
  */
-export function getDepthDataForView(frame, view) {
-  if (!frame || !view || typeof frame.getDepthInformation !== 'function') {
-    return null;
-  }
+export function startDepthLoop({ xrSession, referenceSpace, onFrame }) {
+  let rafHandle = null;
+  let cancelled = false;
+
+  const onXRFrame = (_time, frame) => {
+    if (cancelled) return;
+
+    const pose = frame.getViewerPose(referenceSpace);
+    if (pose) {
+      // A handheld phone AR session has exactly one view (the camera
+      // feed) — unlike a headset's stereo pair — but we still iterate
+      // pose.views rather than assume [0], since that's the
+      // spec-correct way to find the view actually being rendered.
+      for (const view of pose.views) {
+        if (typeof onFrame === 'function') {
+          onFrame({ frame, view });
+        }
+      }
+    }
+
+    if (!cancelled) {
+      rafHandle = xrSession.requestAnimationFrame(onXRFrame);
+    }
+  };
+
+  rafHandle = xrSession.requestAnimationFrame(onXRFrame);
+
+  return () => {
+    cancelled = true;
+    if (rafHandle != null) {
+      xrSession.cancelAnimationFrame(rafHandle);
+      rafHandle = null;
+    }
+  };
+}
+
+/**
+ * Reads the depth value at the center of the given view's viewport for
+ * this frame, in meters. Returns null if depth data isn't available for
+ * this frame/view (e.g. depth-sensing wasn't actually granted, or this
+ * particular frame has no depth data yet — this can happen for the first
+ * few frames after session start).
+ *
+ * @param {XRFrame} frame
+ * @param {XRView} view
+ * @returns {number|null}
+ */
+export function sampleCenterDepthMeters(frame, view) {
+  if (!frame || !view || typeof frame.getDepthInformation !== 'function') return null;
+
+  let depthInfo;
   try {
-    const depthInfo = frame.getDepthInformation(view);
-    if (!depthInfo) return null;
-    return {
-      width: depthInfo.width,
-      height: depthInfo.height,
-      rawValueToMeters: depthInfo.rawValueToMeters,
-      // getDepthInMeters(x, y) takes NORMALIZED [0,1] view coordinates,
-      // not pixel coordinates — a common source of silently-wrong
-      // occlusion tests if you pass raw screen px here.
-      getDepthInMeters: (normX, normY) => depthInfo.getDepthInMeters(normX, normY),
-    };
+    depthInfo = frame.getDepthInformation(view);
   } catch (err) {
-    console.error('[arDepthClient] getDepthInformation failed', err);
+    // Spec allows this to throw if depth data isn't available for this
+    // frame — treat the same as "no reading yet" rather than surfacing
+    // an error for a transient, expected condition.
     return null;
   }
-}
+  if (!depthInfo) return null;
 
-/**
- * Occlusion test: given a normalized [0,1] screen-space point and the
- * known distance (meters) from camera to the virtual object at that
- * point, returns true if real-world geometry is closer than the object
- * (i.e. the object should be hidden/clipped this frame).
- *
- * toleranceMeters guards against z-fighting flicker at near-equal depths;
- * tune per device — depth-sensing accuracy varies significantly across
- * ARCore hardware.
- */
-export function isOccluded(depthData, normX, normY, objectDistanceMeters, toleranceMeters = 0.15) {
-  if (!depthData) return false; // no depth data this frame — don't hide anything
-  const realDepth = depthData.getDepthInMeters(normX, normY);
-  if (!Number.isFinite(realDepth) || realDepth <= 0) return false;
-  return realDepth + toleranceMeters < objectDistanceMeters;
-}
-
-export function endSession(session) {
-  if (!session) return Promise.resolve();
-  return session.end().catch((err) => {
-    console.error('[arDepthClient] session.end() failed', err);
-  });
+  try {
+    // getDepthInPixel wants normalized viewport coordinates in CSS pixels
+    // relative to the depth buffer's own width/height, per spec — center
+    // of frame is just half of each.
+    const x = Math.floor(depthInfo.width / 2);
+    const y = Math.floor(depthInfo.height / 2);
+    return depthInfo.getDepthInMeters(x, y);
+  } catch (err) {
+    console.error('[arDepthClient] getDepthInMeters failed', err);
+    return null;
+  }
 }
