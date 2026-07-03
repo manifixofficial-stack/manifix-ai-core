@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import RoomJoin from './components/RoomJoin';
 import CharacterSelect from './components/CharacterSelect';
 import ConnectionStatus from './components/ConnectionStatus';
+import MapView from './components/MapView';
 import GameARView from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
 import {
@@ -14,12 +15,8 @@ import {
 } from './lib/gameClient';
 import { connectTickServer } from './lib/tickClient';
 
-// FIX: these must match CharacterSelect.jsx's ALL_SLOTS ids exactly, and
-// schema.sql's slot_id CHECK constraint. Previously this was
-// { BLUE, PURPLE, PINK, ORANGE } — a leftover from before CharacterSelect
-// was reworked to themed ids, which silently broke color lookups
-// (SLOT_COLORS[mySlot] came back undefined) even after the claim itself
-// started succeeding.
+// Must match CharacterSelect.jsx's ALL_SLOTS ids exactly, and schema.sql's
+// slot_id CHECK constraint.
 const SLOT_COLORS = {
   'oggy-blue': '#3a86ff',
   'jack-green': '#2ecc71',
@@ -37,16 +34,31 @@ const EMPTY_TAKEN = {
 const MATCH_PHASE = {
   COUNTDOWN: 'COUNTDOWN',
   ACTIVE: 'ACTIVE',
-  ENDED: 'ENDED'
+  ENDED: 'ENDED',
 };
 
+// Stage flow:
+//   1: RoomJoin        — enter/create a room, GPS fix taken here
+//   2: CharacterSelect — claim a slot color
+//   3: MapView          — radar screen, walk toward veggies, tap to hunt
+//   4: Arena            — GameCanvas AR view + Scoreboard + match overlays
+//
+// Stage 4 can be entered two ways: the player taps an in-range veggie on
+// the map (MapView's onEnterAR), OR the tick server broadcasts 'tick'
+// once all 4 slots are filled (onTick below) — whichever happens first.
+// Either way, backing out of GameCanvas (onExit) returns to stage 3, not
+// stage 1 — the room/character claim persists for the whole session.
 function App() {
-  const [stage, setStage] = useState(1); // 1: Room Entry, 2: Slot Claim, 3: Match Arena
+  const [stage, setStage] = useState(1);
   const [roomCode, setRoomCode] = useState('');
   const [takenChars, setTakenChars] = useState(EMPTY_TAKEN);
   const [players, setPlayers] = useState([]); // raw player_scores rows for the room
   const [mySlot, setMySlot] = useState(null);
-  const [myPlayerId, setMyPlayerId] = useState(null); // player_scores.id (uuid) — replaces socket.id
+  const [myPlayerId, setMyPlayerId] = useState(null); // player_scores.id (uuid)
+  // FIX: joinRoom()'s response was previously discarded. claimCharacter()
+  // requires the player_id it returns, plus the player's current lat/lng —
+  // both are captured here now and threaded into handleLockCharacter.
+  const [myPosition, setMyPosition] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [joining, setJoining] = useState(false);
   const [lockResult, setLockResult] = useState(null); // { slotId, success } — see CharacterSelect.jsx
@@ -78,7 +90,6 @@ function App() {
       onRoomUpdate: (room) => {
         if (room.current_leader_name && room.current_leader_name !== currentLeaderName) {
           setCurrentLeaderName(room.current_leader_name);
-          // Golden crown celebration trigger point.
         }
       },
       onPlayerChange: () => {
@@ -100,7 +111,8 @@ function App() {
   // -------------------------------------------------------------------
   // Tick server connection — the clock. Connects as soon as we have a
   // roomCode so it's already listening by the time the 4th slot gets
-  // claimed. onTick firing is the cue to jump to the arena view.
+  // claimed. onTick firing forces every phone into the arena (stage 4)
+  // even if a player is still browsing the map screen.
   // -------------------------------------------------------------------
   useEffect(() => {
     if (!roomCode) return undefined;
@@ -109,7 +121,7 @@ function App() {
       onStatusChange: setTickStatus,
 
       onTick: (n) => {
-        setStage(3);
+        setStage(4);
         setMatchPhase(MATCH_PHASE.COUNTDOWN);
         setCountdownTick(n);
       },
@@ -148,6 +160,10 @@ function App() {
   // game_rooms.center_lat/lng from it), then hits the RPC. join_room is
   // idempotent (insert ... on conflict do nothing) so this works the same
   // whether you're creating the room or joining one a teammate opened.
+  //
+  // FIX: now captures joinRoom()'s response instead of discarding it —
+  // claimCharacter() needs player_id, and MapView/GameCanvas both need
+  // a live lat/lng, none of which were being stored before.
   // -------------------------------------------------------------------
   const handleJoinRoom = async (code) => {
     setErrorMessage('');
@@ -162,7 +178,11 @@ function App() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          await joinRoom(code, pos.coords.latitude, pos.coords.longitude);
+          const { latitude, longitude } = pos.coords;
+          const joinResult = await joinRoom(code, latitude, longitude);
+          setMyPlayerId(joinResult.player_id);
+          setMyPosition({ lat: latitude, lng: longitude });
+
           const taken = await fetchTakenCharacters(code);
           setTakenChars(taken);
           setRoomCode(code.toUpperCase());
@@ -185,12 +205,18 @@ function App() {
   // -------------------------------------------------------------------
   // Character claim.
   //
-  // FIX: CharacterSelect.jsx invokes this via the `onSelect` prop, not
-  // `onLock` — the two names had drifted apart, so the click handler was
-  // never being called at all (it fell back to the component's no-op
-  // default). That was the actual cause of "click a card, nothing
-  // happens, no error" — the request never left the browser. Confirm the
-  // JSX below says `onSelect={handleLockCharacter}`.
+  // FIX: now sends all 6 params claim_character() requires
+  // (p_id, p_lat, p_lng, p_name, p_room_code, p_slot_id) via
+  // gameClient.js's claimCharacter(roomCode, slotId, name, playerId, lat, lng)
+  // — previously only 3 args were sent, so the RPC call rejected outright
+  // with no matching function overload, and every claim silently failed.
+  //
+  // FIX: reads result.message on failure, not result.reason — matches
+  // what claim_character() actually returns per gameClient.js's own
+  // documented shape ({ success:false, message }).
+  //
+  // On success, advances to stage 3 (MapView) — the player can now walk
+  // around and see live veggie blips while waiting for the room to fill.
   //
   // CharacterSelect also passes a 3rd argument (lobbySize) that this
   // function intentionally ignores for now — there's no lobby_size
@@ -200,18 +226,28 @@ function App() {
   // -------------------------------------------------------------------
   const handleLockCharacter = async (slotId, claimedName /*, lobbySize */) => {
     setErrorMessage('');
+
+    if (!myPlayerId || !myPosition) {
+      setErrorMessage('Still setting up your session — try again in a moment.');
+      return;
+    }
+
     try {
-      const result = await claimCharacter(roomCode, slotId, claimedName);
-      setLockResult({ slotId, success: result.success });
-      if (result.success) {
+      const result = await claimCharacter(
+        roomCode,
+        slotId,
+        claimedName,
+        myPlayerId,
+        myPosition.lat,
+        myPosition.lng
+      );
+      const success = result.status === 'success' || result.success === true;
+      setLockResult({ slotId, success });
+      if (success) {
         setMySlot(result.slot_id);
-        setMyPlayerId(result.player_id);
+        setStage(3);
       } else {
-        setErrorMessage(
-          result.reason === 'slot_taken'
-            ? 'Someone just grabbed that slot — pick another.'
-            : 'Could not claim that slot — try again.'
-        );
+        setErrorMessage(result.message || 'Could not claim that slot — try again.');
       }
     } catch (err) {
       console.error('[App] claimCharacter failed', err);
@@ -226,11 +262,19 @@ function App() {
     window.location.reload();
   };
 
+  // Backing out of the AR encounter returns to the map, not the room
+  // entry screen — the room/character claim persists for the session.
+  const handleExitAR = () => setStage(3);
+
+  // Leaving the map entirely (✕ on MapView) does end the session.
+  const handleLeaveRoom = () => {
+    tickConnectionRef.current?.disconnect();
+    window.location.reload();
+  };
+
   const myColor = mySlot ? SLOT_COLORS[mySlot] : '#ffffff';
   const myPlayerRow = players.find((p) => p.id === myPlayerId);
   const myName = myPlayerRow ? myPlayerRow.name : mySlot;
-
-  const inputLocked = matchPhase !== MATCH_PHASE.ACTIVE;
 
   const playersMap = Object.fromEntries(
     players.map((p) => [p.slot_id, { name: p.name, score: p.score, character: p.slot_id }])
@@ -238,10 +282,13 @@ function App() {
 
   return (
     <div className="app-container">
-      <ConnectionStatus roomCode={roomCode} tickStatus={tickStatus} />
+      {/* FIX: this component reads a `phase` prop, not `tickStatus` —
+          renamed here to match. */}
+      <ConnectionStatus roomCode={roomCode} phase={tickStatus} />
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
       {stage === 1 && <RoomJoin onJoin={handleJoinRoom} error={errorMessage} connecting={joining} />}
+
       {stage === 2 && (
         <CharacterSelect
           takenChars={takenChars}
@@ -252,6 +299,16 @@ function App() {
       )}
 
       {stage === 3 && (
+        <MapView
+          roomCode={roomCode}
+          playerId={myPlayerId}
+          mySlot={mySlot}
+          onEnterAR={() => setStage(4)}
+          onExit={handleLeaveRoom}
+        />
+      )}
+
+      {stage === 4 && (
         <div className="arena-wrapper">
           <div className="arena-header">
             <h2>ARENA LINK IDENT: {roomCode}</h2>
@@ -265,7 +322,7 @@ function App() {
               roomCode={roomCode}
               nickname={myName}
               playerId={myPlayerId}
-              onExit={() => setStage(2)}
+              onExit={handleExitAR}
             />
             <Scoreboard players={playersMap} mySlot={mySlot} />
           </div>
@@ -289,7 +346,7 @@ function App() {
               backdropFilter: 'blur(4px)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
             }}
           >
             <AnimatePresence mode="wait">
@@ -313,7 +370,7 @@ function App() {
                       height: '160px',
                       borderRadius: '50%',
                       border: '2px solid #ffd60a',
-                      boxShadow: '0 0 24px rgba(255,214,10,0.6)'
+                      boxShadow: '0 0 24px rgba(255,214,10,0.6)',
                     }}
                   />
                 ))}
@@ -323,7 +380,7 @@ function App() {
                     fontSize: '120px',
                     fontWeight: 900,
                     color: '#ffd60a',
-                    textShadow: '0 0 30px rgba(255,214,10,0.9), 0 0 60px rgba(255,214,10,0.5)'
+                    textShadow: '0 0 30px rgba(255,214,10,0.9), 0 0 60px rgba(255,214,10,0.5)',
                   }}
                 >
                   {countdownTick}
@@ -349,7 +406,7 @@ function App() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              pointerEvents: 'none'
+              pointerEvents: 'none',
             }}
           >
             <motion.div
@@ -361,7 +418,7 @@ function App() {
                 width: '200px',
                 height: '200px',
                 borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(6,214,160,0.9) 0%, rgba(6,214,160,0) 70%)'
+                background: 'radial-gradient(circle, rgba(6,214,160,0.9) 0%, rgba(6,214,160,0) 70%)',
               }}
             />
             <motion.span
@@ -374,7 +431,7 @@ function App() {
                 fontSize: '96px',
                 fontWeight: 900,
                 color: '#06d6a0',
-                textShadow: '0 0 30px rgba(6,214,160,0.9), 0 0 70px rgba(6,214,160,0.6)'
+                textShadow: '0 0 30px rgba(6,214,160,0.9), 0 0 70px rgba(6,214,160,0.6)',
               }}
             >
               GO!
@@ -382,7 +439,11 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      <audio ref={goAudioRef} src="/audio/go-boom.mp3" preload="auto" />
+      {/* FIX: pointed at an asset that doesn't exist anywhere in
+          public/sounds/ (go-boom.mp3). Using chii-chiip.mp3, which is
+          the one confirmed asset in the project tree — swap back once
+          a real "go" sound effect is added to public/sounds/. */}
+      <audio ref={goAudioRef} src="/sounds/chii-chiip.mp3" preload="auto" />
 
       {/* ── Concluded Victory Shield ─────────────────────────────────── */}
       <AnimatePresence>
@@ -403,7 +464,7 @@ function App() {
               alignItems: 'center',
               justifyContent: 'center',
               padding: '24px',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
             }}
           >
             <motion.div
@@ -418,7 +479,7 @@ function App() {
                 border: `1px solid ${victoryData.winnerColor || '#ffd60a'}`,
                 boxShadow: `0 0 40px ${victoryData.winnerColor || '#ffd60a'}55`,
                 padding: '28px 24px',
-                textAlign: 'center'
+                textAlign: 'center',
               }}
             >
               <motion.div
@@ -435,7 +496,7 @@ function App() {
                   fontSize: '13px',
                   letterSpacing: '2px',
                   color: '#8a8a93',
-                  marginBottom: '4px'
+                  marginBottom: '4px',
                 }}
               >
                 ROUND COMPLETE
@@ -446,7 +507,7 @@ function App() {
                   fontSize: '28px',
                   fontWeight: 700,
                   color: victoryData.winnerColor || '#ffd60a',
-                  marginBottom: '20px'
+                  marginBottom: '20px',
                 }}
               >
                 {victoryData.winnerName || 'WINNER'}
@@ -462,7 +523,7 @@ function App() {
                         justifyContent: 'space-between',
                         fontSize: '13px',
                         color: idx === 0 ? '#fff' : '#b6b6c0',
-                        fontWeight: idx === 0 ? 700 : 400
+                        fontWeight: idx === 0 ? 700 : 400,
                       }}
                     >
                       <span>{idx + 1}. {r.name}</span>
@@ -487,7 +548,7 @@ function App() {
                   fontSize: '14px',
                   letterSpacing: '1px',
                   cursor: 'pointer',
-                  boxShadow: '0 0 20px rgba(6,214,160,0.6)'
+                  boxShadow: '0 0 20px rgba(6,214,160,0.6)',
                 }}
               >
                 INSTANT REPLAY
