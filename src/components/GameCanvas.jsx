@@ -11,6 +11,7 @@ import PerspectiveGridOverlay from './PerspectiveGridOverlay.jsx';
 import ViewfinderBox from './ViewfinderBox.jsx';
 import { ScorePopupLayer, useScorePopups } from './ScorePopup.jsx';
 import { useVeggieTaunt } from './veggies/useVeggieTaunt.js';
+import { useARPlaneDetection } from '../hooks/useARPlaneDetection.js';
 import { OBSTACLE_ZONES } from '../config/obstacles.js';
 import {
   fetchPlayers,
@@ -19,6 +20,12 @@ import {
   captureVeggie,
   makeThrottledLocationWriter,
 } from '../lib/gameClient.js';
+import {
+  isARDepthSupported,
+  requestARDepthSession,
+  startDepthLoop,
+  sampleCenterDepthMeters,
+} from '../lib/arDepthClient.js';
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -50,6 +57,17 @@ const LOCATION_WRITE_MIN_DISTANCE_M = 5;
 const PING_INTERVAL_MAX_MS = 1400;
 const PING_INTERVAL_MIN_MS = 220;
 const PING_FREQ_HZ = 880;
+
+// AR depth-sensing / plane-detection — fully optional enhancement layer on
+// top of the existing camera-feed + GPS AR view. Off by default: it
+// requires a WebXR-capable browser (practically: Android Chrome) and a
+// second user gesture to start an immersive-ar session, so we only offer
+// the toggle once isARDepthSupported() confirms the device can do it, and
+// we never auto-start it. When active, it's used to (a) show a small
+// "surfaces found" HUD and (b) soft-gate the CATCH button if the thing
+// directly in front of the camera is implausibly close (i.e. the player
+// is probably pointed at a wall/hand and not an open catch lane).
+const AR_DEPTH_WALL_GATE_METERS = 0.6;
 
 // ---------------------------------------------------------------------------
 // Geo math — accurate haversine distance/bearing (good at any latitude,
@@ -136,6 +154,19 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   // shared spaces). Player flips this on from the in-game control.
   const [radarAudioEnabled, setRadarAudioEnabled] = useState(false);
 
+  // NEW: AR depth-sensing state. `arDepthSupported` is null until we've
+  // checked (avoids flashing the button then hiding it), then true/false.
+  // `arDepthActive` reflects whether an immersive-ar XRSession is
+  // currently live. `xrHandle` holds { xrSession, referenceSpace, stop }
+  // from arDepthClient — kept in state (not just a ref) because
+  // useARPlaneDetection needs xrSession/referenceSpace to re-run its
+  // effect when a session starts/stops.
+  const [arDepthSupported, setARDepthSupported] = useState(null);
+  const [arDepthActive, setARDepthActive] = useState(false);
+  const [arDepthError, setARDepthError] = useState('');
+  const [xrHandle, setXrHandle] = useState(null);
+  const [centerDepthMeters, setCenterDepthMeters] = useState(null);
+
   const keyVelRef = useRef({ x: 0, y: 0 });
   const keysHeldRef = useRef(new Set());
   const headingRef = useRef(0);
@@ -145,11 +176,23 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const locationWriterRef = useRef(null);
   const audioCtxRef = useRef(null);
   const pingTimeoutRef = useRef(null);
+  const depthLoopStopRef = useRef(null);
 
   const { tauntFromFrame } = useVeggieTaunt();
 
   // Floating "+points" popups fired on capture — see ScorePopup.jsx
   const { popups: scorePopups, spawnPopup, removePopup } = useScorePopups();
+
+  // NEW: live plane tracking, driven by the active XR depth session (if
+  // any). No-ops (empty planes, isSupported stays null) whenever
+  // xrHandle is null, i.e. for the entire camera+GPS AR flow this game
+  // normally runs — this hook only does anything once a player has
+  // explicitly opted into AR depth mode.
+  const { planes: arPlanes, planeCount: arPlaneCount, wallPlanes, floorPlanes } = useARPlaneDetection({
+    xrSession: xrHandle?.xrSession ?? null,
+    referenceSpace: xrHandle?.referenceSpace ?? null,
+    enabled: arDepthActive,
+  });
 
   // -------------------------------------------------------------------
   // Compass tracking
@@ -247,6 +290,80 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     setPermissionStage('ready');
   }, []);
 
+  // NEW: once the base AR flow is up (or we're in sim mode — checking is
+  // harmless either way), probe whether this browser/device can even
+  // negotiate an immersive-ar + depth-sensing session. This is read-only
+  // capability detection, no permission prompt involved, so it's safe to
+  // run without a user gesture.
+  useEffect(() => {
+    if (permissionStage !== 'ready') return;
+    let cancelled = false;
+    isARDepthSupported().then((supported) => {
+      if (!cancelled) setARDepthSupported(supported);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [permissionStage]);
+
+  const stopARDepth = useCallback(async () => {
+    if (depthLoopStopRef.current) {
+      depthLoopStopRef.current();
+      depthLoopStopRef.current = null;
+    }
+    if (xrHandle) {
+      await xrHandle.stop();
+    }
+    setXrHandle(null);
+    setARDepthActive(false);
+    setCenterDepthMeters(null);
+  }, [xrHandle]);
+
+  // NEW: user-gesture-gated toggle for AR depth mode. Requesting the
+  // session can fail for lots of legitimate reasons (device asleep on
+  // depth hardware, another app holding the camera, user backed out of
+  // the native AR permission prompt) — surfaced via arDepthError instead
+  // of throwing, since a failed depth session should never take down the
+  // base camera+GPS game underneath it.
+  const toggleARDepth = useCallback(async () => {
+    if (arDepthActive) {
+      await stopARDepth();
+      return;
+    }
+
+    setARDepthError('');
+    try {
+      const handle = await requestARDepthSession({
+        domOverlayRoot: containerRef.current,
+        onSessionEnd: () => {
+          // Covers the user backing out via the browser/OS's own AR UI,
+          // not just our own stop() button.
+          depthLoopStopRef.current = null;
+          setXrHandle(null);
+          setARDepthActive(false);
+          setCenterDepthMeters(null);
+        },
+      });
+
+      depthLoopStopRef.current = startDepthLoop({
+        xrSession: handle.xrSession,
+        referenceSpace: handle.referenceSpace,
+        onFrame: ({ frame, view }) => {
+          const meters = sampleCenterDepthMeters(frame, view);
+          if (meters != null) setCenterDepthMeters(meters);
+        },
+      });
+
+      setXrHandle(handle);
+      setARDepthActive(true);
+    } catch (err) {
+      console.error('[GameCanvas] AR depth session request failed', err);
+      setARDepthError(err.message || 'Could not start AR depth mode.');
+      setARDepthActive(false);
+      setXrHandle(null);
+    }
+  }, [arDepthActive, stopARDepth]);
+
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -254,7 +371,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       if (orientationCleanupRef.current) orientationCleanupRef.current();
       if (pingTimeoutRef.current) clearTimeout(pingTimeoutRef.current);
       if (audioCtxRef.current) audioCtxRef.current.close();
+      if (depthLoopStopRef.current) depthLoopStopRef.current();
+      // Fire-and-forget: XRSession.end() is async but there's no unmounted
+      // component left around to await it into.
+      if (xrHandle) xrHandle.stop();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -617,10 +739,19 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     });
   }, []);
 
+  // NEW: if AR depth mode is active and the center of the viewport reads
+  // implausibly close, the player is almost certainly aiming at a wall,
+  // their own hand, or another obstruction rather than an actual catch
+  // lane. Soft-gate (not hard block) the button in that case — this
+  // never overrides ObstacleCollisionOverlay's GPS-zone lock, it just
+  // adds a second, camera-grounded signal on top of it.
+  const arWallBlocked =
+    arDepthActive && centerDepthMeters != null && centerDepthMeters < AR_DEPTH_WALL_GATE_METERS;
+
   const nearestCatchable = visibleVeggies.find((v) => v.distance <= CATCH_RADIUS_METERS);
   const handleCatchButtonTap = useCallback(() => {
-    if (nearestCatchable) handleCatch(nearestCatchable.id);
-  }, [nearestCatchable, handleCatch]);
+    if (nearestCatchable && !arWallBlocked) handleCatch(nearestCatchable.id);
+  }, [nearestCatchable, arWallBlocked, handleCatch]);
 
   if (permissionStage !== 'ready') {
     return (
@@ -674,6 +805,25 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       >
         {radarAudioEnabled ? '🔊' : '🔈'}
       </button>
+
+      {/* NEW: AR depth-sensing toggle. Only rendered once capability
+          detection has resolved true — no point showing a button that
+          will just error out on unsupported browsers/devices. Sim mode
+          has no camera/XR surface to anchor a session to, so it's hidden
+          there too. */}
+      {!simMode && arDepthSupported && (
+        <button
+          style={{
+            ...styles.arDepthBtn,
+            background: arDepthActive ? 'rgba(88,166,255,0.85)' : 'rgba(0,0,0,0.4)',
+            color: arDepthActive ? '#08080a' : '#fff',
+          }}
+          onClick={toggleARDepth}
+          title="Toggle AR depth + surface detection"
+        >
+          {arDepthActive ? '🧊' : '◻︎'}
+        </button>
+      )}
 
       <ObstacleCollisionOverlay
         playerPos={playerPos}
@@ -755,6 +905,24 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       <ScorePopupLayer popups={scorePopups} onPopupDone={removePopup} />
 
+      {/* NEW: minimal AR depth HUD — surface count + center-of-frame
+          distance, plus the wall-gate warning when it's actively
+          suppressing the CATCH button. Deliberately not drawing plane
+          outlines here (that's a bigger perspective-projection job left
+          for PerspectiveGridOverlay/a follow-up); this is just enough
+          feedback for a player to understand why CATCH might be
+          disabled. */}
+      {arDepthActive && (
+        <div style={styles.arDepthHud}>
+          <div>SURFACES: {arPlaneCount} ({floorPlanes.length} floor / {wallPlanes.length} wall)</div>
+          <div>
+            CENTER DEPTH: {centerDepthMeters != null ? `${centerDepthMeters.toFixed(2)}m` : '—'}
+          </div>
+          {arWallBlocked && <div style={styles.arDepthWarning}>TOO CLOSE — AIM AT OPEN SPACE</div>}
+        </div>
+      )}
+      {arDepthError && <div style={styles.arDepthErrorToast}>{arDepthError}</div>}
+
       {captureOverlay && (
         <div style={styles.captureVignette}>
           <div style={styles.captureCircle}>
@@ -772,9 +940,9 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         <button
           style={{
             ...styles.catchBtn,
-            opacity: nearestCatchable ? 1 : 0.5,
+            opacity: nearestCatchable && !arWallBlocked ? 1 : 0.5,
           }}
-          disabled={controlsLocked || !nearestCatchable}
+          disabled={controlsLocked || !nearestCatchable || arWallBlocked}
           onClick={handleCatchButtonTap}
         >
           CATCH
@@ -798,6 +966,21 @@ const styles = {
   radarAudioBtn: {
     position: 'absolute', top: 10, right: 60, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
     border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  arDepthBtn: {
+    position: 'absolute', top: 10, right: 20, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
+    border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  arDepthHud: {
+    position: 'absolute', top: 50, right: 12, zIndex: 50, padding: '6px 10px', borderRadius: 8,
+    background: 'rgba(0,0,0,0.5)', color: '#58a6ff', fontFamily: "'Orbitron', monospace",
+    fontSize: 10, letterSpacing: 0.5, textAlign: 'right', pointerEvents: 'none',
+  },
+  arDepthWarning: { color: '#FFD700', marginTop: 4 },
+  arDepthErrorToast: {
+    position: 'absolute', top: 50, left: '50%', transform: 'translateX(-50%)', zIndex: 55,
+    padding: '6px 12px', borderRadius: 8, background: 'rgba(255,92,92,0.85)', color: '#08080a',
+    fontFamily: "'Fredoka', sans-serif", fontSize: 12, maxWidth: '80%', textAlign: 'center',
   },
   bottomBar: {
     position: 'absolute', bottom: 24, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 40,
