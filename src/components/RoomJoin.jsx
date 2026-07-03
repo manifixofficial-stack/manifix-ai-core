@@ -1,32 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
+import { ensureSession } from "../lib/gameClient"; // ← added
 
-// src/components/RoomJoin.jsx — Stage 1: The Biometric "Hii!" Face Scanner Gate
-//
-// Still a dumb/presentational component: only collects the room code and
-// hands off to App.jsx via onJoin(). App.jsx keeps owning all connection
-// logic. The camera feed here is purely decorative background — it is
-// NEVER captured, analyzed, or sent anywhere. No ML, no frame grabbing.
-//
-// FIX: this component used to destructure `connecting` from props, but
-// App.jsx has always passed `joining={joining}` — the names never matched,
-// so the "CONNECTING…" disabled-button state never activated and a user
-// could double-submit while geolocation was still resolving. Renamed the
-// prop (and every internal reference) to `joining` to match the call site.
-//
-// Signature element: the four slot colors (BLUE/PURPLE/PINK/ORANGE) that
-// define who-you-are once you're in the arena show up HERE FIRST, as a
-// rotating "iris ring" behind the robot face — so the game's core identity
-// system is the thing that welcomes you, not a generic loading spinner.
 const SLOT_COLORS = ["#3a86ff", "#8338ec", "#ff006e", "#fb5607"];
 
 export default function RoomJoin({ onJoin, error, joining }) {
   const [roomCode, setRoomCode] = useState("");
-  const [gateStage, setGateStage] = useState("greeting"); // greeting -> scanning -> verified -> form
+  const [gateStage, setGateStage] = useState("greeting");
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const [sessionError, setSessionError] = useState(""); // ← added
   const videoRef = useRef(null);
   const chimeRef = useRef(null);
 
@@ -35,7 +20,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
     []
   );
 
-  // Rear camera passthrough — visual backdrop only.
   useEffect(() => {
     let stream;
     async function startCamera() {
@@ -49,7 +33,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
           setCameraReady(true);
         }
       } catch (err) {
-        // Camera denied or unavailable — game still works, just no live backdrop.
         setCameraError(true);
       }
     }
@@ -57,6 +40,19 @@ export default function RoomJoin({ onJoin, error, joining }) {
     return () => {
       stream?.getTracks().forEach((track) => track.stop());
     };
+  }, []);
+
+  // FIX: establish (or reuse) a Supabase auth session as soon as this
+  // screen mounts, so it's ready well before the player finishes typing
+  // a room code. If claim_character's "Lobby session profile missing"
+  // error is caused by there being no auth.uid() at all, this — plus
+  // whatever auto-profile trigger already exists on your project —
+  // should resolve it without any schema change on our end.
+  useEffect(() => {
+    ensureSession().catch((err) => {
+      console.error('[RoomJoin] ensureSession failed', err);
+      setSessionError('Could not start a session. Check your connection and reload.');
+    });
   }, []);
 
   const fireVerifiedConfetti = () => {
@@ -77,7 +73,7 @@ export default function RoomJoin({ onJoin, error, joining }) {
     if (gateStage !== "greeting") return;
     setPressed(true);
     setGateStage("scanning");
-    chimeRef.current?.play?.().catch(() => {}); // ignore autoplay-block errors
+    chimeRef.current?.play?.().catch(() => {});
     setTimeout(() => {
       setGateStage("verified");
       fireVerifiedConfetti();
@@ -85,17 +81,28 @@ export default function RoomJoin({ onJoin, error, joining }) {
     setTimeout(() => setGateStage("form"), 1900);
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     const room = roomCode.trim().toUpperCase();
     if (!room || joining) return;
+
+    // FIX: make sure a session exists before handing off to App.jsx's
+    // joinRoom()/claimCharacter() flow — covers the case where the
+    // mount-time call above hadn't finished yet (slow network) by the
+    // time the player submits the form.
+    try {
+      await ensureSession();
+    } catch (err) {
+      console.error('[RoomJoin] ensureSession failed on submit', err);
+      setSessionError('Could not start a session. Check your connection and try again.');
+      return;
+    }
+
     onJoin(room);
   };
 
   return (
     <div style={styles.screen}>
-      {/* Ambient color-bloom orbs — drifting echoes of the 4 slot colors,
-          so the identity system is felt before it's explained. */}
       {!reduceMotion &&
         SLOT_COLORS.map((color, i) => (
           <motion.div
@@ -110,10 +117,8 @@ export default function RoomJoin({ onJoin, error, joining }) {
           />
         ))}
 
-      {/* Faint holographic scanline grid */}
       <div style={styles.scanGrid} />
 
-      {/* Live camera passthrough background */}
       {!cameraError && (
         <video
           ref={videoRef}
@@ -128,7 +133,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
       )}
       <div style={styles.videoScrim} />
 
-      {/* Optional chime asset — drop chii-chiip.mp3 in /public/sounds/ */}
       <audio ref={chimeRef} src="/sounds/chii-chiip.mp3" preload="auto" />
 
       <AnimatePresence mode="wait">
@@ -141,8 +145,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
             exit={{ opacity: 0, filter: "blur(6px)" }}
             transition={{ duration: 0.5 }}
           >
-            {/* Iris ring — the four slot colors, rotating like a loading halo.
-                This is the signature: identity, before you've even picked one. */}
             <div style={styles.irisWrap}>
               <motion.svg
                 viewBox="0 0 140 140"
@@ -165,7 +167,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
                 ))}
               </motion.svg>
 
-              {/* Robot face */}
               <motion.div
                 style={styles.robotFace}
                 onClick={handleFaceTap}
@@ -199,7 +200,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
                   />
                 </svg>
 
-                {/* Laser scan sweep */}
                 {gateStage === "scanning" && (
                   <motion.div
                     style={styles.laser}
@@ -209,7 +209,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
                   />
                 )}
 
-                {/* Tap ripple */}
                 {pressed && gateStage === "scanning" && (
                   <motion.div
                     style={styles.ripple}
@@ -271,7 +270,7 @@ export default function RoomJoin({ onJoin, error, joining }) {
                 required
                 autoFocus
               />
-              {error && <p style={styles.errorText}>{error}</p>}
+              {(error || sessionError) && <p style={styles.errorText}>{sessionError || error}</p>}
               <motion.button
                 type="submit"
                 style={styles.joinBtn}
@@ -289,8 +288,6 @@ export default function RoomJoin({ onJoin, error, joining }) {
   );
 }
 
-// Chromatic-aberration glitch punch: three offset color copies of "HII!"
-// snap into alignment once, then settle into the solid gold headline.
 function GlitchHeadline({ text, reduceMotion }) {
   if (reduceMotion) {
     return <p style={styles.greetingText}>{text}</p>;
@@ -325,7 +322,6 @@ function GlitchHeadline({ text, reduceMotion }) {
   );
 }
 
-// Small helper to draw one arc of the iris ring as an SVG path.
 function arcPath(cx, cy, r, startDeg, endDeg) {
   const toRad = (d) => ((d - 90) * Math.PI) / 180;
   const start = { x: cx + r * Math.cos(toRad(startDeg)), y: cy + r * Math.sin(toRad(startDeg)) };
@@ -335,182 +331,26 @@ function arcPath(cx, cy, r, startDeg, endDeg) {
 }
 
 const styles = {
-  screen: {
-    position: "fixed",
-    inset: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#08080a",
-    overflow: "hidden",
-  },
-  orb: {
-    position: "absolute",
-    width: "160px",
-    height: "160px",
-    borderRadius: "50%",
-    filter: "blur(50px)",
-    pointerEvents: "none",
-    zIndex: 0,
-  },
-  scanGrid: {
-    position: "absolute",
-    inset: 0,
-    zIndex: 0,
-    backgroundImage:
-      "linear-gradient(rgba(255,215,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,215,0,0.05) 1px, transparent 1px)",
-    backgroundSize: "34px 34px",
-    maskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)",
-    WebkitMaskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)",
-  },
-  video: {
-    position: "absolute",
-    inset: 0,
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    transition: "opacity 0.6s ease",
-  },
-  videoScrim: {
-    position: "absolute",
-    inset: 0,
-    background: "linear-gradient(180deg, rgba(8,8,10,0.55) 0%, rgba(8,8,10,0.75) 100%)",
-  },
-  card: {
-    position: "relative",
-    zIndex: 2,
-    width: "min(90vw, 380px)",
-    padding: "32px 24px",
-    borderRadius: "20px",
-    background: "rgba(18, 16, 12, 0.72)",
-    border: "1px solid rgba(255, 215, 0, 0.35)",
-    boxShadow: "0 0 40px rgba(255, 215, 0, 0.08), inset 0 0 30px rgba(0,0,0,0.4)",
-    backdropFilter: "blur(10px)",
-    textAlign: "center",
-    fontFamily: "'Fredoka', sans-serif",
-  },
-  irisWrap: {
-    position: "relative",
-    width: "140px",
-    height: "140px",
-    margin: "0 auto 16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  irisSvg: {
-    position: "absolute",
-    inset: 0,
-    filter: "drop-shadow(0 0 10px rgba(255,255,255,0.15))",
-  },
-  robotFace: {
-    position: "relative",
-    width: "96px",
-    height: "96px",
-    cursor: "pointer",
-    filter: "drop-shadow(0 0 12px rgba(255,215,0,0.5))",
-  },
-  laser: {
-    position: "absolute",
-    left: "-20px",
-    right: "-20px",
-    height: "3px",
-    background: "linear-gradient(90deg, transparent, #FFD700 20%, #FFD700 80%, transparent)",
-    boxShadow: "0 0 12px 2px rgba(255,215,0,0.8)",
-  },
-  ripple: {
-    position: "absolute",
-    inset: "-14px",
-    borderRadius: "50%",
-    border: "2px solid rgba(255,215,0,0.7)",
-    pointerEvents: "none",
-  },
-  glitchWrap: {
-    position: "relative",
-    display: "inline-block",
-  },
-  glitchLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    mixBlendMode: "screen",
-  },
-  greetingText: {
-    fontFamily: "'Fredoka', sans-serif",
-    fontWeight: 700,
-    fontSize: "28px",
-    color: "#FFD700",
-    margin: "4px 0",
-  },
-  tapHint: {
-    fontFamily: "'Orbitron', monospace",
-    fontSize: "11px",
-    letterSpacing: "1px",
-    color: "#F5F0E8",
-    opacity: 0.8,
-  },
-  verifiedText: {
-    fontFamily: "'Orbitron', monospace",
-    fontWeight: 700,
-    fontSize: "16px",
-    letterSpacing: "1px",
-    color: "#39ff88",
-    textShadow: "0 0 10px rgba(57,255,136,0.6)",
-  },
-  title: {
-    fontFamily: "'Orbitron', sans-serif",
-    fontWeight: 800,
-    fontSize: "22px",
-    color: "#FFD700",
-    lineHeight: 1.3,
-    marginBottom: "12px",
-  },
-  titleGradientWord: {
-    backgroundImage: "linear-gradient(90deg, #3a86ff, #8338ec, #ff006e, #fb5607)",
-    WebkitBackgroundClip: "text",
-    backgroundClip: "text",
-    color: "transparent",
-  },
-  subtitle: {
-    fontFamily: "'Fredoka', sans-serif",
-    fontSize: "13px",
-    color: "#F5F0E8",
-    opacity: 0.75,
-    marginBottom: "20px",
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px 14px",
-    borderRadius: "10px",
-    border: "1px solid rgba(255,215,0,0.4)",
-    background: "rgba(0,0,0,0.5)",
-    color: "#FFD700",
-    fontFamily: "'Orbitron', monospace",
-    fontSize: "14px",
-    letterSpacing: "2px",
-    textAlign: "center",
-    marginBottom: "12px",
-    outline: "none",
-  },
-  errorText: {
-    color: "#ff5555",
-    fontFamily: "'Fredoka', sans-serif",
-    fontSize: "13px",
-    marginBottom: "10px",
-  },
-  joinBtn: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "10px",
-    border: "none",
-    background: "linear-gradient(180deg, #FFD700, #B8860B)",
-    color: "#08080a",
-    fontFamily: "'Orbitron', sans-serif",
-    fontWeight: 700,
-    fontSize: "14px",
-    letterSpacing: "1px",
-    cursor: "pointer",
-  },
+  screen: { position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#08080a", overflow: "hidden" },
+  orb: { position: "absolute", width: "160px", height: "160px", borderRadius: "50%", filter: "blur(50px)", pointerEvents: "none", zIndex: 0 },
+  scanGrid: { position: "absolute", inset: 0, zIndex: 0, backgroundImage: "linear-gradient(rgba(255,215,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,215,0,0.05) 1px, transparent 1px)", backgroundSize: "34px 34px", maskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse at 50% 40%, black 0%, transparent 75%)" },
+  video: { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transition: "opacity 0.6s ease" },
+  videoScrim: { position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(8,8,10,0.55) 0%, rgba(8,8,10,0.75) 100%)" },
+  card: { position: "relative", zIndex: 2, width: "min(90vw, 380px)", padding: "32px 24px", borderRadius: "20px", background: "rgba(18, 16, 12, 0.72)", border: "1px solid rgba(255, 215, 0, 0.35)", boxShadow: "0 0 40px rgba(255, 215, 0, 0.08), inset 0 0 30px rgba(0,0,0,0.4)", backdropFilter: "blur(10px)", textAlign: "center", fontFamily: "'Fredoka', sans-serif" },
+  irisWrap: { position: "relative", width: "140px", height: "140px", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center" },
+  irisSvg: { position: "absolute", inset: 0, filter: "drop-shadow(0 0 10px rgba(255,255,255,0.15))" },
+  robotFace: { position: "relative", width: "96px", height: "96px", cursor: "pointer", filter: "drop-shadow(0 0 12px rgba(255,215,0,0.5))" },
+  laser: { position: "absolute", left: "-20px", right: "-20px", height: "3px", background: "linear-gradient(90deg, transparent, #FFD700 20%, #FFD700 80%, transparent)", boxShadow: "0 0 12px 2px rgba(255,215,0,0.8)" },
+  ripple: { position: "absolute", inset: "-14px", borderRadius: "50%", border: "2px solid rgba(255,215,0,0.7)", pointerEvents: "none" },
+  glitchWrap: { position: "relative", display: "inline-block" },
+  glitchLayer: { position: "absolute", top: 0, left: 0, right: 0, mixBlendMode: "screen" },
+  greetingText: { fontFamily: "'Fredoka', sans-serif", fontWeight: 700, fontSize: "28px", color: "#FFD700", margin: "4px 0" },
+  tapHint: { fontFamily: "'Orbitron', monospace", fontSize: "11px", letterSpacing: "1px", color: "#F5F0E8", opacity: 0.8 },
+  verifiedText: { fontFamily: "'Orbitron', monospace", fontWeight: 700, fontSize: "16px", letterSpacing: "1px", color: "#39ff88", textShadow: "0 0 10px rgba(57,255,136,0.6)" },
+  title: { fontFamily: "'Orbitron', sans-serif", fontWeight: 800, fontSize: "22px", color: "#FFD700", lineHeight: 1.3, marginBottom: "12px" },
+  titleGradientWord: { backgroundImage: "linear-gradient(90deg, #3a86ff, #8338ec, #ff006e, #fb5607)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" },
+  subtitle: { fontFamily: "'Fredoka', sans-serif", fontSize: "13px", color: "#F5F0E8", opacity: 0.75, marginBottom: "20px" },
+  input: { width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: "10px", border: "1px solid rgba(255,215,0,0.4)", background: "rgba(0,0,0,0.5)", color: "#FFD700", fontFamily: "'Orbitron', monospace", fontSize: "14px", letterSpacing: "2px", textAlign: "center", marginBottom: "12px", outline: "none" },
+  errorText: { color: "#ff5555", fontFamily: "'Fredoka', sans-serif", fontSize: "13px", marginBottom: "10px" },
+  joinBtn: { width: "100%", padding: "12px", borderRadius: "10px", border: "none", background: "linear-gradient(180deg, #FFD700, #B8860B)", color: "#08080a", fontFamily: "'Orbitron', sans-serif", fontWeight: 700, fontSize: "14px", letterSpacing: "1px", cursor: "pointer" },
 };
