@@ -1,64 +1,124 @@
-import React from "react";
+// components/ViewfinderBox.jsx
+//
+// Center reticle. Previously static — now reacts live to whether a target
+// is currently inside it (`targetInBounds`), the current lock `status`,
+// and how close the nearest tracked target is (`activeScale`, which grows
+// the box as you approach — see GameCanvas.jsx's nearestTargetScale memo).
+//
+// Converted from the Tailwind-class version to inline styles to match
+// every other component in this codebase (Scoreboard/CaptureOverlay/etc.
+// all use style={{...}} objects, not className strings) — if Tailwind is
+// actually configured in this project, say so and this can switch back.
 
-/**
- * ViewfinderBox
- * -------------
- * Centered scan-target frame overlaid on the AR canvas. Use this as the
- * hit-region reference for CaptureThrow.jsx: only allow a capture attempt
- * to register when a veggie's projected screen coordinates fall inside
- * this box's bounds.
- *
- * `active` toggles a highlighted/pulsing state (e.g. when a veggie is
- * currently inside the frame and capturable).
- *
- * Usage:
- *   <ViewfinderBox active={targetInFrame} />
- *
- * To compute `active` in GameCanvas.jsx, compare each veggie's projected
- * x/y percentage against the box's on-screen bounds (default 24%/24%
- * width/height, centered) and set true if any veggie falls inside.
- */
+import React from 'react';
+
+const STATUS_STYLES = {
+  searching: { border: '#f59e0b66', text: '#f59e0b', label: 'SCANNING...' },
+  acquired: { border: '#2dd4bf', text: '#2dd4bf', label: 'TARGET ACQUIRED' },
+  locking: { border: '#22d3ee', text: '#22d3ee', label: 'LOCKING...' },
+  success: { border: '#10b981', text: '#10b981', label: 'ASSET SECURED' },
+  failed: { border: '#f43f5e', text: '#f43f5e', label: 'LOCK LOST' },
+};
+
 export default function ViewfinderBox({
-  active = false,
-  size = { width: 96, height: 96 }, // px
+  centerX,
+  centerY,
+  size = 96,
+  status = 'searching',
+  targetInBounds = false,
+  activeScale = 1.0,
 }) {
-  const { width, height } = size;
+  const resolvedKey =
+    status === 'searching' && targetInBounds ? 'acquired' : STATUS_STYLES[status] ? status : 'searching';
+  const s = STATUS_STYLES[resolvedKey];
+
+  const width = size * activeScale;
+  const height = size * 1.4 * activeScale;
 
   return (
     <div
-      className="absolute top-1/2 left-1/2 z-20 pointer-events-none"
       style={{
-        width,
-        height,
-        transform: "translate(-50%, -50%)",
+        position: 'absolute',
+        left: centerX,
+        top: centerY,
+        transform: 'translate(-50%, -50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        pointerEvents: 'none',
+        zIndex: 22,
+        transition: 'all 150ms ease-out',
       }}
     >
+      <style>{`
+        @keyframes viewfinderPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.45; }
+        }
+      `}</style>
+
       <div
-        className={`relative w-full h-full border-2 rounded-sm transition-colors duration-150 ${
-          active
-            ? "border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.6)]"
-            : "border-yellow-400/70"
-        }`}
+        style={{
+          position: 'relative',
+          width,
+          height,
+          border: `2px dashed ${s.border}`,
+          borderRadius: 12,
+          transition: 'width 100ms ease-out, height 100ms ease-out, border-color 150ms ease-out',
+          animation: resolvedKey === 'locking' ? 'viewfinderPulse 0.6s infinite' : 'none',
+        }}
       >
         {/* Corner brackets */}
-        <span className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-current" />
-        <span className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-current" />
-        <span className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-current" />
-        <span className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-current" />
+        {[
+          { top: -6, left: -6, borderWidth: '4px 0 0 4px' },
+          { top: -6, right: -6, borderWidth: '4px 4px 0 0' },
+          { bottom: -6, left: -6, borderWidth: '0 0 4px 4px' },
+          { bottom: -6, right: -6, borderWidth: '0 4px 4px 0' },
+        ].map((pos, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              width: 16,
+              height: 16,
+              borderStyle: 'solid',
+              borderColor: s.border,
+              ...pos,
+            }}
+          />
+        ))}
 
         {/* Center crosshair dot */}
-        <span
-          className={`absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2 ${
-            active ? "bg-emerald-400 animate-pulse" : "bg-yellow-400/70"
-          }`}
-        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: targetInBounds ? 1 : 0.35,
+          }}
+        >
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.text }} />
+        </div>
       </div>
 
-      {active && (
-        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] tracking-widest font-bold text-emerald-300">
-          TARGET LOCKED
-        </div>
-      )}
+      <div
+        style={{
+          marginTop: 10,
+          fontFamily: "'Orbitron', monospace",
+          fontWeight: 800,
+          fontSize: 10,
+          letterSpacing: 1.5,
+          padding: '3px 8px',
+          borderRadius: 6,
+          border: `1px solid ${s.border}`,
+          background: 'rgba(0,0,0,0.55)',
+          color: s.text,
+        }}
+      >
+        {s.label}
+      </div>
     </div>
   );
 }
