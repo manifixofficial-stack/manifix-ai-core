@@ -3,29 +3,19 @@ import { motion } from 'framer-motion';
 
 // src/components/ConnectionStatus.jsx — The Veggie GO Radar Network Badge
 //
-// FIX: this component used to import `socket` from '../socket' (the old
-// Socket.IO file) and fall back to listening on it whenever no `phase`
-// prop was supplied. But App.jsx never actually connects that socket —
-// the app moved to Supabase RPC + a separate tick server a while back —
-// so the badge sat on "disconnected/red" forever even while the game was
-// working fine.
+// Pure controlled component: it only reads the `phase` prop from App.jsx.
+// Now that the game runs fully offline (no Supabase, no tick server), the
+// badge has a dedicated 'local' phase instead of ever claiming a real
+// network connection — same visual language (glass panel, Orbitron
+// badge type, framer-motion pulses), just honest copy about what's
+// actually happening: everything is running on-device.
 //
-// socket.js is dead code at this point, so rather than patch the fallback
-// to point at yet another listener, ConnectionStatus is now a pure
-// controlled component: it only reads the `phase` prop. App.jsx supplies
-// this from `tickStatus`, which is set by connectTickServer's
-// onStatusChange callback in src/lib/tickClient.js and takes one of:
-// 'idle' | 'syncing' | 'connected' | 'disconnected'.
-//
-// Copy pass: consumer-app cartoon voice, not network-engineer jargon
-// ("SATELLITE SCANNING AREA…" not "SYNCING"). On connect, the badge also
-// confirms GPS lock + leaderboard sync in a subline, since that pairing is
-// the actual in-game promise (live rank tracking), not just "you're online."
-//
-// Visually matched to RoomJoin.jsx / CharacterSelect.jsx: same glass panel
-// (rgba(18,16,12,0.72), gold-tinted border, backdrop blur), same Orbitron
-// badge typography, and motion handled via framer-motion (not raw CSS
-// @keyframes) so every animated element in the app speaks one language.
+// phase is one of: 'idle' | 'local' | 'disconnected'
+//   idle          — no room joined yet
+//   local         — room joined, playing fully offline/on-device
+//   disconnected  — reserved for a future real backend; unused today but
+//                    kept so re-adding a server later doesn't need a
+//                    ConnectionStatus rewrite
 function ConnectionStatus({ roomCode, phase }) {
   const PHASE_CONFIG = {
     idle: {
@@ -34,15 +24,9 @@ function ConnectionStatus({ roomCode, phase }) {
       color: '#FFC93C', // amber
       pulse: 'blink',
     },
-    syncing: {
-      label: 'SATELLITE SCANNING AREA…',
-      sublabel: null,
-      color: '#FFC93C', // amber
-      pulse: 'blink',
-    },
-    connected: {
-      label: `🛰️ VEGGIE NETWORK ACTIVE${roomCode ? ` — ARENA ${roomCode}` : ''}`,
-      sublabel: 'GPS locked · Leaderboard synced',
+    local: {
+      label: `📡 LOCAL PLAY ACTIVE${roomCode ? ` — ARENA ${roomCode}` : ''}`,
+      sublabel: 'Running on-device · No network needed',
       color: '#39ff88', // neon green
       pulse: 'glow',
     },
@@ -75,13 +59,13 @@ function ConnectionStatus({ roomCode, phase }) {
         gap: '8px',
         padding: sublabel ? '7px 14px' : '6px 12px',
         background: 'rgba(18, 16, 12, 0.72)',
-        border: `2px solid ${phase === 'connected' ? color : 'rgba(255, 215, 0, 0.35)'}`,
+        border: `2px solid ${phase === 'local' ? color : 'rgba(255, 215, 0, 0.35)'}`,
         borderRadius: '999px',
         backdropFilter: 'blur(10px)',
         boxShadow:
           phase === 'disconnected'
             ? '0 0 15px rgba(255, 51, 51, 0.3)'
-            : phase === 'connected'
+            : phase === 'local'
             ? `0 0 12px ${color}55`
             : '0 0 10px rgba(255, 201, 60, 0.2)',
         fontSize: '11px',
@@ -114,7 +98,7 @@ function ConnectionStatus({ roomCode, phase }) {
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            textShadow: phase === 'connected' ? `0 0 4px ${color}44` : 'none',
+            textShadow: phase === 'local' ? `0 0 4px ${color}44` : 'none',
           }}
         >
           {label}
