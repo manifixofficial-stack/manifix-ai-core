@@ -1,3 +1,4 @@
+// hooks/veggies/VeggieSprite.jsx
 import React from "react";
 import { motion } from "framer-motion";
 import CarrotSprite from "./CarrotSprite";
@@ -39,6 +40,13 @@ const REVEAL_RADIUS_METERS = 35; // beyond this, render camouflaged
  *  - huntersNearby: count of other players also close to this veggie
  *  - catchMode: true once distance <= CATCH_RADIUS_METERS — hands position
  *    control to the evasion AI and enables the growth-defense mechanic
+ *  - locked: NEW — true while CaptureThrow's net-lock is actively holding
+ *    on this veggie (see GameCanvas.jsx's lockedVeggieIds). Freezes the
+ *    evasion AI in place instead of letting it keep fleeing underneath a
+ *    net that's already landed — without this the evasion loop and
+ *    CaptureThrow's drift-break check fight each other, and a lock that
+ *    should visually read as "held" instead looks like it's still
+ *    twitching to escape every frame.
  *  - screenW, screenH: viewport size in px, needed by the evasion AI to
  *    bounce off screen edges
  *  - crosshairX, crosshairY: where the player's aim point is (usually
@@ -54,6 +62,7 @@ export default function VeggieSprite({
   distance = null,
   huntersNearby = 0,
   catchMode = false,
+  locked = false,
   screenW = typeof window !== "undefined" ? window.innerWidth : 400,
   screenH = typeof window !== "undefined" ? window.innerHeight : 800,
   crosshairX = screenW / 2,
@@ -65,8 +74,16 @@ export default function VeggieSprite({
   const camouflaged = !catchMode && distance != null && distance > REVEAL_RADIUS_METERS;
   const inRange = distance != null && distance <= CATCH_RADIUS_METERS;
 
+  // FIX: evasion is now only "active" while in catchMode AND not locked.
+  // Once a net lands (locked === true), the AI stops driving position —
+  // useVeggieEvasion's own `active` flag going false means it holds its
+  // last computed x/y instead of continuing to compute flee vectors. This
+  // matches the physical read of "netted," and it's also what lets
+  // CaptureThrow's LOCK_BREAK_RADIUS_PX check behave sanely: a veggie that
+  // has actually stopped moving won't spuriously drift out of the break
+  // radius from evasion jitter while the hold timer is counting down.
   const evasion = useVeggieEvasion({
-    active: catchMode,
+    active: catchMode && !locked,
     anchorX: x,
     anchorY: y,
     screenW,
@@ -79,7 +96,10 @@ export default function VeggieSprite({
   const renderY = catchMode ? evasion.y : y;
 
   // Pre-catchMode: gentle depth nudge. In catchMode: the growth-defense
-  // scale takes over, ramping up once the veggie is cornered.
+  // scale takes over, ramping up once the veggie is cornered. Locked
+  // freezes growth at whatever it was the instant the net landed, rather
+  // than continuing to ramp — a veggie that's already caught shouldn't
+  // keep visually panicking bigger.
   const baseScale = 0.8 + Math.max(0, Math.min(1, proximity)) * 0.35;
   const scale = catchMode ? baseScale * evasion.growth : baseScale;
   const sizePx = 90 * scale;
@@ -87,7 +107,7 @@ export default function VeggieSprite({
   return (
     <motion.div
       role="button"
-      aria-label={`${label}${inRange ? ", in range" : ""}${evasion.cornered ? ", cornered" : ""}`}
+      aria-label={`${label}${inRange ? ", in range" : ""}${locked ? ", netted" : evasion.cornered ? ", cornered" : ""}`}
       onClick={() => onCatch && onCatch()}
       initial={{ opacity: 0, scale: 0.6 }}
       animate={{ opacity: camouflaged ? 0.35 : 1, scale: 1 }}
@@ -101,17 +121,41 @@ export default function VeggieSprite({
         transformOrigin: "center bottom",
         // No CSS transition on left/top while catchMode drives position —
         // the evasion AI already updates every animation frame, so a CSS
-        // transition would just add lag on top of it.
+        // transition would just add lag on top of it. Locked freezes
+        // position entirely, so this doesn't matter for it either way.
         transition: catchMode ? "none" : "left 0.28s linear, top 0.28s linear",
-        filter: camouflaged ? "blur(1.5px) saturate(0.6)" : "none",
+        filter: camouflaged ? "blur(1.5px) saturate(0.6)" : locked ? "brightness(0.85)" : "none",
         cursor: onCatch ? "pointer" : "default",
         userSelect: "none",
         pointerEvents: "auto", // parent overlay sets pointerEvents:none, opt this sprite back in
         touchAction: "manipulation",
       }}
     >
+      {/* NEW: locked ring — a calmer, steady gold ring (vs. the pulsing
+          red cornered ring) since a locked veggie isn't actively panicking
+          anymore, it's just waiting out the hold timer CaptureThrow is
+          running. Takes priority over both the cornered and calm rings
+          below. */}
+      {locked && (
+        <motion.div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: sizePx * 1.35,
+            height: sizePx * 1.35,
+            borderRadius: "50%",
+            border: "3px solid #ffc83c",
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+          }}
+          animate={{ opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 0.8, repeat: Infinity }}
+        />
+      )}
+
       {/* growth-defense warning ring — replaces the calm capture ring once cornered */}
-      {catchMode && evasion.cornered && (
+      {!locked && catchMode && evasion.cornered && (
         <motion.div
           style={{
             position: "absolute",
@@ -130,7 +174,7 @@ export default function VeggieSprite({
       )}
 
       {/* calm capture ring — shown once in range but before it's cornered */}
-      {inRange && !evasion.cornered && (
+      {!locked && inRange && !evasion.cornered && (
         <motion.div
           style={{
             position: "absolute",
@@ -170,7 +214,7 @@ export default function VeggieSprite({
         </div>
       )}
 
-      <Sprite panic={panic || (catchMode && !evasion.cornered)} sizePx={sizePx} />
+      <Sprite panic={panic || (catchMode && !locked && !evasion.cornered)} sizePx={sizePx} />
 
       {!camouflaged && (
         <div
@@ -179,13 +223,13 @@ export default function VeggieSprite({
             marginTop: 2,
             fontFamily: "'DM Mono', monospace",
             fontSize: 11,
-            color: evasion.cornered ? "#ff5c3d" : inRange ? "#ffc83c" : "rgba(255,255,255,0.8)",
+            color: locked ? "#ffc83c" : evasion.cornered ? "#ff5c3d" : inRange ? "#ffc83c" : "rgba(255,255,255,0.8)",
             textShadow: "0 1px 3px rgba(0,0,0,0.8)",
             whiteSpace: "nowrap",
           }}
         >
-          {evasion.cornered ? "TAP NOW!" : label}
-          {distance != null && !evasion.cornered ? ` · ${Math.round(distance)}m` : ""}
+          {locked ? "NETTED…" : evasion.cornered ? "TAP NOW!" : label}
+          {distance != null && !locked && !evasion.cornered ? ` · ${Math.round(distance)}m` : ""}
         </div>
       )}
     </motion.div>
