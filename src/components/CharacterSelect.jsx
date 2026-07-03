@@ -1,13 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+// ---------------------------------------------------------------------------
+// STANDALONE VERSION — no database / Supabase connection.
+//
+// All "taken slot" and "lock in" state lives entirely in local React state
+// (useState) inside this component. Nothing here makes a network call of
+// any kind.
+// ---------------------------------------------------------------------------
+
 const SLOT_COLORS = ["#3a86ff", "#2ecc71", "#ff006e", "#8338ec"];
 
 const ALL_SLOTS = [
-  { id: "oggy-blue", color: "#3a86ff", icon: "🥕", vibe: "chill", display: "BLUE" },
-  { id: "jack-green", color: "#2ecc71", icon: "🍆", vibe: "wild", display: "GREEN" },
-  { id: "olivia-pink", color: "#ff006e", icon: "🍓", vibe: "unbothered", display: "PINK" },
-  { id: "bob-purple", color: "#8338ec", icon: "🎃", vibe: "menace", display: "PURPLE" },
+  { id: "slot-blue", color: "#3a86ff", icon: "🥕", vibe: "chill", display: "BLUE" },
+  { id: "slot-green", color: "#2ecc71", icon: "🍆", vibe: "wild", display: "GREEN" },
+  { id: "slot-pink", color: "#ff006e", icon: "🍓", vibe: "unbothered", display: "PINK" },
+  { id: "slot-purple", color: "#8338ec", icon: "🎃", vibe: "menace", display: "PURPLE" },
 ];
 
 const LOBBY_SIZES = [
@@ -16,22 +24,23 @@ const LOBBY_SIZES = [
   { size: 4, label: "SQUAD", sub: "full 4-player chaos", icon: "🔥" },
 ];
 
-export default function CharacterSelect({
-  takenChars = {},
-  onSelect = () => {},
-  onLobbySizeChange,
-  lockResult = null,
-  error = "", // FIX: this prop was already being passed in from App.jsx but
-              // never rendered anywhere — so any claimCharacter() failure
-              // (bad RPC args, network error, RLS rejection, etc.) was
-              // completely invisible. The "locking in…" spinner would just
-              // sit there forever with zero on-screen indication that
-              // anything had gone wrong. Rendered below the name input.
-}) {
+const EMPTY_TAKEN = {
+  "slot-blue": null,
+  "slot-green": null,
+  "slot-pink": null,
+  "slot-purple": null,
+};
+
+// onLockedIn(slotId, name, lobbySize) fires once a slot is "claimed" locally
+// — wire this up to whatever you want to happen next (e.g. advancing to the
+// next screen) instead of a database call.
+export default function CharacterSelect({ onLockedIn = () => {} }) {
   const [name, setName] = useState("");
   const [pending, setPending] = useState(null);
   const [slotTakenError, setSlotTakenError] = useState(null);
   const [lobbySize, setLobbySize] = useState(4);
+  const [takenChars, setTakenChars] = useState(EMPTY_TAKEN);
+  const [error, setError] = useState("");
 
   const reduceMotion = useMemo(
     () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
@@ -41,52 +50,27 @@ export default function CharacterSelect({
   const activeSlots = useMemo(() => ALL_SLOTS.slice(0, lobbySize), [lobbySize]);
   const filledCount = activeSlots.filter((s) => takenChars[s.id]).length;
 
-  useEffect(() => {
-    if (!lockResult) return;
-    if (lockResult.slotId !== pending) return;
-
-    if (lockResult.success) {
-      setPending(null);
-    } else {
-      setPending(null);
-      setSlotTakenError(lockResult.slotId);
-      setTimeout(() => setSlotTakenError(null), 2000);
-    }
-  }, [lockResult, pending]);
-
-  // FIX: if App.jsx's handleLockCharacter ever hits its own guard clause
-  // (e.g. myPlayerId/myPosition not ready yet) and returns *without*
-  // calling setLockResult at all, `pending` would never clear via the
-  // effect above — it would just hang on "locking in…" indefinitely with
-  // no error shown, no timeout, nothing. This safety-net timeout clears
-  // pending and shows a message if no lockResult arrives within 8s of a
-  // pick, so the UI can never get permanently stuck even if the parent
-  // fails silently.
-  useEffect(() => {
-    if (!pending) return undefined;
-    const timeout = setTimeout(() => {
-      setPending((current) => {
-        if (current) {
-          setSlotTakenError(current);
-          setTimeout(() => setSlotTakenError(null), 2500);
-        }
-        return null;
-      });
-    }, 8000);
-    return () => clearTimeout(timeout);
-  }, [pending]);
-
   const changeLobbySize = (size) => {
     if (pending) return;
     setLobbySize(size);
-    onLobbySizeChange?.(size);
   };
 
+  // Simulates a "claim" locally — no network call, no race condition to
+  // worry about since there's only one local player. Resolves almost
+  // instantly (small delay just to keep the "locking in…" UI feeling
+  // intentional instead of instantaneous/jarring).
   const handlePick = (slotId) => {
     if (takenChars[slotId] || pending) return;
-    const claimedName = name.trim() || `Player-${slotId.split('-')[0].toUpperCase()}`;
+
+    setError("");
+    const claimedName = name.trim() || `Player-${slotId.split("-")[1]?.toUpperCase() || slotId.toUpperCase()}`;
     setPending(slotId);
-    onSelect(slotId, claimedName, lobbySize);
+
+    setTimeout(() => {
+      setTakenChars((prev) => ({ ...prev, [slotId]: claimedName }));
+      setPending(null);
+      onLockedIn(slotId, claimedName, lobbySize);
+    }, 400);
   };
 
   return (
@@ -152,7 +136,6 @@ export default function CharacterSelect({
           style={styles.nameInput}
         />
 
-        {/* FIX: error prop is now actually rendered. */}
         {error ? <p style={styles.errorLine}>{error}</p> : null}
 
         <p style={styles.progressLine}>
