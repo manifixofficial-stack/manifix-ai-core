@@ -1,43 +1,43 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 
 /**
- * ScorePopup
- * ----------
- * A single transient "+points" flash rendered at a screen-space
- * coordinate. Self-removes via the onDone callback after its animation
- * finishes, so the parent's popup list stays clean.
+ * ScorePopup / useScorePopups / ScorePopupLayer
+ * ----------------------------------------------
+ * Transient "+points" LED-style flash at a screen-pixel coordinate,
+ * fired right after a successful capture_veggie() call.
+ *
+ * Usage inside GameCanvas.jsx:
+ *
+ *   const { popups, spawnPopup, removePopup } = useScorePopups();
+ *
+ *   // in handleCatch, after a successful capture:
+ *   spawnPopup({ x: caughtScreenX, y: caughtScreenY, value: points });
+ *
+ *   // in render, anywhere inside the root wrap div:
+ *   <ScorePopupLayer popups={popups} onPopupDone={removePopup} />
  */
+
+const POPUP_LIFETIME_MS = 650;
+
 export function ScorePopup({ x, y, value, onDone }) {
   useEffect(() => {
-    const timer = setTimeout(() => onDone?.(), 650);
+    const timer = setTimeout(() => onDone?.(), POPUP_LIFETIME_MS);
     return () => clearTimeout(timer);
   }, [onDone]);
 
   return (
     <div
-      className="absolute z-30 pointer-events-none retro-arcade-flash select-none"
-      style={{ left: `${x}%`, top: `${y}%` }}
+      style={{
+        ...styles.popup,
+        left: x,
+        top: y,
+      }}
     >
       +{value}
     </div>
   );
 }
 
-/**
- * useScorePopups
- * ---------------
- * Small state manager hook for spawning/clearing popups. Drop this into
- * GameCanvas.jsx alongside your capture_veggie RPC handler.
- *
- * Usage:
- *   const { popups, spawnPopup } = useScorePopups();
- *
- *   // after a successful capture_veggie() resolves:
- *   spawnPopup({ x: veggieScreenX, y: veggieScreenY, value: 10000 });
- *
- *   // in render:
- *   <ScorePopupLayer popups={popups} onPopupDone={removePopup} />
- */
 export function useScorePopups() {
   const [popups, setPopups] = useState([]);
   const idRef = useRef(0);
@@ -55,14 +55,15 @@ export function useScorePopups() {
 }
 
 /**
- * ScorePopupLayer
- * ----------------
- * Renders the full list of active popups. Mount once inside the game
- * canvas's positioned container.
+ * Renders all active popups plus a one-time <style> tag carrying the
+ * keyframe animation (GameCanvas.jsx uses inline style objects throughout,
+ * so there's no existing global stylesheet to hook into — this injects
+ * its own scoped keyframes rather than requiring a separate CSS import).
  */
 export function ScorePopupLayer({ popups, onPopupDone }) {
   return (
     <>
+      <style>{keyframes}</style>
       {popups.map((p) => (
         <ScorePopup
           key={p.id}
@@ -75,5 +76,28 @@ export function ScorePopupLayer({ popups, onPopupDone }) {
     </>
   );
 }
+
+const keyframes = `
+@keyframes veggieScorePopupBounce {
+  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+  70%  { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+  100% { transform: translate(-50%, -140%) scale(1.0); opacity: 0; }
+}
+`;
+
+const styles = {
+  popup: {
+    position: 'absolute',
+    zIndex: 46,
+    pointerEvents: 'none',
+    fontFamily: "'Orbitron', 'Impact', sans-serif",
+    fontWeight: 800,
+    fontSize: 18,
+    color: '#ef4444',
+    WebkitTextStroke: '1.5px #facc15',
+    textShadow: '0 0 20px rgba(239, 68, 68, 0.8)',
+    animation: `veggieScorePopupBounce ${POPUP_LIFETIME_MS}ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards`,
+  },
+};
 
 export default ScorePopup;
