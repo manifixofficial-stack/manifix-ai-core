@@ -40,6 +40,16 @@ const VIEWFINDER_SIZE_PX = 96;         // must match ViewfinderBox's default `si
 const LOCATION_WRITE_MIN_INTERVAL_MS = 3000;
 const LOCATION_WRITE_MIN_DISTANCE_M = 5;
 
+// Directional audio radar — proximity "ping" that speeds up as the nearest
+// tracked veggie gets closer. Interval interpolates linearly between
+// PING_INTERVAL_MAX_MS (far / at tracking range) and PING_INTERVAL_MIN_MS
+// (at/inside catch range). Muted by default until the player opts in, since
+// autoplay-audio policies require a user gesture and some players will be
+// in a public/shared space.
+const PING_INTERVAL_MAX_MS = 1400;
+const PING_INTERVAL_MIN_MS = 220;
+const PING_FREQ_HZ = 880;
+
 // ---------------------------------------------------------------------------
 // Geo math — accurate haversine distance/bearing (good at any latitude,
 // unlike a flat equirectangular approximation).
@@ -108,6 +118,11 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const [heading, setHeading] = useState(0);
   const [captureOverlay, setCaptureOverlay] = useState(null);
 
+  // Directional audio radar toggle — off by default (autoplay-audio
+  // policies need a user gesture, and pinging by default is intrusive in
+  // shared spaces). Player flips this on from the in-game control.
+  const [radarAudioEnabled, setRadarAudioEnabled] = useState(false);
+
   const keyVelRef = useRef({ x: 0, y: 0 });
   const keysHeldRef = useRef(new Set());
   const headingRef = useRef(0);
@@ -115,6 +130,8 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const watchIdRef = useRef(null);
   const orientationCleanupRef = useRef(null);
   const locationWriterRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const pingTimeoutRef = useRef(null);
 
   const { tauntFromFrame } = useVeggieTaunt();
 
@@ -157,6 +174,16 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     );
   }, []);
 
+  // FIX (camera not showing): previously this function assigned
+  // `videoRef.current.srcObject = stream` inline, at a moment when the
+  // <video> element did NOT exist yet — the permission-gate branch renders
+  // a completely different tree with no <video> in it at all, and the
+  // element only mounts after `permissionStage` flips to 'ready'. So
+  // `videoRef.current` was always null here, the assignment silently did
+  // nothing, and the freshly-mounted <video> came up with no stream
+  // attached. The stream is now only stored in streamRef; the actual
+  // attach happens in the effect below, which runs *after* the ready-state
+  // render puts <video> in the DOM.
   const requestPermissions = useCallback(async () => {
     setPermissionStage('requesting');
     setPermissionError('');
@@ -166,7 +193,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
 
       if (
         typeof DeviceOrientationEvent !== 'undefined' &&
@@ -201,6 +227,24 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     }
   }, [startCompass, startGeolocation]);
 
+  // FIX (camera not showing), part 2: attach the already-granted stream to
+  // the <video> element once it actually exists in the DOM (permissionStage
+  // === 'ready' && !simMode), and explicitly call .play(). Some in-app
+  // WebViews (e.g. Android WebView-based wrappers) won't autoplay a video
+  // whose srcObject was set post-mount even with the `autoPlay` attribute
+  // present, so the explicit play() call matters here.
+  useEffect(() => {
+    if (permissionStage === 'ready' && !simMode && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      const playPromise = videoRef.current.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((err) => {
+          console.error('[GameCanvas] video play failed', err);
+        });
+      }
+    }
+  }, [permissionStage, simMode]);
+
   const enterSimMode = useCallback(() => {
     setSimMode(true);
     setPermissionStage('ready');
@@ -211,6 +255,8 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
       if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       if (orientationCleanupRef.current) orientationCleanupRef.current();
+      if (pingTimeoutRef.current) clearTimeout(pingTimeoutRef.current);
+      if (audioCtxRef.current) audioCtxRef.current.close();
     };
   }, []);
 
@@ -434,6 +480,78 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     tauntFromFrame([...visibleVeggies, ...edgeVeggies]);
   }, [visibleVeggies, edgeVeggies, tauntFromFrame]);
 
+  // -------------------------------------------------------------------
+  // Directional audio radar — proximity "ping" via Web Audio, distinct
+  // from useVeggieTaunt's per-veggie taunt lines. Pings against whichever
+  // veggie is closest overall: visible on-screen, just off-screen at the
+  // edge, or tracked-but-far (nearestTracked). Ping cadence scales with
+  // distance — closer = faster pings — mirroring the reference game's
+  // "pinging that grows faster and louder as the player approaches."
+  // Requires an explicit opt-in (radarAudioEnabled) since audio-context
+  // creation needs a user gesture and shouldn't just start blaring.
+  // -------------------------------------------------------------------
+  const closestOverallDistance = useMemo(() => {
+    const candidates = [
+      ...visibleVeggies.map((v) => v.distance),
+      ...edgeVeggies.map((v) => v.distance),
+      ...(nearestTracked ? [nearestTracked.distance] : []),
+    ];
+    if (candidates.length === 0) return null;
+    return Math.min(...candidates);
+  }, [visibleVeggies, edgeVeggies, nearestTracked]);
+
+  useEffect(() => {
+    if (!radarAudioEnabled) {
+      if (pingTimeoutRef.current) {
+        clearTimeout(pingTimeoutRef.current);
+        pingTimeoutRef.current = null;
+      }
+      return undefined;
+    }
+
+    if (!audioCtxRef.current) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return undefined; // unsupported browser — silently no-op
+      audioCtxRef.current = new Ctx();
+    }
+    const ctx = audioCtxRef.current;
+
+    const playPing = (gainLevel) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = PING_FREQ_HZ;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(gainLevel, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.13);
+    };
+
+    const scheduleNext = () => {
+      if (closestOverallDistance == null) {
+        pingTimeoutRef.current = setTimeout(scheduleNext, PING_INTERVAL_MAX_MS);
+        return;
+      }
+      const clamped = Math.max(CATCH_RADIUS_METERS, Math.min(TRACKING_RADIUS_METERS, closestOverallDistance));
+      const t = (clamped - CATCH_RADIUS_METERS) / (TRACKING_RADIUS_METERS - CATCH_RADIUS_METERS);
+      const interval = PING_INTERVAL_MIN_MS + t * (PING_INTERVAL_MAX_MS - PING_INTERVAL_MIN_MS);
+      const gainLevel = 0.05 + (1 - t) * 0.15; // louder as it gets closer
+      playPing(gainLevel);
+      pingTimeoutRef.current = setTimeout(scheduleNext, interval);
+    };
+
+    scheduleNext();
+    return () => {
+      if (pingTimeoutRef.current) clearTimeout(pingTimeoutRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radarAudioEnabled, closestOverallDistance]);
+
+  const toggleRadarAudio = useCallback(() => {
+    setRadarAudioEnabled((prev) => !prev);
+  }, []);
+
   // CaptureThrow needs {id, x, y, radius} targets in screen space — only
   // sensible for veggies already projected onto the visible AR view.
   const throwTargets = useMemo(
@@ -582,6 +700,21 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       <button style={styles.exitBtn} onClick={onExit}>✕</button>
 
+      {/* Directional audio radar toggle — opt-in ping that speeds up as
+          the nearest veggie gets closer. Positioned next to the exit
+          button so it stays reachable one-handed. */}
+      <button
+        style={{
+          ...styles.radarAudioBtn,
+          background: radarAudioEnabled ? 'rgba(57,255,136,0.85)' : 'rgba(0,0,0,0.4)',
+          color: radarAudioEnabled ? '#08080a' : '#fff',
+        }}
+        onClick={toggleRadarAudio}
+        title="Toggle proximity audio radar"
+      >
+        {radarAudioEnabled ? '🔊' : '🔈'}
+      </button>
+
       {/* FIX: real props this component actually accepts — it manages its
           own proximity detection, cooldown, and lockout timing internally
           and reports lock state back up via onLockChange. */}
@@ -709,6 +842,10 @@ const styles = {
   exitBtn: {
     position: 'absolute', top: 10, right: 100, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
     background: 'rgba(0,0,0,0.4)', color: '#fff', border: 'none', fontSize: 14, cursor: 'pointer',
+  },
+  radarAudioBtn: {
+    position: 'absolute', top: 10, right: 60, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
+    border: 'none', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   bottomBar: {
     position: 'absolute', bottom: 24, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 40,
