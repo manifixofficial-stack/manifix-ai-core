@@ -11,7 +11,7 @@ import PerspectiveGridOverlay from './PerspectiveGridOverlay.jsx';
 import ViewfinderBox from './ViewfinderBox.jsx';
 import { ScorePopupLayer, useScorePopups } from './ScorePopup.jsx';
 import { useVeggieTaunt } from './veggies/useVeggieTaunt.js';
-import { useARPlaneDetection } from '../hooks/useARPlaneDetection.js';
+import useARPlaneDetection from '../hooks/useARPlaneDetection.js';
 import { OBSTACLE_ZONES } from '../config/obstacles.js';
 import {
   fetchPlayers,
