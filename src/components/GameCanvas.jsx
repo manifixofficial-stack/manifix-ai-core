@@ -6,6 +6,9 @@ import Scoreboard from './Scoreboard.jsx';
 import RadarIndicator from './RadarIndicator.jsx';
 import ObstacleCollisionOverlay from './ObstacleCollisionOverlay.jsx';
 import PlayerStampedeOverlay from './PlayerStampedeOverlay.jsx';
+import PerspectiveGridOverlay from './PerspectiveGridOverlay.jsx';
+import ViewfinderBox from './ViewfinderBox.jsx';
+import { ScorePopupLayer, useScorePopups } from './ScorePopup.jsx';
 import { useVeggieTaunt } from './veggies/useVeggieTaunt.js';
 import { OBSTACLE_ZONES } from '../config/obstacles.js';
 import {
@@ -28,6 +31,7 @@ const SIM_METERS_PER_SEC = 4;          // keyboard-simulated walking speed
 const FOV_DEG = 65;                    // assumed horizontal FOV of a rear phone camera
 const OBSTACLE_TRIGGER_METERS = 8;
 const THROW_TARGET_RADIUS_PX = 32;     // hit radius CaptureThrow uses against on-screen veggies
+const VIEWFINDER_SIZE_PX = 96;         // must match ViewfinderBox's default `size` prop
 
 // GPS write throttle — see gameClient.makeThrottledLocationWriter. Tuned to
 // stay well under Supabase Realtime's free-tier message quota with a few
@@ -113,6 +117,9 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const locationWriterRef = useRef(null);
 
   const { tauntFromFrame } = useVeggieTaunt();
+
+  // Floating "+points" popups fired on capture — see ScorePopup.jsx
+  const { popups: scorePopups, spawnPopup, removePopup } = useScorePopups();
 
   // -------------------------------------------------------------------
   // Compass tracking
@@ -440,6 +447,22 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     [visibleVeggies]
   );
 
+  const crosshairX = dims.w / 2;
+  const crosshairY = dims.h / 2;
+
+  // Vanguard viewfinder lock-on: true when any currently-visible veggie's
+  // projected screen position falls inside the centered ViewfinderBox.
+  // Drives ViewfinderBox's highlighted/pulsing state.
+  const targetInFrame = useMemo(
+    () =>
+      visibleVeggies.some(
+        (v) =>
+          Math.abs(v.x - crosshairX) < VIEWFINDER_SIZE_PX / 2 &&
+          Math.abs(v.y - crosshairY) < VIEWFINDER_SIZE_PX / 2
+      ),
+    [visibleVeggies, crosshairX, crosshairY]
+  );
+
   // Capture now goes through the atomic capture_veggie RPC instead of an
   // 'capture-attempt' emit + waiting on a 'veggieCaught' broadcast. The
   // response comes back synchronously from the same call, so success/fail
@@ -466,10 +489,16 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   // try a couple of plausible names defensively — confirm the real
   // column/return names against supabase/schema.sql and simplify once
   // confirmed.
+  //
+  // NEW: also looks the veggie up in `visibleVeggies` (not just `veggies`)
+  // to grab its last-known screen x/y, so the floating "+points" popup
+  // (ScorePopup) spawns at the exact spot the veggie was caught instead of
+  // defaulting to screen center.
   const handleCatch = useCallback(
     async (veggieId) => {
       if (controlsLocked || !playerId) return;
       const caughtVeggie = veggies.find((v) => v.id === veggieId);
+      const caughtScreenPos = visibleVeggies.find((v) => v.id === veggieId);
       try {
         const result = await captureVeggie(veggieId, playerId);
         if (!result?.success) return; // someone else caught it first, or it's already gone
@@ -487,6 +516,11 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
           playerName,
           newScore,
         });
+        spawnPopup({
+          x: caughtScreenPos?.x ?? crosshairX,
+          y: caughtScreenPos?.y ?? crosshairY,
+          value: points,
+        });
         confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
         setTimeout(() => setFlashPoints(null), 1200);
         setTimeout(() => setCaptureOverlay(null), 1800);
@@ -494,7 +528,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         console.error('[GameCanvas] capture failed', err);
       }
     },
-    [playerId, controlsLocked, veggies, nickname]
+    [playerId, controlsLocked, veggies, visibleVeggies, nickname, spawnPopup, crosshairX, crosshairY]
   );
 
   // Bottom CATCH button — grabs whichever visible veggie is currently
@@ -505,9 +539,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const handleCatchButtonTap = useCallback(() => {
     if (nearestCatchable) handleCatch(nearestCatchable.id);
   }, [nearestCatchable, handleCatch]);
-
-  const crosshairX = dims.w / 2;
-  const crosshairY = dims.h / 2;
 
   if (permissionStage !== 'ready') {
     return (
@@ -539,6 +570,9 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         <video ref={videoRef} autoPlay playsInline muted style={styles.video} />
       )}
       {simMode && <div style={styles.simBackground} />}
+
+      {/* 3D vanishing-point radar grid, drawn directly over the camera feed */}
+      <PerspectiveGridOverlay />
 
       <Scoreboard
         players={Object.fromEntries(players.map((p) => [p.slot_id, { name: p.name, score: p.score }]))}
@@ -592,7 +626,10 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         </div>
       ))}
 
-      <div style={{ ...styles.crosshair, left: crosshairX - 14, top: crosshairY - 14 }} />
+      {/* Vanguard viewfinder — replaces the old plain circular crosshair.
+          Lights up green + shows a lock label once a visible veggie's
+          projected position sits inside it (targetInFrame). */}
+      <ViewfinderBox centerX={crosshairX} centerY={crosshairY} active={targetInFrame} size={VIEWFINDER_SIZE_PX} />
 
       {visibleVeggies.map((v) => (
         <VeggieSprite
@@ -626,6 +663,9 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         screenH={dims.h}
         disabled={controlsLocked}
       />
+
+      {/* Floating "+points" LED popups, one per recent catch */}
+      <ScorePopupLayer popups={scorePopups} onPopupDone={removePopup} />
 
       {captureOverlay && (
         <div style={styles.captureVignette}>
@@ -665,10 +705,6 @@ const styles = {
   simBackground: {
     position: 'absolute', inset: 0,
     background: 'linear-gradient(180deg, #6ee7b7 0%, #86efac 45%, #4ade80 100%)',
-  },
-  crosshair: {
-    position: 'absolute', width: 28, height: 28, borderRadius: '50%',
-    border: '2px solid rgba(255,255,255,0.8)', zIndex: 25, pointerEvents: 'none',
   },
   exitBtn: {
     position: 'absolute', top: 10, right: 100, zIndex: 50, width: 30, height: 30, borderRadius: '50%',
