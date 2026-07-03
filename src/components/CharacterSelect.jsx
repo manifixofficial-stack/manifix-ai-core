@@ -3,24 +3,21 @@ import { motion, AnimatePresence } from "framer-motion";
 
 // src/components/CharacterSelect.jsx — Stage 2: Color Slot Claim Grid
 //
-// FIX: This component previously imported from "../socket.js" and used
-// Socket.io events (CHARACTERS_UPDATE, GAME_JOINED, joinCharacter) that
-// have no live counterpart anymore — the whole project migrated to
-// Supabase (see lib/gameClient.js). App.jsx already does all the actual
-// network work (claimCharacter() RPC via handleLockCharacter) and just
-// hands this component the *result* as props. This component is now a
-// pure, dumb presentational piece:
+// Pure, dumb presentational component — same as before, just no longer
+// tied to any network layer at all (local or otherwise). App.jsx does the
+// actual claim (claimCharacter() from lib/gameClient.js, now a local
+// in-memory call instead of a Supabase RPC) and hands this component the
+// *result* as props:
 //   - takenChars: { [slotId]: name|null } — who has claimed what, kept
-//     live by App.jsx's Supabase realtime subscription
-//   - onSelect(slotId, name): called on tap; App.jsx does the RPC call
+//     in sync by App.jsx's local subscribeToRoom() listener
+//   - onSelect(slotId, name): called on tap; App.jsx does the claim call
 //     and setStage(3) transition on success
 //   - lockResult: { slotId, success } — result of the most recent claim
 //     attempt, used here only to clear the local "Claiming…" spinner
 //   - error: surfaced from App.jsx (e.g. "Someone just grabbed that slot")
 //
-// Slot ids match gameClient.js's fetchTakenCharacters()/claim_character
-// RPC and schema.sql's slot_id CHECK constraint EXACTLY. Do not rename
-// these without updating the backend in lockstep.
+// Slot ids match gameClient.js's fetchTakenCharacters()/claimCharacter()
+// EXACTLY. Do not rename these without updating gameClient.js in lockstep.
 const SLOT_META = {
   "oggy-blue":   { label: "OGGY",   icon: "🔵", color: "#3a86ff", tagline: "Balanced pace" },
   "jack-green":  { label: "JACK",   icon: "🟢", color: "#2ecc71", tagline: "Swift runner" },
@@ -29,16 +26,16 @@ const SLOT_META = {
 };
 
 const SLOT_ORDER = Object.keys(SLOT_META);
-const NAME_MAX_LEN = 20; // mirrors PLAYER_NAME_MAX_LEN in schema/RPC
+const NAME_MAX_LEN = 20; // mirrors PLAYER_NAME_MAX_LEN in gameClient.js
 
 export default function CharacterSelect({ takenChars = {}, onSelect, lockResult, error }) {
   const [name, setName] = useState("");
   const [pendingSlot, setPendingSlot] = useState(null);
   const [localError, setLocalError] = useState("");
 
-  // lockResult arrives from App.jsx once claimCharacter()'s RPC resolves
-  // (success OR failure) — either way, stop showing the "Claiming…" spinner
-  // on whichever slot we tapped.
+  // lockResult arrives from App.jsx once claimCharacter() resolves
+  // (success OR failure) — either way, stop showing the "Claiming…"
+  // spinner on whichever slot we tapped.
   useEffect(() => {
     if (lockResult) setPendingSlot(null);
   }, [lockResult]);
