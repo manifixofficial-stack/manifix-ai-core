@@ -1,105 +1,72 @@
-import { useRef, useState, useEffect } from "react";
+// hooks/useVeggieEvasion.js
+//
+// Per-frame AI evasion: veggies "say hi" when a player lingers in mid
+// range, and actively run away once the player breaches close range.
+// Pure lat/lng offset math — no rendering here, GameCanvas.jsx applies
+// the returned offsets to a veggie's base coordinates before recomputing
+// its on-screen distance/bearing for that frame.
+//
+// Adapted to this project's field names: takes `distanceMeters` and
+// `bearingToPlayerDeg` directly (computed once per frame in GameCanvas
+// via the existing metersBetween/bearingDegrees from utils/spatialGeoMath)
+// rather than a veggie.dist/coordinates shape, so it drops straight into
+// the existing visibleVeggies/edgeVeggies useMemo without changing that
+// data model.
 
-const EDGE_MARGIN = 40;
-const TOP_MARGIN_RATIO = 0.2; // keep veggies below the radar/dashboard UI
-const BASE_SPEED = 1.4;
-const MAX_SPEED = 5.5;
-const CHASE_RADIUS_PX = 220; // beyond this, proximityFactor is ~0 (calm)
-const GROWTH_LERP = 0.18;
-const MAX_GROWTH = 2.4;
-const CORNER_STREAK_TO_TRIGGER = 3;
+import { useCallback, useRef } from 'react';
 
-/**
- * Drives a single veggie's on-screen position once it's within capture
- * range. Before `active` is true, this hook is idle and the sprite should
- * render at the GPS/bearing-derived (anchorX, anchorY) passed down from
- * GameCanvas.jsx as usual.
- *
- * The moment `active` flips true, position is seeded from the current
- * anchor and then simulated locally every frame — GPS updates are
- * intentionally ignored from that point on (the veggie is now a
- * screen-space actor, not a real-world point). If `active` flips back to
- * false (player backs out of range without catching it), the hook resets
- * so the sprite snaps back to being GPS-driven.
- */
-export default function useVeggieEvasion({
-  active,
-  anchorX,
-  anchorY,
-  screenW,
-  screenH,
-  crosshairX,
-  crosshairY,
-}) {
-  const posRef = useRef({ x: anchorX, y: anchorY });
-  const [pos, setPos] = useState({ x: anchorX, y: anchorY });
-  const [growth, setGrowth] = useState(1);
-  const [cornered, setCornered] = useState(false);
-  const cornerStreakRef = useRef(0);
-  const wasActiveRef = useRef(false);
-  const rafRef = useRef(null);
+const GREETING_MIN_M = 12;
+const GREETING_MAX_M = 25;
+const EVASION_TRIGGER_M = 8;
 
-  useEffect(() => {
-    if (!active) {
-      wasActiveRef.current = false;
-      cornerStreakRef.current = 0;
-      setGrowth(1);
-      setCornered(false);
-      return;
+const GREETING_BOB_AMPLITUDE_DEG = 0.000008; // ~1m of lat wobble at most latitudes
+const EVASION_STEP_DEG = 0.00002;            // ~2m of run-away drift per frame
+
+export function useVeggieEvasion() {
+  const stateRef = useRef({}); // veggieId -> { phase }
+
+  /**
+   * @param {string} veggieId
+   * @param {number} distanceMeters - player's current distance to this veggie's BASE (un-offset) coords
+   * @param {number} bearingToPlayerDeg - bearing FROM the veggie TO the player (i.e. bearingDegrees(veggiePos, playerPos))
+   * @returns {{ latOffset: number, lngOffset: number, state: 'idle'|'greeting'|'running', message: string }}
+   */
+  const processEvasionFrame = useCallback((veggieId, distanceMeters, bearingToPlayerDeg) => {
+    if (!stateRef.current[veggieId]) {
+      stateRef.current[veggieId] = { phase: Math.random() * 100 };
+    }
+    const local = stateRef.current[veggieId];
+    local.phase += 0.05;
+
+    let latOffset = 0;
+    let lngOffset = 0;
+    let state = 'idle';
+    let message = '';
+
+    if (distanceMeters <= EVASION_TRIGGER_M) {
+      state = 'running';
+      message = '⚡ RUNNING AWAY!';
+      // Bearing FROM veggie TO player, so fleeing directly away from the
+      // player is the same bearing rotated 180°.
+      const escapeBearing = (bearingToPlayerDeg + 180) % 360;
+      const escapeRad = (escapeBearing * Math.PI) / 180;
+      latOffset = Math.cos(escapeRad) * EVASION_STEP_DEG;
+      lngOffset = Math.sin(escapeRad) * EVASION_STEP_DEG;
+    } else if (distanceMeters > GREETING_MIN_M && distanceMeters <= GREETING_MAX_M) {
+      state = 'greeting';
+      message = '👋 SAYING HI!';
+      // Gentle vertical bob, no net displacement — a wave animation, not
+      // a flee response.
+      latOffset = Math.sin(local.phase) * GREETING_BOB_AMPLITUDE_DEG;
     }
 
-    // Seed the local sim once, right as catch mode begins. Deliberately
-    // NOT re-run on every anchorX/anchorY change — see comment above.
-    if (!wasActiveRef.current) {
-      posRef.current = { x: anchorX, y: anchorY };
-      setPos({ x: anchorX, y: anchorY });
-      wasActiveRef.current = true;
-    }
+    return { latOffset, lngOffset, state, message };
+  }, []);
 
-    const tick = () => {
-      const p = posRef.current;
-      const dx = p.x - crosshairX;
-      const dy = p.y - crosshairY;
-      const dist = Math.max(1, Math.hypot(dx, dy));
-      const proximityFactor = Math.max(0, 1 - dist / CHASE_RADIUS_PX);
-      const speed = BASE_SPEED + proximityFactor * (MAX_SPEED - BASE_SPEED);
+  /** Drop stale per-veggie state (e.g. after a catch) so it doesn't leak forever. */
+  const clearVeggieState = useCallback((veggieId) => {
+    delete stateRef.current[veggieId];
+  }, []);
 
-      let nx = p.x + (dx / dist) * speed;
-      let ny = p.y + (dy / dist) * speed;
-
-      const minX = EDGE_MARGIN;
-      const maxX = screenW - EDGE_MARGIN;
-      const minY = screenH * TOP_MARGIN_RATIO;
-      const maxY = screenH - EDGE_MARGIN;
-      const hitEdge = nx <= minX || nx >= maxX || ny <= minY || ny >= maxY;
-      nx = Math.max(minX, Math.min(maxX, nx));
-      ny = Math.max(minY, Math.min(maxY, ny));
-
-      // "Cornered" only counts while the player is actually closing in —
-      // bumping an edge while the crosshair is far away doesn't count.
-      if (hitEdge && proximityFactor > 0.55) {
-        cornerStreakRef.current += 1;
-      } else if (proximityFactor < 0.3) {
-        cornerStreakRef.current = 0;
-      }
-
-      const isCornered = cornerStreakRef.current >= CORNER_STREAK_TO_TRIGGER;
-      setCornered(isCornered);
-      setGrowth((g) => {
-        const target = isCornered ? Math.min(MAX_GROWTH, 1 + proximityFactor * 1.6) : 1;
-        return g + (target - g) * GROWTH_LERP;
-      });
-
-      posRef.current = { x: nx, y: ny };
-      setPos({ x: nx, y: ny });
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
-    return () => rafRef.current && cancelAnimationFrame(rafRef.current);
-    // anchorX/anchorY intentionally excluded — see comment above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, screenW, screenH, crosshairX, crosshairY]);
-
-  return { x: pos.x, y: pos.y, growth, cornered };
+  return { processEvasionFrame, clearVeggieState };
 }
