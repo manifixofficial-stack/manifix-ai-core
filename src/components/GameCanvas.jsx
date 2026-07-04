@@ -75,14 +75,14 @@ const PING_FREQ_HZ = 880;
 
 const AR_DEPTH_WALL_GATE_METERS = 0.6;
 
-// NEW: how close a miss has to be for CaptureThrow's onMiss to count as a
+// How close a miss has to be for CaptureThrow's onMiss to count as a
 // "close-range" splat trigger vs. a harmless whiff from far away. Mirrors
 // CATCH_RADIUS_METERS since that's already "close enough to have had a
 // real shot" everywhere else in this file.
 const SPLAT_TRIGGER_RADIUS_METERS = CATCH_RADIUS_METERS;
 
-// NEW: battery drains this much faster while BobAggroAlert is active —
-// see the aggro effect below. Applied as a display-only multiplier on the
+// Battery drains this much faster while BobAggroAlert is active — see the
+// aggro effect below. Applied as a display-only multiplier on the
 // energyPercent shown to the player; useBatteryDrainSim itself doesn't
 // know about aggro state (kept as a TODO until BatteryDrainSim.jsx is
 // available to edit directly).
@@ -121,16 +121,16 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
   const [roomHacked, setRoomHacked] = useState(false);
   const hackedSpawnAttemptedRef = useRef(false);
 
-  // NEW: whether controls are currently locked specifically because of a
+  // Whether controls are currently locked specifically because of a
   // hazard-trail slip. Kept separate from ObstacleCollisionOverlay's
   // controlsLocked so the two systems can't accidentally clear each
   // other's lock early — both OR together into the final gate below.
   const [slipLocked, setSlipLocked] = useState(false);
 
-  // NEW: active screen splat, or null. { variant: 'tomato' | 'broccoli' }
+  // Active screen splat, or null. { variant: 'tomato' | 'broccoli' }
   const [screenSplat, setScreenSplat] = useState(null);
 
-  // NEW: whether the Bob-the-dog aggro alert is currently active. Wired
+  // Whether the Bob-the-dog aggro alert is currently active. Wired
   // defensively off ObstacleCollisionOverlay's existing lock signal below
   // (see the effect near ObstacleCollisionOverlay) until useVeggieEvasion.js
   // is available to drive it from actual veggie pathing intent.
@@ -151,15 +151,15 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
   const { popups: scorePopups, spawnPopup, removePopup } = useScorePopups();
 
-  // NEW: dust-cloud burst state — see components/DustCloudEffect.jsx.
+  // Dust-cloud burst state — see components/DustCloudEffect.jsx.
   const { clouds: dustClouds, spawnCloud, removeCloud } = useDustClouds();
 
-  // NEW: hazard trail state — see components/HazardTrailOverlay.jsx.
+  // Hazard trail state — see components/HazardTrailOverlay.jsx.
   const { hazards, dropHazard } = useHazardTrail();
 
-  // NEW: vertigo warp effect, driven by the accelerometer. Disabled
-  // outright in sim mode (no real-world motion to read) and before the
-  // base permission flow finishes.
+  // Vertigo warp effect, driven by the accelerometer. Disabled outright in
+  // sim mode (no real-world motion to read) and before the base permission
+  // flow finishes.
   const { vertigoIntensity, vertigoSupported, requestVertigoPermission } = useVertigoEffect({
     enabled: permissionStage === 'ready' && !simMode,
   });
@@ -177,10 +177,10 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     enabled: permissionStage === 'ready',
   });
 
-  // NEW: display-only battery percent that reflects the aggro drain
-  // multiplier. useBatteryDrainSim itself is untouched (it's an unseen
-  // file) — this just derives a faster-draining number for display and
-  // for the lockout gate, layered on top of its output.
+  // Display-only battery percent that reflects the aggro drain multiplier.
+  // useBatteryDrainSim itself is untouched — this just derives a
+  // faster-draining number for display and for the lockout gate, layered
+  // on top of its output.
   const displayedEnergyPercent = aggroActive
     ? Math.max(0, 100 - (100 - energyPercent) * AGGRO_BATTERY_DRAIN_MULTIPLIER)
     : energyPercent;
@@ -239,7 +239,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         if (result !== 'granted') throw new Error('Compass permission was denied.');
       }
 
-      // NEW: gate the vertigo effect's motion permission in the same
+      // Gate the vertigo effect's motion permission in the same
       // gesture-backed flow as the compass request above. Non-fatal if
       // denied — vertigoIntensity just stays at 0 forever, same pattern
       // AR depth mode uses for its own optional capability.
@@ -579,7 +579,7 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     tauntFromFrame([...visibleVeggies, ...edgeVeggies]);
   }, [visibleVeggies, edgeVeggies, tauntFromFrame]);
 
-  // NEW: drop a hazard behind every currently-visible fleeing veggie on a
+  // Drop a hazard behind every currently-visible fleeing veggie on a
   // throttled cadence. This is the defensive stand-in described in
   // HazardTrailOverlay.jsx's TODO — it fires off of veggies' rendered
   // positions (which GameCanvas already has) rather than an internal
@@ -755,8 +755,8 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     });
   }, []);
 
-  // UPDATED: onMiss now also triggers a close-range screen splat. This is
-  // the defensive integration point described in ScreenSplatOverlay.jsx's
+  // onMiss also triggers a close-range screen splat. This is the
+  // defensive integration point described in ScreenSplatOverlay.jsx's
   // TODO — CaptureThrow.jsx isn't available to edit directly, so instead
   // of assuming it will pass distance info, this checks the last known
   // distance of the missed veggie (if still tracked in visibleVeggies) and
@@ -790,12 +790,12 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
     if (nearestCatchable && !arWallBlocked && !batteryLocked && !slipLocked) handleCatch(nearestCatchable.id);
   }, [nearestCatchable, arWallBlocked, batteryLocked, slipLocked, handleCatch]);
 
-  // NEW: derive aggro state defensively from ObstacleCollisionOverlay's
-  // existing lock signal + whether a veggie is currently inside the same
-  // hazard zone the player just entered. See BobAggroAlert.jsx's TODO —
-  // once useVeggieEvasion.js is available, replace this with a real
-  // "veggie deliberately pathed into a shelter zone" signal instead of
-  // this proxy check.
+  // Derive aggro state defensively from ObstacleCollisionOverlay's existing
+  // lock signal + whether a veggie is currently inside the same hazard zone
+  // the player just entered. See BobAggroAlert.jsx's TODO — once
+  // useVeggieEvasion.js is available, replace this with a real "veggie
+  // deliberately pathed into a shelter zone" signal instead of this proxy
+  // check.
   useEffect(() => {
     if (!controlsLocked || !playerPos) {
       setAggroActive(false);
@@ -907,10 +907,8 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         onLockChange={setControlsLocked}
       />
 
-      {/* NEW: Bob-the-dog aggro alert — see BobAggroAlert.jsx */}
       <BobAggroAlert active={aggroActive} />
 
-      {/* NEW: hazard trail markers + slip-lock overlay — see HazardTrailOverlay.jsx */}
       <HazardTrailOverlay
         playerPos={playerPos}
         heading={heading}
@@ -920,7 +918,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
         onRecover={() => setSlipLocked(false)}
       />
 
-      {/* NEW: screen splat from a close-range miss — see ScreenSplatOverlay.jsx */}
       <ScreenSplatOverlay
         active={!!screenSplat}
         variant={screenSplat?.variant}
@@ -1026,11 +1023,6 @@ export default function GameCanvas({ roomCode, nickname, playerId, onExit }) {
 
       <ScorePopupLayer popups={scorePopups} onPopupDone={removePopup} />
 
-      {/* NEW: dust-cloud poof burst layer — see DustCloudEffect.jsx. Spawn
-          calls (spawnCloud) still need to come from a real IDLE->RUN
-          transition once useVeggieEvasion.js is available; nothing calls
-          spawnCloud yet, so this layer is wired up but currently dormant
-          until that hook exists. */}
       <DustCloudLayer clouds={dustClouds} onCloudDone={removeCloud} />
 
       {arDepthActive && (
