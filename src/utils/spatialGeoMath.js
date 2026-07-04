@@ -67,22 +67,20 @@ export function bearingScreenPos(relAngle, dist, screenW, screenH, opts = {}) {
   const fovDeg = opts.fovDeg ?? 65;
   const visibilityRadiusM = opts.visibilityRadiusM ?? 45;
 
-  // 🩹 FIX: Viewport rear clipping barrier check
-  // If the target angle sits past the camera's visual edges (e.g., behind you),
-  // forcefully slide it outside pixel boundaries so it doesn't float on screen.
+  // Rear clipping: if the target sits past the camera's visual edges
+  // (e.g., behind you), push it off-screen so it doesn't float in view.
   if (Math.abs(relAngle) > 90) {
     return { x: -9999, y: -9999, scale: 0 };
   }
 
   const nx = 0.5 + (relAngle / (fovDeg / 2)) * 0.5;
   const ny = Math.max(0.02, Math.min(1, 1 - dist / visibilityRadiusM));
-  
-  // Custom depth coefficient rendering variables
+
   const zFactor = 0.7 + (1.0 - ny) * 0.9;
   const x = screenW / 2 + ((nx - 0.5) * screenW) / zFactor;
   const y = screenH * (0.15 + ny * 0.8);
   const scale = 1.1 / zFactor;
-  
+
   return { x, y, scale };
 }
 
