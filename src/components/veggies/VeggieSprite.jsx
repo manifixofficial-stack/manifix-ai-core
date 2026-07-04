@@ -143,16 +143,30 @@ export default function VeggieSprite({
   const [snap, setSnap] = useState(false);
   const snapTimeoutRef = useRef(null);
 
+  // directionX: -1/0/1, fed down to the Sprite so it can lean into its
+  // actual direction of travel instead of a generic symmetric wobble.
+  // Deliberately shares the same guard as the snap detector below (only
+  // live while catchMode is actively driving position) so it doesn't
+  // pick up noise from ordinary GPS anchor drift while idle, and resets
+  // to 0 the moment the veggie stops being driven (locked/splat/caught).
+  const [directionX, setDirectionX] = useState(0);
+
   useEffect(() => {
     const dx = renderX - lastXRef.current;
-    if (Math.abs(dx) >= SNAP_MIN_DELTA_PX && catchMode && !locked && !splatting) {
+    const driving = catchMode && !locked && !splatting;
+    if (driving && Math.abs(dx) >= SNAP_MIN_DELTA_PX) {
       const dir = dx > 0 ? 1 : -1;
+      setDirectionX(dir);
       if (lastDirRef.current !== 0 && dir !== lastDirRef.current) {
         setSnap(true);
         clearTimeout(snapTimeoutRef.current);
         snapTimeoutRef.current = setTimeout(() => setSnap(false), SNAP_DURATION_MS);
       }
       lastDirRef.current = dir;
+    } else if (!driving && lastDirRef.current !== 0) {
+      // Stopped being driven (caught/locked/splatting) — reset lean.
+      lastDirRef.current = 0;
+      setDirectionX(0);
     }
     lastXRef.current = renderX;
     return () => clearTimeout(snapTimeoutRef.current);
@@ -303,7 +317,7 @@ export default function VeggieSprite({
             </div>
           )}
 
-          <Sprite panic={state === "PANIC"} sizePx={sizePx} />
+          <Sprite panic={state === "PANIC"} sizePx={sizePx} directionX={directionX} state={state} />
 
           {/* Pop-out eye overlay: generic stand-in for per-veggie eye art.
               CarrotSprite/TomatoSprite/etc. weren't provided, so this sits
