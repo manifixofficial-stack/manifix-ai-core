@@ -13,7 +13,7 @@ import ViewfinderBox from './ViewfinderBox.jsx';
 import BatteryDrainSim, { useBatteryDrainSim } from './BatteryDrainSim.jsx';
 import { ScorePopupLayer, useScorePopups } from './ScorePopup.jsx';
 import { useVeggieTaunt } from './veggies/useVeggieTaunt.js';
-import { useVeggieEvasion } from '../veggies/useVeggieEvasion.js';
+import { useVeggieEvasion } from './veggies/useVeggieEvasion.js';
 import useARPlaneDetection from '../hooks/useARPlaneDetection.js';
 import { OBSTACLE_ZONES } from '../config/obstacles.js';
 import {
