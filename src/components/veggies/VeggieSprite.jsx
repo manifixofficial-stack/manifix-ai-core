@@ -5,7 +5,7 @@ import CarrotSprite from "./CarrotSprite";
 import TomatoSprite from "./TomatoSprite";
 import BroccoliSprite from "./BroccoliSprite";
 import GoldenSprite from "./GoldenSprite";
-import useVeggieEvasion from "./useVeggieEvasion";
+import {useVeggieEvasion} from "./useVeggieEvasion";
 
 const SPRITES = {
   carrot: CarrotSprite,
