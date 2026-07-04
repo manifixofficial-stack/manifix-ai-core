@@ -1,20 +1,63 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 
-export default function BroccoliSprite({ panic, sizePx = 90 }) {
+/**
+ * Props:
+ *  - panic: hyper-run / shock state
+ *  - sizePx: render size
+ *  - directionX: -1 (fleeing left) | 0 (still/unknown) | 1 (fleeing
+ *    right), driven by VeggieSprite's position-tracking effect. Same
+ *    contract as CarrotSprite — feeds a real lean into the actual
+ *    direction of travel instead of a generic symmetric squash/stretch.
+ *
+ * Transform-origin note (same fix as CarrotSprite): once rotate/skewX
+ * are in play, the anchor point matters for how the lean reads. Setting
+ * it once as a plain CSS string on `style` — never via `originX` inside
+ * `animate` — avoids Framer Motion silently resetting the Y anchor back
+ * to 0.5.
+ */
+export default function BroccoliSprite({ panic, sizePx = 90, directionX = 0 }) {
+  const dir = Math.max(-1, Math.min(1, directionX));
+  const leaning = panic && dir !== 0;
+
+  const movementAnimate = useMemo(() => {
+    if (!panic) return { y: [0, -8, 0] }; // idle hover
+
+    if (!leaning) {
+      // Panicking but no direction data yet (cornered in place) —
+      // original rubbery squash/stretch shudder.
+      return {
+        y: [0, -12, 2, -12],
+        x: [-4, 5, -5, 4, 0],
+        rotate: [0, 0, 0, 0],
+        skewX: [0, 0, 0, 0],
+        scaleX: [1.4, 0.7, 1.4, 1.0],
+        scaleY: [0.6, 1.4, 0.6, 1.0],
+      };
+    }
+
+    // Rubbery spine bending: lean heavily into the run direction while
+    // still carrying the squash/stretch, so it reads as sliding away
+    // from the catch gesture rather than just shivering in place.
+    return {
+      y: [0, -12, 2, -12],
+      x: [-4, 5, -5, 4, 0],
+      rotate: [dir * 8, dir * 24, dir * 16, dir * 22],
+      skewX: [dir * 10, dir * 28, dir * 18, dir * 24],
+      scaleX: [1.4, 0.7, 1.4, 1.0],
+      scaleY: [0.7, 1.3, 0.7, 1.0],
+    };
+  }, [panic, leaning, dir]);
+
   return (
     <motion.div
-      style={{ width: sizePx, height: sizePx, position: "relative" }}
-      animate={
-        panic
-          ? {
-              y: [0, -12, 2, -12],
-              x: [-4, 5, -5, 4, 0],
-              scaleX: [1.4, 0.7, 1.4, 1.0], // Rubbery squash/stretch on hit frames
-              scaleY: [0.6, 1.4, 0.6, 1.0],
-            }
-          : { y: [0, -8, 0] } // Regular gentle idle hover loop
-      }
+      style={{
+        width: sizePx,
+        height: sizePx,
+        position: "relative",
+        transformOrigin: "50% 92%", // anchor at base of feet, set once, never overridden
+      }}
+      animate={movementAnimate}
       transition={{
         duration: panic ? 0.22 : 1.7,
         repeat: Infinity,
@@ -22,7 +65,7 @@ export default function BroccoliSprite({ panic, sizePx = 90 }) {
       }}
     >
       <svg viewBox="0 0 100 100" width="100%" height="100%">
-        {/* CARTOON RUNNING FEET WHEEL LAYER */}
+        {/* CIRCULAR HIGH-SPEED RUNNING FEET WHEEL LAYER */}
         <g stroke="rgba(0,0,0,0.5)" strokeWidth="5" strokeLinecap="round">
           {/* Left Leg Wheel Axis */}
           <motion.g
@@ -34,7 +77,8 @@ export default function BroccoliSprite({ panic, sizePx = 90 }) {
             <ellipse cx="36" cy="96" rx="6" ry="3" fill="#3d2b1f" stroke="none" />
           </motion.g>
 
-          {/* Right Leg Wheel Axis (Phase Shifted) */}
+          {/* Right Leg Wheel Axis (phase-shifted 180° for an overlapping
+              cycling read rather than two legs spinning in sync) */}
           <motion.g
             style={{ transformOrigin: "56px 86px" }}
             animate={panic ? { rotate: [180, 540] } : { rotate: 0 }}
@@ -96,13 +140,13 @@ export default function BroccoliSprite({ panic, sizePx = 90 }) {
         <ellipse cx="38" cy="52" rx="4" ry="2.3" fill="#ff8a80" opacity="0.4" />
         <ellipse cx="62" cy="52" rx="4" ry="2.3" fill="#ff8a80" opacity="0.4" />
 
-        {/* POP-OUT SHOCK CARTOON EYES */}
+        {/* BUG-OUT SHOCK EYES — real spring physics, not a timed tween */}
         <g>
           {/* Left Eye Socket Node */}
           <motion.g
             style={{ transformOrigin: "42px 46px" }}
             animate={panic ? { scale: [1, 2.3, 1.8, 2.1], x: [-3, 2, -1] } : { scale: 1, x: 0 }}
-            transition={{ duration: 0.25, repeat: Infinity }}
+            transition={{ duration: 0.25, repeat: Infinity, type: "spring", stiffness: 400, damping: 13 }}
           >
             <ellipse cx="42" cy="46" rx="5.5" ry="7.5" fill="#fff" stroke="#000" strokeWidth="1.5" />
             <circle cx="43" cy="47" r="3.2" fill="#000" />
@@ -113,7 +157,7 @@ export default function BroccoliSprite({ panic, sizePx = 90 }) {
           <motion.g
             style={{ transformOrigin: "58px 46px" }}
             animate={panic ? { scale: [1, 2.3, 1.8, 2.1], x: [3, -2, 1] } : { scale: 1, x: 0 }}
-            transition={{ duration: 0.25, repeat: Infinity }}
+            transition={{ duration: 0.25, repeat: Infinity, type: "spring", stiffness: 400, damping: 13 }}
           >
             <ellipse cx="58" cy="46" rx="5.5" ry="7.5" fill="#fff" stroke="#000" strokeWidth="1.5" />
             <circle cx="59" cy="47" r="3.2" fill="#000" />
@@ -121,11 +165,12 @@ export default function BroccoliSprite({ panic, sizePx = 90 }) {
           </motion.g>
         </g>
 
-        {/* MORPHING WIDE-OPEN SCREAMING MOUTH */}
+        {/* SCREAMING TEETH CAVE — cavity + blocky teeth + vibrating tongue,
+            same anatomy as CarrotSprite's mouth for cross-veggie parity */}
         {panic ? (
-          // Giant wide cavity showing depth when cornered
           <g>
             <path d="M40,56 Q50,72 60,56 Z" fill="#6a0000" stroke="#000" strokeWidth="1.5" />
+            <rect x="45" y="57" width="10" height="3.5" fill="#fff" stroke="#000" strokeWidth="1" rx="1" />
             {/* vibrating tongue */}
             <path d="M44,64 Q50,68 56,64" fill="none" stroke="#ff8a80" strokeWidth="2.5" strokeLinecap="round" />
           </g>
