@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Mobile Responsive -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- Site Title -->
+  <title>ManifiX AI: Veggie Go</title>
+  
+  <!-- ✅ THE ABSOLUTE FIX: Restored canonical Google Fonts CDN preconnect and family endpoints -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  
+  <!-- Favicons & App Icons Layout Maps -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  
+  <!-- SEO Enterprise Meta Tags -->
+  <meta name="description" content="Veggie Go — a live AR camera party game. Scan in, claim your slot, and chase runaway veggies around your real room with up to 6 squad members." />
+  
+  <!-- Theme color (matches native dark matte-black canvas background) -->
+  <meta name="theme-color" content="#05060b" />
+  
+  <!-- Open Graph (Social Media Optimization) -->
+  <meta property="og:title" content="ManifiX AI: Veggie Go" />
+  <meta property="og:description" content="A live AR camera party game for up to 6 players. Chase runaway veggies around your real room and steal points from your squad." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://manifixai.com" />
+  <meta property="og:image" content="https://manifixai.com/web-app-manifest-512x512.png" />
+  
+  <!-- Twitter System Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ManifiX AI: Veggie Go" />
+  <meta name="twitter:description" content="A live AR camera party game for up to 6 players. Chase runaway veggies around your real room and steal points from your squad." />
+  <meta name="twitter:image" content="https://manifixai.com/web-app-manifest-512x512.png" />
+  
+  <!-- Structured SEO Schema Data Sheet -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "ManifiX AI: Veggie Go",
+    "url": "https://manifixai.com",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Web, Android, iOS",
+    "genre": "Augmented Reality Party Game",
+    "logo": "https://manifixai.com/web-app-manifest-512x512.png"
+  }
+  </script>
+
+  <style>
+    /* Global Reset Variable Hooks */
+    :root {
+      --cyber-green: #2ecc71;
+      --pristine-white: #ffffff;
+      --dark-blue-glass: rgba(11, 14, 29, 0.85);
+      --matte-black: #05060b;
+      --faded-green: rgba(46, 204, 113, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--matte-black);
+      color: var(--pristine-white);
+      font-family: 'Fredoka', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Core Application Wrapper Utility Layout */
+    #root {
+      position: relative;
+      width: 100vw;
+      min-height: 100vh;
+      z-index: 2;
+    }
+
+    /* 🔱 CYBERPUNK GEOMETRIC BACKGROUND GRID ENGINE */
+    .neon-grid-canvas-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: 
+        linear-gradient(rgba(46, 204, 113, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(46, 204, 113, 0.03) 1px, transparent 1px);
+      background-size: 30px 30px;
+      background-position: center center;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Decorative Ambient Glow Rings */
+    .ambient-halo-glow-top {
+      position: fixed;
+      top: -150px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(46, 204, 113, 0.08) 0%, transparent 70%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* 🛸 HIGH-CONVERSION PORTAL INTERFACE STYLING OVERLAYS */
+    .manifix-portal-hub-card {
+      position: relative;
+      text-align: center;
+      background: var(--dark-blue-glass);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--cyber-green);
+      box-shadow: 0 0 35px rgba(46, 204, 113, 0.15);
+      padding: 40px 24px;
+      border-radius: 12px;
+      max-width: 420px;
+      margin: 80px auto;
+      z-index: 10;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    /* Embedded Golden Vector Image Container Branding */
+    .vector-brand-frame {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 24px auto;
+      background: var(--matte-black);
+      border: 2px solid var(--cyber-green);
+      border-radius: 8px;
+      box-shadow: 0 0 20px rgba(46, 204, 113, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .vector-brand-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scale(1.05);
+    }
+
+    .manifix-portal-hub-card h2 {
+      color: var(--pristine-white);
+      font-size: 18px;
+      font-weight: 900;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    .manifix-portal-hub-card p {
+      color: rgba(255, 255, 255, 0.5);
+      font-family: sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    .cyber-distribution-btn {
+      display: inline-block;
+      background: var(--cyber-green);
+      color: var(--matte-black);
+      font-size: 12px;
+      font-weight: 900;
+      padding: 16px 36px;
+      text-decoration: none;
+      border-radius: 6px;
+      box-shadow: 0 0 25px rgba(46, 204, 113, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+
+    .cyber-distribution-btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
+    }
+
+    .system-performance-badge {
+      display: block;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.25);
+      margin-top: 14px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Geometric Grid Canvas Engine -->
+  <div class="neon-grid-canvas-overlay"></div>
+  <div class="ambient-halo-glow-top"></div>
+
+  <!-- 📥 HIGH-CONVERSION STANDALONE PHONE INSTALLER PORTAL CARD -->
+  <div class="manifix-portal-hub-card">
+    <div class="vector-brand-frame">
+      <img src="https://ibb.co" alt="Veggimon Golden Seal Structure" onerror="this.style.display='none'" />
+    </div>
+    
+    <h2>🎮 VEGGIMON IS LIVE ON MOBILE!</h2>
+    <p>Skip the app stores and platform restrictions. Tap beneath to download our direct standalone phone installer package and jump onto the tracking radar maps with your squad instantly!</p>
+    
+    <!-- ✅ LINK THE GREEN BUTTON STRAIGHT TO YOUR DIRECT GITHUB RAW FILE LINK PATHWAY -->
+    <a href="https://github.com" class="cyber-distribution-btn" target="_blank">
+      📲 DOWNLOAD FOR ANDROID (.APK)
+    </a>
+    
+    <span class="system-performance-badge">60 FPS VERIFIED • NO ACCOUNT FORMS REQUIRED</span>
+  </div>
+
+  <!-- React Main Root Mounting Node Container -->
+  <div id="root"></div>
+
+  <!-- React Bundled Application Entry Point Module -->
+  <script type="module" src="/src/main.jsx"></script>
+
+</body>
+</html>
