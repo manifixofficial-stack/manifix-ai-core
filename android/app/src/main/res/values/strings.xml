@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Veggimon</string>
+    <string name="title_activity_main">Veggimon</string>
+    <string name="package_name">com.manifix.veggimon</string>
+    <string name="custom_url_scheme">com.manifix.veggimon</string>
+</resources>

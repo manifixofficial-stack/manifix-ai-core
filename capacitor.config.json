@@ -1,0 +1,10 @@
+{
+  "appId": "com.manifixai.veggimon",
+  "appName": "Veggimon",
+  "webDir": "dist",
+  "plugins": {
+    "Preferences": {
+      "presentationOptions": []
+    }
+  }
+}

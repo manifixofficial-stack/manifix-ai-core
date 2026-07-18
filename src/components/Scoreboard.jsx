@@ -4,20 +4,37 @@
 // Watches player point differentials dynamically to slide rows past each other on a spring,
 // trigger flashing dethroned panels, and emit sparkling crown particles over Rank #1.
 // Optimized with secure variable safeguards to handle uninitialized session parameters.
+//
+// FIX (this pass): aligned to the real data contract used elsewhere in the app.
+//   - `players` is keyed by socket id (see server.js `room.players`), NOT by a
+//     stable character-slot id — so we never key "isMe" off the object key.
+//   - Identity now matches App.jsx's call site: `currentUsername` prop, compared
+//     against each player's own `username` field.
+//   - Color no longer depends on a hardcoded slot->hex table that could drift
+//     out of sync with server.js. Each player's own `color` field (sent from the
+//     server) is used when present; a stable hash-based fallback color is
+//     generated from their id/username only if the server didn't send one, so a
+//     row is never silently gray.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Real slot configurations mapping exactly to character asset roles
-const SLOT_COLORS = {
-  'oggy-blue': '#3a86ff',
-  'jack-green': '#2ecc71',
-  'olivia-pink': '#ff006e',
-  'bob-purple': '#8338ec'
-};
-
 const DETHRONE_FLASH_MS = 2200; // how long the "DETHRONED!" overlay stays up
 const BLAST_JIGGLE_MS = 650; // how long the score-punch animation runs
+
+const FALLBACK_PALETTE = ['#39ff88', '#ffffff', '#4a90ff', '#1b3a6b', '#7fffb0', '#8fb8ff'];
+
+// Deterministic fallback so the same player always gets the same color even
+// if the server didn't provide one this frame (e.g. mid-reconnect).
+function hashColor(seed) {
+  const str = String(seed || '');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length];
+}
 
 // Isolated numeric readout so a score bump can punch/flash independently
 // of the row's own layout animation. Keyed on `blastKey` so every real
@@ -28,7 +45,7 @@ function TickerScore({ score = 0, blastKey = 0 }) {
       <motion.span
         key={blastKey}
         initial={blastKey > 0 ? { scale: 1.4, color: '#39ff6a' } : false}
-        animate={{ scale: 1, color: '#ffc83c' }}
+        animate={{ scale: 1, color: '#39ff88' }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
         style={{
           fontFamily: '"Orbitron", sans-serif',
@@ -46,8 +63,6 @@ function TickerScore({ score = 0, blastKey = 0 }) {
 // Floating sparkle nodes drifting up over the #1 row — purely decorative,
 // staggered and looped independently of any state so they never need to be reset.
 function CrownParticles() {
-  // FIX: this was `const stars =;` — an empty, invalid array literal.
-  // Three stars, positioned via `12 + i * 24` -> 12%, 36%, 60%.
   const stars = [0, 1, 2];
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'visible', pointerEvents: 'none' }}>
@@ -65,15 +80,18 @@ function CrownParticles() {
   );
 }
 
-export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
+export default function Scoreboard({ players = {}, currentUsername = null }) {
   const ranked = useMemo(() => {
     return Object.entries(players || {})
-      .map(([slotId, p]) => ({
-        slotId,
-        name: p?.name || slotId || 'EXPLORER',
-        score: p?.score ?? 0,
-        color: SLOT_COLORS[slotId] || SLOT_COLORS[p?.character] || '#8a8a93'
-      }))
+      .map(([playerId, p]) => {
+        const username = p?.username || p?.name || 'EXPLORER';
+        return {
+          playerId, // socket id / server key — used only as a React key, never for identity checks
+          username,
+          score: p?.score ?? 0,
+          color: p?.color || hashColor(p?.username || playerId)
+        };
+      })
       .sort((a, b) => b.score - a.score);
   }, [players]);
 
@@ -83,9 +101,9 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
   const prevScoresRef = useRef({});
   const timersRef = useRef({});
 
-  // slotId -> true while its "DETHRONED!" banner should be showing
+  // playerId -> true while its "DETHRONED!" banner should be showing
   const [dethroned, setDethroned] = useState({});
-  // slotId -> incrementing counter, bumped on every score increase so
+  // playerId -> incrementing counter, bumped on every score increase so
   // TickerScore/jiggle can key off it and replay their pop animation
   const [blasts, setBlasts] = useState({});
 
@@ -93,19 +111,19 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
     if (!Array.isArray(ranked)) return;
 
     ranked.forEach((p, idx) => {
-      if (!p || !p.slotId) return;
+      if (!p || !p.playerId) return;
 
-      const prevRank = prevRanksRef.current[p.slotId];
-      const prevScore = prevScoresRef.current[p.slotId];
+      const prevRank = prevRanksRef.current[p.playerId];
+      const prevScore = prevScoresRef.current[p.playerId];
 
       // Dethroned: held rank 0 last time we checked, no longer does.
       if (prevRank === 0 && idx !== 0) {
-        setDethroned((d) => ({ ...d, [p.slotId]: true }));
-        clearTimeout(timersRef.current[`dethrone-${p.slotId}`]);
-        timersRef.current[`dethrone-${p.slotId}`] = setTimeout(() => {
+        setDethroned((d) => ({ ...d, [p.playerId]: true }));
+        clearTimeout(timersRef.current[`dethrone-${p.playerId}`]);
+        timersRef.current[`dethrone-${p.playerId}`] = setTimeout(() => {
           setDethroned((d) => {
             const next = { ...d };
-            delete next[p.slotId];
+            delete next[p.playerId];
             return next;
           });
         }, DETHRONE_FLASH_MS);
@@ -113,12 +131,12 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
 
       // Score blast: points went up since the last snapshot.
       if (prevScore !== undefined && p.score > prevScore) {
-        setBlasts((b) => ({ ...b, [p.slotId]: (b[p.slotId] || 0) + 1 }));
-        clearTimeout(timersRef.current[`blast-${p.slotId}`]);
-        timersRef.current[`blast-${p.slotId}`] = setTimeout(() => {
+        setBlasts((b) => ({ ...b, [p.playerId]: (b[p.playerId] || 0) + 1 }));
+        clearTimeout(timersRef.current[`blast-${p.playerId}`]);
+        timersRef.current[`blast-${p.playerId}`] = setTimeout(() => {
           setBlasts((b) => {
             const next = { ...b };
-            delete next[p.slotId];
+            delete next[p.playerId];
             return next;
           });
         }, BLAST_JIGGLE_MS);
@@ -128,9 +146,9 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
     const nextRanks = {};
     const nextScores = {};
     ranked.forEach((p, idx) => {
-      if (p && p.slotId) {
-        nextRanks[p.slotId] = idx;
-        nextScores[p.slotId] = p.score;
+      if (p && p.playerId) {
+        nextRanks[p.playerId] = idx;
+        nextScores[p.playerId] = p.score;
       }
     });
     prevRanksRef.current = nextRanks;
@@ -153,10 +171,10 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
   return (
     <div
       style={{
-        background: 'rgba(8, 8, 10, 0.85)',
+        background: 'linear-gradient(180deg, rgba(4, 6, 12, 0.92), rgba(8, 14, 26, 0.88))',
         backdropFilter: 'blur(6px)',
-        border: '1px solid #c8a84b',
-        boxShadow: '0 0 18px rgba(255, 200, 60, 0.15)',
+        border: '1px solid #1b3a6b',
+        boxShadow: '0 0 18px rgba(57, 255, 136, 0.15)',
         borderRadius: '14px',
         padding: '14px',
         width: '100%',
@@ -169,10 +187,10 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
           fontSize: '16px',
           fontWeight: 800,
           letterSpacing: '2px',
-          color: '#ffc83c',
+          color: '#39ff88',
           margin: '0 0 10px 0',
           textAlign: 'center',
-          textShadow: '0 0 10px rgba(255, 200, 60, 0.6)'
+          textShadow: '0 0 10px rgba(57, 255, 136, 0.6)'
         }}
       >
         LEADERBOARD
@@ -180,10 +198,10 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
 
       <AnimatePresence initial={false}>
         {ranked.map((player, index) => {
-          const isMe = player.slotId === mySlot;
+          const isMe = currentUsername != null && player.username === currentUsername;
           const isCrowned = index === 0;
-          const isDethroned = !!dethroned[player.slotId];
-          const blastKey = blasts[player.slotId] || 0;
+          const isDethroned = !!dethroned[player.playerId];
+          const blastKey = blasts[player.playerId] || 0;
           const isBlasting = blastKey > 0;
           const maxScore = ranked[0]?.score || 1;
           const fillPct = Math.max(6, Math.min(100, (player.score / maxScore) * 100));
@@ -191,7 +209,7 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
           return (
             // The `layout` prop makes rank changes animate smoothly as physical transitions
             <motion.div
-              key={player.slotId}
+              key={player.playerId}
               layout
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -206,8 +224,8 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
                 marginBottom: '8px',
                 borderRadius: '8px',
                 overflow: 'visible',
-                background: isMe ? 'rgba(255, 200, 60, 0.10)' : 'rgba(255, 255, 255, 0.03)',
-                border: isMe ? '1px solid #ffc83c' : '1px solid rgba(255,255,255,0.06)'
+                background: isMe ? 'rgba(57, 255, 136, 0.10)' : 'rgba(255, 255, 255, 0.03)',
+                border: isMe ? '1px solid #39ff88' : '1px solid rgba(255,255,255,0.06)'
               }}
             >
               {/* Crown Master flare: pulsing gold ring + floating stars */}
@@ -218,15 +236,15 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
                       position: 'absolute',
                       inset: -2,
                       borderRadius: 10,
-                      border: '2px solid #ffe066',
+                      border: '2px solid #7fffb0',
                       pointerEvents: 'none'
                     }}
                     animate={{
                       opacity: [0.4, 1, 0.4],
                       boxShadow: [
-                        '0 0 6px rgba(255,224,102,0.4)',
-                        '0 0 18px rgba(255,224,102,0.9)',
-                        '0 0 6px rgba(255,224,102,0.4)'
+                        '0 0 6px rgba(127,255,176,0.4)',
+                        '0 0 18px rgba(127,255,176,0.9)',
+                        '0 0 6px rgba(127,255,176,0.4)'
                       ]
                     }}
                     transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
@@ -303,8 +321,8 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
                         color: '#ffffff'
                       }}
                     >
-                      {player.name}
-                      {isMe && <span style={{ color: '#ffc83c' }}> (You)</span>}
+                      {player.username}
+                      {isMe && <span style={{ color: '#39ff88' }}> (You)</span>}
                       {isCrowned && (
                         <span
                           style={{
@@ -313,8 +331,8 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
                             fontSize: '9px',
                             fontWeight: 800,
                             letterSpacing: '1px',
-                            color: '#ffe066',
-                            textShadow: '0 0 8px rgba(255,224,102,0.8)'
+                            color: '#7fffb0',
+                            textShadow: '0 0 8px rgba(127,255,176,0.8)'
                           }}
                         >
                           CROWN MASTER
@@ -323,10 +341,6 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
                     </span>
                   </div>
 
-                  {/* FIX: the numeric score readout was built (TickerScore)
-                      but never actually rendered anywhere in the row —
-                      this is what the outer flex's justifyContent:
-                      'space-between' was set up for. */}
                   <TickerScore score={player.score} blastKey={blastKey} />
                 </div>
 
@@ -346,8 +360,8 @@ export default function Scoreboard({ players = {}, mySlot = 'oggy-blue' }) {
                     style={{
                       height: '100%',
                       borderRadius: '4px',
-                      background: 'linear-gradient(90deg, #c8a84b, #ffc83c)',
-                      boxShadow: '0 0 8px rgba(255, 200, 60, 0.5)'
+                      background: 'linear-gradient(90deg, #1b3a6b, #39ff88)',
+                      boxShadow: '0 0 8px rgba(57, 255, 136, 0.5)'
                     }}
                   />
                 </div>

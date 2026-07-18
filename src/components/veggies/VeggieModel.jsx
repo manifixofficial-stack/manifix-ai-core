@@ -1,301 +1,356 @@
 // src/components/veggies/VeggieModel.jsx
 //
-// 3D Character Controller Engine for the vegetable .glb characters.
+// Generic loader for AI-generated / artist-made vegetable characters.
+// Renders at the world `position` GameCanvas computes from GPS/heading,
+// then layers a local "run cycle" on top (sway + bob + lean + optional
+// glitch-phase locomotion), plus jump-scare / vacuum-capture / hide-peek
+// behaviors driven by props from GameCanvas's round/vacuum/jump-scare
+// state machine.
 //
-// THIS REVISION — four new behaviors added on top of the original
-// loader/placeholder/error-boundary logic:
-//
-// 1. GROUND PLANE LOCK
-//    A fixed local Y offset (GROUND_LOCK_Y) keeps the model's feet
-//    glued to a consistent floor line regardless of any local wobble
-//    the locomotion/suction logic below introduces. NOTE: this is a
-//    LOCAL offset inside this component's own <group> — it does not
-//    replace or fight the real world-space position your parent
-//    (VeggieSprite.jsx -> GameCanvas.jsx) already computes from actual
-//    GPS bearing/distance. If the model looks sunk into or floating
-//    above the floor after adding this, tune GROUND_LOCK_Y towards 0 —
-//    your parent group is already doing the real grounding.
-//
-// 2. SENTIENT ESCAPE LOCOMOTION (cosmetic, local-space only)
-//    Normal mode: a smooth sine wobble on local X so the model reads as
-//    "running back and forth" in place. Glitch mode (isGlitchPhase):
-//    switches to a hyperspeed sin+cos blend across local X and Z for an
-//    erratic, teleport-y chase feel. This is purely a visual flourish —
-//    real evasion/fairness logic still lives in useVeggieEvasion.js and
-//    is applied upstream by VeggieSprite.jsx to the actual anchor
-//    position. This local wobble sits on top of that, it doesn't
-//    replace it.
-//
-// 3. VACUUM-SUCTION CATCH (isCaught prop)
-//    Server-authoritative: this component does NOT decide who catches
-//    what. server.js already validates capture-attempt (GPS distance or
-//    compass aim) before broadcasting a real catch. Once your parent
-//    passes isCaught=true (i.e. the server has already confirmed it),
-//    THIS file plays the visual payoff: local Z pulls toward the camera
-//    while scale decays to ~0, then calls onSuctionComplete() once so
-//    the parent can finish removing the veggie from state — mirroring
-//    (and able to replace) VeggieSprite.jsx's old splat-timeout flow.
-//
-// 4. ANIMATION PIPELINE (useAnimations)
-//    Reads embedded animation clips from the .glb via
-//    @react-three/drei's useAnimations. Looks for a clip named "Run" or
-//    "Walk" (case-insensitive), falling back to the first available
-//    clip if neither exists, and cross-fades it in on mount/type change
-//    so the model doesn't sit there as a stiff static mesh.
-//
-// EXPECTED FILES: public/models/<type>.glb — unchanged from before.
+// This is the merged/kept version — see chat for why the alternate
+// draft (fixed local ground-lock offset, no world-position prop,
+// missing the material sanity pass) was not used as the base.
 
-import React, { Suspense, useRef, useMemo, useEffect, useState } from 'react';
+import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, useAnimations } from '@react-three/drei';
 import * as THREE from 'three';
+import { MODEL_BASE_SCALE } from '../../config/gameConfig';
 
-// This list matches your live 6-vegetable roster (carrot and brinjal
-// were removed from the game earlier and are intentionally NOT here).
-const KNOWN_TYPES = [
-  'tomato',
-  'broccoli',
-  'golden',
-  'banana',
-  'grapes',
-  'strawberry',
-];
+const KNOWN_TYPES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes', 'strawberry'];
+
+// Must match GameCanvas's VACUUM_WINDOW_MS so the shrink animation and
+// the onCatch callback line up with when the parent clears vacuumLock.
+const VACUUM_ANIM_MS = 1200;
+const JUMP_SCARE_ANIM_MS = 900;
+
+// How often (ms) an idle veggie randomly ducks/peeks instead of running
+// flat-out — purely cosmetic "hiding in the environment" flavor.
+const HIDE_MIN_INTERVAL_MS = 3500;
+const HIDE_MAX_INTERVAL_MS = 7000;
+const HIDE_DURATION_MS = 1100;
+
+// Glitch-phase locomotion tuning (folded in from the alternate draft) —
+// an erratic hyperspeed sin+cos blend layered on top of the normal run
+// sway during a chase/charge phase. Cosmetic only: real evasion/fairness
+// logic still lives in useVeggieEvasion.js upstream.
+const GLITCH_SPEED_X = 8;
+const GLITCH_SPEED_X2 = 5;
+const GLITCH_SPEED_Z = 7;
+const GLITCH_SPEED_Z2 = 3;
+const GLITCH_RANGE_X = 0.5;
+const GLITCH_RANGE_X2 = 0.25;
+const GLITCH_RANGE_Z = 0.35;
+const GLITCH_RANGE_Z2 = 0.2;
 
 function modelPath(type) {
   return `/models/${type}.glb`;
 }
 
-// --- Feature 1: ground plane lock ------------------------------------
-// Local offset only — see header note above.
-const GROUND_LOCK_Y = -1.2;
+function teamColorToHex(teamColor) {
+  // NOTE: intentionally kept independent of the app's white/black/green/
+  // navy UI palette. This light identifies *which player's team* a
+  // veggie is tied to in multiplayer — collapsing it down to 4 palette
+  // colors would make two team slots visually indistinguishable. If you
+  // want team colors constrained to the palette too, say the word and
+  // I'll remap slot count vs. palette size.
+  const map = { yellow: '#ffbe1a', blue: '#3cd6ff', red: '#ff3f34', green: '#1fae6e', purple: '#c084fc' };
+  return map[teamColor] || teamColor || '#ffbe1a';
+}
 
-// --- Feature 2: locomotion tuning -------------------------------------
-const NORMAL_RUN_SPEED = 2;
-const NORMAL_RUN_RANGE = 1.8;
-const GLITCH_SPEED_X = 8;
-const GLITCH_SPEED_X2 = 5;
-const GLITCH_SPEED_Z = 7;
-const GLITCH_SPEED_Z2 = 3;
-const GLITCH_RANGE_X = 3;
-const GLITCH_RANGE_X2 = 1.5;
-const GLITCH_RANGE_Z = 2;
-const GLITCH_RANGE_Z2 = 1.2;
+// Placeholder shown before a real .glb loads, or if one fails to load —
+// this is the one surface here that's pure "app styling" rather than a
+// generated character asset, so it's the one recolored to the
+// white / black / green / dark-blue palette.
+const PLACEHOLDER_BODY = '#1fae6e'; // green
+const PLACEHOLDER_BODY_SHADE = '#0f2340'; // dark blue, subtle underside shading
+const PLACEHOLDER_EYE = '#0a0a0a'; // black
+const PLACEHOLDER_HIGHLIGHT = '#ffffff'; // white
 
-// --- Feature 3: vacuum-suction tuning ----------------------------------
-const SUCTION_Z_SPEED = 7; // units/sec pulled toward camera
-const SUCTION_SCALE_DECAY = 2.5; // higher = faster shrink
-
-// Simple stand-in shape shown when a real model hasn't been generated
-// yet for this veggie type. Chunky rounded capsule + two dot eyes so it
-// still reads as "a character" in playtests rather than a bare error box.
 function PlaceholderVeggie({ tiltZ }) {
   return (
     <group rotation={[0, 0, tiltZ]}>
       <mesh castShadow position={[0, 0.32, 0]}>
         <capsuleGeometry args={[0.28, 0.34, 6, 12]} />
-        <meshStandardMaterial color="#8fd14f" roughness={0.55} />
+        <meshStandardMaterial color={PLACEHOLDER_BODY} roughness={0.5} />
       </mesh>
-      <mesh position={[-0.09, 0.5, 0.24]}>
-        <sphereGeometry args={[0.035, 8, 8]} />
-        <meshStandardMaterial color="#1a1a1a" />
+      {/* subtle dark-blue underside shading so the shape reads as
+          rounded rather than flat green, without adding a texture */}
+      <mesh position={[0, 0.14, 0]} scale={[1, 0.4, 1]}>
+        <sphereGeometry args={[0.27, 12, 8]} />
+        <meshStandardMaterial color={PLACEHOLDER_BODY_SHADE} roughness={0.6} transparent opacity={0.35} />
       </mesh>
-      <mesh position={[0.09, 0.5, 0.24]}>
-        <sphereGeometry args={[0.035, 8, 8]} />
-        <meshStandardMaterial color="#1a1a1a" />
+      {/* small white highlight, catches light so it doesn't read flat */}
+      <mesh position={[-0.1, 0.42, 0.2]} scale={[0.5, 0.3, 0.3]}>
+        <sphereGeometry args={[0.09, 8, 8]} />
+        <meshStandardMaterial color={PLACEHOLDER_HIGHLIGHT} roughness={0.3} transparent opacity={0.5} />
       </mesh>
+      <mesh position={[-0.09, 0.5, 0.24]}><sphereGeometry args={[0.035, 8, 8]} /><meshStandardMaterial color={PLACEHOLDER_EYE} /></mesh>
+      <mesh position={[0.09, 0.5, 0.24]}><sphereGeometry args={[0.035, 8, 8]} /><meshStandardMaterial color={PLACEHOLDER_EYE} /></mesh>
     </group>
   );
 }
 
-// Loads and renders the actual .glb scene graph for a veggie type, and
-// now also drives its embedded animation clips (Feature 4).
-function LoadedModel({ type, tiltZ, isGlitchPhase, isCaught, onSuctionComplete }) {
+function sanityCheckMaterials(root, type) {
+  root.traverse((child) => {
+    if (!child.isMesh || !child.material) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((mat) => {
+      const hasColorSource = !!mat.map || (mat.color && mat.color.getHex() !== 0x000000);
+      if (mat.metalness > 0.85 && !hasColorSource) {
+        console.warn(`VeggieModel: "${type}" mesh "${child.name}" metalness=${mat.metalness} with no color source — clamping to 0.4.`);
+        mat.metalness = 0.4;
+      }
+      if (mat.map && mat.map.image === undefined) {
+        console.warn(`VeggieModel: "${type}" mesh "${child.name}" has a base-color texture that failed to load.`);
+      }
+      if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+      mat.needsUpdate = true;
+    });
+  });
+}
+
+// Loads the glb, clones it (so instances don't share a mutable scene
+// graph), runs the material safety pass, and exposes any baked-in
+// animation clips so the parent can decide run vs. procedural bob.
+function LoadedModel({ type, groupRef, onClipsReady }) {
   const { scene, animations } = useGLTF(modelPath(type));
 
-  // Clone so multiple on-screen instances of the same veggie type don't
-  // share/mutate a single scene graph (glTF caches by URL under the hood).
-  const cloned = useMemo(() => scene.clone(true), [scene]);
+  const cloned = useMemo(() => {
+    const clone = scene.clone(true);
+    sanityCheckMaterials(clone, type);
+    return clone;
+  }, [scene, type]);
 
-  const animGroupRef = useRef();
-  const { actions, names } = useAnimations(animations, animGroupRef);
+  const { actions, names } = useAnimations(animations, groupRef);
 
-  // --- Feature 4: animation pipeline handshake ------------------------
   useEffect(() => {
-    if (!names || names.length === 0) return undefined;
-
-    const preferredName = names.find((n) => /run|walk/i.test(n)) || names[0];
-    const action = actions[preferredName];
-    if (!action) return undefined;
-
-    action.reset().fadeIn(0.2).play();
-
+    onClipsReady?.(actions, names);
+    // Fade out cleanly on unmount / type change (folded in from the
+    // alternate draft) so a swapped veggie type doesn't leave a dangling
+    // action driving a now-detached mixer.
     return () => {
-      action.fadeOut(0.2);
+      if (!names || names.length === 0) return;
+      const preferredName = names.find((n) => /run|walk/i.test(n)) || names[0];
+      actions?.[preferredName]?.fadeOut(0.2);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [names, type]);
+  }, [actions, names, onClipsReady]);
 
-  // --- Local locomotion + ground lock + vacuum suction ----------------
-  const localGroupRef = useRef();
-  const suctionActiveRef = useRef(false);
-  const suctionDoneRef = useRef(false);
-
-  useEffect(() => {
-    // Reset suction state whenever this veggie instance's catch flag
-    // clears (e.g. a fresh spawn re-using the same mounted component).
-    if (!isCaught) {
-      suctionActiveRef.current = false;
-      suctionDoneRef.current = false;
-    } else {
-      suctionActiveRef.current = true;
-    }
-  }, [isCaught]);
-
-  useFrame((state, delta) => {
-    if (!localGroupRef.current) return;
-    const t = state.clock.elapsedTime;
-
-    if (suctionActiveRef.current && !suctionDoneRef.current) {
-      // --- Feature 3: vacuum-suction catch ---
-      localGroupRef.current.position.z += delta * SUCTION_Z_SPEED;
-      localGroupRef.current.position.y = GROUND_LOCK_Y;
-
-      const decay = Math.max(0, 1 - delta * SUCTION_SCALE_DECAY);
-      localGroupRef.current.scale.multiplyScalar(decay);
-
-      if (localGroupRef.current.scale.x <= 0.02) {
-        suctionDoneRef.current = true;
-        suctionActiveRef.current = false;
-        onSuctionComplete?.();
-      }
-      return;
-    }
-
-    // --- Feature 1: ground plane lock ---
-    localGroupRef.current.position.y = GROUND_LOCK_Y;
-
-    // --- Feature 2: locomotion ---
-    if (isGlitchPhase) {
-      localGroupRef.current.position.x =
-        Math.sin(t * GLITCH_SPEED_X) * GLITCH_RANGE_X + Math.cos(t * GLITCH_SPEED_X2) * GLITCH_RANGE_X2;
-      localGroupRef.current.position.z =
-        Math.cos(t * GLITCH_SPEED_Z) * GLITCH_RANGE_Z + Math.sin(t * GLITCH_SPEED_Z2) * GLITCH_RANGE_Z2;
-    } else {
-      localGroupRef.current.position.x = Math.sin(t * NORMAL_RUN_SPEED) * NORMAL_RUN_RANGE;
-      localGroupRef.current.position.z = 0;
-    }
-  });
-
-  return (
-    <group ref={animGroupRef} rotation={[0, 0, tiltZ]}>
-      <group ref={localGroupRef}>
-        <primitive object={cloned} />
-      </group>
-    </group>
-  );
+  return <primitive object={cloned} />;
 }
 
-// Error-safe wrapper: if the .glb for this type 404s or fails to parse,
-// fall back to the placeholder instead of crashing the whole R3F tree.
 class ModelErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { failed: false };
-  }
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
   componentDidCatch(error) {
-    console.warn(
-      `VeggieModel: failed to load model for "${this.props.type}", falling back to placeholder.`,
-      error
-    );
+    console.warn(`VeggieModel: failed to load model for "${this.props.type}", falling back to placeholder.`, error);
   }
   render() {
-    if (this.state.failed) {
-      return <PlaceholderVeggie tiltZ={this.props.tiltZ} />;
-    }
+    if (this.state.failed) return <PlaceholderVeggie tiltZ={0} />;
     return this.props.children;
   }
 }
 
 export default function VeggieModel({
+  veggieId,
   type = 'tomato',
-  panic = false,
-  leanDirection = 0,
-  isDodging = false,
-  // NEW props — all optional and backward-compatible. Existing callers
-  // that don't pass these get the original tilt-only behavior plus
-  // ground lock + idle locomotion + auto-playing animation.
+  position = [0, -1.4, -4],
+  distanceMeters = 5,
+  teamColor = 'yellow',
+  scale = MODEL_BASE_SCALE,
+  runAmplitude = 1.8,
+  runSpeed = 2,
+  runSeed = 0,
+  leanEnabled = true,
+  hyperSpeed = false,
   isGlitchPhase = false,
+  isJumpScared = false,
+  isVacuuming = false,
   isCaught = false,
-  onSuctionComplete,
+  onCatch,
 }) {
-  const wrapRef = useRef();
-  const tiltRef = useRef(0);
+  const outerRef = useRef();     // world position (from GameCanvas)
+  const runRef = useRef();       // local run sway/bob/lean/glitch
+  const captureRef = useRef();   // vacuum shrink-and-fly
+  const clockOffsetRef = useRef(runSeed);
 
-  // Small local tilt: leans into movement direction, and shudders faster
-  // during panic/charge phase. Unchanged from before.
+  const [clipInfo, setClipInfo] = useState(null); // { actions, names }
+  const activeClipRef = useRef(null);
+
+  // ── Hide/peek idle flavor: randomly duck for a beat, purely cosmetic ──
+  const [isHiding, setIsHiding] = useState(false);
+  const hideTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (isCaught || isVacuuming) return undefined;
+    function scheduleNext() {
+      const delay = HIDE_MIN_INTERVAL_MS + Math.random() * (HIDE_MAX_INTERVAL_MS - HIDE_MIN_INTERVAL_MS);
+      hideTimeoutRef.current = window.setTimeout(() => {
+        setIsHiding(true);
+        window.setTimeout(() => setIsHiding(false), HIDE_DURATION_MS);
+        scheduleNext();
+      }, delay);
+    }
+    scheduleNext();
+    return () => window.clearTimeout(hideTimeoutRef.current);
+  }, [isCaught, isVacuuming]);
+
+  // ── Pick a baked-in animation clip if one exists, else procedural bob ──
+  const handleClipsReady = (actions, names) => {
+    if (!names || names.length === 0) return;
+    const preferredName =
+      names.find((n) => /run/i.test(n)) ||
+      names.find((n) => /walk/i.test(n)) ||
+      names[0];
+    if (activeClipRef.current === preferredName) return;
+    activeClipRef.current = preferredName;
+    Object.values(actions).forEach((a) => a?.stop());
+    const action = actions[preferredName];
+    if (action) {
+      action.reset().fadeIn(0.2).play();
+      action.timeScale = hyperSpeed ? 2.2 : 1;
+    }
+    setClipInfo({ actions, names });
+  };
+
+  const hasBakedAnimation = !!clipInfo;
+
+  // ── Atomic Catch Verification Lock ──────────────────────────────
+  // catchFiredRef is the single source of truth for "has onCatch
+  // already been called for this capture window." It is set to true
+  // at the exact millisecond the vacuum-compression timeline finishes,
+  // and nothing else in this component is allowed to flip it back to
+  // false except a brand-new isVacuuming=true transition (a fresh
+  // capture attempt on this same instance). This guarantees onCatch —
+  // and therefore whatever score-write GameCanvas triggers off of it —
+  // fires exactly once per capture, even if this component re-renders
+  // or the frame loop ticks again before the parent clears vacuumLock.
+  const catchFiredRef = useRef(false);
+  const vacuumStartRef = useRef(null);
+
+  useEffect(() => {
+    if (isVacuuming) {
+      vacuumStartRef.current = performance.now();
+      catchFiredRef.current = false;
+    } else {
+      vacuumStartRef.current = null;
+    }
+  }, [isVacuuming]);
+
+  // ── Jump scare: quick startle pop + retreat ──
+  const jumpScareStartRef = useRef(null);
+  useEffect(() => {
+    jumpScareStartRef.current = isJumpScared ? performance.now() : null;
+  }, [isJumpScared]);
+
   useFrame((state, delta) => {
-    const targetTilt = panic
-      ? Math.sin(state.clock.elapsedTime * 18) * 0.12
-      : leanDirection * (isDodging ? 0.22 : 0.12);
-    tiltRef.current += (targetTilt - tiltRef.current) * Math.min(1, delta * 10);
-    if (wrapRef.current) {
-      wrapRef.current.rotation.z = tiltRef.current;
+    if (!outerRef.current) return;
+
+    // World position — snaps to GameCanvas-provided position (GPS/heading
+    // driven), no smoothing needed since that already updates smoothly.
+    outerRef.current.position.set(position[0], position[1], position[2]);
+
+    if (isCaught) {
+      outerRef.current.visible = false;
+      return;
+    }
+    outerRef.current.visible = true;
+
+    const t = state.clock.elapsedTime + clockOffsetRef.current;
+    const speed = runSpeed;
+    const amp = runAmplitude;
+
+    // Procedural run cycle (used as-is if no baked animation clip, and
+    // layered as a subtle secondary sway even when a clip IS playing,
+    // so root motion still reads even on a static/looping clip).
+    let swayX = Math.sin(t * speed) * amp * 0.12;
+    let swayZ = 0;
+    const bobY = hasBakedAnimation ? 0 : Math.abs(Math.sin(t * speed * 2)) * 0.06;
+    const stepLean = leanEnabled ? Math.sin(t * speed) * 0.18 : 0;
+
+    // Glitch-phase locomotion: erratic hyperspeed blend layered on top
+    // of the normal sway during a chase/charge phase. Kept small in
+    // magnitude relative to the alternate draft's version since this
+    // sits on top of the already-correct world position rather than
+    // replacing it.
+    if (isGlitchPhase) {
+      swayX += Math.sin(t * GLITCH_SPEED_X) * GLITCH_RANGE_X + Math.cos(t * GLITCH_SPEED_X2) * GLITCH_RANGE_X2;
+      swayZ += Math.cos(t * GLITCH_SPEED_Z) * GLITCH_RANGE_Z + Math.sin(t * GLITCH_SPEED_Z2) * GLITCH_RANGE_Z2;
+    }
+
+    if (runRef.current) {
+      runRef.current.position.x = swayX;
+      runRef.current.position.z = swayZ;
+      runRef.current.position.y = bobY + (isHiding ? -0.22 : 0);
+      runRef.current.rotation.z = stepLean;
+      runRef.current.rotation.y += (Math.sin(t * speed * 0.5) * 0.4 - runRef.current.rotation.y) * Math.min(1, delta * 3);
+    }
+
+    // Jump scare: quick scale-pop + backward hop, decaying over
+    // JUMP_SCARE_ANIM_MS.
+    let scarePop = 0;
+    if (jumpScareStartRef.current != null) {
+      const elapsed = performance.now() - jumpScareStartRef.current;
+      const progress = Math.min(1, elapsed / JUMP_SCARE_ANIM_MS);
+      scarePop = Math.sin(progress * Math.PI) * 0.35;
+      if (captureRef.current) captureRef.current.position.z = scarePop * -0.6;
+    } else if (captureRef.current) {
+      captureRef.current.position.z = 0;
+    }
+
+    // ── Vacuum capture: quadratic Z-axis suction curve ──────────────
+    // Shrinks toward zero scale and flies down the local Z axis using
+    // an ease-in (progress^2) curve — slow drift at first, then a fast
+    // final snap into the vacuum nozzle for the cartoon "gulp" feel.
+    if (vacuumStartRef.current != null && captureRef.current) {
+      const elapsed = performance.now() - vacuumStartRef.current;
+      const progress = Math.min(1, elapsed / VACUUM_ANIM_MS);
+      const eased = progress * progress; // quadratic ease-in
+      captureRef.current.scale.setScalar(Math.max(0.001, 1 - eased));
+      captureRef.current.position.z = -eased * 2.5;
+      captureRef.current.position.y = eased * 0.8;
+
+      // Atomic catch verification: fire onCatch exactly once, at the
+      // exact frame the timeline completes, guarded by catchFiredRef
+      // rather than by nulling shared timing state — so this check is
+      // self-contained and cannot be bypassed by a stray re-render.
+      if (progress >= 1 && !catchFiredRef.current) {
+        catchFiredRef.current = true;
+        onCatch?.(veggieId);
+      }
+    } else if (captureRef.current && !isJumpScared) {
+      captureRef.current.scale.setScalar(1);
     }
   });
 
   const known = KNOWN_TYPES.includes(type);
+  const accentColor = teamColorToHex(teamColor);
 
   return (
-    <group ref={wrapRef}>
-      {known ? (
-        <ModelErrorBoundary type={type} tiltZ={0}>
-          <Suspense fallback={<PlaceholderVeggie tiltZ={0} />}>
-            <LoadedModel
-              type={type}
-              tiltZ={0}
-              isGlitchPhase={isGlitchPhase}
-              isCaught={isCaught}
-              onSuctionComplete={onSuctionComplete}
-            />
-          </Suspense>
-        </ModelErrorBoundary>
-      ) : (
-        <PlaceholderVeggie tiltZ={0} />
-      )}
+    <group ref={outerRef} scale={scale}>
+      {/* Mobile-safe ground ambient glow — small colored accent light at
+          the feet, mapped from player slot color, so team ownership
+          reads even on veggies with dark/neutral base textures. Kept
+          short-range and low-intensity to avoid battery drain / frame
+          drops on mobile. */}
+      <pointLight color={accentColor} intensity={distanceMeters < 6 ? 0.6 : 0.3} distance={2} position={[0, 0.4, 0.3]} />
+
+      <group ref={captureRef}>
+        <group ref={runRef}>
+          {known ? (
+            <ModelErrorBoundary type={type}>
+              <Suspense fallback={<PlaceholderVeggie tiltZ={0} />}>
+                <LoadedModel type={type} groupRef={runRef} onClipsReady={handleClipsReady} />
+              </Suspense>
+            </ModelErrorBoundary>
+          ) : (
+            <PlaceholderVeggie tiltZ={0} />
+          )}
+        </group>
+      </group>
     </group>
   );
 }
 
-// Warm the glTF cache for every known type at import time. Any type
-// whose .glb doesn't exist on disk yet will 404 quietly in the network
-// tab and fall through to the placeholder via ModelErrorBoundary above —
-// this is expected and safe while you're still generating assets.
 KNOWN_TYPES.forEach((type) => {
   useGLTF.preload(modelPath(type));
 });
-
-// ── INTEGRATION NOTE FOR VeggieSprite.jsx ─────────────────────────────────
-// To actually see the new vacuum-suction/glitch-locomotion behavior,
-// VeggieSprite.jsx needs to pass the new props through, e.g.:
-//
-//   <VeggieModel
-//     veggieId={veggieId}
-//     type={type}
-//     panic={phase === 'charging'}
-//     leanDirection={leanDirection}
-//     isDodging={phase !== 'charging' && distanceMeters <= EVASION_TRIGGER_M}
-//     isGlitchPhase={phase === 'charging'}   // or your own glitch-pulse flag
-//     isCaught={isCaught}                     // already exists as a prop on VeggieSprite
-//     onSuctionComplete={() => onCatch?.(veggieId)}  // replaces the old
-//                                                       setTimeout-based
-//                                                       triggerCatch() flow
-//   />
-//
-// If you'd rather keep VeggieSprite.jsx's existing splat/timeout flow
-// exactly as-is for now, you can simply NOT pass isCaught/isGlitchPhase —
-// this file is fully backward-compatible and behaves like the old
-// version (minus the new idle wobble + ground lock + auto-animation)
-// when those props are omitted.

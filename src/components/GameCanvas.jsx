@@ -1,34 +1,28 @@
 // src/components/GameCanvas.jsx
 //
-// WHAT CHANGED (this revision — "cartoon chase" physics handoff):
+// WHAT CHANGED (this revision — "bugfix + collection wiring"):
 //
-// Everything from the previous revisions is preserved (top telemetry
-// bar, floating leaderboard, ground shadows, fonts, RETURN TO RADAR
-// button, camera/AR plumbing, round/timer/glitch state machine, vacuum
-// capture window). This revision does three things:
+// Everything from the previous "cartoon chase" revision is preserved
+// (Veggie3DModel integration, sentient-run physics, Round-3 teleport
+// jitter, round/timer/glitch state machine, vacuum capture window,
+// telemetry bar, leaderboard). This revision does two things:
 //
-//   A) Wires in the new `Veggie3DModel` import in place of the old 2D
-//      HTML "shrink toward camera" overlay approximation. NOTE: I do
-//      not have the actual source of `./veggies/VeggieModel.jsx`, so
-//      I had to assume a prop contract for it. That assumed contract
-//      is documented immediately below the import — if your real
-//      component's props are named differently, this will fail to
-//      render/animate correctly until you either rename props here or
-//      rename them in VeggieModel to match. This is the single
-//      biggest "might not just work" risk in this file.
+//   A) FIX: `worldY` referenced `CAMERA_EYE_HEIGHT`, which was never
+//      defined anywhere in this file or its imports — only
+//      `CAMERA_EYE_HEIGHT_METERS` was ever imported from gameConfig.
+//      That's a ReferenceError on the very first AR frame. Now reads
+//      `CAMERA_EYE_HEIGHT_METERS`, matching the actual import.
 //
-//   B) Adds the "sentient running" layer described in your brief:
-//      sine-wave run path, lean-into-turn vector, and a proximity
-//      jump-scare timer. All of this is computed in GameCanvas and
-//      passed down as props — VeggieModel is expected to apply the
-//      actual mesh transform itself every frame (that's why it needs
-//      raw amplitude/speed/seed values, not a single baked position).
-//
-//   C) Adds a Round-3-only local "teleport" jitter on the single
-//      nearest target (there's no server concept of a specific
-//      "final" veggie, so this file arbitrarily treats "closest
-//      in-view target" as the one that teleports — SERVER TODO #4
-//      below if you want the server to explicitly designate this).
+//   B) NEW: wires in CollectionBook (previously built but never
+//      imported or rendered anywhere). `recordCatch(species)` now
+//      fires from the same branch that already gates popups/score to
+//      "this was MY catch" (data.playerId === socket.id), so the
+//      collection only records species the local player actually
+//      caught, not every player's catches broadcast to the room. A
+//      new HUD button opens the drawer; it's controlled locally
+//      (`collectionOpen`), CollectionBook still self-manages its own
+//      caught-species state off the `veggieGo:collectionUpdated`
+//      window event exactly as it already did.
 //
 // STILL UNRESOLVED / SERVER-SIDE (unchanged from before, restated so
 // this file's header stays a complete list of outstanding gaps):
@@ -38,11 +32,9 @@
 //      3; nothing persists it. Needs a server handler writing to
 //      MongoDB Atlas — a browser cannot and should not hold DB
 //      credentials directly.
-//   3. Real 3D vacuum-suck mesh animation now lives in VeggieModel
-//      (per change A above) instead of the 2D overlay — but I can't
-//      verify VeggieModel actually implements it, since I don't have
-//      that file.
-//   4. NEW: "which veggie is the Round-3 glitch target" is decided
+//   3. Real 3D vacuum-suck mesh animation lives in VeggieModel, not
+//      here — this file only passes down the isVacuuming flag.
+//   4. "Which veggie is the Round-3 glitch target" is decided
 //      client-side here (nearest visible target). If you want this
 //      authoritative/synced across players, the server should pick
 //      and broadcast a `glitchTargetId` instead.
@@ -56,8 +48,8 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import CaptureThrow from './CaptureThrow';
-// NEW: replaces the old 2D vacuum-overlay approximation. ASSUMED PROPS
-// (I don't have this file's real source — adjust to match if different):
+// ASSUMED PROPS on Veggie3DModel (I don't have this file's real source
+// — adjust to match if different):
 //   veggieId        string   — stable id, used as React key upstream
 //   type            string   — species, e.g. 'broccoli' | 'tomato'
 //   position        [x,y,z]  — world position (scene units), same
@@ -72,23 +64,20 @@ import CaptureThrow from './CaptureThrow';
 //   leanEnabled     bool     — whether to tilt the upper body into turns
 //   hyperSpeed      bool     — Round-3 flag: 3x run speed/amplitude
 //   isJumpScared    bool     — true for a short burst after a player has
-//                              stared at it too long without firing;
-//                              VeggieModel is expected to do a scale-up
-//                              startle + retreat while this is true
-//   isVacuuming     bool     — true during the local capture freeze window;
-//                              VeggieModel is expected to run the
-//                              shrink-and-fly-down-the-Z-axis animation
+//                              stared at it too long without firing
+//   isVacuuming     bool     — true during the local capture freeze window
 //   isCaught        bool     — persistent caught state (existing behavior)
 //   onCatch(id)              — existing callback, fired once the local
 //                              vacuum/shrink animation finishes
-//import { VeggieModel as Veggie3DModel } from '../components/veggies/VeggieModel';
-import { AR_TRIGGER_DISTANCE_METERS } from '../config/gameConfig';
+import Veggie3DModel from '../components/veggies/VeggieModel';
+import { AR_TRIGGER_DISTANCE_METERS, MODEL_BASE_SCALE, GLITCH_TARGET_SCALE_MULTIPLIER, CAMERA_EYE_HEIGHT_METERS } from '../config/gameConfig';
 import Leaderboard from './Leaderboard';
+import CollectionBook, { recordCatch } from './CollectionBook';
 
 const EARTH_RADIUS_M = 6371000;
 const FOV_ANGLE_DEG = 60;
 const CATCH_ME_TAUNT_DISTANCE_M = 8;
-const CAMERA_EYE_HEIGHT = 1.4;
+
 const MIN_SCENE_DEPTH = 1.6;
 const MAX_SCENE_DEPTH = 11;
 const METERS_TO_SCENE_DIVISOR = 5;
@@ -111,7 +100,7 @@ const GLITCH_ROUND_POINTS = 1000;
 const VACUUM_WINDOW_MS = 1200;
 
 // "Sentient running" physics (cartoon chase feel)
-const BASE_SCALE = 1.4; // chunky, high-def presence
+
 const RUN_AMPLITUDE = 1.8; // scene units of side-to-side sway
 const RUN_SPEED = 2; // sine frequency multiplier
 const JUMP_SCARE_DELAY_MS = 4500; // hesitation window before a startle-leap
@@ -225,6 +214,12 @@ export default function GameCanvas({
   const [caughtIds, setCaughtIds] = useState(() => new Set());
   const [captureResolutions, setCaptureResolutions] = useState([]);
   const [devicePitch, setDevicePitch] = useState(0);
+
+  // NEW: local UI toggle for the collection drawer. CollectionBook
+  // manages its own caught-species state internally (off the
+  // `veggieGo:collectionUpdated` window event) — this is just
+  // open/closed, nothing about which species are found lives here.
+  const [collectionOpen, setCollectionOpen] = useState(false);
 
   // Session/round timer base — driven by initialTimingMode, falls back
   // to the original fixed constant if the prop isn't passed.
@@ -390,6 +385,16 @@ export default function GameCanvas({
 
       if (data.playerId !== socket.id) return;
 
+      // NEW: record this species in the local player's persistent
+      // collection. Placed after the playerId check on purpose — the
+      // vegId add above happens for EVERY player's catch (shared visual
+      // state, so the mesh disappears for everyone), but the collection
+      // is per-player, so only "did I personally catch this" should
+      // unlock a card.
+      if (data.species) {
+        recordCatch(data.species);
+      }
+
       const newPopup = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         text: `+${data.points ?? 0}`,
@@ -469,7 +474,11 @@ export default function GameCanvas({
 
         const worldX = Math.sin(relAngleRad) * sceneDepth;
         const worldZ = -Math.cos(relAngleRad) * sceneDepth;
-        const worldY = -CAMERA_EYE_HEIGHT;
+        // FIX: was `-CAMERA_EYE_HEIGHT`, an identifier that was never
+        // defined anywhere in this file — only CAMERA_EYE_HEIGHT_METERS
+        // was ever imported from gameConfig. That's a ReferenceError on
+        // the first frame this memo runs. Now uses the actual import.
+        const worldY = -CAMERA_EYE_HEIGHT_METERS;
 
         projectedList.push({
           id,
@@ -548,9 +557,8 @@ export default function GameCanvas({
 
   // Proximity jump-scare watchdog: if a target has been sitting locked
   // in the center reticle for JUMP_SCARE_DELAY_MS without a capture
-  // attempt, flag it as jump-scared for a short burst (VeggieModel is
-  // expected to do a scale-up startle + retreat while that flag is
-  // true), then reset its lock timer so it can trigger again later.
+  // attempt, flag it as jump-scared for a short burst, then reset its
+  // lock timer so it can trigger again later.
   useEffect(() => {
     const intervalId = setInterval(() => {
       const now = Date.now();
@@ -593,8 +601,7 @@ export default function GameCanvas({
 
   // Wraps the original onAttempt so a capture attempt also opens the
   // local vacuum window: freezes the round clock and flags that
-  // target for VeggieModel's isVacuuming prop (real 3D shrink-and-fly
-  // animation now lives there — see header note A).
+  // target for VeggieModel's isVacuuming prop.
   const handleCaptureAttempt = useCallback((id, quality) => {
     timerFrozenRef.current = true;
     setVacuumLock({ targetId: id, expiresAt: Date.now() + VACUUM_WINDOW_MS });
@@ -737,7 +744,7 @@ export default function GameCanvas({
                 position={node.position}
                 distanceMeters={node.distance}
                 teamColor={node.teamColor}
-                scale={isThisGlitchTarget ? BASE_SCALE * 1.3 : BASE_SCALE}
+                scale={isThisGlitchTarget ? MODEL_BASE_SCALE * GLITCH_TARGET_SCALE_MULTIPLIER : MODEL_BASE_SCALE}
                 runAmplitude={isThisGlitchTarget ? RUN_AMPLITUDE * GLITCH_SPEED_MULTIPLIER : RUN_AMPLITUDE}
                 runSpeed={isThisGlitchTarget ? RUN_SPEED * GLITCH_SPEED_MULTIPLIER : RUN_SPEED}
                 runSeed={node.runSeed}
@@ -859,6 +866,15 @@ export default function GameCanvas({
               {myMode === 'gps' ? '🛰 OUTDOOR GPS' : '📶 INDOOR SENSOR'}
             </div>
           )}
+          {/* NEW: opens the collection drawer. Sits in the same
+              pointer-events-enabled telemetry row so it's reachable
+              mid-match without blocking the AR view underneath. */}
+          <button
+            style={styles.collectionBtn}
+            onClick={() => setCollectionOpen(true)}
+          >
+            📖 COLLECTION
+          </button>
         </div>
       </div>
 
@@ -933,6 +949,11 @@ export default function GameCanvas({
       {matchPhase === 'ended' && (
         <Leaderboard players={players} mySlot={mySlot} onClose={onExit} />
       )}
+
+      {/* NEW: collection drawer. Uncontrolled — it manages its own
+          caught-species state off the veggieGo:collectionUpdated
+          window event, we just own whether it's open. */}
+      <CollectionBook open={collectionOpen} onClose={() => setCollectionOpen(false)} />
     </div>
   );
 }
@@ -960,10 +981,14 @@ const styles = {
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(6,10,18,0.92) 0%, rgba(6,10,18,0.55) 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px 12px', pointerEvents: 'none' },
   topBarHeader: { display: 'flex', alignItems: 'center', gap: '6px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '10px', textShadow: '0 0 8px rgba(255,190,26,0.4)' },
   scanDot: { width: 7, height: 7, borderRadius: '50%', background: '#ffbe1a', boxShadow: '0 0 8px 2px rgba(255,190,26,0.8)', animation: 'timerPulse 1.4s ease-in-out infinite' },
-  telemetryRow: { display: 'flex', flexWrap: 'wrap', gap: '10px' },
+  telemetryRow: { display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' },
   telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px' },
   ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)' },
   ptsNumber: { color: '#ffe066', fontWeight: 900, fontSize: '13px' },
+  // NEW: collection button — same tag visual language as telemetryTag,
+  // but pointer-events re-enabled (parent row disables them) since this
+  // one is actually clickable.
+  collectionBtn: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(31,174,110,0.5)', borderRadius: '7px', padding: '7px 14px', color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', pointerEvents: 'auto' },
 
   // Leaderboard widget
   leaderboardWidget: { position: 'absolute', top: 96, right: 14, zIndex: 30, width: 210, background: 'rgba(8,12,22,0.92)', border: '1.5px solid #ffbe1a', borderRadius: '10px', padding: '10px 10px 8px', boxShadow: '0 0 16px rgba(255,190,26,0.2)', pointerEvents: 'none' },
