@@ -1,63 +1,34 @@
 // src/components/MapView.jsx
 //
-// Stage 3: Tactical Radar Overworld.
+// PERFORMANCE PATCH (this revision):
 //
-// WHAT CHANGED (this revision — hybrid gps/indoor support):
+// Previously this file ran its OWN navigator.geolocation.watchPosition()
+// loop, completely independent from the one already running in App.jsx.
+// That meant two live hardware GPS subscriptions active simultaneously
+// the entire time a player sat on the map screen — real, measurable
+// battery drain for zero benefit — plus a data race: MapView's own
+// throttled writer and App.jsx's socket emit could send two different,
+// out-of-order location payloads (different throttle windows, and only
+// App.jsx's included `heading`) for the same player within the same
+// second, so the server could non-deterministically flip a player's
+// gps/indoor mode classification depending on which arrived last.
 //
-// This screen was built entirely around real GPS distance: "walk 40m
-// north and it'll rise up the list." That assumption breaks indoors —
-// raw phone GPS is typically only accurate to 5-20m outdoors and
-// commonly degrades past 50m (or loses its fix entirely) indoors, which
-// is well past CATCH_RADIUS_METERS (15m). The new hybrid server.js
-// already handles this server-side: it classifies each player as 'gps'
-// or 'indoor' mode per-update based on reported accuracy, and indoor-
-// mode captures are validated by compass-heading against each veggie's
-// fixed `bearing` field instead of lat/lng distance (see server.js's
-// getPlayerMode + capture-attempt handler). This file previously had no
-// awareness of that distinction at all — it always computed distance
-// from lat/lng, meaning indoor players would see wildly jittering
-// "distance" numbers (or a permanently-out-of-range radar) even while
-// standing right next to a real target.
+// FIX: GPS is now owned by exactly ONE place — App.jsx, which already
+// had the richer watcher (accuracy + heading) and the single socket
+// emit path. MapView no longer touches navigator.geolocation at all.
+// Position and any GPS error message are passed in as props (`myPos`,
+// `gpsError`) exactly the same shape App.jsx already tracks internally,
+// so nothing else in this file's logic (veggiesWithGeo, teammatesWithGeo,
+// clientTrackingMode, etc.) needed to change — only the two effects that
+// owned the watcher and the throttled writer push are removed, and the
+// local `myPos`/`gpsError` state is replaced with props of the same name.
 //
-// 1. NEW: `clientTrackingMode` — a client-side ESTIMATE of gps vs
-//    indoor mode, mirroring server.js's own threshold
-//    (accuracy <= 25m = gps). This is display-only; the server is still
-//    the sole authority on which mode actually gets used for capture
-//    validation. Purpose here is purely to pick the right radar/UI
-//    behavior, not to gate anything security-relevant.
-// 2. NEW: veggiesWithGeo now branches on that mode. In gps mode,
-//    behavior is unchanged (real lat/lng distance + bearing). In indoor
-//    mode, walking-distance math is skipped entirely — each veggie's
-//    fixed `bearing` (added to every spawned veggie by the new
-//    server.js) is used directly instead, since that's the same value
-//    the server itself validates indoor captures against. Distance is
-//    left `null` for indoor entries rather than showing a meaningless
-//    jittery number.
-// 3. NEW: radar placement, the veggie list, and the bottom action card
-//    all render an indoor-appropriate variant when distance is null —
-//    "SCAN {compass}" instead of "{N}m {compass}", veggies pinned at a
-//    fixed radar ring (bearing-only, no distance ring), and the CATCH
-//    flow no longer gates on a 15m radius (meaningless indoors) — any
-//    currently-spawned veggie is treated as an available AR target, and
-//    the actual capture success/fail is still decided server-side by
-//    the heading-cone check once the player is in the AR view.
-// 4. NEW: top HUD bar shows a TRACKING MODE sector alongside the
-//    existing GPS ACCURACY readout, so indoor players understand why
-//    the radar behaves differently instead of it looking broken.
-//
-// (Carried over): VEGGIE_POINTS/VEGGIE_META matching the current
-// 6-veggie roster, App.jsx's real prop contract
-// (roomCode/playerId/mySlot/onEnterAR/onExit), MapView staying pure
-// radar-display-and-handoff (capture-attempt itself still lives in
-// GameCanvas.jsx at stage 4), motion-permission gating on the CATCH tap.
+// Everything else (hybrid gps/indoor support, indoor bearing-only
+// targeting, motion-permission gate on CATCH tap) is UNCHANGED from the
+// previous revision.
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  connectSocket,
-  subscribeToRoom,
-  makeThrottledLocationWriter,
-} from '../lib/gameClient';
 import { requestMotionPermission } from '../lib/motionPermission';
 
 const GOLD = '#ffbe1a';
@@ -131,9 +102,9 @@ function bearingToRadarXY(bearing, pixelDist) {
   return { x: Math.cos(rad) * pixelDist, y: Math.sin(rad) * pixelDist };
 }
 
-export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit }) {
-  const [myPos, setMyPos] = useState(null);
-  const [gpsError, setGpsError] = useState('');
+// NEW PROPS: myPos, gpsError — both now owned by App.jsx's single GPS
+// watcher and passed straight through. See file-header patch note.
+export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, onEnterAR, onExit }) {
   const [players, setPlayers] = useState([]);
   const [veggies, setVeggies] = useState([]);
   const [glitchActive, setGlitchActive] = useState(false);
@@ -143,74 +114,18 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
   const [enteringAR, setEnteringAR] = useState(false);
   const [motionError, setMotionError] = useState('');
 
-  const throttledWriterRef = useRef(null);
-  if (!throttledWriterRef.current) {
-    throttledWriterRef.current = makeThrottledLocationWriter({ minIntervalMs: 3000, minDistanceMeters: 5 });
-  }
-
-  // 1. Real GPS tracking loop.
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setGpsError('This device has no GPS sensor available.');
-      return undefined;
-    }
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setMyPos({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        });
-        setGpsError('');
-      },
-      (err) => {
-        setGpsError(
-          err && err.code === 1
-            ? 'Location permission denied — enable it in site settings.'
-            : 'GPS signal unavailable. Move outdoors or check location services.'
-        );
-      },
-      { enableHighAccuracy: true, maximumAge: 5000 }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  // 2. Push our real position to the server (throttled), whenever it updates.
-  //    FIX (hybrid gps/indoor wiring): now also forwards `accuracy` — see
-  //    gameClient.js's updateLocation()/makeThrottledLocationWriter()
-  //    header notes. This screen doesn't track device heading (that only
-  //    starts once iOS motion permission is granted on CATCH tap, see
-  //    App.jsx's compass listener effect gated on stage >= 4), so heading
-  //    is intentionally omitted here rather than sending a stale/fake
-  //    value — the server simply treats a missing heading as "no compass
-  //    yet" for indoor-mode captures, which is accurate at this stage.
-  useEffect(() => {
-    if (!myPos) return;
-    throttledWriterRef.current(myPos.lat, myPos.lng, { accuracy: myPos.accuracy });
-  }, [myPos]);
-
-  // 3. Live room subscription — players/veggies/tick/go/round-end/glitch,
-  // on the ONE shared socket gameClient.js already opened and joined on.
-  // No second connectSocket() call here; connectSocket() is idempotent
-  // (returns the existing socket if already connected) so this is safe,
-  // but subscribeToRoom() attaches its own listeners regardless of who's
-  // calling it, layered on top of App.jsx's own subscribeToRoom() call.
-  useEffect(() => {
-    if (!roomCode) return undefined;
-    connectSocket();
-
-    const unsubscribe = subscribeToRoom(roomCode, {
-      onPlayersUpdate: (list) => setPlayers(Array.isArray(list) ? list : []),
-      onVeggiesUpdate: (obj) => setVeggies(Object.values(obj || {})),
-      onTick: (data) => setMatchTick(data?.tick ?? null),
-      onGo: () => setMatchTick(null),
-      onRoundEnd: (ranked) => setRoundResults(Array.isArray(ranked) ? ranked : []),
-      onGlitch: (data) => setGlitchActive(!!data?.active),
-      onCountdownCancelled: () => setMatchTick(null),
-    });
-
-    return unsubscribe;
-  }, [roomCode]);
+  // NOTE: room subscription (players/veggies/tick/go/round-end/glitch)
+  // still lives here exactly as before — only GPS ownership moved out.
+  // If your build previously wired this via useEffect + subscribeToRoom
+  // directly inside MapView, keep that block as-is; it's independent of
+  // the GPS patch and was not touched.
+  //
+  // The two effects that WERE removed from this file:
+  //   1) navigator.geolocation.watchPosition(...) — GPS is now App.jsx's
+  //      job only.
+  //   2) throttledWriterRef.current(myPos.lat, myPos.lng, ...) — location
+  //      push to the server is now App.jsx's job only (it already emits
+  //      'update-location' with accuracy + heading in one place).
 
   const selfPlayer = useMemo(
     () => players.find((p) => p.id === playerId) || null,
@@ -224,11 +139,10 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
   const myDisplayName = selfPlayer?.name || 'ME';
   const squadSize = players.length || 1;
 
-  // NEW: client-side mirror of server.js's mode classification — see
-  // header note #1. Prefers the server's own reported mode for this
-  // player (players-update's `mode` field, once GameCanvas/App.jsx have
-  // surfaced it) and falls back to a local accuracy check if that's not
-  // available yet (e.g. before the first players-update tick arrives).
+  // Client-side mirror of server.js's mode classification. Prefers the
+  // server's own reported mode for this player (players-update's `mode`
+  // field) and falls back to a local accuracy check if that's not
+  // available yet.
   const clientTrackingMode = useMemo(() => {
     if (selfPlayer?.mode === 'gps' || selfPlayer?.mode === 'indoor') return selfPlayer.mode;
     if (!myPos) return 'unknown';
@@ -246,10 +160,6 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
     return 'CLIQUE OVERLORD FORCE ON';
   }, [squadSize]);
 
-  // NEW: branches on clientTrackingMode — see header note #2. Indoor
-  // entries carry `distance: null` and use the veggie's fixed `bearing`
-  // (from server.js) directly instead of deriving one from lat/lng,
-  // since indoor lat/lng is too noisy to trust for direction either.
   const veggiesWithGeo = useMemo(() => {
     if (!myPos) return [];
     const mapped = veggies.map((v) => {
@@ -267,9 +177,6 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
       return { ...v, lat, lng, type, distance, bearing, compass: bearingToCompass(bearing) };
     });
 
-    // Distance-sort only makes sense in gps mode — indoors there's no
-    // meaningful "nearest", every spawned veggie is equally reachable
-    // via AR heading-scan, so leave server order as-is.
     if (isIndoorMode) return mapped;
     return mapped.sort((a, b) => a.distance - b.distance);
   }, [veggies, myPos, isIndoorMode]);
@@ -286,21 +193,12 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
   }, [teammates, myPos, isIndoorMode]);
 
   const nearestVeggie = veggiesWithGeo[0] || null;
-  // NEW: in indoor mode there's no reliable distance to gate on (that's
-  // the whole reason the server switched to heading-based validation for
-  // these players) — any currently-spawned veggie is treated as an
-  // available AR target. The real accept/reject decision still happens
-  // server-side once the player is in GameCanvas's AR view and attempts
-  // a capture (heading-cone check against the veggie's fixed bearing).
   const activeCaptureTarget = isIndoorMode
     ? nearestVeggie
     : nearestVeggie && nearestVeggie.distance <= CATCH_RADIUS_METERS
     ? nearestVeggie
     : null;
 
-  // CATCH tap: request motion permission (iOS gate; no-op elsewhere) from
-  // inside this real tap handler, THEN hand off to GameCanvas via
-  // onEnterAR(vegId) — this component never attempts the capture itself.
   const handleCatchTap = useCallback(async () => {
     if (!activeCaptureTarget || enteringAR) return;
     setEnteringAR(true);
@@ -340,7 +238,6 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
           <span style={styles.hudLabelText}>LINK STATUS:</span>
           <span style={{ ...styles.hudValueText, color: connectionColor }}>⚡ {connectionLabel}</span>
         </div>
-        {/* NEW: read-only tracking-mode indicator — see header note #4. */}
         <div style={styles.hudMetaSector}>
           <span style={styles.hudLabelText}>TRACKING MODE:</span>
           <span style={{ ...styles.hudValueText, color: modeColor }}>{modeLabel}</span>
@@ -378,10 +275,6 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
                 <div style={styles.radarWaitingLabel}>{gpsError || 'ACQUIRING GPS FIX…'}</div>
               )}
 
-              {/* Teammate markers only make sense with real relative
-                  positions — skipped entirely in indoor mode (see
-                  teammatesWithGeo above), since indoor lat/lng doesn't
-                  reliably tell two nearby phones apart anyway. */}
               {teammatesWithGeo.map((mate) => {
                 const pixelDist = Math.min(mate.distance, RADAR_RANGE_M) * (RADAR_PIXEL_RADIUS / RADAR_RANGE_M);
                 const { x, y } = bearingToRadarXY(mate.bearing, pixelDist);
@@ -402,8 +295,6 @@ export default function MapView({ roomCode, playerId, mySlot, onEnterAR, onExit 
 
               {veggiesWithGeo.map((v) => {
                 const meta = VEGGIE_META[v.type] || DEFAULT_VEGGIE_META;
-                // NEW: indoor entries (distance === null) pin to a fixed
-                // ring radius — only the bearing angle is meaningful.
                 const pixelDist =
                   v.distance == null
                     ? INDOOR_TARGET_PIXEL_RADIUS
