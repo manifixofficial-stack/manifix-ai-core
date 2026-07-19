@@ -1,44 +1,41 @@
 // src/components/GameCanvas.jsx
 //
-// PERFORMANCE + CORRECTNESS PATCH (this revision — "Pokémon-GO parity pass"):
+// THIS REVISION — "Desktop block gate":
 //
-// On top of the previous "mobile tuning pass" (DPR cap, lighting trim,
-// isGlitchPhase wiring, dead-code cleanup), this revision closes three
-// real gameplay bugs found during review:
+//   H) MOBILE-ONLY HARD GATE: this game is structurally non-functional
+//      on a desktop/laptop browser — three separate APIs it depends on
+//      simply don't exist there:
+//        - deviceorientation (camera pitch / compass) never fires
+//          without a gyroscope/compass.
+//        - getUserMedia({ facingMode: "environment" }) has no rear
+//          camera to grab on a desktop; it either fails or falls back
+//          to a front-facing webcam pointed at the player's face.
+//        - GPS via selfPosition is city-block accurate at best on
+//          desktop browsers, which fails CATCH_TRIGGER_DISTANCE_METERS
+//          outright.
+//      Previously a desktop visitor would just hit these failing one
+//      by one with confusing partial-broken UI (camera denied or wrong
+//      camera, "ALIGN DEVICE TO CENTER LINE" that can never align,
+//      etc.). Now capability is checked ONCE on mount — touch support
+//      + DeviceOrientationEvent existence — and if either is missing,
+//      the whole camera/AR flow is skipped entirely in favor of a
+//      single clear "MOBILE DEVICE REQUIRED" screen. No camera
+//      permission prompt, no socket wiring for capture, nothing tries
+//      to start on an unsupported device.
+//      NOTE: this checks for API existence (capability), not user
+//      agent string — a phone in desktop-mode UA still passes if it
+//      genuinely has touch + orientation support, which is the
+//      correct signal (matches how the iOS motion-permission gate
+//      already checks for `DeviceOrientationEvent.requestPermission`
+//      rather than sniffing UA).
 //
-//   E) REAL CATCH-RANGE GATE: `locked` was previously computed from
-//      screen-space pixel distance to center ONLY — a veggie 100+
-//      meters away that happened to drift to screen-center would show
-//      a green "LOCK TARGET ENGAGED" and could be attempted. Now gated
-//      on BOTH screen position AND real-world distance
-//      (CATCH_TRIGGER_DISTANCE_METERS from gameConfig.js). Attempts on
-//      out-of-range targets are rejected client-side before they ever
-//      reach the socket.
-//      NOTE: the server's 'capture-attempt' handler should also
-//      re-validate this distance — this client-side gate is UX, not
-//      security. Flagging for a server.js check, not fixed here.
-//
-//   F) PER-SPECIES CHASE BEHAVIOR: processEvasionFrame was being called
-//      with no `chaseMode` param, so every veggie used the hook's
-//      default (`true` = charges the player). Now derived from
-//      RARITY_BY_SPECIES so it can never drift out of sync with
-//      gameConfig.js the way old hardcoded tier lists did: rare/
-//      ultra-rare species charge (aggressive, matches their higher
-//      catchDifficulty), common/uncommon flee (matches the original
-//      Angry-Tomato-aggressive vs Shy-Broccoli-hides personality intent).
-//
-//   G) iOS MOTION PERMISSION GATE: the deviceorientation listener used
-//      for camera pitch never requested permission — on iOS 13+ Safari
-//      this means the listener silently never fires. Added a one-time,
-//      user-gesture-gated permission prompt shown as soon as the
-//      camera's ready. Does NOT fix deviceHeading itself (that's a
-//      prop from a parent component) — see the note near the bottom.
-//
-// Everything else — CAMERA_EYE_HEIGHT_METERS fix, CollectionBook wiring,
-// round/timer/glitch state machine, vacuum capture window, telemetry
-// bar, leaderboard widget, targetVegId respect, evasion hook wiring,
-// DPR cap, lighting, isGlitchPhase — is UNCHANGED from the previous
-// revision.
+// On top of the previous "Pokémon-GO parity pass" (real catch-range
+// gate tied to CATCH_TRIGGER_DISTANCE_METERS, per-species chase
+// behavior derived from RARITY_BY_SPECIES, iOS motion permission gate)
+// and the "mobile tuning pass" before that (DPR cap, lighting trim,
+// isGlitchPhase wiring, dead-code cleanup) — all of that is UNCHANGED
+// below. Only the new mount-time capability check and its block screen
+// are added.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -89,6 +86,19 @@ const GLITCH_SPEED_MULTIPLIER = 3.0;
 const RETICLE_SNAPSHOT_INTERVAL_MS = 100;
 
 const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes', 'strawberry'];
+
+// --- Desktop block gate (patch H) ---
+// Capability check, not UA sniffing: a device only counts as "mobile
+// enough" if it has touch input AND the DeviceOrientationEvent API
+// exists at all. Both are required for the AR flow (camera aim +
+// compass/pitch) to have any chance of working. Evaluated once at
+// module load — these capabilities don't change during a session.
+function detectMobileCapable() {
+  if (typeof window === 'undefined') return true; // SSR / non-browser render: don't block
+  const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
+  const hasOrientation = typeof DeviceOrientationEvent !== 'undefined';
+  return hasTouch && hasOrientation;
+}
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 const toDeg = (rad) => (rad * 180) / Math.PI;
@@ -285,6 +295,12 @@ export default function GameCanvas({
   targetVegId = null,
   onExit
 }) {
+  // --- Desktop block gate (patch H) ---
+  // Computed once per mount. If false, none of the camera/AR/socket
+  // wiring below ever runs — we bail straight to the block screen in
+  // the render, before the getUserMedia effect or anything else fires.
+  const [isMobileCapable] = useState(detectMobileCapable);
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraState, setCameraState] = useState('initializing');
@@ -417,6 +433,7 @@ export default function GameCanvas({
   }, [timerBaseSeconds]);
 
   useEffect(() => {
+    if (!isMobileCapable) return undefined; // patch H: never request the camera on a blocked device
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
@@ -430,9 +447,10 @@ export default function GameCanvas({
     }
     startCamera();
     return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
-  }, []);
+  }, [isMobileCapable]);
 
   useEffect(() => {
+    if (!isMobileCapable) return undefined; // patch H
     if (motionPermission !== 'granted') return undefined;
     function handleOrientation(e) {
       if (e.beta == null) return;
@@ -441,9 +459,10 @@ export default function GameCanvas({
     }
     window.addEventListener('deviceorientation', handleOrientation, true);
     return () => window.removeEventListener('deviceorientation', handleOrientation, true);
-  }, [motionPermission]);
+  }, [isMobileCapable, motionPermission]);
 
   useEffect(() => {
+    if (!isMobileCapable) return undefined; // patch H: no socket capture wiring on a blocked device
     if (!window.socket) return undefined;
     const socket = window.socket;
 
@@ -532,7 +551,7 @@ export default function GameCanvas({
       socket.off('round_timeout', handleRoundTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomCode, advanceRound]);
+  }, [isMobileCapable, roomCode, advanceRound]);
 
   const rawTargetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
@@ -706,6 +725,33 @@ export default function GameCanvas({
       }))
       .sort((a, b) => b.score - a.score);
   }, [players, mySlot]);
+
+  // --- Desktop block gate (patch H) ---
+  // Bail out before any camera/canvas/socket UI renders. Deliberately
+  // minimal and self-contained (no dependency on the AR styles below)
+  // so it can never itself be broken by something the AR flow needs.
+  if (!isMobileCapable) {
+    return (
+      <div style={styles.desktopBlockWrap}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600&display=swap');
+        `}</style>
+        <div style={styles.desktopBlockIcon}>📵</div>
+        <h2 style={styles.desktopBlockTitle}>MOBILE DEVICE REQUIRED</h2>
+        <p style={styles.desktopBlockBody}>
+          This is an AR game — it needs your phone's rear camera, compass, and GPS
+          to place vegetables in the real world around you. None of that exists on
+          a desktop or laptop browser.
+        </p>
+        <p style={styles.desktopBlockSub}>
+          Open this page on your phone (Chrome or Safari) instead — no app install needed.
+        </p>
+        {onExit && (
+          <button onClick={onExit} style={styles.fleeBtn}>GO BACK</button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ ...styles.viewport, ...(isGlitched ? styles.viewportShaking : {}) }}>
@@ -1040,6 +1086,13 @@ const styles = {
   videoScrim: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,6,10,0.2) 0%, rgba(4,6,10,0.5) 100%)', zIndex: 1 },
   threeLayer: { position: 'absolute', inset: 0, zIndex: 20, background: 'transparent', pointerEvents: 'none' },
   cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+
+  // --- Desktop block screen (patch H) ---
+  desktopBlockWrap: { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(ellipse at 50% 30%, #101826 0%, #04060a 70%)', color: '#fff', padding: '40px 24px', textAlign: 'center', fontFamily: FONT_BODY },
+  desktopBlockIcon: { fontSize: 48, marginBottom: 18, filter: 'drop-shadow(0 0 12px rgba(255,63,52,0.5))' },
+  desktopBlockTitle: { fontFamily: FONT_HEADER, fontSize: 20, fontWeight: 900, letterSpacing: '2px', color: '#ffbe1a', margin: '0 0 14px 0', textShadow: '0 0 14px rgba(255,190,26,0.4)' },
+  desktopBlockBody: { fontSize: 15, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', maxWidth: 400, margin: '0 0 10px 0' },
+  desktopBlockSub: { fontSize: 13, lineHeight: 1.5, color: 'rgba(255,255,255,0.55)', maxWidth: 380, margin: '0 0 26px 0' },
 
   alignmentBarWrap: { position: 'absolute', top: '50%', left: 0, right: 0, zIndex: 22, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none' },
   alignmentBar: { width: '86%', height: 2, background: 'rgba(255,255,255,0.75)', boxShadow: '0 0 10px rgba(255,255,255,0.6)' },
