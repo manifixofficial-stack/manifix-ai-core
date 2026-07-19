@@ -14,8 +14,8 @@ const ERROR = '#B3261E';
 const BORDER = '#E4E0D6';
 
 // 🔧 CONFIG — replace these two with your real values
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-const AUTH_ENDPOINT = 'https://your-backend.onrender.com/api/auth/google';
+const GOOGLE_CLIENT_ID = '90180381725-jjrbi2uvlfq8ouk6fvmlgbho2k8qjdha.apps.googleusercontent.com';
+const AUTH_ENDPOINT = 'https://manifix-ai-core.onrender.com/api/auth/google';
 
 const STATUS = {
   idle: { text: 'Sign in to start collecting.', tone: 'muted' },
