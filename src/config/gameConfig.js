@@ -1,5 +1,10 @@
 // src/config/gameConfig.js
 //
+// UNCHANGED IN THIS PATCH. Included here only so the delivered set is
+// complete and consistent — nothing about the vacuum/catch-confirmation
+// fix (see GameCanvas.jsx patch note F) touches spawn/rarity/scoring
+// tuning.
+//
 // Single source of truth for spawn/rarity/scoring tuning. App.jsx and
 // GameCanvas.jsx should derive per-species rarity labels FROM
 // RARITY_TIERS below rather than re-typing their own copy — that's what
@@ -7,7 +12,7 @@
 // between this file and App.jsx, and banana/grapes missing entirely).
 //
 // ---------------------------------------------------------------------------
-// THIS REVISION:
+// PREVIOUS REVISION:
 //   - Added an UNCOMMON tier and assigned 'banana' + 'grapes' to it.
 //     Previously neither species appeared in ANY tier's `species` array,
 //     so pickSpeciesForTier() could never roll them — two of the six
