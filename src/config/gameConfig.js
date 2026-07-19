@@ -1,33 +1,21 @@
 // src/config/gameConfig.js
 //
-// UNCHANGED IN THIS PATCH. Included here only so the delivered set is
-// complete and consistent — nothing about the vacuum/catch-confirmation
-// fix (see GameCanvas.jsx patch note F) touches spawn/rarity/scoring
-// tuning.
+// THIS REVISION: added a new "Veggie evasion / AI tuning" section (see
+// below). Previously every movement/speed/timing number for how a
+// veggie chases, dashes, dodges, and hides lived as hardcoded constants
+// INSIDE hooks/useVeggieEvasion.js — meaning tuning "how it moves" meant
+// editing hook internals. Those knobs are pulled out here instead, and
+// useVeggieEvasion.js now imports them (falling back to its own
+// defaults if any are missing, so this file doesn't have to define
+// every single one to stay safe).
+//
+// Everything else below this point is UNCHANGED from before.
 //
 // Single source of truth for spawn/rarity/scoring tuning. App.jsx and
 // GameCanvas.jsx should derive per-species rarity labels FROM
 // RARITY_TIERS below rather than re-typing their own copy — that's what
 // caused the previous drift (broccoli/strawberry tiers disagreeing
 // between this file and App.jsx, and banana/grapes missing entirely).
-//
-// ---------------------------------------------------------------------------
-// PREVIOUS REVISION:
-//   - Added an UNCOMMON tier and assigned 'banana' + 'grapes' to it.
-//     Previously neither species appeared in ANY tier's `species` array,
-//     so pickSpeciesForTier() could never roll them — two of the six
-//     live veggie types were mathematically unspawnable.
-//   - RARE now holds only 'tomato'; COMMON now holds 'broccoli' AND
-//     'strawberry'. This matches the 4-tier vocabulary (common /
-//     uncommon / rare / ultra_rare) that App.jsx's UI already expected,
-//     instead of the previous 3-tier system silently disagreeing with it.
-//   - AVAILABLE_TEAM_COLORS expanded from 4 to 6 entries to match
-//     MAX_PLAYERS_PER_ROOM / SLOT_01..SLOT_06. Confirm server.js's team
-//     color assignment reads this same 6-entry list — if server.js has
-//     its own separate copy, that's the actual source you need to check.
-//   - MAX_PLAYERS_PER_ROOM stays at 6 (already correct, matches
-//     server.js's SLOT_01..SLOT_06 cap).
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Radar / map loop timing
@@ -157,6 +145,68 @@ export const TARGET_RING_MIN_RADIUS_PX = 20;
 export const TARGET_RING_PERFECT_THRESHOLD_PX = 28;
 
 // ---------------------------------------------------------------------------
+// Veggie evasion / AI tuning (consumed by hooks/useVeggieEvasion.js)
+//
+// Pulled out here so "how the veggies move" can be tuned by editing
+// numbers in one config file instead of hook internals. The hook falls
+// back to its own built-in defaults for anything you remove from here,
+// so partial overrides are safe.
+//
+// Units: "scene units" are the same 3D-scene coordinate space GameCanvas
+// uses everywhere else (ROAM_MAX_RADIUS_UNITS should stay close to
+// GameCanvas's own MAX_SCENE_DEPTH so the roam boundary and the visible
+// AR depth agree).
+// ---------------------------------------------------------------------------
+
+// Real-world GPS distance (meters) at which a veggie switches from
+// idle/greeting into active evasion behavior.
+export const EVASION_TRIGGER_METERS = 8;
+export const GREETING_MIN_METERS = 12;
+export const GREETING_MAX_METERS = 25;
+
+// Roam boundary radius, in scene units, around the player (origin).
+export const ROAM_MAX_RADIUS_UNITS = 11;
+
+// Base chase/flee speed: actual speed = FLEE_SPEED_CONSTANT / distance,
+// so it's a "how fast does it close/open the gap" dial, not a flat
+// units/sec value. Higher = more aggressive at range.
+export const FLEE_SPEED_CONSTANT = 14;
+
+// How close (scene units) a chasing veggie gets before it stops closing
+// the distance and orbits instead of running through the camera.
+export const CHASE_STOP_DISTANCE_UNITS = 2.5;
+export const CHASE_ORBIT_SPEED_UNITS_S = 1.8;
+
+// Dash burst: triggers when the player closes distance on the veggie
+// faster than this (units/sec), giving it a brief speed-multiplied dash
+// away, then a cooldown before it can dash again.
+export const DASH_TRIGGER_CLOSING_SPEED_UNITS_S = 2.2;
+export const DASH_SPEED_MULTIPLIER = 3.0;
+export const DASH_COOLDOWN_MS = 2500;
+
+// Aggressive-charge (post-missed-catch break-out) and tactical-dodge
+// (in response to a swipe) speed multipliers/values.
+export const AGGRESSIVE_CHARGE_SPEED_MULTIPLIER = 2.2;
+export const TACTICAL_DODGE_SPEED_UNITS_S = 9;
+
+// Periodic "hide and seek" — independent of being cornered, a veggie
+// will duck out of sight roughly every AUTO_HIDE_MIN..MAX_INTERVAL_MS,
+// forcing the player to reacquire it.
+export const AUTO_HIDE_MIN_INTERVAL_MS = 7000;
+export const AUTO_HIDE_MAX_INTERVAL_MS = 14000;
+export const OBSTACLE_HIDE_DURATION_FRAMES = 45;
+
+// Break-out probability model for a failed catch attempt:
+// chance = clamp(BASE - playerLevel*LEVEL_REDUCTION + catchDifficulty*DIFFICULTY_WEIGHT)
+export const BREAKOUT_BASE_CHANCE = 0.35;
+export const BREAKOUT_PLAYER_LEVEL_REDUCTION = 0.02;
+export const BREAKOUT_DIFFICULTY_WEIGHT = 0.5;
+
+// How large (visual scale multiplier) a veggie gets as it approaches the
+// camera — higher makes close-up veggies feel more "in your face".
+export const DEPTH_SCALE_MAX = 2.8;
+
+// ---------------------------------------------------------------------------
 // Throttling / network
 // ---------------------------------------------------------------------------
 export const POSITION_SYNC_THROTTLE_MS = 500;
@@ -205,6 +255,25 @@ export default {
   TARGET_RING_MAX_RADIUS_PX,
   TARGET_RING_MIN_RADIUS_PX,
   TARGET_RING_PERFECT_THRESHOLD_PX,
+  EVASION_TRIGGER_METERS,
+  GREETING_MIN_METERS,
+  GREETING_MAX_METERS,
+  ROAM_MAX_RADIUS_UNITS,
+  FLEE_SPEED_CONSTANT,
+  CHASE_STOP_DISTANCE_UNITS,
+  CHASE_ORBIT_SPEED_UNITS_S,
+  DASH_TRIGGER_CLOSING_SPEED_UNITS_S,
+  DASH_SPEED_MULTIPLIER,
+  DASH_COOLDOWN_MS,
+  AGGRESSIVE_CHARGE_SPEED_MULTIPLIER,
+  TACTICAL_DODGE_SPEED_UNITS_S,
+  AUTO_HIDE_MIN_INTERVAL_MS,
+  AUTO_HIDE_MAX_INTERVAL_MS,
+  OBSTACLE_HIDE_DURATION_FRAMES,
+  BREAKOUT_BASE_CHANCE,
+  BREAKOUT_PLAYER_LEVEL_REDUCTION,
+  BREAKOUT_DIFFICULTY_WEIGHT,
+  DEPTH_SCALE_MAX,
   POSITION_SYNC_THROTTLE_MS,
   LEADERBOARD_REFRESH_MS,
   RECONNECT_BACKOFF_MS,
