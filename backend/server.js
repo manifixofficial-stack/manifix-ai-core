@@ -13,7 +13,28 @@
 //   - Glitch pulse is VISUAL ONLY — does not affect point values.
 //
 // ==========================================================================
-// THIS REVISION: Catch radius / GPS-accuracy gate alignment
+// THIS REVISION: Throw-quality now actually affects capture success
+// ==========================================================================
+//   - PROBLEM: the client (CaptureThrow.jsx) sends the full throw-quality
+//     object — { tier: 'PERFECT'|'GOOD'|'GLANCING', direct, ringScaleAtRelease,
+//     curveball, vacuumPower } — but this handler was doing
+//     `data.quality === 'perfect'`, comparing an object to a string. That's
+//     always false, so every throw silently resolved as 'good' regardless
+//     of actual tier. A GLANCING throw and a PERFECT throw succeeded at
+//     identical rates once GPS/heading passed.
+//   - FIX: parseThrowQuality() reads the real tier + direct flag off the
+//     object (with safe string/bare fallback so this never crashes on an
+//     unexpected shape). Indirect (near-miss) throws are rejected outright,
+//     regardless of tier. Direct throws then get a tier-based success roll:
+//     PERFECT is guaranteed, GOOD succeeds 85% of the time, GLANCING 55%.
+//     A failed roll is a 'BREAKOUT' — the veggie stays live and the round
+//     stays open for other players, it does NOT end the round the way a
+//     genuine capture does.
+//   - round-win's `quality` field now reports the real tier instead of a
+//     hardcoded 'good'.
+//
+// ==========================================================================
+// PRIOR REVISION: Catch radius / GPS-accuracy gate alignment
 // ==========================================================================
 //   - PROBLEM: CATCH_RADIUS_METERS (15) was tighter than
 //     GPS_MODE_ACCURACY_THRESHOLD_M (25) — a phone the server itself
@@ -395,6 +416,17 @@ const MAX_PLAYERS_PER_ROOM = 6;
 // before they're removed for good.
 const RECONNECT_GRACE_MS = 45 * 1000;
 
+// --- Throw-quality success tuning (this revision) ---
+// PERFECT-tier throws are guaranteed once GPS/heading already passed;
+// GOOD and GLANCING can still whiff. Keys are the tier strings sent by
+// CaptureThrow.jsx (PERFECT / GOOD / GLANCING).
+const CAPTURE_SUCCESS_CHANCE_BY_TIER = {
+  PERFECT: 1,
+  GOOD: 0.85,
+  GLANCING: 0.55,
+};
+const VALID_THROW_TIERS = Object.keys(CAPTURE_SUCCESS_CHANCE_BY_TIER);
+
 let rooms = {};
 const roomCreateLog = new Map();
 
@@ -448,6 +480,29 @@ function angleDiffDeg(a, b) {
 
 function isFiniteNumber(n) {
   return typeof n === 'number' && Number.isFinite(n);
+}
+
+// --- Throw-quality parsing (this revision) ---
+// CaptureThrow.jsx sends the full throw object as `quality`:
+// { tier: 'PERFECT'|'GOOD'|'GLANCING', direct, ringScaleAtRelease,
+//   curveball, vacuumPower }. This used to be compared directly against
+// the string 'perfect', which is always false for an object — every
+// throw silently resolved as 'good'. This parses the real shape, with
+// safe fallbacks for a bare string or a missing/malformed payload so a
+// weird client never crashes the handler.
+function parseThrowQuality(rawQuality) {
+  if (rawQuality && typeof rawQuality === 'object') {
+    const tier = typeof rawQuality.tier === 'string' ? rawQuality.tier.toUpperCase() : null;
+    return {
+      tier: VALID_THROW_TIERS.includes(tier) ? tier : 'GOOD',
+      direct: rawQuality.direct === true,
+    };
+  }
+  if (typeof rawQuality === 'string') {
+    const tier = rawQuality.toUpperCase();
+    return { tier: VALID_THROW_TIERS.includes(tier) ? tier : 'GOOD', direct: true };
+  }
+  return { tier: 'GOOD', direct: true };
 }
 
 function rollVeggieType() {
@@ -1045,7 +1100,7 @@ io.on('connection', (socket) => {
 
   socket.on('capture-attempt', (data) => {
     const vegId = data && data.vegId;
-    const quality = data && data.quality === 'perfect' ? 'perfect' : 'good';
+    const { tier, direct } = parseThrowQuality(data && data.quality);
 
     if (!currentRoom || !rooms[currentRoom]) {
       return emitCaptureResult(socket, { vegId, success: false, label: 'NO ROOM' });
@@ -1084,13 +1139,29 @@ io.on('connection', (socket) => {
       }
     }
 
+    // Indirect (near-miss) throws never land, regardless of tier — a
+    // fast-timed indirect throw is still a miss, it just didn't hit the
+    // target. This is a MISS, not a round-ending failure: the veggie
+    // stays live and other players can keep trying.
+    if (!direct) {
+      return emitCaptureResult(socket, { vegId, success: false, label: 'NEAR MISS', tier });
+    }
+
+    // Tier-based success roll — this is the actual fix. PERFECT is
+    // guaranteed once range/aim already passed; GOOD and GLANCING can
+    // still whiff. A failed roll is a breakout: the round stays open.
+    const successChance = CAPTURE_SUCCESS_CHANCE_BY_TIER[tier];
+    if (Math.random() >= successChance) {
+      return emitCaptureResult(socket, { vegId, success: false, label: 'BREAKOUT', tier });
+    }
+
     const pointValue = ROUND_POINT_VALUES[room.stage - 1];
-    endStage(currentRoom, room, p, { quality });
+    endStage(currentRoom, room, p, { quality: tier.toLowerCase() });
 
     emitCaptureResult(socket, {
       vegId,
       success: true,
-      label: quality === 'perfect' ? 'PERFECT' : 'CAUGHT',
+      label: tier === 'PERFECT' ? 'PERFECT' : 'CAUGHT',
       points: pointValue,
       newScore: p.score,
     });
@@ -1101,7 +1172,7 @@ io.on('connection', (socket) => {
       newScore: p.score,
       points: pointValue,
       species: veg.type,
-      quality,
+      quality: tier.toLowerCase(),
     });
   });
 
@@ -1115,5 +1186,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, tier-based capture success, listening on port: ${PORT}`);
 });
