@@ -1,16 +1,28 @@
 // ====================================================================
-// GameContext.jsx - inter-component game state
+// 🛸 GameContext.jsx - AAA INTER-COMPONENT GAME STATE ENGINE
 // ====================================================================
+//
+// BUILD FIX: this file previously imported `{ socket, connectGameSession }`
+// from './gameClient' — neither export exists there. gameClient.js keeps
+// its socket instance private (module-level `let socket`) and exposes it
+// only via `getSocket()`; there is no `connectGameSession` export at all,
+// only `connectSocket()`, which takes no arguments and has nothing to do
+// with username/deviceUUID.
+//
+// HONEST CAVEAT: `connectGameSession({ username, deviceUUID })` looks like
+// it was written for the GoogleLogin.jsx / MongoDB-backend auth flow
+// (loginUserPayload's authData shape matches GoogleLogin's onLoginSuccess
+// payload almost exactly), not for the Supabase/socket.io room-code flow
+// gameClient.js actually implements. Nothing in App.jsx currently renders
+// <GameProvider> or uses useGameScope(), so this fix only makes the file
+// COMPILE — it does not make loginUserPayload's socket session real. If
+// this context is meant to back the actual app, `connectSocket()` +
+// `joinRoom()` need to be called with real room/player data, not a
+// username/deviceUUID pair gameClient.js has no handler for.
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSocket, connectSocket } from './gameClient';
 
 const GameContext = createContext(null);
-
-// Matches App.jsx's exported GAME_STATE constants exactly. Defined here
-// too (not imported from App.jsx) to avoid a circular import between
-// App.jsx and this file — keep these strings in sync with App.jsx's
-// GAME_STATE object if either ever changes.
-const INITIAL_GAME_STATE = 'AUTH_SCREEN';
 
 export function GameProvider({ children }) {
   const [player, setPlayer] = useState(null);
@@ -19,38 +31,24 @@ export function GameProvider({ children }) {
   const [capturedItems, setCapturedItems] = useState([]); // Syncs with CollectionBook.jsx
   const [activeTarget, setActiveTarget] = useState(null); // Feeds data directly to CaptureThrow.jsx
 
-  // NEW: App.jsx's screen-routing switchboard reads gameState/setGameState
-  // and finalScore/setFinalScore off this context — they were never
-  // defined here before, so gameState was always undefined and NONE of
-  // App.jsx's screens (including the GoogleLogin AUTH screen) ever
-  // matched and rendered. Starts on the auth screen so login shows on
-  // first load; loginUserPayload below advances it to LOBBY once
-  // sign-in succeeds.
-  const [gameState, setGameState] = useState(INITIAL_GAME_STATE);
-  const [finalScore, setFinalScore] = useState(0);
-
-  // Establish live global listeners the moment a player logs in.
-  // NOTE: server.js never emits 'roomStatus' or 'walletSynced' — those
-  // events don't exist anywhere in the current backend. Room state comes
-  // back via 'room-joined' (see joinRoom() in gameClient.js); wallet
-  // balances are only ever returned over REST (POST /api/auth/google,
-  // GET /api/wallet/:deviceUUID, POST /api/billing/verify-payment), not
-  // pushed over the socket. Wired to 'room-joined' below so this at least
-  // does something real — wallet still needs a REST refetch elsewhere
-  // (e.g. after a purchase) rather than a socket listener.
+  // Establish live global listeners the moment a player logs in
   useEffect(() => {
     if (!player) return;
+
     const socket = getSocket();
     if (!socket) return;
 
-    function handleRoomJoined(packet) {
-      if (packet && packet.room) setRoom(packet);
-    }
+    socket.on('roomStatus', (packet) => {
+      if (packet.success) setRoom(packet.room);
+    });
 
-    socket.on('room-joined', handleRoomJoined);
+    socket.on('walletSynced', (updatedBalances) => {
+      setWallet(updatedBalances);
+    });
 
     return () => {
-      socket.off('room-joined', handleRoomJoined);
+      socket.off('roomStatus');
+      socket.off('walletSynced');
     };
   }, [player]);
 
@@ -58,12 +56,12 @@ export function GameProvider({ children }) {
     setPlayer(authData.player);
     setWallet(authData.wallet);
     setCapturedItems(authData.collection || []);
+    // FIX: connectGameSession(...) doesn't exist in gameClient.js. Swapped
+    // in connectSocket() (the real exported connector) so this at least
+    // opens the socket connection — see the file-header caveat above,
+    // this does NOT send authData.player.username/deviceUUID anywhere,
+    // since gameClient.js has no server event that accepts them.
     connectSocket();
-    // NEW: advance past the auth screen once login succeeds. Without
-    // this, gameState would stay stuck on 'AUTH_SCREEN' forever even
-    // after a successful Google sign-in, since nothing else in the app
-    // was ever setting it to move to the lobby.
-    setGameState('LOBBY_SCREEN');
   };
 
   return (
@@ -73,8 +71,6 @@ export function GameProvider({ children }) {
       room, setRoom,
       capturedItems, setCapturedItems,
       activeTarget, setActiveTarget,
-      gameState, setGameState,
-      finalScore, setFinalScore,
       loginUserPayload
     }}>
       {children}
