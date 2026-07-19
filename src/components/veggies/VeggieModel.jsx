@@ -1,16 +1,30 @@
 // src/components/veggies/VeggieModel.jsx
 //
-// UNCHANGED IN THIS PATCH. Included here only so the delivered set is
-// complete and consistent. The vacuum/catch bug lived entirely in
-// GameCanvas.jsx's handleCaptureAttempt (see that file's patch note F):
-// it was opening vacuumLock (-> isVacuuming=true) optimistically on
-// every dispatched throw instead of waiting for a server-confirmed hit.
-// This component's own isVacuuming -> onCatch pipeline was already
-// correct — catchFiredRef guards it to fire exactly once per vacuuming
-// window, and it only cares about the isVacuuming prop it's given, not
-// where that prop comes from. Now that GameCanvas only ever sets
-// isVacuuming=true after a confirmed capture-result, this file needed
-// no changes at all.
+// THIS REVISION ("better fallback gait"): the procedural motion used
+// when a .glb has no baked run/walk animation clip (`hasBakedAnimation
+// === false`) is upgraded from a single flat sine bob/sway to something
+// closer to an actual footfall pattern:
+//   - bobY is now a two-peak wave (one bounce per "footfall" instead of
+//     one smooth bounce per full stride) — reads more like alternating
+//     footsteps than a single hop.
+//   - swayX gets a small second harmonic layered on top of the base
+//     sine, so the side-to-side weight shift isn't perfectly symmetric
+//     (real gaits aren't).
+//   - a speed-scaled forward lean is added (via runRef's rotation.x)
+//     when running so it visually reads as "leaning into the run",
+//     which sells the chase-mode "running at you" behavior from
+//     useVeggieEvasion.js much better than a purely upright bob did.
+// This is still NOT real leg animation — there's no skeleton to move
+// without an actual rigged, animated .glb (see the honest caveat left
+// in place below). It's a stopgap that makes the placeholder/no-clip
+// path look more alive in the meantime.
+//
+// Everything else in this file — the baked-animation clip pipeline
+// (LoadedModel/useAnimations), the vacuum-capture timeline, jump-scare,
+// hide/peek flavor, material sanity pass, and all component props — is
+// UNCHANGED from before. This file was NOT the source of the
+// vacuum/catch bug fixed in GameCanvas.jsx (patch note F there); it's
+// only being revisited now for the fallback-gait improvement.
 //
 // Generic loader for AI-generated / artist-made vegetable characters.
 // Renders at the world `position` GameCanvas computes from GPS/heading,
@@ -19,9 +33,13 @@
 // behaviors driven by props from GameCanvas's round/vacuum/jump-scare
 // state machine.
 //
-// This is the merged/kept version — see chat for why the alternate
-// draft (fixed local ground-lock offset, no world-position prop,
-// missing the material sanity pass) was not used as the base.
+// HONEST CAVEAT: true "walking like a real human/creature" requires a
+// skinned mesh with a walk/run animation clip baked into the .glb from a
+// 3D tool (Mixamo, Ready Player Me, Blender, etc.) — this component
+// auto-detects and plays that clip if it exists (see LoadedModel /
+// handleClipsReady below). Without one, this file can only fake motion
+// at the whole-body level (sway/bob/lean), because there's no skeleton
+// to pose. It cannot generate a rig or animation from text.
 
 import React, { Suspense, useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -54,6 +72,20 @@ const GLITCH_RANGE_X = 0.5;
 const GLITCH_RANGE_X2 = 0.25;
 const GLITCH_RANGE_Z = 0.35;
 const GLITCH_RANGE_Z2 = 0.2;
+
+// --- Fallback-gait tuning (only applies when there's no baked clip) ---
+// Two-peak footfall bounce: primary + secondary peak weighted so it
+// reads as "step, step" rather than one smooth bob per stride.
+const FOOTFALL_PRIMARY_WEIGHT = 0.7;
+const FOOTFALL_SECONDARY_WEIGHT = 0.3;
+const FOOTFALL_BOB_HEIGHT = 0.07;
+// Small second-harmonic added to the base hip sway so left/right weight
+// shift isn't perfectly symmetric.
+const SWAY_SECOND_HARMONIC_WEIGHT = 0.18;
+// Forward lean scales with runSpeed, capped so it never looks like a
+// face-plant.
+const MAX_FORWARD_LEAN_RAD = 0.14;
+const FORWARD_LEAN_PER_SPEED_UNIT = 0.035;
 
 function modelPath(type) {
   return `/models/${type}.glb`;
@@ -274,10 +306,26 @@ export default function VeggieModel({
     // Procedural run cycle (used as-is if no baked animation clip, and
     // layered as a subtle secondary sway even when a clip IS playing,
     // so root motion still reads even on a static/looping clip).
-    let swayX = Math.sin(t * speed) * amp * 0.12;
+    //
+    // Fallback-gait upgrade (see file header): bobY is now a two-peak
+    // "footfall" wave instead of one smooth bounce per stride, swayX
+    // gets a light second harmonic so the weight shift isn't perfectly
+    // symmetric, and a speed-scaled forward lean sells "running at you"
+    // for chase-mode targets. None of this applies when a real baked
+    // clip is driving the mesh — that clip already has real motion.
+    let swayX =
+      (Math.sin(t * speed) + SWAY_SECOND_HARMONIC_WEIGHT * Math.sin(t * speed * 2)) * amp * 0.1;
     let swayZ = 0;
-    const bobY = hasBakedAnimation ? 0 : Math.abs(Math.sin(t * speed * 2)) * 0.06;
+    const bobY = hasBakedAnimation
+      ? 0
+      : (Math.abs(Math.sin(t * speed * 2)) * FOOTFALL_PRIMARY_WEIGHT +
+          Math.abs(Math.sin(t * speed * 2 + Math.PI * 0.5)) * FOOTFALL_SECONDARY_WEIGHT) *
+        FOOTFALL_BOB_HEIGHT;
     const stepLean = leanEnabled ? Math.sin(t * speed) * 0.18 : 0;
+    const forwardLean =
+      leanEnabled && !hasBakedAnimation
+        ? Math.min(MAX_FORWARD_LEAN_RAD, speed * FORWARD_LEAN_PER_SPEED_UNIT)
+        : 0;
 
     // Glitch-phase locomotion: erratic hyperspeed blend layered on top
     // of the normal sway during a chase/charge phase. Kept small in
@@ -294,6 +342,12 @@ export default function VeggieModel({
       runRef.current.position.z = swayZ;
       runRef.current.position.y = bobY + (isHiding ? -0.22 : 0);
       runRef.current.rotation.z = stepLean;
+      // Forward lean (pitch) — negative X rotation tips the top of the
+      // group toward -Z (the direction it's facing when running at the
+      // player). Blended in smoothly so a sudden speed change doesn't
+      // snap the lean instantly.
+      const targetPitch = -forwardLean;
+      runRef.current.rotation.x += (targetPitch - runRef.current.rotation.x) * Math.min(1, delta * 4);
       runRef.current.rotation.y += (Math.sin(t * speed * 0.5) * 0.4 - runRef.current.rotation.y) * Math.min(1, delta * 3);
     }
 
