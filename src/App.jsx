@@ -3,23 +3,33 @@
 // FLOW: Name Gate -> Mode Gate (leader picks; others wait) -> World Map
 // Lobby -> Live AR Catch Screen -> Victory Card (+ optional Prize Selfie).
 //
-// THIS REVISION: fixed a real iOS-only bug in compass handling. The
-// compass-listener effect previously ran once on mount with an empty
-// dependency array, checking hasMotionPermissionCached() before the
-// player could possibly have granted permission yet (that only happens
-// later, when MapView.jsx's CATCH tap calls requestMotionPermission()).
-// Since the effect never re-ran, deviceHeading stayed stuck at 0
-// forever on iOS Safari even after the user granted permission —
-// silently breaking outdoor AR bearing/targeting on iOS specifically
-// (Android is unaffected, since it doesn't gate orientation events at
-// all). Fixed by tracking permission as state (motionPermissionReady),
-// rechecked on mount and on window focus, with the listener effect now
-// depending on that state instead of running only once.
+// THIS REVISION (bug-fix pass): fixes three real wiring gaps between
+// App.jsx and the components it renders, on top of the existing iOS
+// compass-permission fix from the previous revision:
+//
+//   1. initialTimingMode was collected here (pendingTimingMode, from the
+//      Mode Gate) but never actually passed down to <GameCanvas>, so the
+//      player's 45s/60s choice never took effect — GameCanvas always
+//      fell back to its fixed default. Now passed through explicitly.
+//
+//   2. players was being built keyed by player id (playersById) and
+//      handed to GameCanvas, but GameCanvas looks players up by SLOT id
+//      (players?.[mySlot]?.score / .mode) — so the keys never matched
+//      and the score readout / mode badge / "highlight my row" styling
+//      inside GameCanvas silently failed to find the local player. This
+//      is now built keyed by slot id instead (playersBySlot) to match
+//      what GameCanvas actually expects.
+//
+//   3. <PrizeCamera> was only ever given caughtVeggies / winnerName /
+//      onClose. winnerScore, runnerUp, roomCode, and onRematch are now
+//      derived from victoryData / roomCode and passed through, and a
+//      real handlePrizeRematch handler (emits 'request-rematch' with
+//      the actual roomCode) replaces the previously-missing onRematch.
 //
 // motionPermission.js itself required no changes — it was already
 // correctly built (feature-detected, tap-gated, safe fallbacks). The
-// bug was purely in how App.jsx reacted (or failed to react) to
-// permission being granted later.
+// prior bug was purely in how App.jsx reacted (or failed to react) to
+// permission being granted later; that fix is unchanged from before.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -280,7 +290,7 @@ export default function App() {
     };
   }, [myPlayerId]);
 
-  // ---- Motion permission tracking (NEW) ---------------------------------
+  // ---- Motion permission tracking ---------------------------------------
   // Rechecks the cached permission flag on mount and on window focus,
   // since there's no native event for "permission just got granted" —
   // the grant happens inside MapView.jsx's CATCH tap handler, on a
@@ -294,11 +304,9 @@ export default function App() {
   }, []);
 
   // ---- Hardware Compass Absolute Heading Listeners ---------------------
-  // FIXED: now depends on motionPermissionReady instead of running once
-  // on mount with an empty dep array. Previously this checked
-  // hasMotionPermissionCached() before the user could possibly have
-  // granted it yet, found it false, and never re-ran — leaving
-  // deviceHeading stuck at 0 forever on iOS even after a real grant.
+  // Depends on motionPermissionReady instead of running once on mount
+  // with an empty dep array, so a permission grant that happens later
+  // (inside MapView's CATCH tap) actually re-arms this listener on iOS.
   useEffect(() => {
     if (!motionPermissionReady) return undefined;
 
@@ -392,6 +400,16 @@ export default function App() {
     setTimingModeChosen(true);
   };
 
+  // FIX: PrizeCamera previously only ever received caughtVeggies /
+  // winnerName / onClose, so winnerScore/runnerUp/roomCode defaulted to
+  // 0/null/'' inside PrizeCamera and its rematch button had nothing
+  // real to fire. onRematch now actually emits a request-rematch event
+  // carrying the real roomCode, then closes the prize camera.
+  const handlePrizeRematch = () => {
+    window.socket?.emit('request-rematch', { roomCode });
+    setShowPrizeCamera(false);
+  };
+
   // ---- DATA RE-SHAPING FOR RENDERING, WITH NULL-GUARDS ----
 
   const myColor = mySlot ? SLOT_COLORS[mySlot] : '#00d2d3';
@@ -425,20 +443,29 @@ export default function App() {
       }));
   }, [players]);
 
-  const playersById = useMemo(() => {
+  // FIX: this was previously keyed by player id (playersById) and handed
+  // to GameCanvas as `players`, but GameCanvas looks players up by SLOT
+  // id — players?.[mySlot]?.score and players?.[mySlot]?.mode — so the
+  // keys never matched and both the score readout and the "TRACKING
+  // MODE" badge silently came up empty inside GameCanvas. Keyed by slot
+  // id now, matching what GameCanvas actually reads.
+  const playersBySlot = useMemo(() => {
     if (!Array.isArray(players)) return {};
     return Object.fromEntries(
-      players.map((p, index) => [
-        p?.id || `unknown-${index}`,
-        {
-          lat: p?.latitude,
-          lng: p?.longitude,
-          name: p?.name || 'PILOT',
-          colorSlot: p?.slot_id || 'SLOT_01',
-          score: p?.score ?? 0,
-          mode: p?.mode || null,
-        },
-      ])
+      players.map((p, index) => {
+        const slotId = p?.slot_id || `SLOT_0${index + 1}`;
+        return [
+          slotId,
+          {
+            lat: p?.latitude,
+            lng: p?.longitude,
+            name: p?.name || 'PILOT',
+            colorSlot: slotId,
+            score: p?.score ?? 0,
+            mode: p?.mode || null,
+          },
+        ];
+      })
     );
   }, [players]);
 
@@ -465,6 +492,12 @@ export default function App() {
     }
     return myPosition;
   }, [players, myPlayerId, myPosition]);
+
+  // FIX: PrizeCamera previously got no score/runner-up/room context at
+  // all. Derived here from the same victoryData already computed for
+  // the Victory Card, so no new state/round-trip is needed.
+  const prizeWinnerScore = victoryData?.results?.[0]?.score ?? 0;
+  const prizeRunnerUp = victoryData?.results?.[1]?.name ?? null;
 
   // ---- NAME GATE SCREEN ----
   if (!hasSubmittedName) {
@@ -595,9 +628,10 @@ export default function App() {
                   playerId={myPlayerId}
                   mySlot={mySlot}
                   targetVegId={activeVegId}
+                  initialTimingMode={pendingTimingMode}
                   selfPosition={selfPosition}
                   deviceHeading={deviceHeading}
-                  players={playersById}
+                  players={playersBySlot}
                   veggies={veggiesById}
                   matchPhase={matchPhase}
                   onExit={handleReturnToRadar}
@@ -742,6 +776,10 @@ export default function App() {
         <PrizeCamera
           caughtVeggies={myCaughtVeggies}
           winnerName={myDisplayName}
+          winnerScore={prizeWinnerScore}
+          runnerUp={prizeRunnerUp}
+          roomCode={roomCode}
+          onRematch={handlePrizeRematch}
           onClose={() => setShowPrizeCamera(false)}
         />
       )}
