@@ -1,5 +1,17 @@
 // src/components/veggies/VeggieModel.jsx
 //
+// UNCHANGED IN THIS PATCH. Included here only so the delivered set is
+// complete and consistent. The vacuum/catch bug lived entirely in
+// GameCanvas.jsx's handleCaptureAttempt (see that file's patch note F):
+// it was opening vacuumLock (-> isVacuuming=true) optimistically on
+// every dispatched throw instead of waiting for a server-confirmed hit.
+// This component's own isVacuuming -> onCatch pipeline was already
+// correct — catchFiredRef guards it to fire exactly once per vacuuming
+// window, and it only cares about the isVacuuming prop it's given, not
+// where that prop comes from. Now that GameCanvas only ever sets
+// isVacuuming=true after a confirmed capture-result, this file needed
+// no changes at all.
+//
 // Generic loader for AI-generated / artist-made vegetable characters.
 // Renders at the world `position` GameCanvas computes from GPS/heading,
 // then layers a local "run cycle" on top (sway + bob + lean + optional
