@@ -1,14 +1,38 @@
 // src/hooks/useVeggieEvasion.js
 //
-// 3D world-space evasion hook — extended revision.
+// THIS REVISION ("tuning knobs moved to config"): the movement/timing
+// numbers that actually shape how a veggie behaves — chase speed, how
+// close it gets before orbiting, dash trigger/multiplier, dodge speed,
+// how often it auto-hides, break-out chance — are now imported from
+// gameConfig.js instead of being hardcoded in this file. That's the
+// only functional change here; all the state-machine logic, physics,
+// anti-cheat, and dead-reckoning code below is unchanged from before.
 //
-// This revision adds the features requested on top of the existing
-// distance-gated flee/roam/dash/hazard mechanics:
+// Each imported constant has a `?? <same value as before>` fallback, so
+// removing an entry from gameConfig.js doesn't break this hook — it
+// just silently reverts that one knob to its previous default.
+//
+// Constants NOT moved to config on purpose: floor plane, depth-scale
+// reference/near distances, hitbox base radius, corner-growth curve,
+// zig-zag/hazard-trail feel, anti-cheat ceiling, and dead-reckoning
+// blend/snap thresholds. Those are either tightly coupled to
+// GameCanvas's own scene-scale constants (so moving just one half to
+// config invites drift) or genuinely internal implementation details
+// rather than something a designer would want to casually retune. Say
+// the word if you want any of those exposed too.
+//
+// =====================================================================
+// (everything below this point is the same hook as before)
+// =====================================================================
+//
+// 3D world-space evasion hook.
+//
+// Features:
 //   1. Floor-locking on the Y axis + inverse-depth visual scale
 //   2. A 4-state AI selector (idle_spawn / aggressive_charge /
 //      tactical_dodge / obstacle_hide) layered on top of the existing
 //      greeting/running gating
-//   3. Delta-time interpolation (already present — kept, documented below)
+//   3. Delta-time interpolation (documented below)
 //   4. Dynamic hitbox radius that grows with visual scale
 //   5. A "break out" probability model for failed catch attempts
 //   6. A client-side max-speed check (anti-cheat / anti-teleport guard)
@@ -31,20 +55,41 @@
 // explicit function/parameter boundaries instead.
 
 import { useCallback, useRef } from 'react';
+import {
+  EVASION_TRIGGER_METERS,
+  GREETING_MIN_METERS,
+  GREETING_MAX_METERS,
+  ROAM_MAX_RADIUS_UNITS as CFG_ROAM_MAX_RADIUS_UNITS,
+  FLEE_SPEED_CONSTANT as CFG_FLEE_SPEED_CONSTANT,
+  CHASE_STOP_DISTANCE_UNITS as CFG_CHASE_STOP_DISTANCE_UNITS,
+  CHASE_ORBIT_SPEED_UNITS_S as CFG_CHASE_ORBIT_SPEED_UNITS_S,
+  DASH_TRIGGER_CLOSING_SPEED_UNITS_S as CFG_DASH_TRIGGER_CLOSING_SPEED_UNITS_S,
+  DASH_SPEED_MULTIPLIER as CFG_DASH_SPEED_MULTIPLIER,
+  DASH_COOLDOWN_MS as CFG_DASH_COOLDOWN_MS,
+  AGGRESSIVE_CHARGE_SPEED_MULTIPLIER as CFG_AGGRESSIVE_CHARGE_SPEED_MULTIPLIER,
+  TACTICAL_DODGE_SPEED_UNITS_S as CFG_TACTICAL_DODGE_SPEED_UNITS_S,
+  AUTO_HIDE_MIN_INTERVAL_MS as CFG_AUTO_HIDE_MIN_INTERVAL_MS,
+  AUTO_HIDE_MAX_INTERVAL_MS as CFG_AUTO_HIDE_MAX_INTERVAL_MS,
+  OBSTACLE_HIDE_DURATION_FRAMES as CFG_OBSTACLE_HIDE_DURATION_FRAMES,
+  BREAKOUT_BASE_CHANCE as CFG_BREAKOUT_BASE_CHANCE,
+  BREAKOUT_PLAYER_LEVEL_REDUCTION as CFG_BREAKOUT_PLAYER_LEVEL_REDUCTION,
+  BREAKOUT_DIFFICULTY_WEIGHT as CFG_BREAKOUT_DIFFICULTY_WEIGHT,
+  DEPTH_SCALE_MAX as CFG_DEPTH_SCALE_MAX,
+} from '../config/gameConfig';
 
 // --- Distance-gated state thresholds (GPS meters, unchanged mechanic) ---
-const GREETING_MIN_M = 12;
-const GREETING_MAX_M = 25;
-export const EVASION_TRIGGER_M = 8;
+const GREETING_MIN_M = GREETING_MIN_METERS ?? 12;
+const GREETING_MAX_M = GREETING_MAX_METERS ?? 25;
+export const EVASION_TRIGGER_M = EVASION_TRIGGER_METERS ?? 8;
 const GREETING_BOB_AMPLITUDE_UNITS = 0.05;
 
 // --- Core fleeing vector in 3D scene units: Speed = Base / Distance ---
-const FLEE_SPEED_CONSTANT = 14;      // scene-units^2 / sec
+const FLEE_SPEED_CONSTANT = CFG_FLEE_SPEED_CONSTANT ?? 14;      // scene-units^2 / sec
 const MIN_FLEE_DISTANCE_UNITS = 1.0; // floor so speed doesn't blow up as distance -> 0
 const VELOCITY_BLEND_RATE = 0.25;    // how fast actual velocity chases the target vector (0-1)
 
 // --- Roam boundary: a circle of this radius around the player (origin) ---
-const ROAM_MAX_RADIUS_UNITS = 11;    // matches GameCanvas.jsx MAX_SCENE_DEPTH
+const ROAM_MAX_RADIUS_UNITS = CFG_ROAM_MAX_RADIUS_UNITS ?? 11; // matches GameCanvas.jsx MAX_SCENE_DEPTH
 const BOUNDARY_MARGIN_UNITS = 1.0;   // buffer before the hard edge
 const WALL_BOUNCE_MULTIPLIER = 1.2;
 const SQUISH_DECAY = 0.82;           // per-frame decay of the post-bounce squash/stretch pulse
@@ -66,10 +111,10 @@ const HAZARD_TRIGGER_RADIUS_UNITS = 0.6;
 const HAZARD_TRAIL_MAX_POINTS = 40;
 
 // --- 3-stage hyper-speed dash burst ---
-const DASH_TRIGGER_CLOSING_SPEED_UNITS_S = 2.2;
-const DASH_SPEED_MULTIPLIER = 3.0;
+const DASH_TRIGGER_CLOSING_SPEED_UNITS_S = CFG_DASH_TRIGGER_CLOSING_SPEED_UNITS_S ?? 2.2;
+const DASH_SPEED_MULTIPLIER = CFG_DASH_SPEED_MULTIPLIER ?? 3.0;
 const DASH_DURATION_FRAMES = 8;
-const DASH_COOLDOWN_MS = 2500;
+const DASH_COOLDOWN_MS = CFG_DASH_COOLDOWN_MS ?? 2500;
 const DASH_STRETCH_DECAY = 0.8;
 
 // --- Decorative-only "hacked" glitch (never touches real GPS/compass) ---
@@ -80,7 +125,7 @@ const HACK_GLITCH_STRENGTH_PX = 14;
 // =====================================================================
 const FLOOR_Y_UNITS = -1.6;          // simulated eye-level-held-phone ground plane
 const DEPTH_SCALE_BASE = 1.0;        // scale at MAX_SCENE_DEPTH
-const DEPTH_SCALE_MAX = 2.8;         // scale cap as the veggie approaches the camera
+const DEPTH_SCALE_MAX = CFG_DEPTH_SCALE_MAX ?? 2.8; // scale cap as the veggie approaches the camera
 const DEPTH_SCALE_REFERENCE_UNITS = 11; // matches ROAM_MAX_RADIUS_UNITS / MAX_SCENE_DEPTH
 const DEPTH_SCALE_NEAR_UNITS = 1.6;   // matches GameCanvas.jsx MIN_SCENE_DEPTH
 
@@ -88,27 +133,27 @@ const DEPTH_SCALE_NEAR_UNITS = 1.6;   // matches GameCanvas.jsx MIN_SCENE_DEPTH
 // 2. 4-state AI selector constants
 // =====================================================================
 const AGGRESSIVE_CHARGE_DURATION_FRAMES = 40;
-const AGGRESSIVE_CHARGE_SPEED_MULTIPLIER = 2.2;
+const AGGRESSIVE_CHARGE_SPEED_MULTIPLIER = CFG_AGGRESSIVE_CHARGE_SPEED_MULTIPLIER ?? 2.2;
 const AGGRESSIVE_CHARGE_SCALE_BOOST = 1.4;
 
 const TACTICAL_DODGE_DURATION_FRAMES = 14;
-const TACTICAL_DODGE_SPEED_UNITS_S = 9;
+const TACTICAL_DODGE_SPEED_UNITS_S = CFG_TACTICAL_DODGE_SPEED_UNITS_S ?? 9;
 
 // How close (scene units) a chasing veggie gets before it stops closing
 // the distance and settles into an orbit instead of running through the
 // camera — this is the "it's right in front of you, go catch it" beat.
-const CHASE_STOP_DISTANCE_UNITS = 2.5;
-const CHASE_ORBIT_SPEED_UNITS_S = 1.8;
+const CHASE_STOP_DISTANCE_UNITS = CFG_CHASE_STOP_DISTANCE_UNITS ?? 2.5;
+const CHASE_ORBIT_SPEED_UNITS_S = CFG_CHASE_ORBIT_SPEED_UNITS_S ?? 1.8;
 
-const OBSTACLE_HIDE_DURATION_FRAMES = 45;
+const OBSTACLE_HIDE_DURATION_FRAMES = CFG_OBSTACLE_HIDE_DURATION_FRAMES ?? 45;
 const OBSTACLE_HIDE_ANGLE_JITTER_RAD = Math.PI * 0.6; // how far off-boundary-normal it can duck
 
 // --- Periodic "hide and seek" (Pokémon-GO style) — independent of being
 // cornered: every so often the veggie deliberately ducks out of sight
 // and the player has to reacquire it, instead of it only ever hiding
 // when pinned against the roam edge. ---
-const AUTO_HIDE_MIN_INTERVAL_MS = 7000;
-const AUTO_HIDE_MAX_INTERVAL_MS = 14000;
+const AUTO_HIDE_MIN_INTERVAL_MS = CFG_AUTO_HIDE_MIN_INTERVAL_MS ?? 7000;
+const AUTO_HIDE_MAX_INTERVAL_MS = CFG_AUTO_HIDE_MAX_INTERVAL_MS ?? 14000;
 
 // =====================================================================
 // 4. Dynamic hitbox scaling
@@ -118,9 +163,9 @@ const BASE_HITBOX_RADIUS_UNITS = 0.5;
 // =====================================================================
 // 5. Break-out probability model
 // =====================================================================
-const BREAKOUT_BASE_CHANCE = 0.35;
-const BREAKOUT_PLAYER_LEVEL_REDUCTION = 0.02; // per player level, subtracted from chance
-const BREAKOUT_DIFFICULTY_WEIGHT = 0.5;       // catchDifficulty (0-1) added to chance
+const BREAKOUT_BASE_CHANCE = CFG_BREAKOUT_BASE_CHANCE ?? 0.35;
+const BREAKOUT_PLAYER_LEVEL_REDUCTION = CFG_BREAKOUT_PLAYER_LEVEL_REDUCTION ?? 0.02; // per player level, subtracted from chance
+const BREAKOUT_DIFFICULTY_WEIGHT = CFG_BREAKOUT_DIFFICULTY_WEIGHT ?? 0.5;       // catchDifficulty (0-1) added to chance
 const BREAKOUT_MIN_CHANCE = 0.05;
 const BREAKOUT_MAX_CHANCE = 0.9;
 
