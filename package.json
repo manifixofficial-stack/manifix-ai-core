@@ -31,6 +31,7 @@
     "@tensorflow/tfjs": "^4.17.0",
     "@tensorflow/tfjs-backend-webgl": "^4.17.0",
     "@tensorflow/tfjs-core": "^4.17.0",
+    "@vitejs/plugin-react": "^4.3.1",
     "@vladmandic/face-api": "^1.7.15",
     "axios": "^1.6.7",
     "bullmq": "^5.4.0",
