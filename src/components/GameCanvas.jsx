@@ -1,47 +1,70 @@
 // src/components/GameCanvas.jsx
 //
-// WHAT CHANGED (this revision — "bugfix + collection wiring"):
+// WHAT CHANGED (this revision — "live evasion physics wiring"):
 //
-// Everything from the previous "cartoon chase" revision is preserved
-// (Veggie3DModel integration, sentient-run physics, Round-3 teleport
-// jitter, round/timer/glitch state machine, vacuum capture window,
-// telemetry bar, leaderboard). This revision does two things:
+// Everything from the previous "bugfix + collection wiring" revision is
+// preserved (CAMERA_EYE_HEIGHT_METERS fix, CollectionBook wiring, round/
+// timer/glitch state machine, vacuum capture window, telemetry bar,
+// leaderboard). This revision wires in useVeggieEvasion so veggies
+// actually move like a Pokémon-GO-style encounter instead of standing at
+// a fixed GPS-derived spot with a cosmetic sine-wave sway:
 //
-//   A) FIX: `worldY` referenced `CAMERA_EYE_HEIGHT`, which was never
-//      defined anywhere in this file or its imports — only
-//      `CAMERA_EYE_HEIGHT_METERS` was ever imported from gameConfig.
-//      That's a ReferenceError on the very first AR frame. Now reads
-//      `CAMERA_EYE_HEIGHT_METERS`, matching the actual import.
+//   A) Each visible veggie is now rendered through a new
+//      <AnimatedVeggieTarget> component (defined below, rendered inside
+//      <Canvas>) that calls useVeggieEvasion().processEvasionFrame every
+//      3D frame and imperatively moves a wrapping <group> — floor-locked
+//      on Y, running TOWARD the player by default (chaseMode), settling
+//      into an orbit once close, and periodically ducking into
+//      obstacle_hide so the player has to search for it again — exactly
+//      the hook's built-in behavior, just actually connected now.
+//   B) The old GPS-anchor position (`targetNodes`) is now only the
+//      *spawn point* + the real-world `distanceMeters` used to gate
+//      idle/greeting/running — it no longer also carries the manual
+//      Round-3 "teleport jitter", which is superseded by the hook's own
+//      dash/aggressive-charge/hide states. `isGlitched`/`glitchTargetId`
+//      are kept for the HUD banner and the model's hyperSpeed/scale
+//      visual cue, just not for hand-rolled position math anymore.
+//   C) Real device compass heading (`deviceHeading`, already tracked via
+//      the existing `deviceorientation`-driven bearing math above) is
+//      passed into the hook as `deviceHeadingDeg`, so obstacle_hide
+//      actually uses where the player is physically facing.
+//   D) `capture-result` (existing socket event) now also feeds a failed
+//      catch into the hook's break-out model via a small pending-attempt
+//      ref, so a missed throw can trigger an aggressive_charge burst.
+//   E) The 2D scanner-bracket reticle (`captureTargets`/`lockRings`) now
+//      tracks each veggie's LIVE animated position instead of the static
+//      GPS anchor, via a throttled (~10/sec) snapshot of a per-frame ref
+//      — full 60fps state churn isn't needed for a DOM overlay, and
+//      avoids janking the 3D layer with React re-renders every frame.
 //
-//   B) NEW: wires in CollectionBook (previously built but never
-//      imported or rendered anywhere). `recordCatch(species)` now
-//      fires from the same branch that already gates popups/score to
-//      "this was MY catch" (data.playerId === socket.id), so the
-//      collection only records species the local player actually
-//      caught, not every player's catches broadcast to the room. A
-//      new HUD button opens the drawer; it's controlled locally
-//      (`collectionOpen`), CollectionBook still self-manages its own
-//      caught-species state off the `veggieGo:collectionUpdated`
-//      window event exactly as it already did.
+// HONEST CAVEAT ON "HIDING IN A REAL ENVIRONMENT": there's no depth
+// sensing/LiDAR here, so a veggie can't actually duck behind your real
+// couch or wall. "Hiding" is simulated the same way Pokémon GO does it —
+// it moves out of frame / behind the player's current facing direction
+// (via deviceHeadingDeg) so you have to physically turn to find it
+// again. That's a legitimate, working mechanic — just not literal
+// occlusion by real-world geometry.
 //
-// STILL UNRESOLVED / SERVER-SIDE (unchanged from before, restated so
-// this file's header stays a complete list of outstanding gaps):
-//   1. `round_timeout` — this file listens for it; nothing emits it
-//      yet. Needs an authoritative per-round server timer.
-//   2. `submit-round-score` — this file emits it at the end of Round
-//      3; nothing persists it. Needs a server handler writing to
-//      MongoDB Atlas — a browser cannot and should not hold DB
-//      credentials directly.
-//   3. Real 3D vacuum-suck mesh animation lives in VeggieModel, not
-//      here — this file only passes down the isVacuuming flag.
-//   4. "Which veggie is the Round-3 glitch target" is decided
-//      client-side here (nearest visible target). If you want this
-//      authoritative/synced across players, the server should pick
-//      and broadcast a `glitchTargetId` instead.
+// HONEST CAVEAT ON GLB ASSETS: this file only ever passed a `type`/
+// `species` string down to Veggie3DModel — the actual GLTFLoader/GLB
+// loading for the six species (tomato, broccoli, golden, banana,
+// grapes, strawberry per project history) lives in VeggieModel.jsx, not
+// here, and that file wasn't provided, so it isn't touched by this
+// revision. This file cannot generate the .glb 3D model files
+// themselves either — that's 3D authoring, not code — it can only wire
+// up which species string gets requested and where it's positioned.
+//
+// STILL UNRESOLVED / SERVER-SIDE (unchanged from before):
+//   1. `round_timeout` — this file listens for it; nothing emits it yet.
+//   2. `submit-round-score` — emitted at the end of Round 3; nothing
+//      persists it server-side yet.
+//   3. Real 3D vacuum-suck mesh animation lives in VeggieModel, not here.
+//   4. Round-3 glitch target selection is still client-local (nearest
+//      visible). Make it server-authoritative if it needs to be synced
+//      across players.
 //
 // Nothing below invents scoring — actual point awards still come from
 // the server via `data.points` on `veggieCaught`, exactly as before.
-// The tiers/multipliers here are HUD/animation display only.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -52,17 +75,26 @@ import CaptureThrow from './CaptureThrow';
 // — adjust to match if different):
 //   veggieId        string   — stable id, used as React key upstream
 //   type            string   — species, e.g. 'broccoli' | 'tomato'
-//   position        [x,y,z]  — world position (scene units), same
-//                              coordinate space GameCanvas already uses
+//   position        [x,y,z]  — LOCAL position inside the wrapping group
+//                              this revision nests it in — pass [0,0,0]
+//                              since the group now owns world placement
 //   distanceMeters  number   — real-world distance, for internal LOD/pop-in
 //   teamColor       string   — cosmetic tint
-//   scale           number   — base mesh scale multiplier (chunky = 1.4)
-//   runAmplitude    number   — how far (scene units) it sways side-to-side
+//   scale           number   — base mesh scale multiplier (chunky = 1.4);
+//                              multiplies with the wrapping group's own
+//                              evasion-driven scale, doesn't replace it
+//   runAmplitude    number   — ASSUMPTION: this drives a local leg/body
+//                              sway animation baked into the mesh (not a
+//                              world-position offset) — if this file's
+//                              real implementation actually moves world
+//                              position, it will double up with the new
+//                              group-level movement below and should be
+//                              zeroed out or removed instead
 //   runSpeed        number   — sine frequency multiplier for the run cycle
 //   runSeed         number   — per-instance phase offset so veggies don't
 //                              all run in lockstep
 //   leanEnabled     bool     — whether to tilt the upper body into turns
-//   hyperSpeed      bool     — Round-3 flag: 3x run speed/amplitude
+//   hyperSpeed      bool     — Round-3 flag: faster run-cycle animation
 //   isJumpScared    bool     — true for a short burst after a player has
 //                              stared at it too long without firing
 //   isVacuuming     bool     — true during the local capture freeze window
@@ -73,6 +105,7 @@ import Veggie3DModel from '../components/veggies/VeggieModel';
 import { AR_TRIGGER_DISTANCE_METERS, MODEL_BASE_SCALE, GLITCH_TARGET_SCALE_MULTIPLIER, CAMERA_EYE_HEIGHT_METERS } from '../config/gameConfig';
 import Leaderboard from './Leaderboard';
 import CollectionBook, { recordCatch } from './CollectionBook';
+import { useVeggieEvasion } from '../hooks/useVeggieEvasion';
 
 const EARTH_RADIUS_M = 6371000;
 const FOV_ANGLE_DEG = 60;
@@ -99,18 +132,33 @@ const ROUND_POINT_TIERS = { 1: 100, 2: 300, 3: 600 };
 const GLITCH_ROUND_POINTS = 1000;
 const VACUUM_WINDOW_MS = 1200;
 
-// "Sentient running" physics (cartoon chase feel)
-
-const RUN_AMPLITUDE = 1.8; // scene units of side-to-side sway
-const RUN_SPEED = 2; // sine frequency multiplier
+// "Sentient running" mesh-level animation (leg/body sway baked into the
+// model itself — see the runAmplitude caveat in the Veggie3DModel props
+// note above). World-space movement is now handled by the evasion hook,
+// not by these.
+const RUN_AMPLITUDE = 1.8;
+const RUN_SPEED = 2;
 const JUMP_SCARE_DELAY_MS = 4500; // hesitation window before a startle-leap
 const JUMP_SCARE_DURATION_MS = 900;
 
-// Round-3 glitch target teleport (client-local visual jitter only —
-// see SERVER TODO #4 in header if you want this authoritative)
-const GLITCH_TELEPORT_INTERVAL_MS = 3000;
+// Round-3 hyper-speed visual cue multiplier for whichever target is
+// currently `glitchTargetId` — actual movement now comes from the
+// evasion hook's own aggressive_charge/dash states, this only scales the
+// mesh's run-cycle animation and model size for the "something's very
+// wrong with this one" read.
 const GLITCH_SPEED_MULTIPLIER = 3.0;
-const GLITCH_TELEPORT_JITTER_UNITS = 1.6;
+
+// How often the 2D reticle overlay (DOM, outside the WebGL canvas)
+// re-samples each veggie's live 3D position. Full 60fps state churn
+// isn't needed for a screen-space overlay; ~10/sec is visually smooth
+// and avoids re-rendering the whole overlay tree every 3D frame.
+const RETICLE_SNAPSHOT_INTERVAL_MS = 100;
+
+// Six known vegetable species this project has shipped GLB models for
+// (per project history) — kept here only as a documentation/fallback
+// reference for `species`/`type` strings; the actual GLTFLoader/GLB
+// wiring per species lives in VeggieModel.jsx, not this file.
+const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes', 'strawberry'];
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 const toDeg = (rad) => (rad * 180) / Math.PI;
@@ -136,7 +184,11 @@ function metersToSceneDepth(meters) {
 const APPROX_MODEL_HALF_WIDTH_SCENE_UNITS = 0.42;
 const MIN_SCREEN_HIT_RADIUS_PX = 14;
 
-function projectToScreen(position, screenW, screenH, fovDeg) {
+// halfWidthUnits is now optional so a veggie's own dynamic `fleaRadius`
+// (from the evasion hook — grows as it visually scales up close to the
+// camera) can be passed in instead of the fixed constant, keeping throw
+// hit-testing accurate as the model grows/shrinks with depth.
+function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = APPROX_MODEL_HALF_WIDTH_SCENE_UNITS) {
   const [x, y, z] = position;
   if (z >= -0.01) return null;
 
@@ -152,7 +204,7 @@ function projectToScreen(position, screenW, screenH, fovDeg) {
   const screenY = (1 - (ndcY * 0.5 + 0.5)) * screenH;
 
   const focalLengthPx = (screenH / 2) / tanHalfV;
-  const radius = Math.max(MIN_SCREEN_HIT_RADIUS_PX, (APPROX_MODEL_HALF_WIDTH_SCENE_UNITS / -z) * focalLengthPx);
+  const radius = Math.max(MIN_SCREEN_HIT_RADIUS_PX, (halfWidthUnits / -z) * focalLengthPx);
 
   return { x: screenX, y: screenY, radius };
 }
@@ -172,6 +224,8 @@ function CameraPitchRig({ pitchDeg }) {
 // Flat, soft-edged circle rendered on the ground under each veggie so it
 // doesn't look like it's floating disconnected from the room. Sized and
 // darkened by distance — nearer targets get a bigger, denser shadow.
+// Now rendered as a child of the animated group (local position), so
+// `position` here is local to that group, not a world coordinate.
 function GroundShadow({ position, distanceMeters: distM }) {
   const [gx, gy, gz] = position;
   const proximity = Math.max(0, Math.min(1, 1 - distM / AR_TRIGGER_DISTANCE_METERS));
@@ -195,6 +249,140 @@ function seedFromId(id) {
     h = (h * 31 + str.charCodeAt(i)) | 0;
   }
   return (Math.abs(h) % 1000) / 1000 * Math.PI * 2;
+}
+
+// ── AnimatedVeggieTarget ───────────────────────────────────────────────
+// Rendered inside <Canvas>, one per visible veggie. Owns the actual
+// live physics: on every 3D frame it calls the shared
+// useVeggieEvasion().processEvasionFrame for this veggie's id, and
+// imperatively moves/scales a wrapping <group> ref — floor-locked,
+// running toward the player, settling into an orbit up close, and
+// periodically hiding — instead of going through React state (which
+// would mean a full re-render 60x/sec).
+//
+// `node.position` (the GPS-bearing-derived anchor computed in
+// targetNodes below) is only used to SEED the local animated position
+// the first time this id appears — after that, the evasion hook fully
+// owns where it is, the same way the hook already treats the player as
+// fixed at the world origin.
+function AnimatedVeggieTarget({
+  node,
+  processEvasionFrame,
+  clearVeggieState,
+  deviceHeadingDeg,
+  isThisGlitchTarget,
+  jumpScared,
+  isVacuuming,
+  isCaught,
+  pendingCatchAttemptsRef,
+  onLiveUpdate,
+  onLocalCatch,
+}) {
+  const groupRef = useRef();
+  const posRef = useRef({ x: node.position[0], z: node.position[2] });
+  const seededRef = useRef(false);
+
+  useEffect(() => {
+    // Seed exactly once per mounted instance of this id — if the same id
+    // re-mounts after being cleared (caught + later respawned under a
+    // reused id, unlikely but defensive), it seeds fresh from wherever
+    // it's spawning this time rather than an old ref value.
+    if (!seededRef.current) {
+      posRef.current = { x: node.position[0], z: node.position[2] };
+      seededRef.current = true;
+    }
+    return () => {
+      clearVeggieState(node.id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id]);
+
+  useFrame((_, delta) => {
+    if (isVacuuming) {
+      // Frozen during the capture window — hold last transform, don't
+      // keep simulating movement out from under the "MAX SUCTION" beat.
+      return;
+    }
+
+    // Consume any pending catch-attempt result (set by GameCanvas's
+    // capture-result socket handler) so a missed throw can roll the
+    // hook's break-out model into an aggressive_charge burst.
+    const pending = pendingCatchAttemptsRef.current[node.id];
+    let catchAttempted = false;
+    let catchLockSuccess = false;
+    if (pending) {
+      catchAttempted = true;
+      catchLockSuccess = !!pending.success;
+      delete pendingCatchAttemptsRef.current[node.id];
+    }
+
+    const result = processEvasionFrame(node.id, {
+      distanceMeters: node.distance,
+      worldX: posRef.current.x,
+      worldZ: posRef.current.z,
+      dtSeconds: Math.min(delta, 1 / 15), // clamp huge deltas (tab backgrounded, etc.)
+      deviceHeadingDeg,
+      catchAttempted,
+      catchLockSuccess,
+      // Golden veggies are the rarer/harder catch, per the six known
+      // species — this only feeds the break-out chance math.
+      catchDifficulty: node.isGolden ? 0.8 : 0.3,
+      floorY: -CAMERA_EYE_HEIGHT_METERS,
+    });
+
+    posRef.current = {
+      x: posRef.current.x + result.dx,
+      z: posRef.current.z + result.dz,
+    };
+
+    if (groupRef.current) {
+      groupRef.current.position.set(posRef.current.x, result.worldY, posRef.current.z);
+      groupRef.current.scale.set(result.scaleX, result.scaleY, result.scaleZ);
+    }
+
+    if (result.spinoutTriggered) {
+      // Local player stepped on this veggie's dropped hazard trail —
+      // surfaced upward in case the caller wants to react (e.g. a
+      // screen-wide slip effect). Not wired to anything yet beyond the
+      // callback so it doesn't silently vanish.
+      onLiveUpdate(node.id, { spinoutTriggered: true });
+    }
+
+    // Throttled-elsewhere: write the raw live position/state into the
+    // shared ref every frame (cheap), and let the interval-driven
+    // snapshot (in GameCanvas) decide when to actually re-render the 2D
+    // reticle overlay from it.
+    onLiveUpdate(node.id, {
+      x: posRef.current.x,
+      z: posRef.current.z,
+      worldY: result.worldY,
+      fleaRadius: result.fleaRadius,
+      state: result.state,
+    });
+  });
+
+  return (
+    <group ref={groupRef}>
+      <GroundShadow position={[0, 0, 0]} distanceMeters={node.distance} />
+      <Veggie3DModel
+        veggieId={node.id}
+        type={node.species}
+        position={[0, 0, 0]}
+        distanceMeters={node.distance}
+        teamColor={node.teamColor}
+        scale={isThisGlitchTarget ? MODEL_BASE_SCALE * GLITCH_TARGET_SCALE_MULTIPLIER : MODEL_BASE_SCALE}
+        runAmplitude={RUN_AMPLITUDE}
+        runSpeed={isThisGlitchTarget ? RUN_SPEED * GLITCH_SPEED_MULTIPLIER : RUN_SPEED}
+        runSeed={node.runSeed}
+        leanEnabled
+        hyperSpeed={isThisGlitchTarget}
+        isJumpScared={jumpScared}
+        isVacuuming={isVacuuming}
+        isCaught={isCaught}
+        onCatch={onLocalCatch}
+      />
+    </group>
+  );
 }
 
 export default function GameCanvas({
@@ -239,9 +427,33 @@ export default function GameCanvas({
   const lockedSinceRef = useRef(new Map()); // id -> ms timestamp first locked
   const [jumpScaredIds, setJumpScaredIds] = useState(() => new Set());
 
-  // ── Round-3 teleport jitter on the nearest visible target ────────
-  const [glitchJitter, setGlitchJitter] = useState({ x: 0, z: 0 });
+  // ── Round-3 glitch target (HUD/visual cue only now — see header) ──
   const [glitchTargetId, setGlitchTargetId] = useState(null);
+
+  // ── Live evasion physics (NEW) ────────────────────────────────────
+  const { processEvasionFrame, clearVeggieState } = useVeggieEvasion();
+  // Pending catch attempts, keyed by vegId, consumed by AnimatedVeggieTarget
+  // on its next frame to feed the break-out probability model.
+  const pendingCatchAttemptsRef = useRef({});
+  // Raw live position/state per veggie, written every 3D frame by
+  // AnimatedVeggieTarget; snapshotted into React state on a slower
+  // interval below so the 2D reticle overlay updates smoothly without
+  // forcing a full re-render 60x/sec.
+  const liveVeggieRef = useRef({});
+  const [liveVeggieSnapshot, setLiveVeggieSnapshot] = useState({});
+
+  const handleLiveUpdate = useCallback((id, patch) => {
+    liveVeggieRef.current[id] = { ...(liveVeggieRef.current[id] || {}), ...patch };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      // Shallow-copy so React sees a new reference and re-renders the
+      // memoized overlay computations below.
+      setLiveVeggieSnapshot({ ...liveVeggieRef.current });
+    }, RETICLE_SNAPSHOT_INTERVAL_MS);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setWindowDims({ w: window.innerWidth, h: window.innerHeight });
@@ -321,26 +533,6 @@ export default function GameCanvas({
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerBaseSeconds]);
-
-  // Round-3-only: every GLITCH_TELEPORT_INTERVAL_MS, re-roll a random
-  // local jitter offset applied to the nearest visible target, giving
-  // the illusion of it "teleporting" around the room. Purely visual —
-  // see header note re: SERVER TODO #4 if this should be authoritative.
-  useEffect(() => {
-    if (!isGlitched) {
-      setGlitchJitter({ x: 0, z: 0 });
-      return undefined;
-    }
-    const rerollJitter = () => {
-      setGlitchJitter({
-        x: (Math.random() * 2 - 1) * GLITCH_TELEPORT_JITTER_UNITS,
-        z: (Math.random() * 2 - 1) * GLITCH_TELEPORT_JITTER_UNITS,
-      });
-    };
-    rerollJitter();
-    const intervalId = setInterval(rerollJitter, GLITCH_TELEPORT_INTERVAL_MS);
-    return () => clearInterval(intervalId);
-  }, [isGlitched]);
 
   useEffect(() => {
     async function startCamera() {
@@ -427,6 +619,12 @@ export default function GameCanvas({
         return next.length > 20 ? next.slice(next.length - 20) : next;
       });
 
+      // NEW: feed this result to the evasion hook's break-out model —
+      // AnimatedVeggieTarget consumes and clears this on its next frame.
+      if (resolution.vegId) {
+        pendingCatchAttemptsRef.current[resolution.vegId] = { success: resolution.success };
+      }
+
       if (!data.success) {
         const newMiss = { id: resolution.id, text: label };
         setMissPopups((prev) => [...prev, newMiss]);
@@ -456,6 +654,10 @@ export default function GameCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, advanceRound]);
 
+  // Spawn anchors: GPS-bearing-derived spawn point + real-world
+  // distanceMeters (still gates idle/greeting/running in the hook) for
+  // every currently-visible veggie. No longer mutates position with a
+  // manual jitter — AnimatedVeggieTarget owns real movement now.
   const targetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
     const projectedList = [];
@@ -474,17 +676,16 @@ export default function GameCanvas({
 
         const worldX = Math.sin(relAngleRad) * sceneDepth;
         const worldZ = -Math.cos(relAngleRad) * sceneDepth;
-        // FIX: was `-CAMERA_EYE_HEIGHT`, an identifier that was never
-        // defined anywhere in this file — only CAMERA_EYE_HEIGHT_METERS
-        // was ever imported from gameConfig. That's a ReferenceError on
-        // the first frame this memo runs. Now uses the actual import.
+        // Floor plane comes from the evasion hook's floorY param now
+        // (fed CAMERA_EYE_HEIGHT_METERS directly), so this anchor's own Y
+        // is only used as the initial seed before the hook takes over.
         const worldY = -CAMERA_EYE_HEIGHT_METERS;
 
         projectedList.push({
           id,
           position: [worldX, worldY, worldZ],
           facing: -relAngleRad,
-          species: (node.species || node.type || 'broccoli').toLowerCase(),
+          species: (node.species || node.type || KNOWN_VEGGIE_SPECIES[0]).toLowerCase(),
           teamColor: node.teamColor || 'yellow',
           distance: dist,
           isGolden: (node.species || node.type) === 'golden',
@@ -493,37 +694,37 @@ export default function GameCanvas({
       }
     });
 
-    // Nearest visible target becomes the Round-3 "glitch target" and
-    // gets the teleport jitter applied to its world position. This is
-    // recomputed every render off the freshly-projected list, not off
-    // stale state, so it always tracks whichever veggie is currently
-    // closest.
-    if (projectedList.length > 0) {
-      const nearest = projectedList.reduce((a, b) => (a.distance <= b.distance ? a : b));
-      if (nearest.id !== glitchTargetId) {
-        // Defer the state update — avoid setting state mid-memo.
-        queueMicrotask(() => setGlitchTargetId(nearest.id));
-      }
-      if (isGlitched) {
-        const target = projectedList.find((n) => n.id === nearest.id);
-        if (target) {
-          target.position = [
-            target.position[0] + glitchJitter.x,
-            target.position[1],
-            target.position[2] + glitchJitter.z,
-          ];
-        }
-      }
-    }
-
     return projectedList;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [veggies, selfPosition, deviceHeading, isGlitched, glitchJitter]);
+  }, [veggies, selfPosition, deviceHeading]);
 
+  // Nearest visible target is still tracked for the Round-3 HUD/visual
+  // cue (bigger model, faster run-cycle animation) — actual excitement
+  // (dash bursts, aggressive charges, hiding) now comes from the
+  // evasion hook itself, not from picking this id specially.
+  useEffect(() => {
+    if (targetNodes.length === 0) {
+      setGlitchTargetId(null);
+      return;
+    }
+    const nearest = targetNodes.reduce((a, b) => (a.distance <= b.distance ? a : b));
+    setGlitchTargetId((prev) => (prev === nearest.id ? prev : nearest.id));
+  }, [targetNodes]);
+
+  // 2D scanner-bracket reticle data now reads each veggie's LIVE
+  // animated position (from the throttled liveVeggieSnapshot) rather
+  // than the static GPS anchor, falling back to the anchor for a veggie
+  // that hasn't reported a live frame yet (e.g. the very first tick
+  // after spawning).
   const captureTargets = useMemo(() => {
     return targetNodes
       .map((node) => {
-        const projected = projectToScreen(node.position, windowDims.w, windowDims.h, FOV_ANGLE_DEG);
+        const live = liveVeggieSnapshot[node.id];
+        const x = live ? live.x : node.position[0];
+        const z = live ? live.z : node.position[2];
+        const worldY = live ? live.worldY : node.position[1];
+        const fleaRadius = live?.fleaRadius;
+        const projected = projectToScreen([x, worldY, z], windowDims.w, windowDims.h, FOV_ANGLE_DEG, fleaRadius);
         if (!projected) return null;
         return {
           id: node.id,
@@ -535,7 +736,7 @@ export default function GameCanvas({
         };
       })
       .filter(Boolean);
-  }, [targetNodes, windowDims]);
+  }, [targetNodes, liveVeggieSnapshot, windowDims]);
 
   // Scanner-bracket reticle data: same underlying screen coords as
   // before, plus a "locked" flag and whether this specific target is
@@ -736,32 +937,28 @@ export default function GameCanvas({
         {targetNodes.map((node) => {
           const isThisGlitchTarget = isGlitched && node.id === glitchTargetId;
           return (
-            <React.Fragment key={`grp-${node.id}`}>
-              <GroundShadow position={node.position} distanceMeters={node.distance} />
-              <Veggie3DModel
-                veggieId={node.id}
-                type={node.species}
-                position={node.position}
-                distanceMeters={node.distance}
-                teamColor={node.teamColor}
-                scale={isThisGlitchTarget ? MODEL_BASE_SCALE * GLITCH_TARGET_SCALE_MULTIPLIER : MODEL_BASE_SCALE}
-                runAmplitude={isThisGlitchTarget ? RUN_AMPLITUDE * GLITCH_SPEED_MULTIPLIER : RUN_AMPLITUDE}
-                runSpeed={isThisGlitchTarget ? RUN_SPEED * GLITCH_SPEED_MULTIPLIER : RUN_SPEED}
-                runSeed={node.runSeed}
-                leanEnabled
-                hyperSpeed={isThisGlitchTarget}
-                isJumpScared={jumpScaredIds.has(node.id)}
-                isVacuuming={vacuumLock?.targetId === node.id}
-                isCaught={caughtIds.has(node.id)}
-                onCatch={(id) => {
-                  setCaughtIds((prev) => {
-                    const next = new Set(prev);
-                    next.delete(id);
-                    return next;
-                  });
-                }}
-              />
-            </React.Fragment>
+            <AnimatedVeggieTarget
+              key={node.id}
+              node={node}
+              processEvasionFrame={processEvasionFrame}
+              clearVeggieState={clearVeggieState}
+              deviceHeadingDeg={deviceHeading}
+              isThisGlitchTarget={isThisGlitchTarget}
+              jumpScared={jumpScaredIds.has(node.id)}
+              isVacuuming={vacuumLock?.targetId === node.id}
+              isCaught={caughtIds.has(node.id)}
+              pendingCatchAttemptsRef={pendingCatchAttemptsRef}
+              onLiveUpdate={handleLiveUpdate}
+              onLocalCatch={(id) => {
+                setCaughtIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(id);
+                  return next;
+                });
+                clearVeggieState(id);
+                delete liveVeggieRef.current[id];
+              }}
+            />
           );
         })}
       </Canvas>
@@ -985,9 +1182,9 @@ const styles = {
   telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px' },
   ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)' },
   ptsNumber: { color: '#ffe066', fontWeight: 900, fontSize: '13px' },
-  // NEW: collection button — same tag visual language as telemetryTag,
-  // but pointer-events re-enabled (parent row disables them) since this
-  // one is actually clickable.
+  // Collection button — same tag visual language as telemetryTag, but
+  // pointer-events re-enabled (parent row disables them) since this one
+  // is actually clickable.
   collectionBtn: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(31,174,110,0.5)', borderRadius: '7px', padding: '7px 14px', color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', pointerEvents: 'auto' },
 
   // Leaderboard widget
