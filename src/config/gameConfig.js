@@ -1,37 +1,42 @@
 // src/config/gameConfig.js
 //
-// THIS REVISION: Catch distance aligned with server.js (15/25 -> 20)
+// RECONCILED REVISION — merges the two diverged copies of this file.
 //
-// PROBLEM: CATCH_TRIGGER_DISTANCE_METERS was 25, but server.js gated an
-// actual successful capture at CATCH_RADIUS_METERS = 15. That meant the
-// client's reticle/attempt UI would tell a player "you're in range" at
-// distances the server would flatly reject with TOO FAR — a direct,
-// reachable false-positive in the core loop.
+// CRASH FIXED: one copy dropped PERSONALITY_CHASE_OVERRIDE entirely.
+// GameCanvas.jsx's chaseModeForSpecies() calls
+// `Object.prototype.hasOwnProperty.call(PERSONALITY_CHASE_OVERRIDE, species)`
+// unconditionally on every frame a veggie is on screen — with that
+// export missing, this throws immediately and the AR view never
+// renders. Restored below, unchanged from the copy that had it.
 //
-// FIX: both sides now agree on 20m. Server.js raised its catch radius
-// 15 -> 20 AND lowered its GPS-mode accuracy gate 25 -> 20 (so a phone
-// only gets treated as "GPS capable" once its own fix is precise enough
-// to plausibly satisfy a 20m catch). This file drops
-// CATCH_TRIGGER_DISTANCE_METERS 25 -> 20 to match. ENTRY_RADIUS_METERS
-// and CATCH_RADIUS_METERS below are derived from this constant, so they
-// update automatically — no other change needed here.
+// DISTANCE MISMATCH FIXED: one copy set AR_TRIGGER_DISTANCE_METERS to
+// 500 while RADAR_RANGE_METERS stayed at 120 — meaning a veggie could
+// render in the AR camera at a distance the radar map would never show
+// it at. Restored AR_TRIGGER_DISTANCE_METERS = 120 to match the radar
+// range (and GameCanvas's own "120-Meter Radar" comment).
 //
-// PRIOR REVISION: added a new "Veggie evasion / AI tuning" section (see
-// below). Previously every movement/speed/timing number for how a
-// veggie chases, dashes, dodges, and hides lived as hardcoded constants
-// INSIDE hooks/useVeggieEvasion.js — meaning tuning "how it moves" meant
-// editing hook internals. Those knobs are pulled out here instead, and
-// useVeggieEvasion.js now imports them (falling back to its own
-// defaults if any are missing, so this file doesn't have to define
-// every single one to stay safe).
+// CAMERA HEIGHT MISMATCH FIXED: one copy changed CAMERA_EYE_HEIGHT_METERS
+// to 1.4 with no corresponding update noted for useVeggieEvasion.js's
+// hardcoded FLOOR_Y_UNITS = -1.6. Restored 1.6 so floorY passed into
+// processEvasionFrame (GameCanvas: `floorY: -CAMERA_EYE_HEIGHT_METERS`)
+// actually agrees with the hook. If FLOOR_Y_UNITS is ever changed,
+// change it here too — they must stay equal in magnitude.
 //
-// Everything else below this point is UNCHANGED from before.
+// RARITY MAPPING CONFLICT RESOLVED: the two copies disagreed on which
+// species is which rarity (tomato common vs. rare, broccoli rare vs.
+// common, etc). Kept the mapping that matches the six species'
+// PERSONALITY_CHASE_OVERRIDE design intent (Angry Tomato = common/
+// aggressive/easy; Shy Broccoli & Shy Strawberry = rare/evasive) since
+// that's the pairing GameCanvas's chase-mode logic was actually built
+// against. Rebuilt the weighted-spawn RARITY_TIERS structure (weight /
+// pointValue / moveSpeed / evasionLevel per tier) around that mapping,
+// with RARITY_BY_SPECIES derived FROM it — single source of truth, per
+// the original intent of that refactor — rather than the two disagreeing
+// standalone copies each file had before.
 //
-// Single source of truth for spawn/rarity/scoring tuning. App.jsx and
-// GameCanvas.jsx should derive per-species rarity labels FROM
-// RARITY_TIERS below rather than re-typing their own copy — that's what
-// caused the previous drift (broccoli/strawberry tiers disagreeing
-// between this file and App.jsx, and banana/grapes missing entirely).
+// Everything else (spawn system, scoring, target-ring timing, evasion
+// AI tuning, network/throttle constants, room/team limits) is kept from
+// whichever copy had it, deduplicated.
 
 // ---------------------------------------------------------------------------
 // Radar / map loop timing
@@ -39,27 +44,36 @@
 export const RADAR_PULSE_INTERVAL_MS = 2000;
 export const RADAR_RANGE_METERS = 120;
 
-// How far away a veggie can be and still render in the AR camera view.
-// Keep this generous — it's just a "is it worth drawing" cutoff.
-export const AR_TRIGGER_DISTANCE_METERS = 500;
+// How far away a veggie still renders/shows in the AR camera view.
+// MUST match RADAR_RANGE_METERS — a veggie visible in AR but absent
+// from the radar map (or vice versa) reads as a bug, not a feature.
+export const AR_TRIGGER_DISTANCE_METERS = RADAR_RANGE_METERS;
 
-// How close the player actually has to be to trigger the CATCH button /
-// count as "in range" on the radar map. This is the real gameplay
-// distance and should be small and deliberate, unlike the AR render cutoff.
-// Kept equal to server.js's CATCH_RADIUS_METERS and
-// GPS_MODE_ACCURACY_THRESHOLD_M (20m) — see revision note above. Do not
-// change this without also updating server.js, or the client's "in range"
-// reticle will disagree with what the server actually accepts again.
+// How close the player actually has to be to attempt a catch. Kept
+// equal to server.js's CATCH_RADIUS_METERS and
+// GPS_MODE_ACCURACY_THRESHOLD_M (20m). Do not change this without also
+// updating server.js, or the client's "in range" reticle will disagree
+// with what the server accepts.
 export const CATCH_TRIGGER_DISTANCE_METERS = 20;
-// Add near the other Spawn system exports:
-export const MODEL_BASE_SCALE = 1.4;
-export const GLITCH_TARGET_SCALE_MULTIPLIER = 1.3;
-export const CAMERA_EYE_HEIGHT_METERS = 1.4;
-export const GPS_POLL_INTERVAL_MS = 1000;
-export const GPS_THROTTLE_MIN_DELTA_METERS = 1;
 
 export const ENTRY_RADIUS_METERS = CATCH_TRIGGER_DISTANCE_METERS;
 export const CATCH_RADIUS_METERS = CATCH_TRIGGER_DISTANCE_METERS;
+
+export const GPS_POLL_INTERVAL_MS = 1000;
+export const GPS_THROTTLE_MIN_DELTA_METERS = 1;
+
+// ---------------------------------------------------------------------------
+// Model scale / camera
+// ---------------------------------------------------------------------------
+export const MODEL_BASE_SCALE = 1;
+export const GLITCH_TARGET_SCALE_MULTIPLIER = 1.8; // final-round "area overload" size boost
+
+// Matches useVeggieEvasion's hardcoded FLOOR_Y_UNITS = -1.6. If you
+// change one, change the other — GameCanvas passes
+// `floorY: -CAMERA_EYE_HEIGHT_METERS` into processEvasionFrame every
+// frame, so a mismatch here silently desyncs ground level from the
+// evasion hook's own floor.
+export const CAMERA_EYE_HEIGHT_METERS = 1.6;
 
 // ---------------------------------------------------------------------------
 // Spawn system
@@ -74,10 +88,19 @@ export const VEGGIE_LIFETIME_MS = 90000;
 // ---------------------------------------------------------------------------
 // Rarity tiers & spawn weighting
 //
-// Every one of the 6 live species (tomato, broccoli, golden, banana,
-// grapes, strawberry) MUST appear in exactly one tier's `species` array.
-// If you add or retire a species, update this list — anything missing
-// here silently becomes unspawnable via pickSpeciesForTier().
+// Single source of truth: every one of the 6 live species MUST appear
+// in exactly one tier's `species` array. RARITY_BY_SPECIES and
+// CATCH_DIFFICULTY_BY_SPECIES / BASE_CATCH_POINTS_BY_SPECIES are all
+// derived from this — don't hand-maintain a second copy elsewhere
+// (that duplication is exactly what caused the tomato/broccoli rarity
+// conflict this revision resolves).
+//
+// Mapping matches PERSONALITY_CHASE_OVERRIDE below: Angry Tomato is
+// common/easy/aggressive (a frequent, low-stakes "gotcha" target,
+// same design role as Pokémon GO's common aggressive spawns), Golden
+// is the ultra-rare aggressive legendary, and the two shy/hiding
+// species (Broccoli, Strawberry) are the harder rare tier — worth
+// more precisely because they're evasive, not despite it.
 // ---------------------------------------------------------------------------
 export const RARITY_TIERS = {
   COMMON: {
@@ -87,7 +110,7 @@ export const RARITY_TIERS = {
     pointValue: 100,
     moveSpeed: 1.0,
     evasionLevel: 1,
-    species: ['broccoli', 'strawberry'],
+    species: ['tomato', 'grapes'],
   },
   UNCOMMON: {
     key: 'uncommon',
@@ -96,7 +119,7 @@ export const RARITY_TIERS = {
     pointValue: 200,
     moveSpeed: 1.3,
     evasionLevel: 2,
-    species: ['banana', 'grapes'],
+    species: ['banana'],
   },
   RARE: {
     key: 'rare',
@@ -105,7 +128,7 @@ export const RARITY_TIERS = {
     pointValue: 350,
     moveSpeed: 1.6,
     evasionLevel: 3,
-    species: ['tomato'],
+    species: ['strawberry', 'broccoli'],
   },
   ULTRA_RARE: {
     key: 'ultra_rare',
@@ -137,16 +160,56 @@ export function pickSpeciesForTier(tier) {
 }
 
 // Derived lookup: species -> rarity key ('common' | 'uncommon' | 'rare' |
-// 'ultra_rare'). Consumers (App.jsx, GameCanvas.jsx) should import THIS
-// instead of hand-writing their own species-to-rarity map — that
-// duplication is exactly what caused broccoli/strawberry to disagree
-// with the real tiers before.
+// 'ultra_rare'). Import THIS rather than hand-writing a second map.
 export const RARITY_BY_SPECIES = Object.values(RARITY_TIERS).reduce((acc, tier) => {
   tier.species.forEach((species) => {
     acc[species] = tier.key;
   });
   return acc;
 }, {});
+
+// true = charges the camera (aggressive). false = flees/hides (shy).
+// This is the source of truth for charge-vs-flee behavior —
+// GameCanvas.jsx's chaseModeForSpecies() checks this FIRST, before
+// ever falling back to rarity. Rarity (above) only drives spawn
+// scarcity / catch difficulty / points, never this.
+// REQUIRED: do not remove this export — GameCanvas.jsx calls
+// Object.prototype.hasOwnProperty.call(PERSONALITY_CHASE_OVERRIDE, species)
+// unconditionally every frame; if this is undefined, the AR view
+// throws on mount.
+export const PERSONALITY_CHASE_OVERRIDE = {
+  tomato: true,      // Angry Tomato: aggressive, charges on sight
+  golden: true,       // Legendary golden spawn: aggressive, high-value target
+  broccoli: false,    // Shy Broccoli: always hides, regardless of rarity
+  banana: false,
+  grapes: false,
+  strawberry: false,  // Shy: always hides
+};
+
+// Per-species catch difficulty (0-1), used for the break-out chance
+// calc and as a basis for XP/points on a successful catch. Golden uses
+// the hardcoded 0.8 already in GameCanvas's AnimatedVeggieTarget
+// (node.isGolden ? 0.8 : 0.3) — kept here too so other callers (e.g. a
+// future Scoreboard/XP screen) have one place to read it from.
+export const CATCH_DIFFICULTY_BY_SPECIES = {
+  tomato: 0.2,
+  grapes: 0.25,
+  banana: 0.35,
+  strawberry: 0.55,
+  broccoli: 0.6,
+  golden: 0.8,
+};
+
+// Points awarded per species on a successful catch (independent of the
+// per-round tier multiplier in GameCanvas's ROUND_POINT_TIERS).
+export const BASE_CATCH_POINTS_BY_SPECIES = {
+  tomato: 50,
+  grapes: 60,
+  banana: 80,
+  strawberry: 140,
+  broccoli: 160,
+  golden: 500,
+};
 
 // ---------------------------------------------------------------------------
 // Scoring
@@ -167,63 +230,44 @@ export const TARGET_RING_PERFECT_THRESHOLD_PX = 28;
 // ---------------------------------------------------------------------------
 // Veggie evasion / AI tuning (consumed by hooks/useVeggieEvasion.js)
 //
-// Pulled out here so "how the veggies move" can be tuned by editing
-// numbers in one config file instead of hook internals. The hook falls
-// back to its own built-in defaults for anything you remove from here,
-// so partial overrides are safe.
-//
-// Units: "scene units" are the same 3D-scene coordinate space GameCanvas
-// uses everywhere else (ROAM_MAX_RADIUS_UNITS should stay close to
+// "How the veggies move" lives here instead of hook internals so it's
+// tunable in one place. The hook falls back to its own built-in
+// defaults for anything removed from here, so partial overrides are
+// safe. "Scene units" are the same 3D-scene coordinate space GameCanvas
+// uses everywhere (ROAM_MAX_RADIUS_UNITS should stay close to
 // GameCanvas's own MAX_SCENE_DEPTH so the roam boundary and the visible
 // AR depth agree).
 // ---------------------------------------------------------------------------
-
-// Real-world GPS distance (meters) at which a veggie switches from
-// idle/greeting into active evasion behavior.
 export const EVASION_TRIGGER_METERS = 8;
 export const GREETING_MIN_METERS = 12;
 export const GREETING_MAX_METERS = 25;
 
-// Roam boundary radius, in scene units, around the player (origin).
-export const ROAM_MAX_RADIUS_UNITS = 11;
+export const ROAM_MAX_RADIUS_UNITS = 11; // matches GameCanvas MAX_SCENE_DEPTH
 
-// Base chase/flee speed: actual speed = FLEE_SPEED_CONSTANT / distance,
-// so it's a "how fast does it close/open the gap" dial, not a flat
-// units/sec value. Higher = more aggressive at range.
+// Base chase/flee speed: actual speed = FLEE_SPEED_CONSTANT / distance —
+// a "how fast does it close/open the gap" dial, not a flat units/sec.
 export const FLEE_SPEED_CONSTANT = 14;
 
-// How close (scene units) a chasing veggie gets before it stops closing
-// the distance and orbits instead of running through the camera.
 export const CHASE_STOP_DISTANCE_UNITS = 2.5;
 export const CHASE_ORBIT_SPEED_UNITS_S = 1.8;
 
-// Dash burst: triggers when the player closes distance on the veggie
-// faster than this (units/sec), giving it a brief speed-multiplied dash
-// away, then a cooldown before it can dash again.
 export const DASH_TRIGGER_CLOSING_SPEED_UNITS_S = 2.2;
 export const DASH_SPEED_MULTIPLIER = 3.0;
 export const DASH_COOLDOWN_MS = 2500;
 
-// Aggressive-charge (post-missed-catch break-out) and tactical-dodge
-// (in response to a swipe) speed multipliers/values.
 export const AGGRESSIVE_CHARGE_SPEED_MULTIPLIER = 2.2;
 export const TACTICAL_DODGE_SPEED_UNITS_S = 9;
 
-// Periodic "hide and seek" — independent of being cornered, a veggie
-// will duck out of sight roughly every AUTO_HIDE_MIN..MAX_INTERVAL_MS,
-// forcing the player to reacquire it.
 export const AUTO_HIDE_MIN_INTERVAL_MS = 7000;
 export const AUTO_HIDE_MAX_INTERVAL_MS = 14000;
 export const OBSTACLE_HIDE_DURATION_FRAMES = 45;
 
-// Break-out probability model for a failed catch attempt:
+// Break-out probability for a failed catch attempt:
 // chance = clamp(BASE - playerLevel*LEVEL_REDUCTION + catchDifficulty*DIFFICULTY_WEIGHT)
 export const BREAKOUT_BASE_CHANCE = 0.35;
 export const BREAKOUT_PLAYER_LEVEL_REDUCTION = 0.02;
 export const BREAKOUT_DIFFICULTY_WEIGHT = 0.5;
 
-// How large (visual scale multiplier) a veggie gets as it approaches the
-// camera — higher makes close-up veggies feel more "in your face".
 export const DEPTH_SCALE_MAX = 2.8;
 
 // ---------------------------------------------------------------------------
@@ -236,26 +280,28 @@ export const RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 16000];
 // ---------------------------------------------------------------------------
 // Player / room limits
 // ---------------------------------------------------------------------------
-// Matches server.js hard cap — 6 slots (SLOT_01..SLOT_06), do not raise this
+// Matches server.js hard cap — 6 slots (SLOT_01..SLOT_06); do not raise
 // without also adding slots + colors server-side.
+export const MIN_PLAYERS_PER_ROOM = 2;
 export const MAX_PLAYERS_PER_ROOM = 6;
 
-// 6 entries to match MAX_PLAYERS_PER_ROOM / SLOT_01..SLOT_06. Previously
-// only had 4 names ('blue','red','green','yellow') while the room cap
-// was already 6 — two slots had no team color name to draw from.
-// If server.js keeps its own separate color-name list for slot
-// assignment, verify it matches this one (or better, have it import
-// from here) so a player's team-color name is consistent everywhere.
+// 6 entries to match MAX_PLAYERS_PER_ROOM. If server.js keeps its own
+// separate color-name list for slot assignment, verify it matches this
+// one (or better, have it import from here).
 export const AVAILABLE_TEAM_COLORS = ['blue', 'green', 'pink', 'purple', 'red', 'yellow'];
 
 export default {
   RADAR_PULSE_INTERVAL_MS,
   RADAR_RANGE_METERS,
   AR_TRIGGER_DISTANCE_METERS,
-  GPS_POLL_INTERVAL_MS,
-  GPS_THROTTLE_MIN_DELTA_METERS,
+  CATCH_TRIGGER_DISTANCE_METERS,
   ENTRY_RADIUS_METERS,
   CATCH_RADIUS_METERS,
+  GPS_POLL_INTERVAL_MS,
+  GPS_THROTTLE_MIN_DELTA_METERS,
+  MODEL_BASE_SCALE,
+  GLITCH_TARGET_SCALE_MULTIPLIER,
+  CAMERA_EYE_HEIGHT_METERS,
   SPAWN_RADIUS_METERS,
   SPAWN_MIN_DISTANCE_METERS,
   MAX_CONCURRENT_VEGGIES,
@@ -265,6 +311,9 @@ export default {
   RARITY_TIERS,
   RARITY_ORDER,
   RARITY_BY_SPECIES,
+  PERSONALITY_CHASE_OVERRIDE,
+  CATCH_DIFFICULTY_BY_SPECIES,
+  BASE_CATCH_POINTS_BY_SPECIES,
   pickRarityTier,
   pickSpeciesForTier,
   SCORE_PERFECT_MULTIPLIER,
@@ -297,6 +346,7 @@ export default {
   POSITION_SYNC_THROTTLE_MS,
   LEADERBOARD_REFRESH_MS,
   RECONNECT_BACKOFF_MS,
+  MIN_PLAYERS_PER_ROOM,
   MAX_PLAYERS_PER_ROOM,
   AVAILABLE_TEAM_COLORS,
 };
