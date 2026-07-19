@@ -1,10 +1,10 @@
 // ====================================================================
-// 🚀 main.jsx - AUTHORITATIVE ENTRY ENGINE & GLOBAL STABILITY CORE
+// 🚀 main.jsx — Entry point & global stability core
 // ====================================================================
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { GameProvider } from "./lib/GameContext"; // ✅ Imported to handle full component synchronization
+import { GameProvider } from "./lib/GameContext";
 
 const injectGlobalGameStyles = () => {
   const cssId = "manifix-arcade-core-theme";
@@ -41,8 +41,9 @@ const injectGlobalGameStyles = () => {
     .crash-fallback { text-align: center; background: #121217; padding: 35px 25px; border-radius: 20px; border: 2px solid #ff3333; box-shadow: 0 0 30px rgba(255, 51, 51, 0.2); width: 85%; max-width: 320px; box-sizing: border-box; color: #f5f5f7; }
     .crash-fallback h1 { font-family: 'Orbitron', sans-serif; color: #ff3333; font-size: 1.3rem; margin: 0 0 12px; letter-spacing: 1px; }
     .crash-fallback p { font-family: 'Fredoka', sans-serif; color: #8a8a93; font-size: 13px; line-height: 1.5; margin: 0 0 20px; }
-    .boot-screen { position: fixed; inset: 0; z-index: 9999; background: #08080a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; animation: bootFadeOut 0.4s ease 0.6s forwards; }
-    .boot-logo { font-family: 'Bebas Neue', sans-serif; font-size: 2.4rem; letter-spacing: 3px; color: #ffc83c; text-shadow: 0 0 20px rgba(255, 200, 60, 0.5); animation: bootPulse 1.1s ease-in-out infinite; }
+    .boot-screen { position: fixed; inset: 0; z-index: 9999; background: #08080a; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; animation: bootFadeOut 0.4s ease 0.6s forwards; }
+    .boot-logo { font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem; letter-spacing: 4px; background: linear-gradient(135deg, #ffc83c, #39ff88 60%, #ff3b94); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 30px rgba(255, 200, 60, 0.35); animation: bootPulse 1.1s ease-in-out infinite; }
+    .boot-tagline { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #6f6f7a; }
     .boot-dots { display: flex; gap: 8px; }
     .boot-dots span { width: 8px; height: 8px; border-radius: 50%; background: #39ff88; animation: bootDotBounce 0.9s ease-in-out infinite; }
     .boot-dots span:nth-child(2) { animation-delay: 0.15s; background: #ffc83c; }
@@ -96,18 +97,15 @@ class AppErrorBoundary extends React.Component {
 
 function Root() {
   const [booting, setBooting] = useState(true);
-  const [isNative] = useState(() => Boolean(window.Capacitor?.isNativePlatform?.()));
 
-  useEffect(() => {
-    if (!isNative) return;
-    const card = document.getElementById("portal-hub-card");
-    if (card) {
-      card.classList.add("portal-dismissed");
-      window.setTimeout(() => {
-        card.style.display = "none";
-      }, 400);
-    }
-  }, [isNative]);
+  // Detects whether this build is running inside the native Capacitor
+  // shell vs. a plain browser tab. Passed down to <App> so it can gate
+  // anything that behaves differently on native (e.g. billing UI — App
+  // Store/Play Store policy generally doesn't allow linking out to
+  // external payment flows like the Razorpay checkout server.js exposes).
+  // NOTE: App.jsx does not currently read this prop — this wiring is in
+  // place for when that gating is added there.
+  const [isNative] = useState(() => Boolean(window.Capacitor?.isNativePlatform?.()));
 
   useEffect(() => {
     const id = window.setTimeout(() => setBooting(false), 650);
@@ -119,6 +117,7 @@ function Root() {
       {booting && (
         <div className="boot-screen" aria-hidden="true">
           <div className="boot-logo">VEGGIE GO</div>
+          <div className="boot-tagline">spawning nearby…</div>
           <div className="boot-dots">
             <span /><span /><span />
           </div>
@@ -131,7 +130,6 @@ function Root() {
   );
 }
 
-// ✅ Initializing inside your shared provider so all 14 flat components can map context safely [INDEX]
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <GameProvider>
