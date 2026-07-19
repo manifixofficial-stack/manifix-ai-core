@@ -64,6 +64,7 @@ import {
   GLITCH_TARGET_SCALE_MULTIPLIER,
   CAMERA_EYE_HEIGHT_METERS,
   RARITY_BY_SPECIES,
+  PERSONALITY_CHASE_OVERRIDE,
 } from '../config/gameConfig';
 import Leaderboard from './Leaderboard';
 import CollectionBook, { recordCatch } from './CollectionBook';
@@ -164,12 +165,20 @@ function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = AP
   return { x: screenX, y: screenY, radius };
 }
 
-// Rare/ultra-rare veggies charge at the player (aggressive, matches
-// their higher catchDifficulty); common/uncommon flee — matching the
-// original Angry-Tomato-aggressive vs Shy-Broccoli-hides design intent.
-// Derived from RARITY_BY_SPECIES (gameConfig.js) so this can never drift
-// out of sync the way a hand-typed species list did before.
+// Personality wins over rarity: PERSONALITY_CHASE_OVERRIDE (gameConfig.js)
+// is the source of truth for charge-vs-flee per species — Angry Tomato
+// always charges, Shy Broccoli always hides, regardless of which rarity
+// tier they're spawned at. Rarity still independently drives catch
+// difficulty/points/spawn scarcity (see CATCH_DIFFICULTY_BY_SPECIES /
+// BASE_CATCH_POINTS_BY_SPECIES in gameConfig.js) — it just no longer
+// decides this specific behavior. Any species NOT listed in the override
+// falls back to the old rarity-based rule (rare/ultra_rare = charge) so
+// a newly-added species without an explicit personality entry still gets
+// sensible default behavior instead of silently flee-ing forever.
 function chaseModeForSpecies(species) {
+  if (Object.prototype.hasOwnProperty.call(PERSONALITY_CHASE_OVERRIDE, species)) {
+    return PERSONALITY_CHASE_OVERRIDE[species];
+  }
   const tier = RARITY_BY_SPECIES[species];
   return tier === 'rare' || tier === 'ultra_rare';
 }
