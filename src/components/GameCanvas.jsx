@@ -1,43 +1,44 @@
 // src/components/GameCanvas.jsx
 //
-// PERFORMANCE + CORRECTNESS PATCH (this revision — "mobile tuning pass"):
+// PERFORMANCE + CORRECTNESS PATCH (this revision — "Pokémon-GO parity pass"):
 //
-// On top of everything from the previous revision (evasion physics
-// wiring, server-confirmed vacuum animation, targetVegId respect), this
-// pass makes four changes aimed specifically at real-device (Android
-// WebView / Capacitor) performance and one correctness fix:
+// On top of the previous "mobile tuning pass" (DPR cap, lighting trim,
+// isGlitchPhase wiring, dead-code cleanup), this revision closes three
+// real gameplay bugs found during review:
 //
-//   A) DPR CAP: <Canvas> was capped at 3x device pixel ratio. In a
-//      mobile WebView compositing a live camera feed underneath a WebGL
-//      layer, 3x buys negligible visual improvement over 2x but costs
-//      real GPU fill-rate. Capped to 2 now.
+//   E) REAL CATCH-RANGE GATE: `locked` was previously computed from
+//      screen-space pixel distance to center ONLY — a veggie 100+
+//      meters away that happened to drift to screen-center would show
+//      a green "LOCK TARGET ENGAGED" and could be attempted. Now gated
+//      on BOTH screen position AND real-world distance
+//      (CATCH_TRIGGER_DISTANCE_METERS from gameConfig.js). Attempts on
+//      out-of-range targets are rejected client-side before they ever
+//      reach the socket.
+//      NOTE: the server's 'capture-attempt' handler should also
+//      re-validate this distance — this client-side gate is UX, not
+//      security. Flagging for a server.js check, not fixed here.
 //
-//   B) LIGHTING: removed one of the two directional lights and
-//      rebalanced ambient/hemisphere intensity to compensate. Every
-//      visible veggie ALSO adds its own point light (see VeggieModel.jsx
-//      patch), so with up to MAX_CONCURRENT_VEGGIES targets on screen at
-//      once the previous 4-light scene rig was compounding into a much
-//      heavier real-time light count than necessary on mobile GPUs.
+//   F) PER-SPECIES CHASE BEHAVIOR: processEvasionFrame was being called
+//      with no `chaseMode` param, so every veggie used the hook's
+//      default (`true` = charges the player). Now derived from
+//      RARITY_BY_SPECIES so it can never drift out of sync with
+//      gameConfig.js the way old hardcoded tier lists did: rare/
+//      ultra-rare species charge (aggressive, matches their higher
+//      catchDifficulty), common/uncommon flee (matches the original
+//      Angry-Tomato-aggressive vs Shy-Broccoli-hides personality intent).
 //
-//   C) isGlitchPhase WIRING FIX: VeggieModel.jsx has real erratic
-//      glitch-locomotion logic gated behind an `isGlitchPhase` prop, but
-//      this file was never actually passing it down — only `hyperSpeed`
-//      (which just scales run speed/animation timeScale) was wired. The
-//      Round-3 glitch target was therefore running faster but never
-//      actually "glitching." Now passed through explicitly.
-//
-//   D) DEAD-CODE CLEANUP: the internal `{matchPhase === 'ended' && ...}`
-//      Leaderboard render could never fire — App.jsx only ever sets
-//      matchPhase to the uppercase MATCH_PHASE constants ('COUNTDOWN' /
-//      'ACTIVE' / 'ENDED'), and App.jsx already renders its own victory
-//      overlay independently on that same state. Removed here rather
-//      than silently left as unreachable code; App.jsx's victory card is
-//      the real match-end UI.
+//   G) iOS MOTION PERMISSION GATE: the deviceorientation listener used
+//      for camera pitch never requested permission — on iOS 13+ Safari
+//      this means the listener silently never fires. Added a one-time,
+//      user-gesture-gated permission prompt shown as soon as the
+//      camera's ready. Does NOT fix deviceHeading itself (that's a
+//      prop from a parent component) — see the note near the bottom.
 //
 // Everything else — CAMERA_EYE_HEIGHT_METERS fix, CollectionBook wiring,
 // round/timer/glitch state machine, vacuum capture window, telemetry
-// bar, leaderboard widget, targetVegId respect, evasion hook wiring —
-// is UNCHANGED from the previous revision.
+// bar, leaderboard widget, targetVegId respect, evasion hook wiring,
+// DPR cap, lighting, isGlitchPhase — is UNCHANGED from the previous
+// revision.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -45,7 +46,14 @@ import { Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import CaptureThrow from './CaptureThrow';
 import Veggie3DModel from '../components/veggies/VeggieModel';
-import { AR_TRIGGER_DISTANCE_METERS, MODEL_BASE_SCALE, GLITCH_TARGET_SCALE_MULTIPLIER, CAMERA_EYE_HEIGHT_METERS } from '../config/gameConfig';
+import {
+  AR_TRIGGER_DISTANCE_METERS,
+  CATCH_TRIGGER_DISTANCE_METERS,
+  MODEL_BASE_SCALE,
+  GLITCH_TARGET_SCALE_MULTIPLIER,
+  CAMERA_EYE_HEIGHT_METERS,
+  RARITY_BY_SPECIES,
+} from '../config/gameConfig';
 import Leaderboard from './Leaderboard';
 import CollectionBook, { recordCatch } from './CollectionBook';
 import { useVeggieEvasion } from '../hooks/useVeggieEvasion';
@@ -125,6 +133,16 @@ function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = AP
   const radius = Math.max(MIN_SCREEN_HIT_RADIUS_PX, (halfWidthUnits / -z) * focalLengthPx);
 
   return { x: screenX, y: screenY, radius };
+}
+
+// Rare/ultra-rare veggies charge at the player (aggressive, matches
+// their higher catchDifficulty); common/uncommon flee — matching the
+// original Angry-Tomato-aggressive vs Shy-Broccoli-hides design intent.
+// Derived from RARITY_BY_SPECIES (gameConfig.js) so this can never drift
+// out of sync the way a hand-typed species list did before.
+function chaseModeForSpecies(species) {
+  const tier = RARITY_BY_SPECIES[species];
+  return tier === 'rare' || tier === 'ultra_rare';
 }
 
 function CameraPitchRig({ pitchDeg }) {
@@ -208,6 +226,7 @@ function AnimatedVeggieTarget({
       catchAttempted,
       catchLockSuccess,
       catchDifficulty: node.isGolden ? 0.8 : 0.3,
+      chaseMode: chaseModeForSpecies(node.species),
       floorY: -CAMERA_EYE_HEIGHT_METERS,
     });
 
@@ -277,6 +296,26 @@ export default function GameCanvas({
   const [devicePitch, setDevicePitch] = useState(0);
 
   const [collectionOpen, setCollectionOpen] = useState(false);
+
+  // --- iOS motion/compass permission gate (patch G) ---
+  // On iOS 13+ Safari, DeviceOrientationEvent.requestPermission() must
+  // exist AND be called from a genuine user gesture, or deviceorientation
+  // never fires. On Android / older iOS / desktop it doesn't exist, so
+  // we skip straight to 'granted' there.
+  const [motionPermission, setMotionPermission] = useState(() => {
+    const needsPrompt = typeof DeviceOrientationEvent !== 'undefined'
+      && typeof DeviceOrientationEvent.requestPermission === 'function';
+    return needsPrompt ? 'pending' : 'granted';
+  });
+
+  const requestMotionPermission = useCallback(async () => {
+    try {
+      const result = await DeviceOrientationEvent.requestPermission();
+      setMotionPermission(result === 'granted' ? 'granted' : 'denied');
+    } catch {
+      setMotionPermission('denied');
+    }
+  }, []);
 
   const timerBaseSeconds = TIMER_SECONDS_BY_MODE[initialTimingMode] ?? FALLBACK_SESSION_SECONDS;
   const [secondsLeft, setSecondsLeft] = useState(timerBaseSeconds);
@@ -394,6 +433,7 @@ export default function GameCanvas({
   }, []);
 
   useEffect(() => {
+    if (motionPermission !== 'granted') return undefined;
     function handleOrientation(e) {
       if (e.beta == null) return;
       const tilt = e.beta - 90;
@@ -401,7 +441,7 @@ export default function GameCanvas({
     }
     window.addEventListener('deviceorientation', handleOrientation, true);
     return () => window.removeEventListener('deviceorientation', handleOrientation, true);
-  }, []);
+  }, [motionPermission]);
 
   useEffect(() => {
     if (!window.socket) return undefined;
@@ -567,6 +607,9 @@ export default function GameCanvas({
       .filter(Boolean);
   }, [targetNodes, liveVeggieSnapshot, windowDims]);
 
+  // Gated on BOTH screen-center proximity AND real-world GPS distance
+  // (patch E) — a target can only ever show as truly "locked" and be
+  // attempted if the player is actually within CATCH_TRIGGER_DISTANCE_METERS.
   const lockRings = useMemo(() => {
     const cx = windowDims.w / 2;
     const cy = windowDims.h / 2;
@@ -574,11 +617,12 @@ export default function GameCanvas({
       const dx = t.x - cx;
       const dy = t.y - cy;
       const distToCenter = Math.sqrt(dx * dx + dy * dy);
-      const locked = distToCenter <= LOCK_RADIUS_PX;
+      const inRealRange = t.distance <= CATCH_TRIGGER_DISTANCE_METERS;
+      const locked = distToCenter <= LOCK_RADIUS_PX && inRealRange;
       const fill = Math.max(0, Math.min(1, 1 - distToCenter / (LOCK_RADIUS_PX * 3)));
       const vacuuming = vacuumLock?.targetId === t.id;
       const jumpScared = jumpScaredIds.has(t.id);
-      return { ...t, locked, fill, vacuuming, jumpScared };
+      return { ...t, locked, inRealRange, fill, vacuuming, jumpScared };
     });
   }, [captureTargets, windowDims, vacuumLock, jumpScaredIds]);
 
@@ -621,6 +665,16 @@ export default function GameCanvas({
   }, [lockRings]);
 
   const handleCaptureAttempt = useCallback((id, quality) => {
+    // Real-world range check (patch E) — reject before dispatching to
+    // the socket. The on-screen reticle can drift to center even for a
+    // distant target once projected through projectToScreen, so screen
+    // position alone was never a safe gate. Server should re-validate
+    // this too (flagged in the header note above).
+    const targetNode = targetNodes.find((n) => n.id === id);
+    if (targetNode && targetNode.distance > CATCH_TRIGGER_DISTANCE_METERS) {
+      return;
+    }
+
     timerFrozenRef.current = true;
     lockedSinceRef.current.delete(id);
     setJumpScaredIds((prev) => {
@@ -636,7 +690,7 @@ export default function GameCanvas({
     }, CAPTURE_RESULT_TIMEOUT_MS);
 
     window.socket?.emit('capture-attempt', { vegId: id, quality });
-  }, []);
+  }, [targetNodes]);
 
   const timerColor = secondsLeft <= 10 ? '#ff3f34' : secondsLeft <= 20 ? '#ffbe1a' : '#39ff88';
 
@@ -724,6 +778,18 @@ export default function GameCanvas({
       )}
       <div style={styles.videoScrim} />
 
+      {motionPermission === 'pending' && (
+        <div style={styles.cameraErrorOverlay}>
+          <h3>ENABLE AR SENSORS</h3>
+          <p style={{ marginBottom: 16, maxWidth: 280 }}>
+            Tap below to allow compass &amp; motion access — needed to lock veggies to their real-world positions.
+          </p>
+          <button style={styles.fleeBtn} onClick={requestMotionPermission}>
+            ENABLE MOTION ACCESS
+          </button>
+        </div>
+      )}
+
       {myMode === 'indoor' && (
         <div style={styles.alignmentBarWrap}>
           <div style={styles.alignmentBar} />
@@ -806,6 +872,10 @@ export default function GameCanvas({
               ) : ring.locked ? (
                 <div style={{ ...styles.bracketLabel, color: '#39ff6e' }}>
                   LOCK TARGET ENGAGED · {distLabel}
+                </div>
+              ) : !ring.inRealRange ? (
+                <div style={{ ...styles.bracketLabel, color: '#ff8f85' }}>
+                  GET CLOSER · {distLabel}
                 </div>
               ) : (
                 <div style={{ ...styles.bracketLabel, color: '#ff8f85' }}>
