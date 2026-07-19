@@ -1,55 +1,26 @@
 // ====================================================================
 // 🧲 CaptureThrow.jsx - CYBERPUNK VACUUM HARPOON LOCK-ON INTERFACE
-// v4: rewritten to match GameCanvas.jsx's real prop contract.
+// v5: adds a Pokémon-GO-style capture wobble/suspense sequence.
 //
-// UNCHANGED IN THIS PATCH — see GameCanvas.jsx's file-header patch note
-// F for the actual fix. This file's own optimistic-miss handling was
-// already correct: it shows "AWAITING SERVER CONFIRMATION", waits for a
-// captureResolutions entry, and resets the reticle the same way whether
-// that entry says success or not. The bug lived entirely in how
-// GameCanvas interpreted "an attempt was dispatched" as "start the
-// vacuum/catch animation" — this component never claimed a hit itself.
-//
-// WHAT CHANGED FROM v3:
-//   - Props are now { targets, onAttempt, captureResolutions, disabled,
-//     screenW, screenH } - matching exactly what GameCanvas.jsx passes.
-//     `veggieId` / `currentRound` / `onCaptureDispatched` /
-//     `onCameraShake` are gone; this component no longer knows or
-//     cares which round it's in or what an attempt is worth in points.
-//   - SERVER IS AUTHORITATIVE ON HIT/MISS. GameCanvas.jsx already has
-//     a full capture-attempt -> capture-result socket round-trip. This
-//     component's job is just: figure out which visible target the
-//     throw was aimed at, read a quality/precision signal off the
-//     gesture, and call onAttempt(targetId, quality) once per throw.
-//     It does NOT declare "SECURED!" or compute score itself anymore -
-//     it watches the `captureResolutions` prop (fed by GameCanvas's
-//     own socket listener) and reflects whatever the server decided.
-//   - GameCanvas.jsx already renders its own scanner-bracket reticle
-//     (locked/vacuuming/distance labels) for every target in `targets`.
-//     This component's ring/timing UI is a SEPARATE aiming-precision
-//     layer (how well-timed was your swipe), not a duplicate of that
-//     bracket UI - the two are meant to sit on screen together.
-//   - Bounds/floor math now uses the `screenW`/`screenH` props (so it
-//     always agrees with GameCanvas's own windowDims-driven layout)
-//     instead of reading window.innerWidth/innerHeight independently.
-//
-// ASSUMPTION (stated, not guessed silently): since a throw isn't
-// necessarily aimed at one pre-selected veggie anymore (multiple
-// targets can be visible at once), a throw resolves against:
-//   1) whichever target the ball's flight path actually intersects
-//      (direct physics hit), else
-//   2) the target nearest to the ball's final position, IF one exists,
-//      so a throw is never silently dropped when at least one veggie
-//      is on screen.
-// If `targets` is empty when the swipe fires, no attempt is dispatched
-// (there's nothing to aim at) - the ball still flies for visual
-// feedback, then quietly resets.
-//
-// SCOPE NOTE (unchanged from v3): this is a screen-space pseudo-3D
-// simulation - a fixed HTML overlay, not a mesh inside the R3F canvas.
-// Real gravity/drag/bounce/spin numbers drive it; true Three.js
-// raycasting would require moving this into a component rendered
-// inside <Canvas>. See the integration note at the bottom of the file.
+// WHAT CHANGED FROM v4:
+//   - Removed the dead `launchSpeed` field (computed, never read).
+//   - On a DIRECT hit, the ball no longer immediately shows "AWAITING
+//     SERVER CONFIRMATION" as flat text with no visual beat. Instead it
+//     freezes on the target and runs a wobble sequence (1-3 shakes,
+//     driven by the same `tier` this file already computes) before any
+//     result is shown — same idea as the real game's ball-shake pause.
+//   - The server round-trip is UNCHANGED and still fires the instant a
+//     direct hit registers (onAttempt is called immediately, same as
+//     v4). The wobble is a pure display gate: whichever finishes last —
+//     the wobble animation or the server's captureResolutions entry —
+//     is what actually reveals the result. A fast server response never
+//     spoils a PERFECT throw's shake animation, and a slow server
+//     response never gets stuck behind a finished wobble (the ball just
+//     holds its wobble-settled pose until the resolution arrives or the
+//     existing RESOLUTION_WAIT_TIMEOUT_MS fallback kicks in).
+//   - Indirect/miss dispatches (nothing to freeze onto) skip the wobble
+//     entirely and behave exactly as in v4 — this only touches the
+//     direct-hit path.
 // ====================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -78,6 +49,15 @@ const BASE_BALL_DEPTH_SCALE = 1;
 // throw anyway (defensive - a dropped socket message shouldn't soft-lock
 // the whole capture UI).
 const RESOLUTION_WAIT_TIMEOUT_MS = 3500;
+
+// ---- Capture wobble (Pokémon-GO-style shake suspense) ----
+// Each "wobble" is one full left-right-center swing. Count is driven by
+// throw quality so a clean PERFECT throw resolves fast while a
+// GLANCING hit makes the player sweat a little longer — matching the
+// real game's "worse throw = more shakes" pacing.
+const WOBBLE_HALF_SWING_MS = 260;
+const WOBBLE_ANGLE_DEG = 16;
+const WOBBLE_COUNT_BY_TIER = { PERFECT: 1, GOOD: 2, GLANCING: 3 };
 
 function nowMs() {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -122,6 +102,12 @@ export default function CaptureThrow({
   const [ball, setBall] = useState(null); // { x, y, depthScale, curveTag }
   const [isSpinningFast, setIsSpinningFast] = useState(false);
 
+  // --- Capture wobble UI state ---
+  const [captureAnimPhase, setCaptureAnimPhase] = useState('idle'); // idle | capturing | bursting | breakout
+  const [wobbleAngle, setWobbleAngle] = useState(0);
+  const [wobbleShakesTotal, setWobbleShakesTotal] = useState(0);
+  const [wobbleShakesDone, setWobbleShakesDone] = useState(0);
+
   const chargingIntervalRef = useRef(null);
   const touchStartYRef = useRef(0);
   const hudContainerRef = useRef(null);
@@ -141,6 +127,12 @@ export default function CaptureThrow({
   const seenResolutionIdsRef = useRef(new Set());
   const resolutionTimeoutRef = useRef(null);
 
+  // Wobble/reveal coordination: whichever finishes last (animation or
+  // server) triggers finalizeResult().
+  const wobbleTimeoutRef = useRef(null);
+  const wobbleDoneRef = useRef(true); // true = no wobble pending, safe to reveal immediately
+  const pendingServerMatchRef = useRef(null); // holds a resolved match until wobble finishes
+
   // Keep the "already seen" resolution set from growing forever across a
   // long session - just seed it once with whatever's already in the log
   // on mount so we only react to NEW entries going forward.
@@ -148,6 +140,69 @@ export default function CaptureThrow({
     captureResolutions.forEach((r) => seenResolutionIdsRef.current.add(r.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const resetForNextThrow = useCallback(() => {
+    setIsSwiped(false);
+    setVacuumPower(0);
+    setRingScale(1);
+    setLockStatus('STANDBY // ALIGN RADAR RETICLE');
+    setBall(null);
+    setCaptureAnimPhase('idle');
+    setWobbleAngle(0);
+    setWobbleShakesTotal(0);
+    setWobbleShakesDone(0);
+    pendingServerMatchRef.current = null;
+    wobbleDoneRef.current = true;
+  }, []);
+
+  // Reveals the actual server verdict - only ever called once both the
+  // wobble animation (if any) and the server response are in.
+  const finalizeResult = useCallback((match) => {
+    if (match.success) {
+      setCaptureAnimPhase('bursting');
+      setLockStatus(`✅ CONFIRMED: ${match.label || 'SECURED!'}`);
+      fireHaptics('heavy');
+    } else {
+      setCaptureAnimPhase('breakout');
+      setLockStatus(`❌ SERVER: ${match.label || 'BROKE FREE!'}`);
+      fireHaptics('light');
+    }
+    setTimeout(resetForNextThrow, 1100);
+  }, [resetForNextThrow]);
+
+  const maybeFinalize = useCallback(() => {
+    if (wobbleDoneRef.current && pendingServerMatchRef.current) {
+      const match = pendingServerMatchRef.current;
+      pendingServerMatchRef.current = null;
+      finalizeResult(match);
+    }
+  }, [finalizeResult]);
+
+  const runWobbleSequence = useCallback((shakeCount) => {
+    clearTimeout(wobbleTimeoutRef.current);
+    wobbleDoneRef.current = false;
+    setWobbleShakesTotal(shakeCount);
+    setWobbleShakesDone(0);
+
+    let halfStep = 0;
+    const totalHalfSteps = shakeCount * 2; // each shake = swing one way, then back
+
+    const tick = () => {
+      if (halfStep >= totalHalfSteps) {
+        setWobbleAngle(0);
+        wobbleDoneRef.current = true;
+        maybeFinalize();
+        return;
+      }
+      setWobbleAngle(halfStep % 2 === 0 ? -WOBBLE_ANGLE_DEG : WOBBLE_ANGLE_DEG);
+      if (halfStep % 2 === 1) {
+        setWobbleShakesDone((prev) => prev + 1);
+      }
+      halfStep += 1;
+      wobbleTimeoutRef.current = setTimeout(tick, WOBBLE_HALF_SWING_MS);
+    };
+    tick();
+  }, [maybeFinalize]);
 
   // Watch for a new resolution matching our pending attempt.
   useEffect(() => {
@@ -163,21 +218,10 @@ export default function CaptureThrow({
     if (match) {
       clearTimeout(resolutionTimeoutRef.current);
       pendingAttemptRef.current = null;
-      if (match.success) {
-        setLockStatus(`✅ CONFIRMED: ${match.label || 'SECURED!'}`);
-        fireHaptics('heavy');
-      } else {
-        setLockStatus(`❌ SERVER: ${match.label || 'MISSED'}`);
-      }
-      // Give the player a moment to read the outcome, then re-arm.
-      setTimeout(() => {
-        setIsSwiped(false);
-        setVacuumPower(0);
-        setRingScale(1);
-        setLockStatus('STANDBY // ALIGN RADAR RETICLE');
-      }, 1100);
+      pendingServerMatchRef.current = match;
+      maybeFinalize(); // reveals now if the wobble already finished, else waits for it
     }
-  }, [captureResolutions]);
+  }, [captureResolutions, maybeFinalize]);
 
   // Inject keyframes + fonts once.
   useEffect(() => {
@@ -214,11 +258,14 @@ export default function CaptureThrow({
     clearInterval(chargingIntervalRef.current);
     cancelAnimationFrame(flightRafRef.current);
     clearTimeout(resolutionTimeoutRef.current);
+    clearTimeout(wobbleTimeoutRef.current);
     setIsCharging(false);
     setVacuumPower(0);
     setBall(null);
     flightStateRef.current = null;
     pendingAttemptRef.current = null;
+    pendingServerMatchRef.current = null;
+    wobbleDoneRef.current = true;
   }, [disabled]);
 
   useEffect(() => {
@@ -226,6 +273,7 @@ export default function CaptureThrow({
       clearInterval(chargingIntervalRef.current);
       cancelAnimationFrame(flightRafRef.current);
       clearTimeout(resolutionTimeoutRef.current);
+      clearTimeout(wobbleTimeoutRef.current);
     };
   }, []);
 
@@ -361,14 +409,9 @@ export default function CaptureThrow({
 
       if (!target || typeof onAttempt !== 'function') {
         // Nothing to aim at (or no handler wired) - just reset locally,
-        // no server round-trip to wait on.
+        // no server round-trip to wait on, no wobble to run.
         setLockStatus('NO TARGET IN RANGE // RETICLE RESET');
-        setTimeout(() => {
-          setIsSwiped(false);
-          setVacuumPower(0);
-          setRingScale(1);
-          setLockStatus('STANDBY // ALIGN RADAR RETICLE');
-        }, 900);
+        setTimeout(resetForNextThrow, 900);
         setBall(null);
         flightStateRef.current = null;
         return;
@@ -381,7 +424,6 @@ export default function CaptureThrow({
         else tier = 'GLANCING';
       }
 
-      setLockStatus('LAUNCH DISPATCHED // AWAITING SERVER CONFIRMATION');
       fireHaptics(direct ? 'medium' : 'light');
 
       pendingAttemptRef.current = { vegId: target.id, dispatchedAt: nowMs() };
@@ -389,13 +431,10 @@ export default function CaptureThrow({
       resolutionTimeoutRef.current = setTimeout(() => {
         if (pendingAttemptRef.current?.vegId === target.id) {
           pendingAttemptRef.current = null;
+          clearTimeout(wobbleTimeoutRef.current);
+          wobbleDoneRef.current = true;
           setLockStatus('⏱️ NO SERVER RESPONSE // RETICLE RESET');
-          setTimeout(() => {
-            setIsSwiped(false);
-            setVacuumPower(0);
-            setRingScale(1);
-            setLockStatus('STANDBY // ALIGN RADAR RETICLE');
-          }, 800);
+          setTimeout(resetForNextThrow, 800);
         }
       }, RESOLUTION_WAIT_TIMEOUT_MS);
 
@@ -407,10 +446,23 @@ export default function CaptureThrow({
         vacuumPower
       });
 
-      setBall(null);
+      if (direct) {
+        // Freeze the ball on the target and run the shake suspense —
+        // fewer shakes for a cleaner throw, matching real Pokémon GO's
+        // "better throw, faster/likelier catch" feel.
+        setBall({ x: target.x, y: target.y, depthScale: 1, curveTag });
+        setCaptureAnimPhase('capturing');
+        setLockStatus(`🎯 ${tier} HIT // STABILIZING CAPTURE FIELD...`);
+        runWobbleSequence(WOBBLE_COUNT_BY_TIER[tier] || 2);
+      } else {
+        // No freeze-frame for an indirect/whiffed throw - same as before.
+        setLockStatus('LAUNCH DISPATCHED // AWAITING SERVER CONFIRMATION');
+        setBall(null);
+      }
+
       flightStateRef.current = null;
     },
-    [onAttempt, vacuumPower]
+    [onAttempt, vacuumPower, resetForNextThrow, runWobbleSequence]
   );
 
   const runFlightLoop = (ringScaleAtRelease) => {
@@ -443,7 +495,6 @@ export default function CaptureThrow({
 
       const hit = findDirectHit(s.x, s.y);
       if (hit) {
-        setBall({ x: s.x, y: s.y, depthScale: s.depthScale, curveTag: s.curveTag });
         dispatchAttempt(hit, true, ringScaleAtRelease, s.curveTag);
         return;
       }
@@ -474,7 +525,6 @@ export default function CaptureThrow({
     resolvedRef.current = false;
 
     const { vx, vy, speed } = computeReleaseVelocity();
-    const launchSpeed = Math.max(speed, MIN_LAUNCH_SPEED * 0.4);
 
     const curveTag = isSpinningFast;
     const curveAccelPxS2 = curveTag ? Math.sign(spinAccumRef.current || 1) * SPIN_TO_CURVE_FACTOR * 60 : 0;
@@ -494,8 +544,7 @@ export default function CaptureThrow({
       bounces: 0,
       depthScale: BASE_BALL_DEPTH_SCALE,
       curveTag,
-      curveAccelPxS2,
-      launchSpeed
+      curveAccelPxS2
     };
 
     setBall({ x: startPoint.x, y: startPoint.y, depthScale: BASE_BALL_DEPTH_SCALE, curveTag });
@@ -559,20 +608,42 @@ export default function CaptureThrow({
       </AnimatePresence>
 
       {ball && (
-        <div
+        <motion.div
           style={{
             ...styles.flightBall,
             left: ball.x,
             top: ball.y,
-            transform: `translate(-50%, -50%) scale(${ball.depthScale})`,
-            boxShadow: ball.curveTag ? `0 0 18px ${LASER_PINK}` : `0 0 12px ${MATRIX_GREEN}`,
-            borderColor: ball.curveTag ? LASER_PINK : MATRIX_GREEN
+            boxShadow:
+              captureAnimPhase === 'bursting'
+                ? `0 0 30px ${MATRIX_GREEN}`
+                : captureAnimPhase === 'breakout'
+                ? `0 0 24px ${MISS_RED}`
+                : ball.curveTag
+                ? `0 0 18px ${LASER_PINK}`
+                : `0 0 12px ${MATRIX_GREEN}`,
+            borderColor:
+              captureAnimPhase === 'bursting'
+                ? MATRIX_GREEN
+                : captureAnimPhase === 'breakout'
+                ? MISS_RED
+                : ball.curveTag
+                ? LASER_PINK
+                : MATRIX_GREEN
           }}
+          animate={{
+            x: '-50%',
+            y: '-50%',
+            rotate: captureAnimPhase === 'capturing' ? wobbleAngle : 0,
+            scale: captureAnimPhase === 'bursting' ? 1.6 : captureAnimPhase === 'breakout' ? 0.7 : ball.depthScale
+          }}
+          transition={{ type: 'tween', duration: captureAnimPhase === 'capturing' ? WOBBLE_HALF_SWING_MS / 1000 : 0.2 }}
         />
       )}
 
       <div style={styles.dashboardDock}>
-        <div style={styles.roundTelemetryLabel}>THROW TELEMETRY</div>
+        <div style={styles.roundTelemetryLabel}>
+          {captureAnimPhase === 'capturing' ? `CAPTURE SEQUENCE — SHAKE ${wobbleShakesDone}/${wobbleShakesTotal}` : 'THROW TELEMETRY'}
+        </div>
 
         <div
           style={{
@@ -704,25 +775,8 @@ const styles = {
 };
 
 // ----------------------------------------------------------------------
-// INTEGRATION CHECK against the GameCanvas.jsx you provided:
-//
-//   <CaptureThrow
-//     targets={captureTargets}              // [{id, species, distance, x, y, radius}] ✓ matches
-//     onAttempt={handleCaptureAttempt}       // (id, quality) => ... ✓ matches signature
-//     captureResolutions={captureResolutions}// [{id, vegId, success, label}] ✓ consumed above
-//     disabled={cameraState !== 'ready'}     // ✓ gates all input + shows "CAMERA NOT READY"
-//     screenW={windowDims.w}                 // ✓ used for bounds/floor
-//     screenH={windowDims.h}                 // ✓ used for bounds/floor
-//   />
-//
-// One background removed: `hudContainer.background` was BG_BLACK in the
-// original standalone version, which would have painted a solid black
-// layer over GameCanvas's camera feed + 3D scene. Set to transparent
-// here since this now sits ON TOP of that camera/AR layer, not in place
-// of it.
-//
-// If your server's 'capture-attempt' handler expects a different shape
-// for `quality` than { tier, direct, ringScaleAtRelease, curveball,
-// vacuumPower }, tell me the expected schema and I'll conform this to
-// match exactly - I don't have server.js to verify against.
+// Prop contract unchanged from v4 — still matches your GameCanvas.jsx
+// integration exactly (targets / onAttempt / captureResolutions /
+// disabled / screenW / screenH). No changes needed on the GameCanvas
+// side to pick this up.
 // ----------------------------------------------------------------------
