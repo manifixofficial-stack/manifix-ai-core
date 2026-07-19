@@ -13,7 +13,27 @@
 //   - Glitch pulse is VISUAL ONLY — does not affect point values.
 //
 // ==========================================================================
-// THIS REVISION: Reconnect handling + ticket wallet wired to billing
+// THIS REVISION: Catch radius / GPS-accuracy gate alignment
+// ==========================================================================
+//   - PROBLEM: CATCH_RADIUS_METERS (15) was tighter than
+//     GPS_MODE_ACCURACY_THRESHOLD_M (25) — a phone the server itself
+//     classified as "accurate enough for GPS mode" (accuracy up to 25m)
+//     could easily have real-world error greater than the 15m catch
+//     radius. Result: a player standing directly on top of the veggie
+//     could get a legitimate GPS fix 20m off and be told 'TOO FAR' with
+//     no way to know or fix it — not a skill failure, a tuning bug.
+//   - FIX: both numbers are now equal (20m). CATCH_RADIUS_METERS raised
+//     15 -> 20, GPS_MODE_ACCURACY_THRESHOLD_M lowered 25 -> 20. A phone
+//     good enough to be treated as GPS-capable is now, by construction,
+//     good enough to satisfy the catch radius. This also now matches the
+//     client's CATCH_TRIGGER_DISTANCE_METERS (see gameConfig.js), which
+//     was the other half of this mismatch — the client's "in range"
+//     reticle previously disagreed with what the server would actually
+//     accept.
+//   - No other gameplay logic changed in this revision.
+//
+// ==========================================================================
+// PRIOR REVISION: Reconnect handling + ticket wallet wired to billing
 // ==========================================================================
 //   - PROBLEM: any socket drop during an active match (extremely common on
 //     mobile — the whole point of this game) permanently removed the player:
@@ -342,10 +362,22 @@ const GLITCH_DURATION_MS = 6000;
 const ROOM_RADIUS_METERS = 300;
 const VEG_PANIC_RADIUS_M = 40;
 const VEG_FLEE_SPEED_MPS = 1.4;
-const CATCH_RADIUS_METERS = 15;
+
+// Real gameplay "are you close enough to catch it" distance. Kept equal to
+// GPS_MODE_ACCURACY_THRESHOLD_M below and to the client's
+// CATCH_TRIGGER_DISTANCE_METERS (gameConfig.js) — all three used to
+// disagree (15 / 25 / 25), which meant a phone the server itself judged
+// "accurate enough for GPS mode" could still fail a catch it should have
+// passed. Raised 15 -> 20 so the catch radius has headroom over realistic
+// outdoor GPS error instead of being tighter than the accuracy gate that
+// feeds it.
+const CATCH_RADIUS_METERS = 20;
 const LOCATION_STALE_MS = 15000;
 
-const GPS_MODE_ACCURACY_THRESHOLD_M = 25;
+// A player's location update is treated as GPS-mode-capable only if their
+// reported accuracy is at or under this. Lowered 25 -> 20 to match
+// CATCH_RADIUS_METERS above — see revision note at the top of this file.
+const GPS_MODE_ACCURACY_THRESHOLD_M = 20;
 const HEADING_TOLERANCE_DEG = 45;
 const LOCATION_MAX_AGE_FOR_CAPTURE_MS = 20000;
 
