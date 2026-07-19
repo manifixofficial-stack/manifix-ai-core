@@ -1,39 +1,38 @@
 // src/App.jsx
 //
-// THIS REVISION — two fixes on top of the "single GPS owner" patch:
-//
-//   1. DUPLICATE RARITY MAP REMOVED: this file had its own hand-written
-//      RARITY_BY_TYPE map that disagreed with gameConfig.js's
-//      RARITY_BY_SPECIES on every species that isn't 'common', AND used
-//      a different string format entirely for the top tier
-//      ('ultra-rare', hyphen) vs. gameConfig's ('ultra_rare', underscore).
-//      That's exactly the "second hand-written copy" drift
-//      gameConfig.js's own header comment warns about. Removed —
-//      veggiesById now imports RARITY_BY_SPECIES from gameConfig.js, one
-//      source of truth for the whole app.
-//      ⚠️ FLAG: if MapView.jsx (or anything else reading `.rarity` off
-//      veggiesById) expects the OLD hyphenated strings ('ultra-rare'),
-//      it needs updating too — I haven't seen that file yet, so verify
-//      it reads 'ultra_rare' (underscore) before shipping this.
-//
-//   2. ARENA RACE CONDITION FIXED: the Socket.io tick-server connection
-//      (which is what actually flips `stage` to 'ARENA' via onTick/onGo)
-//      previously started the instant `roomCode` was set — which
-//      happens SYNCHRONOUSLY inside autoMatchmaker, BEFORE the
-//      `navigator.geolocation.getCurrentPosition` callback resolves and
-//      actually calls `joinRoom()`. That left a real window where the
-//      tick connection could open, and the room's 'tick'/'go' events
-//      could arrive and mount <GameCanvas>, before `myPlayerId`/`mySlot`
-//      were ever set — GameCanvas would then fall back to its default
-//      mySlot ('oggy-blue', matching no real SLOT_0X), silently reading
-//      the wrong player's score/highlight until state caught up.
-//      Fixed: the tick-connection effect now also depends on
-//      `myPlayerId` and bails out until it's set, so the tick server is
-//      never contacted before this client has actually joined the room.
+// THIS REVISION:
+//   1. Removed currentLeaderName — dead state backed by
+//      room.current_leader_name, a field server.js never sends (its
+//      room-joined payload is only { room, slotId, geofence, isLeader,
+//      timingMode, reconnected?, score?, round? }) and which was never
+//      rendered anywhere in this file's JSX regardless.
+//   2. Removed the initLocalSocketBridge(joined.playerId) call —
+//      joinRoom() already opens the connection via connectSocket()
+//      internally before it emits 'join-room'; this was a no-op (the
+//      shim takes zero args) left over from before that consolidation.
+//   3. Folded the two separate window.socket.on(...) effects (mode-gate
+//      listeners, round-win tracking) into the single subscribeToRoom()
+//      pipeline, using its newly-added onTimingModeUpdated /
+//      onPromotedToLeader / onRoundWin callbacks instead of reaching
+//      into the window.socket global directly.
+//   4. Wired onCountdownCancelled (now forwarded by tickClient.js) so a
+//      cancelled countdown (e.g. a player leaving mid-lobby) resets
+//      matchPhase/stage instead of leaving the countdown overlay frozen
+//      on screen with no way out.
+//   5. ⚠️ FLAGGED, NOT FIXED: handlePrizeRematch emits 'request-rematch',
+//      which server.js has no handler for at all — tapping rematch
+//      currently does nothing server-side. Left in place since the fix
+//      belongs in server.js, not here — flag until that handler exists.
+//   6. ⚠️ FLAGGED, NOT FIXED: server.js's room-joined payload includes a
+//      `geofence: { lat, lng, radiusMeters }` that this file never
+//      captures into state. If MapView.jsx expects to draw a room
+//      boundary from it, that data currently has nowhere to land — I
+//      haven't seen MapView.jsx yet to know if it needs this.
 //
 // Everything else (motion-permission gate, playersBySlot keying,
 // PrizeCamera prop wiring, timingMode passthrough, single-GPS-owner
-// fix from the prior revision) is UNCHANGED.
+// fix, arena race-condition fix, RARITY_BY_SPECIES import) is UNCHANGED
+// from the prior revision.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,11 +42,7 @@ import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
 import DailyStreakBanner from './components/DailyStreakBanner';
 import PrizeCamera from './components/PrizeCamera';
-import {
-  joinRoom,
-  subscribeToRoom,
-  initLocalSocketBridge,
-} from './lib/gameClient';
+import { joinRoom, subscribeToRoom } from './lib/gameClient';
 import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
 import { hasMotionPermissionCached } from './lib/motionPermission';
@@ -98,10 +93,6 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [activeVegId, setActiveVegId] = useState(null);
 
-  // GPS-specific error, kept separate from the generic errorMessage
-  // banner (join failures, slot-full, etc.) so MapView's radar-waiting
-  // label only ever shows a GPS-relevant message, not an unrelated
-  // connection error.
   const [gpsError, setGpsError] = useState('');
 
   // --- Motion permission (iOS compass gate) ---
@@ -112,7 +103,6 @@ export default function App() {
   const [countdownTick, setCountdownTick] = useState(3);
   const [showGoBurst, setShowGoBurst] = useState(false);
   const [victoryData, setVictoryData] = useState(null);
-  const [currentLeaderName, setCurrentLeaderName] = useState(null);
   const [tickStatus, setTickStatus] = useState('idle');
 
   // --- Prize Camera / caught-veggie tracking ---
@@ -125,14 +115,12 @@ export default function App() {
   const gpsWatchIdRef = useRef(null);
   const lastSentPositionRef = useRef(null);
   const lastSentAtRef = useRef(0);
-  const currentLeaderNameRef = useRef(null);
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
   const autoJoinAttemptedRef = useRef(false);
-
-  useEffect(() => {
-    currentLeaderNameRef.current = currentLeaderName;
-  }, [currentLeaderName]);
+  // Kept as a ref (not state) purely so handleRoundWin below can read
+  // the current player id without re-subscribing every render.
+  const myPlayerIdRef = useRef(null);
 
   useEffect(() => {
     myPositionRef.current = myPosition;
@@ -141,6 +129,10 @@ export default function App() {
   useEffect(() => {
     deviceHeadingRef.current = deviceHeading;
   }, [deviceHeading]);
+
+  useEffect(() => {
+    myPlayerIdRef.current = myPlayerId;
+  }, [myPlayerId]);
 
   // ---- Auto-join, gated on hasSubmittedName -----------
   useEffect(() => {
@@ -168,8 +160,10 @@ export default function App() {
             const { latitude, longitude, accuracy } = pos.coords;
             const joined = await joinRoom(targetRoom, latitude, longitude, nameInput);
 
+            // joinRoom() already opened the connection (connectSocket()
+            // is called internally before it ever emits 'join-room') —
+            // no separate bridge call needed here.
             if (joined?.playerId) {
-              initLocalSocketBridge(joined.playerId);
               setMyPlayerId(joined.playerId);
             }
 
@@ -206,62 +200,40 @@ export default function App() {
     autoMatchmaker();
   }, [hasSubmittedName, nameInput]);
 
-  // ---- Mode gate: listen for the leader's choice landing -----------
-  useEffect(() => {
-    if (!window.socket) return undefined;
-
-    const handleModeUpdate = (data) => {
-      setPendingTimingMode(data?.mode || 'outdoor');
-      setTimingModeChosen(true);
-    };
-    const handlePromotion = (data) => {
-      setIsRoomLeader(true);
-      setPendingTimingMode(data?.timingMode || 'outdoor');
-      setTimingModeChosen(false);
-    };
-
-    window.socket.on('timing-mode-updated', handleModeUpdate);
-    window.socket.on('promoted-to-leader', handlePromotion);
-    return () => {
-      window.socket.off('timing-mode-updated', handleModeUpdate);
-      window.socket.off('promoted-to-leader', handlePromotion);
-    };
-  }, []);
-
-  // ---- track which veggies THIS player personally won this match -------
-  useEffect(() => {
-    if (!window.socket) return undefined;
-    const handleRoundWin = (data) => {
-      if (data?.winnerId === myPlayerId && data?.veggieType) {
-        setMyCaughtVeggies((prev) => [...prev, data.veggieType]);
-      }
-    };
-    window.socket.on('round-win', handleRoundWin);
-    return () => window.socket.off('round-win', handleRoundWin);
-  }, [myPlayerId]);
-
-  // --- Multi-User Room Real-time Subscription Pipelines ---
+  // --- Multi-User Room Real-time Subscription Pipeline ---
+  // Consolidated: previously the mode-gate listeners and round-win
+  // tracking each opened their own separate window.socket.on(...) effect,
+  // duplicating the subscription surface this effect already owns.
+  // subscribeToRoom() now exposes onTimingModeUpdated / onPromotedToLeader
+  // / onRoundWin directly, so everything routes through one place.
   useEffect(() => {
     if (!roomCode) return undefined;
 
     const unsubscribe = subscribeToRoom(roomCode, {
-      onRoomUpdate: (room) => {
-        if (room && room.current_leader_name && room.current_leader_name !== currentLeaderNameRef.current) {
-          setCurrentLeaderName(room.current_leader_name);
-        }
-      },
       onPlayersUpdate: (rows) => setPlayers(Array.isArray(rows) ? rows : []),
       onVeggiesUpdate: (rows) => setVeggies(veggiesPayloadToArray(rows)),
+
+      onTimingModeUpdated: (data) => {
+        setPendingTimingMode(data?.mode || 'outdoor');
+        setTimingModeChosen(true);
+      },
+      onPromotedToLeader: (data) => {
+        setIsRoomLeader(true);
+        setPendingTimingMode(data?.timingMode || 'outdoor');
+        setTimingModeChosen(false);
+      },
+      onRoundWin: (data) => {
+        if (data?.winnerId === myPlayerIdRef.current && data?.veggieType) {
+          setMyCaughtVeggies((prev) => [...prev, data.veggieType]);
+        }
+      },
     });
 
     return unsubscribe;
   }, [roomCode]);
 
   // ---- Continuous Geolocation GPS Watcher Loop -------------------------
-  // THE ONLY GPS WATCHER IN THE APP. MapView.jsx must never start its own
-  // — see file-header patch note. This single watcher both updates local
-  // UI state (myPosition, consumed by MapView/GameCanvas as props) and
-  // emits 'update-location' to the server (throttled).
+  // THE ONLY GPS WATCHER IN THE APP. MapView.jsx must never start its own.
   useEffect(() => {
     if (!myPlayerId || !navigator.geolocation) return undefined;
 
@@ -336,12 +308,6 @@ export default function App() {
   }, [motionPermissionReady]);
 
   // ---- Socket.io Tick Game Server Coordination Loop --------------------
-  // FIX (this revision): previously keyed only on `roomCode`, which is
-  // set synchronously before joinRoom() resolves — meaning this could
-  // connect and receive 'tick'/'go' (flipping `stage` to 'ARENA') before
-  // myPlayerId/mySlot were ever set. Now also gated on `myPlayerId` so
-  // the tick server is never contacted until this client has actually
-  // finished joining the room.
   useEffect(() => {
     if (!roomCode || !myPlayerId) return undefined;
 
@@ -383,6 +349,21 @@ export default function App() {
 
         setMatchPhase(MATCH_PHASE.ENDED);
       },
+
+      // NEW: previously nothing reset the countdown UI if the server
+      // cancelled it (e.g. a player left the lobby mid-countdown) — the
+      // overlay would stay frozen on whatever tick it last showed, with
+      // no path back to the map. This resets state and drops the client
+      // back to MAP so they see the lobby again instead of a dead screen.
+      onCountdownCancelled: (data) => {
+        setMatchPhase(null);
+        setStage('MAP');
+        setErrorMessage(
+          data?.reason === 'player-left'
+            ? 'A player left the lobby — match start was cancelled.'
+            : 'Match start was cancelled.'
+        );
+      },
     });
 
     return () => {
@@ -414,6 +395,10 @@ export default function App() {
     setTimingModeChosen(true);
   };
 
+  // ⚠️ 'request-rematch' has no matching handler in server.js — this
+  // currently emits into the void. Left as-is pending a server-side fix;
+  // flagging rather than silently removing in case that handler is
+  // planned. See file-header note.
   const handlePrizeRematch = () => {
     window.socket?.emit('request-rematch', { roomCode });
     setShowPrizeCamera(false);
@@ -472,9 +457,6 @@ export default function App() {
     );
   }, [players]);
 
-  // Rarity now comes from gameConfig.js's RARITY_BY_SPECIES — the same
-  // single source of truth GameCanvas.jsx and useVeggieEvasion.js use —
-  // instead of a second hand-written map that disagreed with it.
   const veggiesById = useMemo(() => {
     if (!Array.isArray(veggies)) return {};
     return Object.fromEntries(
