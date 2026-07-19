@@ -37,6 +37,30 @@
 //      — full 60fps state churn isn't needed for a DOM overlay, and
 //      avoids janking the 3D layer with React re-renders every frame.
 //
+// F) (THIS PATCH — "server-confirmed vacuum animation") Previously,
+//    `handleCaptureAttempt` opened `vacuumLock` (which drives
+//    VeggieModel's `isVacuuming` prop) immediately on every dispatched
+//    throw, hit or miss — because CaptureThrow.jsx always calls
+//    `onAttempt` once it resolves against *some* target (direct hit OR
+//    nearest-fallback on a total miss; see CaptureThrow's own
+//    file-header ASSUMPTION). That meant every miss near a veggie still
+//    played the full "gulp" shrink-and-suck animation, and after the
+//    1.2s window VeggieModel's `onCatch` fired unconditionally — wiping
+//    that veggie's evasion-hook physics/AI state
+//    (`clearVeggieState`) on a WHIFF, not just a real catch.
+//
+//    Fixed by decoupling "a throw was dispatched" from "the vacuum/catch
+//    animation should play": `handleCaptureAttempt` now only freezes the
+//    round timer and emits `capture-attempt` — it no longer touches
+//    `vacuumLock`. `vacuumLock` is now opened ONLY inside
+//    `handleCaptureResult`, and only when the server confirms
+//    `data.success === true`. A miss unfreezes the timer immediately
+//    instead of waiting out a vacuum window that should never have
+//    started. A new `attemptTimeoutRef` safety-unfreezes the timer if a
+//    `capture-result` never arrives at all (dropped socket message),
+//    mirroring the equivalent defensive timeout already in
+//    CaptureThrow.jsx.
+//
 // HONEST CAVEAT ON "HIDING IN A REAL ENVIRONMENT": there's no depth
 // sensing/LiDAR here, so a veggie can't actually duck behind your real
 // couch or wall. "Hiding" is simulated the same way Pokémon GO does it —
@@ -97,7 +121,10 @@ import CaptureThrow from './CaptureThrow';
 //   hyperSpeed      bool     — Round-3 flag: faster run-cycle animation
 //   isJumpScared    bool     — true for a short burst after a player has
 //                              stared at it too long without firing
-//   isVacuuming     bool     — true during the local capture freeze window
+//   isVacuuming     bool     — true ONLY during a SERVER-CONFIRMED capture
+//                              freeze window (see patch note F above) —
+//                              no longer set optimistically on every
+//                              dispatched throw
 //   isCaught        bool     — persistent caught state (existing behavior)
 //   onCatch(id)              — existing callback, fired once the local
 //                              vacuum/shrink animation finishes
@@ -131,6 +158,13 @@ const TOTAL_ROUNDS = 3;
 const ROUND_POINT_TIERS = { 1: 100, 2: 300, 3: 600 };
 const GLITCH_ROUND_POINTS = 1000;
 const VACUUM_WINDOW_MS = 1200;
+
+// Safety unfreeze: how long to wait for a `capture-result` socket event
+// after dispatching `capture-attempt` before giving up and unfreezing
+// the round timer anyway. A dropped socket message should never
+// permanently freeze the clock. Mirrors CaptureThrow.jsx's own
+// RESOLUTION_WAIT_TIMEOUT_MS defensive timeout.
+const CAPTURE_RESULT_TIMEOUT_MS = 3500;
 
 // "Sentient running" mesh-level animation (leg/body sway baked into the
 // model itself — see the runAmplitude caveat in the Veggie3DModel props
@@ -420,8 +454,15 @@ export default function GameCanvas({
   const [scoreSubmitted, setScoreSubmitted] = useState(false);
 
   // ── Vacuum capture window (drives VeggieModel's isVacuuming prop) ─
+  // IMPORTANT (patch F): this is now opened ONLY from handleCaptureResult
+  // once the server confirms a hit — never optimistically from
+  // handleCaptureAttempt. See the file-header patch note for why.
   const [vacuumLock, setVacuumLock] = useState(null); // { targetId, expiresAt } | null
   const timerFrozenRef = useRef(false);
+  // Safety-unfreeze timer for an in-flight capture-attempt that never
+  // gets a capture-result back (dropped socket message). Cleared the
+  // moment a real capture-result arrives.
+  const attemptTimeoutRef = useRef(null);
 
   // ── Sentient-run / jump-scare bookkeeping ────────────────────────
   const lockedSinceRef = useRef(new Map()); // id -> ms timestamp first locked
@@ -459,6 +500,11 @@ export default function GameCanvas({
     const handleResize = () => setWindowDims({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Cleanup the capture-attempt safety timer on unmount.
+  useEffect(() => {
+    return () => clearTimeout(attemptTimeoutRef.current);
   }, []);
 
   // Current round's HUD point tier — explodes to GLITCH_ROUND_POINTS
@@ -606,6 +652,10 @@ export default function GameCanvas({
     const handleCaptureResult = (data) => {
       if (!data) return;
 
+      // A real result arrived — the safety-unfreeze timer from
+      // handleCaptureAttempt is no longer needed for this attempt.
+      clearTimeout(attemptTimeoutRef.current);
+
       const label = data.success ? null : (data.label || 'MISSED');
       const resolution = {
         id: data.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -625,7 +675,23 @@ export default function GameCanvas({
         pendingCatchAttemptsRef.current[resolution.vegId] = { success: resolution.success };
       }
 
-      if (!data.success) {
+      if (resolution.success) {
+        // PATCH F: only now — once the server has actually confirmed a
+        // hit — open the local vacuum/capture-animation window. This is
+        // what drives VeggieModel's isVacuuming prop and, in turn, its
+        // one-shot onCatch callback at the end of that window.
+        if (resolution.vegId) {
+          setVacuumLock({ targetId: resolution.vegId, expiresAt: Date.now() + VACUUM_WINDOW_MS });
+        }
+        window.setTimeout(() => {
+          timerFrozenRef.current = false;
+          setVacuumLock((prev) => (prev?.targetId === resolution.vegId ? null : prev));
+        }, VACUUM_WINDOW_MS);
+      } else {
+        // A miss resolves immediately — no vacuum animation was ever
+        // started for it (see handleCaptureAttempt below), so there's
+        // no window to wait out. Just unfreeze the round timer.
+        timerFrozenRef.current = false;
         const newMiss = { id: resolution.id, text: label };
         setMissPopups((prev) => [...prev, newMiss]);
         setTimeout(() => {
@@ -800,12 +866,19 @@ export default function GameCanvas({
     return () => clearInterval(intervalId);
   }, [lockRings]);
 
-  // Wraps the original onAttempt so a capture attempt also opens the
-  // local vacuum window: freezes the round clock and flags that
-  // target for VeggieModel's isVacuuming prop.
+  // Wraps the original onAttempt so a capture attempt freezes the round
+  // clock while we wait for the server's verdict.
+  //
+  // PATCH F: this NO LONGER opens vacuumLock. Previously it did so
+  // immediately on every dispatched throw — hit or miss — which made
+  // every miss near a veggie play the full vacuum/catch animation and
+  // then fire VeggieModel's onCatch unconditionally, wiping that
+  // veggie's evasion-hook state on a whiff. vacuumLock is now only ever
+  // opened from handleCaptureResult, and only once the server confirms
+  // `success: true`. A defensive attemptTimeoutRef unfreezes the timer
+  // if capture-result never arrives at all.
   const handleCaptureAttempt = useCallback((id, quality) => {
     timerFrozenRef.current = true;
-    setVacuumLock({ targetId: id, expiresAt: Date.now() + VACUUM_WINDOW_MS });
     lockedSinceRef.current.delete(id);
     setJumpScaredIds((prev) => {
       if (!prev.has(id)) return prev;
@@ -813,10 +886,12 @@ export default function GameCanvas({
       next.delete(id);
       return next;
     });
-    window.setTimeout(() => {
+
+    clearTimeout(attemptTimeoutRef.current);
+    attemptTimeoutRef.current = window.setTimeout(() => {
       timerFrozenRef.current = false;
-      setVacuumLock((prev) => (prev?.targetId === id ? null : prev));
-    }, VACUUM_WINDOW_MS);
+    }, CAPTURE_RESULT_TIMEOUT_MS);
+
     window.socket?.emit('capture-attempt', { vegId: id, quality });
   }, []);
 
