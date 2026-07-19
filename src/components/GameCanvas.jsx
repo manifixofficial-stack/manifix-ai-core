@@ -61,6 +61,14 @@
 //    mirroring the equivalent defensive timeout already in
 //    CaptureThrow.jsx.
 //
+// G) (THIS PATCH — "respect MapView's selected target") Added the
+//    `targetVegId` prop App.jsx was already sending on every AR
+//    hand-off but this component previously ignored entirely (it
+//    wasn't even in the destructured prop list). See the prop's own
+//    doc comment above `export default function GameCanvas` for full
+//    details — short version: when set, only that one veggie is
+//    shown/tracked; when omitted, behavior is unchanged from before.
+//
 // HONEST CAVEAT ON "HIDING IN A REAL ENVIRONMENT": there's no depth
 // sensing/LiDAR here, so a veggie can't actually duck behind your real
 // couch or wall. "Hiding" is simulated the same way Pokémon GO does it —
@@ -425,6 +433,16 @@ export default function GameCanvas({
   // NEW: lobby-selected timing mode ('indoor' | 'outdoor'). Optional —
   // omitting it preserves the old fixed 55s session length.
   initialTimingMode = null,
+  // NEW (bug fix): App.jsx already sends this — the specific veggie id
+  // MapView's radar CATCH button selected before handing off to this
+  // AR screen — but this component previously had no `targetVegId` in
+  // its prop list at all, so it was silently dropped and every visible
+  // veggie was shown regardless of what was actually tapped. When
+  // provided, only that one veggie is rendered/tracked here, matching
+  // the original MapView -> "pick one target, then enter AR" flow. When
+  // omitted (e.g. testing this component directly), all currently
+  // GPS-visible veggies are shown, same as before.
+  targetVegId = null,
   onExit
 }) {
   const videoRef = useRef(null);
@@ -724,7 +742,7 @@ export default function GameCanvas({
   // distanceMeters (still gates idle/greeting/running in the hook) for
   // every currently-visible veggie. No longer mutates position with a
   // manual jitter — AnimatedVeggieTarget owns real movement now.
-  const targetNodes = useMemo(() => {
+  const rawTargetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
     const projectedList = [];
 
@@ -763,6 +781,16 @@ export default function GameCanvas({
     return projectedList;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [veggies, selfPosition, deviceHeading]);
+
+  // NEW (bug fix, see targetVegId prop note above): everything below
+  // this point already reads `targetNodes` — filtering happens here,
+  // once, so no downstream logic (capture targets, reticle, glitch
+  // target selection, LOCKS count) needed to change to respect a
+  // MapView-selected target.
+  const targetNodes = useMemo(() => {
+    if (!targetVegId) return rawTargetNodes;
+    return rawTargetNodes.filter((n) => n.id === targetVegId);
+  }, [rawTargetNodes, targetVegId]);
 
   // Nearest visible target is still tracked for the Round-3 HUD/visual
   // cue (bigger model, faster run-cycle animation) — actual excitement
