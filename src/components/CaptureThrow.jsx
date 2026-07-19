@@ -2,6 +2,14 @@
 // 🧲 CaptureThrow.jsx - CYBERPUNK VACUUM HARPOON LOCK-ON INTERFACE
 // v4: rewritten to match GameCanvas.jsx's real prop contract.
 //
+// UNCHANGED IN THIS PATCH — see GameCanvas.jsx's file-header patch note
+// F for the actual fix. This file's own optimistic-miss handling was
+// already correct: it shows "AWAITING SERVER CONFIRMATION", waits for a
+// captureResolutions entry, and resets the reticle the same way whether
+// that entry says success or not. The bug lived entirely in how
+// GameCanvas interpreted "an attempt was dispatched" as "start the
+// vacuum/catch animation" — this component never claimed a hit itself.
+//
 // WHAT CHANGED FROM v3:
 //   - Props are now { targets, onAttempt, captureResolutions, disabled,
 //     screenW, screenH } - matching exactly what GameCanvas.jsx passes.
