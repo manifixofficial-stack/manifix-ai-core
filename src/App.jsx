@@ -1,35 +1,27 @@
 // src/App.jsx
 //
-// FLOW: Name Gate -> Mode Gate (leader picks; others wait) -> World Map
-// Lobby -> Live AR Catch Screen -> Victory Card (+ optional Prize Selfie).
+// PERFORMANCE PATCH (this revision — "single GPS owner"):
 //
-// THIS REVISION (bug-fix pass): fixes three real wiring gaps between
-// App.jsx and the components it renders, on top of the existing iOS
-// compass-permission fix from the previous revision:
+// MapView.jsx previously ran its own independent
+// navigator.geolocation.watchPosition() loop AND pushed location to the
+// server itself, completely separate from the watcher already running
+// here in App.jsx. That meant two live GPS hardware subscriptions active
+// simultaneously for the entire time a player was on the map screen, and
+// two independent code paths writing location to the server with
+// different throttle windows and different payloads (App's included
+// `heading`, MapView's didn't) — a real race condition where the server
+// could receive conflicting updates for the same player within the same
+// second.
 //
-//   1. initialTimingMode was collected here (pendingTimingMode, from the
-//      Mode Gate) but never actually passed down to <GameCanvas>, so the
-//      player's 45s/60s choice never took effect — GameCanvas always
-//      fell back to its fixed default. Now passed through explicitly.
+// FIX: App.jsx is now the ONE place that touches navigator.geolocation
+// and the ONE place that emits 'update-location'. MapView.jsx no longer
+// watches GPS at all — position (`myPosition`) and any GPS-related error
+// message are now passed down to <MapView> as props (`myPos`, `gpsError`)
+// exactly like `deviceHeading` and `veggies` already were.
 //
-//   2. players was being built keyed by player id (playersById) and
-//      handed to GameCanvas, but GameCanvas looks players up by SLOT id
-//      (players?.[mySlot]?.score / .mode) — so the keys never matched
-//      and the score readout / mode badge / "highlight my row" styling
-//      inside GameCanvas silently failed to find the local player. This
-//      is now built keyed by slot id instead (playersBySlot) to match
-//      what GameCanvas actually expects.
-//
-//   3. <PrizeCamera> was only ever given caughtVeggies / winnerName /
-//      onClose. winnerScore, runnerUp, roomCode, and onRematch are now
-//      derived from victoryData / roomCode and passed through, and a
-//      real handlePrizeRematch handler (emits 'request-rematch' with
-//      the actual roomCode) replaces the previously-missing onRematch.
-//
-// motionPermission.js itself required no changes — it was already
-// correctly built (feature-detected, tap-gated, safe fallbacks). The
-// prior bug was purely in how App.jsx reacted (or failed to react) to
-// permission being granted later; that fix is unchanged from before.
+// Everything else in this file (motion-permission gate, playersBySlot
+// keying fix, PrizeCamera prop wiring, timingMode passthrough to
+// GameCanvas) is UNCHANGED from the previous revision.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -103,6 +95,12 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [activeVegId, setActiveVegId] = useState(null);
 
+  // NEW: GPS-specific error, kept separate from the generic errorMessage
+  // banner (join failures, slot-full, etc.) so MapView's radar-waiting
+  // label only ever shows a GPS-relevant message, not an unrelated
+  // connection error.
+  const [gpsError, setGpsError] = useState('');
+
   // --- Motion permission (iOS compass gate) ---
   const [motionPermissionReady, setMotionPermissionReady] = useState(false);
 
@@ -150,6 +148,7 @@ export default function App() {
     const autoMatchmaker = async () => {
       if (!navigator.geolocation) {
         setErrorMessage('This device does not support location services.');
+        setGpsError('This device has no GPS sensor available.');
         return;
       }
 
@@ -174,6 +173,7 @@ export default function App() {
             setIsRoomLeader(!!joined?.isLeader);
             setPendingTimingMode(joined?.timingMode || 'outdoor');
             setMyPosition({ lat: latitude, lng: longitude, accuracy });
+            setGpsError('');
 
             if (joined?.slotId) {
               setMySlot(joined.slotId);
@@ -193,6 +193,7 @@ export default function App() {
         },
         () => {
           setErrorMessage('Location permission is required to join this outdoor arena.');
+          setGpsError('Location permission denied — enable it in site settings.');
           setTickStatus('failed');
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
@@ -254,6 +255,10 @@ export default function App() {
   }, [roomCode]);
 
   // ---- Continuous Geolocation GPS Watcher Loop -------------------------
+  // THE ONLY GPS WATCHER IN THE APP. MapView.jsx must never start its own
+  // — see file-header patch note. This single watcher both updates local
+  // UI state (myPosition, consumed by MapView/GameCanvas as props) and
+  // emits 'update-location' to the server (throttled).
   useEffect(() => {
     if (!myPlayerId || !navigator.geolocation) return undefined;
 
@@ -265,6 +270,7 @@ export default function App() {
         const elapsed = now - lastSentAtRef.current;
 
         setMyPosition({ lat: latitude, lng: longitude, accuracy });
+        setGpsError('');
 
         if (elapsed < POSITION_SYNC_THROTTLE_MS) return;
         if (last && last.lat === latitude && last.lng === longitude) return;
@@ -281,7 +287,14 @@ export default function App() {
           });
         }
       },
-      (err) => console.error('[App] geolocation watch error', err),
+      (err) => {
+        console.error('[App] geolocation watch error', err);
+        setGpsError(
+          err && err.code === 1
+            ? 'Location permission denied — enable it in site settings.'
+            : 'GPS signal unavailable. Move outdoors or check location services.'
+        );
+      },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
 
@@ -291,11 +304,6 @@ export default function App() {
   }, [myPlayerId]);
 
   // ---- Motion permission tracking ---------------------------------------
-  // Rechecks the cached permission flag on mount and on window focus,
-  // since there's no native event for "permission just got granted" —
-  // the grant happens inside MapView.jsx's CATCH tap handler, on a
-  // different component entirely, so this is the bridge that lets
-  // App.jsx notice it happened.
   useEffect(() => {
     const check = () => setMotionPermissionReady(hasMotionPermissionCached());
     check();
@@ -304,9 +312,6 @@ export default function App() {
   }, []);
 
   // ---- Hardware Compass Absolute Heading Listeners ---------------------
-  // Depends on motionPermissionReady instead of running once on mount
-  // with an empty dep array, so a permission grant that happens later
-  // (inside MapView's CATCH tap) actually re-arms this listener on iOS.
   useEffect(() => {
     if (!motionPermissionReady) return undefined;
 
@@ -400,11 +405,6 @@ export default function App() {
     setTimingModeChosen(true);
   };
 
-  // FIX: PrizeCamera previously only ever received caughtVeggies /
-  // winnerName / onClose, so winnerScore/runnerUp/roomCode defaulted to
-  // 0/null/'' inside PrizeCamera and its rematch button had nothing
-  // real to fire. onRematch now actually emits a request-rematch event
-  // carrying the real roomCode, then closes the prize camera.
   const handlePrizeRematch = () => {
     window.socket?.emit('request-rematch', { roomCode });
     setShowPrizeCamera(false);
@@ -443,12 +443,6 @@ export default function App() {
       }));
   }, [players]);
 
-  // FIX: this was previously keyed by player id (playersById) and handed
-  // to GameCanvas as `players`, but GameCanvas looks players up by SLOT
-  // id — players?.[mySlot]?.score and players?.[mySlot]?.mode — so the
-  // keys never matched and both the score readout and the "TRACKING
-  // MODE" badge silently came up empty inside GameCanvas. Keyed by slot
-  // id now, matching what GameCanvas actually reads.
   const playersBySlot = useMemo(() => {
     if (!Array.isArray(players)) return {};
     return Object.fromEntries(
@@ -493,9 +487,6 @@ export default function App() {
     return myPosition;
   }, [players, myPlayerId, myPosition]);
 
-  // FIX: PrizeCamera previously got no score/runner-up/room context at
-  // all. Derived here from the same victoryData already computed for
-  // the Victory Card, so no new state/round-trip is needed.
   const prizeWinnerScore = victoryData?.results?.[0]?.score ?? 0;
   const prizeRunnerUp = victoryData?.results?.[1]?.name ?? null;
 
@@ -597,6 +588,8 @@ export default function App() {
               roomCode={roomCode}
               playerId={myPlayerId}
               mySlot={mySlot}
+              myPos={myPosition}
+              gpsError={gpsError}
               onEnterAR={handleSelectVeggieTarget}
               onExit={handleReturnToRadar}
             />
