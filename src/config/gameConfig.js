@@ -1,6 +1,22 @@
 // src/config/gameConfig.js
 //
-// THIS REVISION: added a new "Veggie evasion / AI tuning" section (see
+// THIS REVISION: Catch distance aligned with server.js (15/25 -> 20)
+//
+// PROBLEM: CATCH_TRIGGER_DISTANCE_METERS was 25, but server.js gated an
+// actual successful capture at CATCH_RADIUS_METERS = 15. That meant the
+// client's reticle/attempt UI would tell a player "you're in range" at
+// distances the server would flatly reject with TOO FAR — a direct,
+// reachable false-positive in the core loop.
+//
+// FIX: both sides now agree on 20m. Server.js raised its catch radius
+// 15 -> 20 AND lowered its GPS-mode accuracy gate 25 -> 20 (so a phone
+// only gets treated as "GPS capable" once its own fix is precise enough
+// to plausibly satisfy a 20m catch). This file drops
+// CATCH_TRIGGER_DISTANCE_METERS 25 -> 20 to match. ENTRY_RADIUS_METERS
+// and CATCH_RADIUS_METERS below are derived from this constant, so they
+// update automatically — no other change needed here.
+//
+// PRIOR REVISION: added a new "Veggie evasion / AI tuning" section (see
 // below). Previously every movement/speed/timing number for how a
 // veggie chases, dashes, dodges, and hides lived as hardcoded constants
 // INSIDE hooks/useVeggieEvasion.js — meaning tuning "how it moves" meant
@@ -30,7 +46,11 @@ export const AR_TRIGGER_DISTANCE_METERS = 500;
 // How close the player actually has to be to trigger the CATCH button /
 // count as "in range" on the radar map. This is the real gameplay
 // distance and should be small and deliberate, unlike the AR render cutoff.
-export const CATCH_TRIGGER_DISTANCE_METERS = 25;
+// Kept equal to server.js's CATCH_RADIUS_METERS and
+// GPS_MODE_ACCURACY_THRESHOLD_M (20m) — see revision note above. Do not
+// change this without also updating server.js, or the client's "in range"
+// reticle will disagree with what the server actually accepts again.
+export const CATCH_TRIGGER_DISTANCE_METERS = 20;
 // Add near the other Spawn system exports:
 export const MODEL_BASE_SCALE = 1.4;
 export const GLITCH_TARGET_SCALE_MULTIPLIER = 1.3;
