@@ -1,27 +1,39 @@
 // src/App.jsx
 //
-// PERFORMANCE PATCH (this revision — "single GPS owner"):
+// THIS REVISION — two fixes on top of the "single GPS owner" patch:
 //
-// MapView.jsx previously ran its own independent
-// navigator.geolocation.watchPosition() loop AND pushed location to the
-// server itself, completely separate from the watcher already running
-// here in App.jsx. That meant two live GPS hardware subscriptions active
-// simultaneously for the entire time a player was on the map screen, and
-// two independent code paths writing location to the server with
-// different throttle windows and different payloads (App's included
-// `heading`, MapView's didn't) — a real race condition where the server
-// could receive conflicting updates for the same player within the same
-// second.
+//   1. DUPLICATE RARITY MAP REMOVED: this file had its own hand-written
+//      RARITY_BY_TYPE map that disagreed with gameConfig.js's
+//      RARITY_BY_SPECIES on every species that isn't 'common', AND used
+//      a different string format entirely for the top tier
+//      ('ultra-rare', hyphen) vs. gameConfig's ('ultra_rare', underscore).
+//      That's exactly the "second hand-written copy" drift
+//      gameConfig.js's own header comment warns about. Removed —
+//      veggiesById now imports RARITY_BY_SPECIES from gameConfig.js, one
+//      source of truth for the whole app.
+//      ⚠️ FLAG: if MapView.jsx (or anything else reading `.rarity` off
+//      veggiesById) expects the OLD hyphenated strings ('ultra-rare'),
+//      it needs updating too — I haven't seen that file yet, so verify
+//      it reads 'ultra_rare' (underscore) before shipping this.
 //
-// FIX: App.jsx is now the ONE place that touches navigator.geolocation
-// and the ONE place that emits 'update-location'. MapView.jsx no longer
-// watches GPS at all — position (`myPosition`) and any GPS-related error
-// message are now passed down to <MapView> as props (`myPos`, `gpsError`)
-// exactly like `deviceHeading` and `veggies` already were.
+//   2. ARENA RACE CONDITION FIXED: the Socket.io tick-server connection
+//      (which is what actually flips `stage` to 'ARENA' via onTick/onGo)
+//      previously started the instant `roomCode` was set — which
+//      happens SYNCHRONOUSLY inside autoMatchmaker, BEFORE the
+//      `navigator.geolocation.getCurrentPosition` callback resolves and
+//      actually calls `joinRoom()`. That left a real window where the
+//      tick connection could open, and the room's 'tick'/'go' events
+//      could arrive and mount <GameCanvas>, before `myPlayerId`/`mySlot`
+//      were ever set — GameCanvas would then fall back to its default
+//      mySlot ('oggy-blue', matching no real SLOT_0X), silently reading
+//      the wrong player's score/highlight until state caught up.
+//      Fixed: the tick-connection effect now also depends on
+//      `myPlayerId` and bails out until it's set, so the tick server is
+//      never contacted before this client has actually joined the room.
 //
-// Everything else in this file (motion-permission gate, playersBySlot
-// keying fix, PrizeCamera prop wiring, timingMode passthrough to
-// GameCanvas) is UNCHANGED from the previous revision.
+// Everything else (motion-permission gate, playersBySlot keying,
+// PrizeCamera prop wiring, timingMode passthrough, single-GPS-owner
+// fix from the prior revision) is UNCHANGED.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,7 +48,7 @@ import {
   subscribeToRoom,
   initLocalSocketBridge,
 } from './lib/gameClient';
-import { POSITION_SYNC_THROTTLE_MS } from './config/gameConfig';
+import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
 import { hasMotionPermissionCached } from './lib/motionPermission';
 
@@ -55,15 +67,6 @@ const MATCH_PHASE = {
   COUNTDOWN: 'COUNTDOWN',
   ACTIVE: 'ACTIVE',
   ENDED: 'ENDED',
-};
-
-const RARITY_BY_TYPE = {
-  tomato: 'rare',
-  broccoli: 'common',
-  golden: 'ultra-rare',
-  banana: 'uncommon',
-  grapes: 'uncommon',
-  strawberry: 'rare',
 };
 
 function veggiesPayloadToArray(payload) {
@@ -95,7 +98,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [activeVegId, setActiveVegId] = useState(null);
 
-  // NEW: GPS-specific error, kept separate from the generic errorMessage
+  // GPS-specific error, kept separate from the generic errorMessage
   // banner (join failures, slot-full, etc.) so MapView's radar-waiting
   // label only ever shows a GPS-relevant message, not an unrelated
   // connection error.
@@ -333,8 +336,14 @@ export default function App() {
   }, [motionPermissionReady]);
 
   // ---- Socket.io Tick Game Server Coordination Loop --------------------
+  // FIX (this revision): previously keyed only on `roomCode`, which is
+  // set synchronously before joinRoom() resolves — meaning this could
+  // connect and receive 'tick'/'go' (flipping `stage` to 'ARENA') before
+  // myPlayerId/mySlot were ever set. Now also gated on `myPlayerId` so
+  // the tick server is never contacted until this client has actually
+  // finished joining the room.
   useEffect(() => {
-    if (!roomCode) return undefined;
+    if (!roomCode || !myPlayerId) return undefined;
 
     tickConnectionRef.current = connectTickServer(roomCode, myPositionRef.current, {
       onStatusChange: setTickStatus,
@@ -380,7 +389,7 @@ export default function App() {
       tickConnectionRef.current?.disconnect();
       tickConnectionRef.current = null;
     };
-  }, [roomCode]);
+  }, [roomCode, myPlayerId]);
 
   // ---- ACTION HANDLERS ----
 
@@ -463,18 +472,24 @@ export default function App() {
     );
   }, [players]);
 
+  // Rarity now comes from gameConfig.js's RARITY_BY_SPECIES — the same
+  // single source of truth GameCanvas.jsx and useVeggieEvasion.js use —
+  // instead of a second hand-written map that disagreed with it.
   const veggiesById = useMemo(() => {
     if (!Array.isArray(veggies)) return {};
     return Object.fromEntries(
-      veggies.map((v, index) => [
-        v?.id || `unknown-${index}`,
-        {
-          lat: v?.lat ?? v?.latitude,
-          lng: v?.lng ?? v?.longitude,
-          species: v?.species ?? v?.veggie_type ?? 'broccoli',
-          rarity: RARITY_BY_TYPE[v?.species ?? v?.veggie_type] ?? 'common',
-        },
-      ])
+      veggies.map((v, index) => {
+        const species = v?.species ?? v?.veggie_type ?? 'broccoli';
+        return [
+          v?.id || `unknown-${index}`,
+          {
+            lat: v?.lat ?? v?.latitude,
+            lng: v?.lng ?? v?.longitude,
+            species,
+            rarity: RARITY_BY_SPECIES[species] ?? 'common',
+          },
+        ];
+      })
     );
   }, [veggies]);
 
