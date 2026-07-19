@@ -1,8 +1,47 @@
 // ====================================================================
 // 🧲 CaptureThrow.jsx - CYBERPUNK VACUUM HARPOON LOCK-ON INTERFACE
-// v2: fixes a mismatched style key, an invalid CSS value, missing
-// keyframes, page-scroll interference during the swipe gesture, and
-// adds a state reset so the reticle actually works on the next target.
+// v4: rewritten to match GameCanvas.jsx's real prop contract.
+//
+// WHAT CHANGED FROM v3:
+//   - Props are now { targets, onAttempt, captureResolutions, disabled,
+//     screenW, screenH } - matching exactly what GameCanvas.jsx passes.
+//     `veggieId` / `currentRound` / `onCaptureDispatched` /
+//     `onCameraShake` are gone; this component no longer knows or
+//     cares which round it's in or what an attempt is worth in points.
+//   - SERVER IS AUTHORITATIVE ON HIT/MISS. GameCanvas.jsx already has
+//     a full capture-attempt -> capture-result socket round-trip. This
+//     component's job is just: figure out which visible target the
+//     throw was aimed at, read a quality/precision signal off the
+//     gesture, and call onAttempt(targetId, quality) once per throw.
+//     It does NOT declare "SECURED!" or compute score itself anymore -
+//     it watches the `captureResolutions` prop (fed by GameCanvas's
+//     own socket listener) and reflects whatever the server decided.
+//   - GameCanvas.jsx already renders its own scanner-bracket reticle
+//     (locked/vacuuming/distance labels) for every target in `targets`.
+//     This component's ring/timing UI is a SEPARATE aiming-precision
+//     layer (how well-timed was your swipe), not a duplicate of that
+//     bracket UI - the two are meant to sit on screen together.
+//   - Bounds/floor math now uses the `screenW`/`screenH` props (so it
+//     always agrees with GameCanvas's own windowDims-driven layout)
+//     instead of reading window.innerWidth/innerHeight independently.
+//
+// ASSUMPTION (stated, not guessed silently): since a throw isn't
+// necessarily aimed at one pre-selected veggie anymore (multiple
+// targets can be visible at once), a throw resolves against:
+//   1) whichever target the ball's flight path actually intersects
+//      (direct physics hit), else
+//   2) the target nearest to the ball's final position, IF one exists,
+//      so a throw is never silently dropped when at least one veggie
+//      is on screen.
+// If `targets` is empty when the swipe fires, no attempt is dispatched
+// (there's nothing to aim at) - the ball still flies for visual
+// feedback, then quietly resets.
+//
+// SCOPE NOTE (unchanged from v3): this is a screen-space pseudo-3D
+// simulation - a fixed HTML overlay, not a mesh inside the R3F canvas.
+// Real gravity/drag/bounce/spin numbers drive it; true Three.js
+// raycasting would require moving this into a component rendered
+// inside <Canvas>. See the integration note at the bottom of the file.
 // ====================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,21 +49,129 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MATRIX_GREEN = '#39ff88';
 const GLITCH_GOLD = '#ffbe1a';
 const LASER_PINK = '#ff3b94';
+const MISS_RED = '#ff3f34';
 const BG_BLACK = '#030305';
 
-export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatched }) {
+// ---- Physics constants (all in px/s, px/s², screen-space) ----
+const GRAVITY_PX_S2 = 1400;
+const AIR_RESISTANCE = 0.985;
+const BOUNCE_COEFFICIENT = 0.45;
+const MAX_BOUNCES = 2;
+const FLOOR_Y_RATIO = 0.86;
+const AUTO_RESET_MS = 4000;
+const AUTO_RESET_OFFSCREEN_MARGIN = 250;
+const VELOCITY_SAMPLE_WINDOW_MS = 120;
+const MIN_LAUNCH_SPEED = 250;
+const SPIN_TO_CURVE_FACTOR = 3.2;
+const BASE_BALL_DEPTH_SCALE = 1;
+
+// How long to show "AWAITING SERVER CONFIRMATION" before giving up on
+// a matching captureResolutions entry and just resetting for the next
+// throw anyway (defensive - a dropped socket message shouldn't soft-lock
+// the whole capture UI).
+const RESOLUTION_WAIT_TIMEOUT_MS = 3500;
+
+function nowMs() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+async function fireHaptics(style = 'medium') {
+  try {
+    const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+    if (cap?.isPluginAvailable?.('Haptics')) {
+      const { Haptics, ImpactStyle } = await import(
+        /* webpackIgnore: true */ '@capacitor/haptics'
+      );
+      const impactStyle =
+        style === 'heavy' ? ImpactStyle.Heavy : style === 'light' ? ImpactStyle.Light : ImpactStyle.Medium;
+      await Haptics.impact({ style: impactStyle });
+      return;
+    }
+  } catch {
+    // Capacitor not installed in this build - fall through to web vibration.
+  }
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    navigator.vibrate(style === 'heavy' ? 60 : style === 'light' ? 15 : 30);
+  }
+}
+
+export default function CaptureThrow({
+  targets = [],
+  onAttempt,
+  captureResolutions = [],
+  disabled = false,
+  screenW,
+  screenH
+}) {
+  const viewportW = screenW || (typeof window !== 'undefined' ? window.innerWidth : 375);
+  const viewportH = screenH || (typeof window !== 'undefined' ? window.innerHeight : 812);
+
   const [vacuumPower, setVacuumPower] = useState(0);
   const [isCharging, setIsCharging] = useState(false);
   const [lockStatus, setLockStatus] = useState('STANDBY // ALIGN RADAR RETICLE');
   const [ringScale, setRingScale] = useState(1);
   const [isSwiped, setIsSwiped] = useState(false);
+  const [ball, setBall] = useState(null); // { x, y, depthScale, curveTag }
+  const [isSpinningFast, setIsSpinningFast] = useState(false);
 
   const chargingIntervalRef = useRef(null);
   const touchStartYRef = useRef(0);
   const hudContainerRef = useRef(null);
 
-  // Inject keyframes + fonts once, scoped under a unique id so this
-  // component works standalone even if RoomJoin's style node isn't mounted.
+  const velocitySamplesRef = useRef([]);
+  const spinCenterRef = useRef({ x: 0, y: 0 });
+  const spinLastAngleRef = useRef(null);
+  const spinAccumRef = useRef(0);
+
+  const flightStateRef = useRef(null);
+  const flightRafRef = useRef(null);
+  const resolvedRef = useRef(false); // guards against double-dispatch of onAttempt
+
+  // Tracks the outstanding attempt we're waiting on a server verdict for,
+  // so we can match it against new entries appearing in captureResolutions.
+  const pendingAttemptRef = useRef(null); // { vegId, dispatchedAt } | null
+  const seenResolutionIdsRef = useRef(new Set());
+  const resolutionTimeoutRef = useRef(null);
+
+  // Keep the "already seen" resolution set from growing forever across a
+  // long session - just seed it once with whatever's already in the log
+  // on mount so we only react to NEW entries going forward.
+  useEffect(() => {
+    captureResolutions.forEach((r) => seenResolutionIdsRef.current.add(r.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Watch for a new resolution matching our pending attempt.
+  useEffect(() => {
+    if (!pendingAttemptRef.current) return;
+    const fresh = captureResolutions.filter((r) => !seenResolutionIdsRef.current.has(r.id));
+    if (fresh.length === 0) return;
+
+    fresh.forEach((r) => seenResolutionIdsRef.current.add(r.id));
+
+    const match =
+      fresh.find((r) => r.vegId === pendingAttemptRef.current.vegId) || fresh[fresh.length - 1];
+
+    if (match) {
+      clearTimeout(resolutionTimeoutRef.current);
+      pendingAttemptRef.current = null;
+      if (match.success) {
+        setLockStatus(`✅ CONFIRMED: ${match.label || 'SECURED!'}`);
+        fireHaptics('heavy');
+      } else {
+        setLockStatus(`❌ SERVER: ${match.label || 'MISSED'}`);
+      }
+      // Give the player a moment to read the outcome, then re-arm.
+      setTimeout(() => {
+        setIsSwiped(false);
+        setVacuumPower(0);
+        setRingScale(1);
+        setLockStatus('STANDBY // ALIGN RADAR RETICLE');
+      }, 1100);
+    }
+  }, [captureResolutions]);
+
+  // Inject keyframes + fonts once.
   useEffect(() => {
     if (!document.getElementById('ct-fonts-node')) {
       const link = document.createElement('link');
@@ -43,29 +190,39 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
           50% { opacity: 0.6; }
           100% { transform: translateY(100vh); opacity: 0.2; }
         }
+        @keyframes spinSparkle {
+          0% { opacity: 0; transform: scale(0.6) rotate(0deg); }
+          40% { opacity: 1; }
+          100% { opacity: 0; transform: scale(1.6) rotate(180deg); }
+        }
       `;
       document.head.appendChild(el);
     }
   }, []);
 
-  // Reset the whole rig whenever a new target comes up, so the ring,
-  // charge meter, and status line don't stay frozen from the last catch.
+  // Full reset if the component gets disabled mid-charge (e.g. camera drops).
   useEffect(() => {
+    if (!disabled) return;
     clearInterval(chargingIntervalRef.current);
-    setVacuumPower(0);
+    cancelAnimationFrame(flightRafRef.current);
+    clearTimeout(resolutionTimeoutRef.current);
     setIsCharging(false);
-    setIsSwiped(false);
-    setRingScale(1);
-    setLockStatus('STANDBY // ALIGN RADAR RETICLE');
-  }, [veggieId, currentRound]);
+    setVacuumPower(0);
+    setBall(null);
+    flightStateRef.current = null;
+    pendingAttemptRef.current = null;
+  }, [disabled]);
 
-  // Always clear any live interval on unmount to avoid state updates
-  // firing after the component is gone.
   useEffect(() => {
-    return () => clearInterval(chargingIntervalRef.current);
+    return () => {
+      clearInterval(chargingIntervalRef.current);
+      cancelAnimationFrame(flightRafRef.current);
+      clearTimeout(resolutionTimeoutRef.current);
+    };
   }, []);
 
-  // 🎯 Dynamic Pokémon GO-style closing target ring loop physics
+  // 🎯 Closing target ring loop - aiming-precision layer, independent of
+  // GameCanvas's own lock-on brackets.
   useEffect(() => {
     if (isSwiped) return;
     const interval = setInterval(() => {
@@ -74,10 +231,6 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
     return () => clearInterval(interval);
   }, [isSwiped]);
 
-  // Lock page scroll while the player is charging/swiping so the vertical
-  // swipe gesture doesn't fight the browser's native scroll behavior.
-  // Needs a real (non-passive) listener since React's synthetic touch
-  // handlers are passive by default and can't reliably preventDefault.
   useEffect(() => {
     const node = hudContainerRef.current;
     if (!node) return;
@@ -88,12 +241,45 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
     return () => node.removeEventListener('touchmove', blockScroll);
   }, [isCharging]);
 
-  // ⚡ Physical thumb charge triggers
+  const pointFromEvent = (e) => {
+    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if (e.changedTouches && e.changedTouches[0]) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  const pushVelocitySample = (x, y) => {
+    const t = nowMs();
+    const buf = velocitySamplesRef.current;
+    buf.push({ x, y, t });
+    const cutoff = t - VELOCITY_SAMPLE_WINDOW_MS;
+    while (buf.length > 1 && buf[0].t < cutoff) buf.shift();
+  };
+
+  const computeReleaseVelocity = () => {
+    const buf = velocitySamplesRef.current;
+    if (buf.length < 2) return { vx: 0, vy: 0, speed: 0 };
+    const first = buf[0];
+    const last = buf[buf.length - 1];
+    const dt = Math.max(1, last.t - first.t) / 1000;
+    const vx = (last.x - first.x) / dt;
+    const vy = (last.y - first.y) / dt;
+    return { vx, vy, speed: Math.hypot(vx, vy) };
+  };
+
   const handleStartSuctionCharge = (e) => {
-    if (isSwiped) return;
+    if (disabled || isSwiped || ball) return;
     setIsCharging(true);
     setLockStatus('ENERGY CORE INJECTING... HOLD BACKPACK TRIGGER');
-    touchStartYRef.current = e.touches ? e.touches[0].clientY : e.clientY;
+    const p = pointFromEvent(e);
+    touchStartYRef.current = p.y;
+
+    velocitySamplesRef.current = [];
+    pushVelocitySample(p.x, p.y);
+
+    spinCenterRef.current = { x: p.x, y: p.y };
+    spinLastAngleRef.current = null;
+    spinAccumRef.current = 0;
+    setIsSpinningFast(false);
 
     clearInterval(chargingIntervalRef.current);
     chargingIntervalRef.current = setInterval(() => {
@@ -108,56 +294,210 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
     }, 25);
   };
 
-  // 🌪️ Tinder-style vertical "Swipe Up to Throw" gesture engine
-  const handleTouchMove = (e) => {
-    if (!isCharging || isSwiped) return;
-    const currentY = e.touches ? e.touches[0].clientY : e.clientY;
-    const deltaY = touchStartYRef.current - currentY;
+  const trackSpin = (x, y) => {
+    const c = spinCenterRef.current;
+    const angle = Math.atan2(y - c.y, x - c.x);
+    if (spinLastAngleRef.current != null) {
+      let delta = angle - spinLastAngleRef.current;
+      if (delta > Math.PI) delta -= 2 * Math.PI;
+      if (delta < -Math.PI) delta += 2 * Math.PI;
+      spinAccumRef.current += delta;
+    }
+    spinLastAngleRef.current = angle;
+    setIsSpinningFast(Math.abs(spinAccumRef.current) > Math.PI * 1.2);
+  };
 
-    // Trigger explosive harpoon release if swipe distance passes 120px boundary threshold
+  const handleTouchMove = (e) => {
+    if (disabled || !isCharging || isSwiped) return;
+    const p = pointFromEvent(e);
+    pushVelocitySample(p.x, p.y);
+    trackSpin(p.x, p.y);
+
+    const deltaY = touchStartYRef.current - p.y;
     if (deltaY > 120) {
       handleExecuteHarpoonLaunch();
     }
+  };
+
+  // Direct hit test: ball center inside a target's screen hitbox circle.
+  const findDirectHit = (x, y) => {
+    for (const t of targets) {
+      const dist = Math.hypot(x - t.x, y - t.y);
+      if (dist <= t.radius) return t;
+    }
+    return null;
+  };
+
+  // Fallback when the flight ends without a direct hit: nearest target
+  // to where the ball ended up, so a throw is never silently dropped
+  // while at least one veggie is visible (see file-header ASSUMPTION).
+  const findNearestTarget = (x, y) => {
+    if (targets.length === 0) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (const t of targets) {
+      const d = Math.hypot(x - t.x, y - t.y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = t;
+      }
+    }
+    return best;
+  };
+
+  const dispatchAttempt = useCallback(
+    (target, direct, ringScaleAtRelease, curveTag) => {
+      if (resolvedRef.current) return;
+      resolvedRef.current = true;
+      cancelAnimationFrame(flightRafRef.current);
+
+      if (!target || typeof onAttempt !== 'function') {
+        // Nothing to aim at (or no handler wired) - just reset locally,
+        // no server round-trip to wait on.
+        setLockStatus('NO TARGET IN RANGE // RETICLE RESET');
+        setTimeout(() => {
+          setIsSwiped(false);
+          setVacuumPower(0);
+          setRingScale(1);
+          setLockStatus('STANDBY // ALIGN RADAR RETICLE');
+        }, 900);
+        setBall(null);
+        flightStateRef.current = null;
+        return;
+      }
+
+      let tier = 'MISS';
+      if (direct) {
+        if (ringScaleAtRelease >= 0.35 && ringScaleAtRelease <= 0.55) tier = 'PERFECT';
+        else if (ringScaleAtRelease > 0.55 && ringScaleAtRelease <= 0.8) tier = 'GOOD';
+        else tier = 'GLANCING';
+      }
+
+      setLockStatus('LAUNCH DISPATCHED // AWAITING SERVER CONFIRMATION');
+      fireHaptics(direct ? 'medium' : 'light');
+
+      pendingAttemptRef.current = { vegId: target.id, dispatchedAt: nowMs() };
+      clearTimeout(resolutionTimeoutRef.current);
+      resolutionTimeoutRef.current = setTimeout(() => {
+        if (pendingAttemptRef.current?.vegId === target.id) {
+          pendingAttemptRef.current = null;
+          setLockStatus('⏱️ NO SERVER RESPONSE // RETICLE RESET');
+          setTimeout(() => {
+            setIsSwiped(false);
+            setVacuumPower(0);
+            setRingScale(1);
+            setLockStatus('STANDBY // ALIGN RADAR RETICLE');
+          }, 800);
+        }
+      }, RESOLUTION_WAIT_TIMEOUT_MS);
+
+      onAttempt(target.id, {
+        tier,
+        direct,
+        ringScaleAtRelease,
+        curveball: !!curveTag,
+        vacuumPower
+      });
+
+      setBall(null);
+      flightStateRef.current = null;
+    },
+    [onAttempt, vacuumPower]
+  );
+
+  const runFlightLoop = (ringScaleAtRelease) => {
+    const step = () => {
+      const s = flightStateRef.current;
+      if (!s || resolvedRef.current) return;
+
+      const t = nowMs();
+      const dt = Math.min(0.032, Math.max(0.001, (t - s.lastT) / 1000));
+      s.lastT = t;
+
+      s.vy += GRAVITY_PX_S2 * dt;
+      s.vx *= AIR_RESISTANCE;
+      s.vy *= AIR_RESISTANCE;
+      s.vx += s.curveAccelPxS2 * dt;
+
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+
+      const travelRatio = Math.min(1, (t - s.launchedAt) / 900);
+      s.depthScale = BASE_BALL_DEPTH_SCALE * (1 - 0.35 * travelRatio) + 0.25 * Math.max(0, s.y / viewportH);
+
+      const floorY = viewportH * FLOOR_Y_RATIO;
+      if (s.y >= floorY && s.vy > 0) {
+        s.y = floorY;
+        s.vy *= -BOUNCE_COEFFICIENT;
+        s.vx *= 0.7;
+        s.bounces += 1;
+      }
+
+      const hit = findDirectHit(s.x, s.y);
+      if (hit) {
+        setBall({ x: s.x, y: s.y, depthScale: s.depthScale, curveTag: s.curveTag });
+        dispatchAttempt(hit, true, ringScaleAtRelease, s.curveTag);
+        return;
+      }
+
+      const offscreen =
+        s.x < -AUTO_RESET_OFFSCREEN_MARGIN ||
+        s.x > viewportW + AUTO_RESET_OFFSCREEN_MARGIN ||
+        s.y > viewportH + AUTO_RESET_OFFSCREEN_MARGIN;
+      const stale = t - s.launchedAt > AUTO_RESET_MS;
+      const outOfBounces = s.bounces > MAX_BOUNCES && Math.abs(s.vy) < 40;
+
+      if (offscreen || stale || outOfBounces) {
+        const nearest = findNearestTarget(s.x, s.y);
+        dispatchAttempt(nearest, false, ringScaleAtRelease, s.curveTag);
+        return;
+      }
+
+      setBall({ x: s.x, y: s.y, depthScale: s.depthScale, curveTag: s.curveTag });
+      flightRafRef.current = requestAnimationFrame(step);
+    };
+    flightRafRef.current = requestAnimationFrame(step);
   };
 
   const handleExecuteHarpoonLaunch = useCallback(() => {
     clearInterval(chargingIntervalRef.current);
     setIsCharging(false);
     setIsSwiped(true);
+    resolvedRef.current = false;
 
-    // Evaluate capture accuracy matching your strict 3-round point constraints
-    let classification = 'MISS';
-    let precisionMultiplier = 0;
+    const { vx, vy, speed } = computeReleaseVelocity();
+    const launchSpeed = Math.max(speed, MIN_LAUNCH_SPEED * 0.4);
 
-    if (ringScale >= 0.35 && ringScale <= 0.55) {
-      classification = '🔥 PERFECT LOCK-ON!';
-      precisionMultiplier = 2.0;
-    } else if (ringScale > 0.55 && ringScale <= 0.8) {
-      classification = '⚡ GOOD MATCH!';
-      precisionMultiplier = 1.0;
-    }
+    const curveTag = isSpinningFast;
+    const curveAccelPxS2 = curveTag ? Math.sign(spinAccumRef.current || 1) * SPIN_TO_CURVE_FACTOR * 60 : 0;
 
-    setLockStatus(`LAUNCH DISPATCHED: ${classification}`);
+    const startPoint = velocitySamplesRef.current[velocitySamplesRef.current.length - 1] || {
+      x: viewportW / 2,
+      y: touchStartYRef.current
+    };
 
-    // Map point values natively to server.js tournament rules based on current round
-    let baseStakes = 100;
-    if (currentRound === 2) baseStakes = 300;
-    if (currentRound === 3) baseStakes = 600; // Round 3 Overdrive Glitch Core
+    flightStateRef.current = {
+      x: startPoint.x,
+      y: startPoint.y,
+      vx,
+      vy: -Math.abs(vy) - 200,
+      lastT: nowMs(),
+      launchedAt: nowMs(),
+      bounces: 0,
+      depthScale: BASE_BALL_DEPTH_SCALE,
+      curveTag,
+      curveAccelPxS2,
+      launchSpeed
+    };
 
-    const finalCalculatedPoints = Math.round(baseStakes * precisionMultiplier * (vacuumPower / 100));
+    setBall({ x: startPoint.x, y: startPoint.y, depthScale: BASE_BALL_DEPTH_SCALE, curveTag });
+    setLockStatus(curveTag ? '🌀 CURVEBALL LAUNCHED!' : 'PROJECTILE LAUNCHED // TRACKING...');
 
-    // Emit the tactical data schema packet straight to server.js multiplayer endpoints
-    setTimeout(() => {
-      onCaptureDispatched({
-        targetId: veggieId,
-        success: classification !== 'MISS' && vacuumPower > 20,
-        scoreValue: classification !== 'MISS' ? Math.min(finalCalculatedPoints, 1000) : 0, // 1,000 PTS absolute max ceiling
-        accuracyTier: classification
-      });
-    }, 1200);
-  }, [ringScale, vacuumPower, currentRound, veggieId, onCaptureDispatched]);
+    runFlightLoop(ringScale);
+  }, [ringScale, isSpinningFast, viewportW]);
 
   const handleReleaseAborted = () => {
+    if (disabled) return;
     clearInterval(chargingIntervalRef.current);
     if (!isSwiped) {
       setIsCharging(false);
@@ -167,22 +507,25 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
   };
 
   const ringInBand = ringScale <= 0.55 && ringScale >= 0.35;
+  const statusColor = lockStatus.includes('❌') || lockStatus.includes('⚠️') || lockStatus.includes('⏱️')
+    ? MISS_RED
+    : lockStatus.includes('✅')
+    ? MATRIX_GREEN
+    : GLITCH_GOLD;
 
   return (
     <div
       ref={hudContainerRef}
-      style={styles.hudContainer}
+      style={{ ...styles.hudContainer, pointerEvents: disabled ? 'none' : 'auto', opacity: disabled ? 0.5 : 1 }}
       onTouchMove={handleTouchMove}
       onMouseMove={handleTouchMove}
       onTouchEnd={handleReleaseAborted}
       onMouseUp={handleReleaseAborted}
       onMouseLeave={handleReleaseAborted}
     >
-      {/* Laser Scanlines Matrix HUD Borders */}
       <div style={styles.laserScanline} />
       <div style={styles.cyberHudFrame} />
 
-      {/* 🔴 POKÉMON GO TARGETING CATCH RING OVERLAYS */}
       <AnimatePresence>
         {!isSwiped && (
           <motion.div
@@ -193,9 +536,7 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
             exit={{ opacity: 0, scale: 1.2 }}
             transition={{ duration: 0.25 }}
           >
-            {/* Base target ring */}
             <div style={styles.staticTargetOuterRing} />
-            {/* Closing capture circle indicator */}
             <motion.div
               style={{
                 ...styles.shrinkingCaptureCircle,
@@ -204,26 +545,38 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
                 boxShadow: `0 0 20px ${ringInBand ? MATRIX_GREEN : GLITCH_GOLD}`
               }}
             />
+            {isSpinningFast && <div style={styles.spinSparkle} />}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Cyber Telemetry Status Board Banner */}
+      {ball && (
+        <div
+          style={{
+            ...styles.flightBall,
+            left: ball.x,
+            top: ball.y,
+            transform: `translate(-50%, -50%) scale(${ball.depthScale})`,
+            boxShadow: ball.curveTag ? `0 0 18px ${LASER_PINK}` : `0 0 12px ${MATRIX_GREEN}`,
+            borderColor: ball.curveTag ? LASER_PINK : MATRIX_GREEN
+          }}
+        />
+      )}
+
       <div style={styles.dashboardDock}>
-        <div style={styles.roundTelemetryLabel}>ROUND {currentRound} TARGETING MATRIX</div>
+        <div style={styles.roundTelemetryLabel}>THROW TELEMETRY</div>
 
         <div
           style={{
             ...styles.terminalConsoleLog,
-            borderColor: lockStatus.includes('🚨') || lockStatus.includes('⚠️') ? LASER_PINK : lockStatus.includes('🔥') ? MATRIX_GREEN : GLITCH_GOLD,
-            color: lockStatus.includes('🚨') || lockStatus.includes('⚠️') ? LASER_PINK : lockStatus.includes('🔥') ? MATRIX_GREEN : '#ffffff'
+            borderColor: statusColor,
+            color: statusColor === GLITCH_GOLD ? '#ffffff' : statusColor
           }}
         >
           <span style={{ color: MATRIX_GREEN }}>{'> '}</span>
           {lockStatus}
         </div>
 
-        {/* Dynamic Heavy Vacuum Power Loading Progress Indicator Bar */}
         <div style={styles.powerTrackContainer}>
           <motion.div
             style={{ ...styles.powerFillVolume, width: `${vacuumPower}%` }}
@@ -233,13 +586,12 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
           <span style={styles.progressTextPercent}>{Math.round(vacuumPower)}% PRESSURE</span>
         </div>
 
-        {/* 🧲 THE UNHINGED GESTURE CONTROL BUTTON */}
         <div
           style={{
             ...styles.tacticalChargePad,
             background: isCharging ? 'rgba(255, 190, 26, 0.15)' : 'rgba(57, 255, 136, 0.05)',
             borderColor: isCharging ? GLITCH_GOLD : MATRIX_GREEN,
-            cursor: isSwiped ? 'default' : 'pointer',
+            cursor: isSwiped || disabled ? 'default' : 'pointer',
             opacity: isSwiped ? 0.5 : 1
           }}
           onTouchStart={handleStartSuctionCharge}
@@ -251,7 +603,15 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
             transition={{ duration: 0.3, repeat: Infinity }}
           />
           <div style={styles.touchPadLabelPrompt}>
-            {isSwiped ? 'TARGET RESOLVED' : isCharging ? '⬆️ NOW SWIPE UP TO LAUNCH ⬆️' : 'HOLD TO CHARGE VACUUM ENGINE'}
+            {disabled
+              ? 'CAMERA NOT READY'
+              : isSwiped
+              ? 'TARGET RESOLVED'
+              : isCharging
+              ? isSpinningFast
+                ? '🌀 CURVE LOADED - SWIPE UP TO LAUNCH ⬆️'
+                : '⬆️ NOW SWIPE UP TO LAUNCH ⬆️'
+              : 'HOLD TO CHARGE VACUUM ENGINE'}
           </div>
         </div>
       </div>
@@ -259,12 +619,11 @@ export default function CaptureThrow({ veggieId, currentRound, onCaptureDispatch
   );
 }
 
-// Immersive Premium Custom CSS Variable Layout Sheets
 const styles = {
   hudContainer: {
     position: 'fixed', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column',
     justifyContent: 'space-between', overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none',
-    background: BG_BLACK, touchAction: 'none'
+    background: 'transparent', touchAction: 'none'
   },
   laserScanline: {
     position: 'absolute', top: 0, left: 0, width: '100%', height: '3px',
@@ -287,6 +646,15 @@ const styles = {
   shrinkingCaptureCircle: {
     position: 'absolute', width: '130px', height: '130px', border: '3px solid', borderRadius: '50%',
     transition: 'border-color 0.1s ease'
+  },
+  spinSparkle: {
+    position: 'absolute', width: '160px', height: '160px', borderRadius: '50%',
+    border: `2px dashed ${LASER_PINK}`, animation: 'spinSparkle 0.6s ease-out infinite', pointerEvents: 'none'
+  },
+  flightBall: {
+    position: 'fixed', width: '26px', height: '26px', borderRadius: '50%',
+    background: 'radial-gradient(circle at 35% 30%, #ffffff, #39ff88 60%, #0a3d22 100%)',
+    border: '2px solid', zIndex: 165, pointerEvents: 'none'
   },
   dashboardDock: {
     position: 'absolute', bottom: '40px', left: '50%', transform: 'translateX(-50%)', width: '92%',
@@ -326,3 +694,27 @@ const styles = {
     letterSpacing: '0.5px', textTransform: 'uppercase'
   }
 };
+
+// ----------------------------------------------------------------------
+// INTEGRATION CHECK against the GameCanvas.jsx you provided:
+//
+//   <CaptureThrow
+//     targets={captureTargets}              // [{id, species, distance, x, y, radius}] ✓ matches
+//     onAttempt={handleCaptureAttempt}       // (id, quality) => ... ✓ matches signature
+//     captureResolutions={captureResolutions}// [{id, vegId, success, label}] ✓ consumed above
+//     disabled={cameraState !== 'ready'}     // ✓ gates all input + shows "CAMERA NOT READY"
+//     screenW={windowDims.w}                 // ✓ used for bounds/floor
+//     screenH={windowDims.h}                 // ✓ used for bounds/floor
+//   />
+//
+// One background removed: `hudContainer.background` was BG_BLACK in the
+// original standalone version, which would have painted a solid black
+// layer over GameCanvas's camera feed + 3D scene. Set to transparent
+// here since this now sits ON TOP of that camera/AR layer, not in place
+// of it.
+//
+// If your server's 'capture-attempt' handler expects a different shape
+// for `quality` than { tier, direct, ringScaleAtRelease, curveball,
+// vacuumPower }, tell me the expected schema and I'll conform this to
+// match exactly - I don't have server.js to verify against.
+// ----------------------------------------------------------------------
