@@ -1,52 +1,104 @@
 // server.js
 //
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
-// MERGED VERSION — full game engine + routes/ + models/ wiring.
 //
 // ==========================================================================
-// ⚠️ IMPORTANT — READ BEFORE DEPLOYING
+// MATCH STRUCTURE: WINNER-TAKE-ROUND (100/300/600, 3 rounds)
 // ==========================================================================
-// This file was merged WITHOUT seeing the actual contents of:
-//   - models/Player.js
-//   - models/Feedback.js
-//   - routes/auth.js
-//   - routes/billing.js
-//   - routes/feedback.js
-//
-// Assumptions made (marked inline with "// ASSUMPTION:"):
-//   1. routes/auth.js, routes/billing.js, routes/feedback.js each do
-//      `module.exports = router;` (a standard Express Router) and are
-//      mountable directly with app.use('/api/...', require('./routes/x')).
-//   2. models/Player.js and models/Feedback.js are NOT used by the
-//      Socket.io game loop below — the game loop keeps players as plain
-//      in-memory objects inside `rooms[roomCode].players` (this is how
-//      the original game-engine file worked; Player.js is likely only
-//      used by routes/auth.js for persistent accounts, which is untouched
-//      here since I don't have that file).
-//   3. routes/billing.js may ALREADY implement wallet balance +
-//      Razorpay payment verification. To avoid duplicating/conflicting
-//      logic, the REST payment endpoints from the old inline version
-//      are LEFT OUT of this file — mount them from routes/billing.js
-//      instead. The Socket.io ticket-SPEND logic (spendTicket, used when
-//      a match actually starts) is KEPT here because it's tightly coupled
-//      to the live match loop, not a REST call.
-//
-// You MUST verify routes/billing.js exposes what the game needs:
-//   - GET  /api/billing/wallet/:deviceUUID   (or similar) for HUD balance
-//   - POST /api/billing/verify-payment       (or similar) for Razorpay
-// If it doesn't, tell me and I'll add the missing inline routes back.
+//   - 2 to 6 players per room.
+//   - Exactly 3 rounds. Each round spawns exactly ONE veggie. First valid
+//     capture wins the WHOLE round's point value — no partial credit.
+//   - Round point values: 100 / 300 / 600 = 1000 total.
+//   - Timeout with no capture = nobody scores that round, points lost.
+//   - Glitch pulse is VISUAL ONLY — does not affect point values.
 //
 // ==========================================================================
-// GAME LOGIC BELOW IS UNCHANGED FROM YOUR WORKING GAME-ENGINE VERSION:
+// THIS REVISION: Reconnect handling + ticket wallet wired to billing
 // ==========================================================================
-//   - 2 to 6 players/room, exactly 3 rounds, winner-take-round scoring
-//     (100/300/600 = 1000 total).
-//   - Reconnect grace window (RECONNECT_GRACE_MS) keeps a mid-match
-//     disconnect's slot + score alive so they can rejoin.
-//   - Ticket gating on join (checked, not spent) + spend on match start.
-//   - Room-wide indoor/outdoor timing mode set by the lobby leader.
-//   - GPS + indoor (compass) dual capture modes, anti-cheat speed clamp.
+//   - PROBLEM: any socket drop during an active match (extremely common on
+//     mobile — the whole point of this game) permanently removed the player:
+//     their slot opened back up and their score was gone, with no way back
+//     in even if they reconnected 2 seconds later.
+//   - FIX: a player who disconnects mid-match is marked `disconnected: true`
+//     and kept in `room.players` (slot NOT freed) for RECONNECT_GRACE_MS.
+//     If the same deviceUUID calls `join-room` on the same room code before
+//     that timer fires, they're restored under their new socket.id with
+//     their existing score/character intact ('room-joined' includes
+//     `reconnected: true`). If the grace window expires, they're removed
+//     for good via finalizePlayerRemoval — same end state as before.
+//   - New events: `player-disconnected` (grace window started) and
+//     `player-reconnected` (restored) — both broadcast to the room so
+//     clients can show a "reconnecting…" indicator instead of just seeing
+//     someone vanish and reappear as a stranger.
+//   - A brand new (non-reconnecting) join is now rejected once
+//     `room.matchActive` is true — previously nothing stopped an unrelated
+//     new player from being slotted into an in-progress match.
+//   - TICKET GATING: join-room now checks a Mongo-backed Wallet (keyed by
+//     deviceUUID) and rejects the join with `INSUFFICIENT_TICKETS` if the
+//     device has 0 free_tickets + premium_passes. The ticket itself is only
+//     SPENT when the match actually starts (beginMatch), not at join —
+//     backing out of the lobby before kickoff costs nothing.
+//   - New REST routes for the mobile app: `GET /api/wallet/:deviceUUID`
+//     (balance for the HUD) and `POST /api/billing/verify-payment`
+//     (called by BillingGate.jsx after Razorpay checkout — fetches the
+//     payment from Razorpay's own API before crediting, and is idempotent
+//     against the same razorpay_payment_id being submitted twice).
+//   - Ticket/wallet logic fails OPEN on a Mongo hiccup (logs and lets the
+//     player through) rather than blocking gameplay on a transient DB issue.
+//     If Mongo isn't configured at all (`mongoReady === false`), ticket
+//     gating is skipped entirely — same behavior as before this revision.
+//
 // ==========================================================================
+// PRIOR REVISION: PASS 1 — room-wide timing mode (indoor 45s / outdoor 60s)
+// PRIOR REVISION: PASS 2 — lobby leader sets timing mode
+// ==========================================================================
+//   - room.timingMode: 'indoor' | 'outdoor', defaults to 'outdoor'.
+//   - getStageDurationMs(room) resolves the right duration per room.
+//   - room.leaderId: socket.id of whoever created the room. Reassigned to
+//     another player in the room if the leader disconnects before the
+//     match starts.
+//   - 'room-joined' now also reports { isLeader, timingMode } to the
+//     joining client.
+//   - 'set-timing-mode' — leader-only, pre-match-only. Broadcasts
+//     'timing-mode-updated' to the whole room on success.
+//
+// ==========================================================================
+// PRIOR REVISION: FIX — match no longer auto-starts on player count alone.
+// ==========================================================================
+//   - room.modeChosen (defaults false) gates auto-start alongside player
+//     count; the actual trigger lives in the 'set-timing-mode' handler.
+//
+// ==========================================================================
+// PRIOR REVISION: Mobile (Capacitor) CORS support + Top-5 leaderboard route
+// ==========================================================================
+//   - ALLOWED_ORIGIN_PATTERNS also accepts `capacitor://localhost` and bare
+//     `http://localhost` (no port).
+//   - `app.get('/api/leaderboard-top')` — limited to 5 results.
+//
+// ==========================================================================
+// PRIOR REVISION: claim-character REMOVED, slot auto-assigned in join-room
+// ==========================================================================
+//
+// ==========================================================================
+// PRIOR REVISION: Persistent best-score leaderboard + REST CORS fix
+// ==========================================================================
+//   - Leaderboard upserts ONE record per player (deviceUUID, falling back
+//     to username), tracking highestMatchScore + lifetimeMatchesPlayed.
+//   - REST routes now share the SAME CORS allow-list as Socket.io.
+//   - `GET /health` for uptime monitors.
+//   - Per-action DB writes on every socket event intentionally NOT adopted;
+//     Mongo is only touched once per match at match-end (plus, as of this
+//     revision, once per match at match-START for ticket spend, and on
+//     demand for wallet/billing REST calls).
+//
+// KEPT AS-IS FOR CLIENT COMPATIBILITY:
+//   'tick' / 'go', 'round-end' (fires once at MATCH end), 'veggies-update',
+//   'players-update', 'glitch-pulse', capture-attempt protocol
+//   ({ id, vegId, success, label }), 6-slot character system,
+//   'round-start' { round, pointValue, veggie }, 'round-win'
+//   { round, winnerId, winnerName, pointValue, veggieType, quality,
+//     totalScore }, 'round-timeout' { round }, 'timing-mode-updated'
+//   { mode }.
 
 const express = require('express');
 const http = require('http');
@@ -58,21 +110,8 @@ const rateLimit = require('express-rate-limit');
 const Razorpay = require('razorpay');
 require('dotenv').config();
 
-// ==========================================
-// 📦 MODELS
-// ==========================================
 const Leaderboard = require('./models/Leaderboard');
 const Wallet = require('./models/Wallet');
-const Room = require('./models/Room'); // ASSUMPTION: not used by live game loop (in-memory rooms below); kept imported in case routes/auth or routes/billing reference persisted room records.
-const Player = require('./models/Player'); // ASSUMPTION: used by routes/auth.js for persistent player accounts, not by the live match loop.
-const Feedback = require('./models/Feedback'); // ASSUMPTION: used by routes/feedback.js.
-
-// ==========================================
-// 🧭 ROUTES
-// ==========================================
-const authRoutes = require('./routes/auth');
-const billingRoutes = require('./routes/billing');
-const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 const server = http.createServer(app);
@@ -117,13 +156,6 @@ const io = new Server(server, {
   pingInterval: 10000,
 });
 
-// ==========================================
-// 🧭 MOUNT ROUTES
-// ==========================================
-app.use('/api/auth', authRoutes);
-app.use('/api/billing', billingRoutes);
-app.use('/api/feedback', feedbackRoutes);
-
 app.get('/', (req, res) => {
   res.status(200).send('<h1>🚀 ManifiX AI Hybrid GPS/Indoor Game Server Node is Active!</h1><p>3-round winner-take-round mode operational.</p>');
 });
@@ -154,8 +186,8 @@ if (!mongoURI) {
 }
 
 // ==========================================
-// 💳 RAZORPAY — used only for the in-match ticket spend check below.
-// REST payment verification now lives in routes/billing.js.
+// 💳 RAZORPAY — fails soft. A missing/bad key disables ONLY the billing
+// route; it never takes down the game server itself.
 // ==========================================
 let razorpayReady = false;
 let razorpayInstance = null;
@@ -196,10 +228,6 @@ async function spendTicket(deviceUUID) {
   return true;
 }
 
-// ==========================================
-// 🏆 LEADERBOARD REST ROUTES (game-specific, kept inline —
-// not duplicated in routes/ since they read live match data shape)
-// ==========================================
 app.get('/api/leaderboard', async (req, res) => {
   if (!mongoReady) return res.status(200).json([]);
   try {
@@ -222,9 +250,7 @@ app.get('/api/leaderboard-top', async (req, res) => {
   }
 });
 
-// 🎟️ Wallet balance — kept here ONLY as a fallback in case routes/billing.js
-// does not already expose an equivalent endpoint. If it does, delete this
-// block and use that instead to avoid two sources of truth.
+// 🎟️ Wallet balance — the mobile app's ticket HUD polls/reads this.
 app.get('/api/wallet/:deviceUUID', async (req, res) => {
   if (!mongoReady) return res.status(200).json({ free_tickets: 3, premium_passes: 0 });
   try {
@@ -241,9 +267,58 @@ const billingLimiter = rateLimit({
   max: 20,
   message: { success: false, message: 'TOO MANY REQUESTS — SLOW DOWN' },
 });
-// ASSUMPTION: routes/billing.js applies its own rate limiting internally.
-// billingLimiter above is kept in scope in case routes/billing.js imports
-// and reuses it — otherwise it's unused and safe to remove.
+
+// 💰 Called by BillingGate.jsx right after the Razorpay checkout modal's
+// `handler` fires. Verifies the payment against Razorpay's own API (never
+// trusts the client's say-so on amount/status) and is idempotent: replaying
+// the same razorpay_payment_id never credits twice.
+app.post('/api/billing/verify-payment', billingLimiter, async (req, res) => {
+  if (!razorpayReady) {
+    return res.status(503).json({ success: false, message: 'BILLING NOT CONFIGURED' });
+  }
+  const { deviceUUID, razorpay_payment_id, bundle_tickets } = req.body;
+  if (!deviceUUID || !razorpay_payment_id || !bundle_tickets) {
+    return res.status(400).json({ success: false, message: 'MISSING REQUIRED FIELDS' });
+  }
+
+  try {
+    const wallet = await getOrCreateWallet(deviceUUID);
+
+    const alreadySettled = wallet.transaction_history.some(
+      (tx) => tx.invoice_id === razorpay_payment_id && tx.status === 'SETTLED'
+    );
+    if (alreadySettled) {
+      return res.status(200).json({ success: true, message: 'PAYMENT ALREADY PROCESSED', wallet: wallet.balances });
+    }
+
+    const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
+
+    if (payment && payment.status === 'captured') {
+      wallet.balances.premium_passes += parseInt(bundle_tickets, 10);
+      wallet.transaction_history.push({
+        invoice_id: razorpay_payment_id,
+        amount_paid: payment.amount / 100,
+        currency: payment.currency,
+        status: 'SETTLED',
+      });
+      wallet.updated_at = new Date();
+      await wallet.save();
+      return res.status(200).json({ success: true, message: 'WALLET CREDITED', wallet: wallet.balances });
+    }
+
+    wallet.transaction_history.push({
+      invoice_id: razorpay_payment_id,
+      amount_paid: payment ? payment.amount / 100 : 0,
+      currency: payment ? payment.currency : 'INR',
+      status: 'FAILED',
+    });
+    await wallet.save();
+    return res.status(400).json({ success: false, message: 'PAYMENT NOT CAPTURED' });
+  } catch (err) {
+    console.error('[verify-payment] error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 const PORT = process.env.PORT || 5000;
 const TICK_MS = 1000;
@@ -565,9 +640,9 @@ function cancelCountdown(roomCode, reason) {
   io.to(roomCode).emit('match-countdown-cancelled', { reason: reason || 'player-left' });
 }
 
-// Spends one ticket per player (deviceUUID-based) before the first round
-// spawns. Best-effort — a Mongo hiccup or a legacy client with no
-// deviceUUID never blocks the match from starting.
+// Now async: spends one ticket per player (deviceUUID-based) before the
+// first round spawns. Best-effort — a Mongo hiccup or a legacy client with
+// no deviceUUID never blocks the match from starting.
 async function beginMatch(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -771,8 +846,8 @@ setInterval(() => {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  // join-room — async (wallet check), handles reconnect-into-active-match,
-  // auto-assigns a slot for genuinely new joiners.
+  // join-room — now async (wallet check), handles reconnect-into-active-
+  // match, and auto-assigns a slot for genuinely new joiners.
   socket.on('join-room', async (data) => {
     const roomCode = sanitizeRoomCode(data && data.room);
     if (!roomCode) return socket.emit('room-error', { message: 'Invalid Room Code Input' });
@@ -785,6 +860,9 @@ io.on('connection', (socket) => {
     }
 
     // ---- RECONNECT PATH ----
+    // A deviceUUID that already has a `disconnected: true` player sitting
+    // in this room gets restored under the new socket.id instead of being
+    // treated as a fresh joiner.
     if (deviceUUID && rooms[roomCode]) {
       const room = rooms[roomCode];
       const reconnectEntry = Object.entries(room.players).find(
@@ -1005,5 +1083,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — routes mounted (auth/billing/feedback), 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, listening on port: ${PORT}`);
 });
