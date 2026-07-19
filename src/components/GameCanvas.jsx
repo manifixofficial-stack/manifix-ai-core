@@ -36,6 +36,20 @@
 // isGlitchPhase wiring, dead-code cleanup) — all of that is UNCHANGED
 // below. Only the new mount-time capability check and its block screen
 // are added.
+//
+// PATCH I (this pass) — layout collision fixes:
+//   1. leaderboardWidget no longer hard-coded at top:96. topBar is
+//      measured via ref + ResizeObserver and the leaderboard is
+//      positioned below its real rendered height + a gap. Fixes the
+//      leaderboard overlapping/clipping the telemetry row on narrow
+//      phones where the row wraps to 2-3 lines.
+//   2. viewport gets overflow-x hidden explicitly so wrapped telemetry
+//      tags can never push the layout into horizontal scroll/clipping.
+//   3. controlDeck (RETURN TO RADAR) moved from bottom-center (which
+//      sat on top of CaptureThrow's vacuum-charge bar) to a top-right
+//      pill under the topBar, out of the capture UI's territory. It's
+//      shrunk and restyled as a secondary action so it doesn't compete
+//      with the primary throw gesture at the bottom of the screen.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -86,6 +100,11 @@ const GLITCH_SPEED_MULTIPLIER = 3.0;
 const RETICLE_SNAPSHOT_INTERVAL_MS = 100;
 
 const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes', 'strawberry'];
+
+// Gap between the bottom of topBar and the top of leaderboardWidget
+// (patch I). Small on purpose — topBar already has its own bottom
+// padding, this is just breathing room so the two never touch.
+const LEADERBOARD_TOP_GAP_PX = 10;
 
 // --- Desktop block gate (patch H) ---
 // Capability check, not UA sniffing: a device only counts as "mobile
@@ -312,6 +331,34 @@ export default function GameCanvas({
   const [devicePitch, setDevicePitch] = useState(0);
 
   const [collectionOpen, setCollectionOpen] = useState(false);
+
+  // --- Layout collision fix (patch I) ---
+  // topBar's real height varies: the telemetry row wraps to 1-3 lines
+  // depending on phone width, roomCode length, and whether myMode is
+  // set. Previously leaderboardWidget was hard-pinned at top:96 and
+  // simply overlapped topBar whenever it wrapped past ~1 line (this is
+  // exactly the bug in the screenshot — "SATELLITE SCANNING AREA" text
+  // duplicated/clipped behind the leaderboard, COLLECTION button
+  // hidden). Measuring the real node with ResizeObserver and deriving
+  // leaderboardTop from it fixes this for any wrap state or screen size.
+  const topBarRef = useRef(null);
+  const [leaderboardTop, setLeaderboardTop] = useState(96);
+
+  useEffect(() => {
+    const node = topBarRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = entry.contentRect?.height ?? node.offsetHeight;
+        setLeaderboardTop(Math.ceil(h + LEADERBOARD_TOP_GAP_PX));
+      }
+    });
+    observer.observe(node);
+    // Seed an initial measurement immediately (ResizeObserver's first
+    // callback can lag a frame behind first paint on some browsers).
+    setLeaderboardTop(Math.ceil(node.offsetHeight + LEADERBOARD_TOP_GAP_PX));
+    return () => observer.disconnect();
+  }, []);
 
   // --- iOS motion/compass permission gate (patch G) ---
   // On iOS 13+ Safari, DeviceOrientationEvent.requestPermission() must
@@ -950,7 +997,7 @@ export default function GameCanvas({
         </div>
       )}
 
-      <div style={styles.topBar}>
+      <div ref={topBarRef} style={styles.topBar}>
         <div style={styles.topBarHeader}>
           <span style={styles.scanDot} />
           SATELLITE SCANNING AREA
@@ -997,7 +1044,7 @@ export default function GameCanvas({
       </div>
 
       {rankedPlayers.length > 0 && (
-        <div style={styles.leaderboardWidget}>
+        <div style={{ ...styles.leaderboardWidget, top: leaderboardTop }}>
           <div style={styles.leaderboardTitle}>LEADERBOARD</div>
           {rankedPlayers.slice(0, 4).map((p, idx) => (
             <div
@@ -1060,7 +1107,7 @@ export default function GameCanvas({
       ))}
 
       <div style={styles.controlDeck}>
-        <button onClick={onExit} style={styles.fleeBtn}>RETURN TO RADAR</button>
+        <button onClick={onExit} style={styles.fleeBtn}>← RADAR</button>
       </div>
 
       {/* NOTE: internal end-of-match Leaderboard render removed here —
@@ -1080,7 +1127,7 @@ const FONT_HEADER = "'Orbitron', 'Rajdhani', monospace";
 const FONT_BODY = "'Rajdhani', 'Orbitron', monospace";
 
 const styles = {
-  viewport: { position: 'absolute', inset: 0, zIndex: 10, background: '#04060a', display: 'flex', flexDirection: 'column', overflow: 'hidden', userSelect: 'none', fontFamily: FONT_BODY },
+  viewport: { position: 'absolute', inset: 0, zIndex: 10, background: '#04060a', display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowX: 'hidden', userSelect: 'none', fontFamily: FONT_BODY, maxWidth: '100vw' },
   viewportShaking: { animation: 'glitchPanic 0.25s linear infinite' },
   videoBackdrop: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 },
   videoScrim: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,6,10,0.2) 0%, rgba(4,6,10,0.5) 100%)', zIndex: 1 },
@@ -1100,16 +1147,26 @@ const styles = {
 
   glitchBanner: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60, background: 'linear-gradient(90deg, #8a0000, #ff2b2b, #8a0000)', color: '#fff', fontFamily: FONT_HEADER, fontWeight: 800, fontSize: 12, letterSpacing: '1px', textAlign: 'center', padding: '9px 10px', boxShadow: '0 4px 18px rgba(255,0,0,0.5)', animation: 'glitchBannerDrop 0.4s ease-out', pointerEvents: 'none' },
 
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(6,10,18,0.92) 0%, rgba(6,10,18,0.55) 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px 12px', pointerEvents: 'none' },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(6,10,18,0.92) 0%, rgba(6,10,18,0.55) 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px 12px', pointerEvents: 'none', boxSizing: 'border-box', maxWidth: '100%' },
   topBarHeader: { display: 'flex', alignItems: 'center', gap: '6px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '10px', textShadow: '0 0 8px rgba(255,190,26,0.4)' },
   scanDot: { width: 7, height: 7, borderRadius: '50%', background: '#ffbe1a', boxShadow: '0 0 8px 2px rgba(255,190,26,0.8)', animation: 'timerPulse 1.4s ease-in-out infinite' },
-  telemetryRow: { display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' },
-  telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px' },
-  ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)' },
+  // flexWrap so tags never force horizontal overflow — combined with
+  // viewport's overflowX:hidden + topBar's maxWidth:100% this is what
+  // actually prevents the "ROUN[D]" clipped-off-edge look in the
+  // screenshot (that was tags refusing to wrap inside a box that was
+  // itself wider than the viewport due to a missing box-sizing rule).
+  telemetryRow: { display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', rowGap: '8px' },
+  telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+  ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)', whiteSpace: 'nowrap' },
   ptsNumber: { color: '#ffe066', fontWeight: 900, fontSize: '13px' },
-  collectionBtn: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(31,174,110,0.5)', borderRadius: '7px', padding: '7px 14px', color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', pointerEvents: 'auto' },
+  collectionBtn: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(31,174,110,0.5)', borderRadius: '7px', padding: '7px 14px', color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', pointerEvents: 'auto', whiteSpace: 'nowrap' },
 
-  leaderboardWidget: { position: 'absolute', top: 96, right: 14, zIndex: 30, width: 210, background: 'rgba(8,12,22,0.92)', border: '1.5px solid #ffbe1a', borderRadius: '10px', padding: '10px 10px 8px', boxShadow: '0 0 16px rgba(255,190,26,0.2)', pointerEvents: 'none' },
+  // top now driven dynamically via inline override (leaderboardTop state)
+  // instead of a hardcoded 96 — see usage above. Width capped with
+  // calc() so it can never itself cause horizontal overflow on narrow
+  // phones (previous fixed 210px could exceed viewport width on some
+  // small Android devices once padding/border was added).
+  leaderboardWidget: { position: 'absolute', right: 14, zIndex: 30, width: 210, maxWidth: 'calc(100vw - 28px)', background: 'rgba(8,12,22,0.92)', border: '1.5px solid #ffbe1a', borderRadius: '10px', padding: '10px 10px 8px', boxShadow: '0 0 16px rgba(255,190,26,0.2)', pointerEvents: 'none', transition: 'top 0.15s ease-out' },
   leaderboardTitle: { color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 800, letterSpacing: '2px', marginBottom: '8px', textAlign: 'center' },
   leaderboardRow: { display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '6px', padding: '6px 7px', marginBottom: '5px', background: 'rgba(255,255,255,0.04)' },
   leaderboardRowMe: { animation: 'mePulse 1.8s ease-in-out infinite', border: '1px solid rgba(255,140,0,0.45)' },
@@ -1128,8 +1185,17 @@ const styles = {
   bracketBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 4 },
   bracketLabel: { position: 'absolute', bottom: -18, fontFamily: FONT_HEADER, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(0,0,0,0.8)' },
 
-  controlDeck: { position: 'absolute', bottom: 30, left: '50%', transform: 'translateX(-50%)', zIndex: 50 },
-  fleeBtn: { background: '#ff3f34', border: 'none', borderRadius: '999px', color: '#fff', fontFamily: FONT_HEADER, fontWeight: 800, fontSize: '13px', letterSpacing: '0.5px', padding: '14px 30px', cursor: 'pointer', boxShadow: '0 4px 18px rgba(255,63,52,0.45)' },
+  // --- Control deck moved (patch I) ---
+  // Was: bottom:30, centered — sitting directly on top of CaptureThrow's
+  // "HOLD TO CHARGE VACUUM" bar (visible collision in the screenshot,
+  // text literally overlapping "RETURN TO RADAR"). CaptureThrow owns
+  // the entire bottom third of the screen for the swipe/charge UI, so
+  // this is relocated to a small secondary pill under the top-right
+  // leaderboard instead, out of that zone entirely. Shrunk from a
+  // full-width pill to a compact "← RADAR" tag to read as secondary,
+  // not competing with the primary throw gesture.
+  controlDeck: { position: 'absolute', top: 14, left: 14, zIndex: 50 },
+  fleeBtn: { background: 'rgba(255,63,52,0.92)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '999px', color: '#fff', fontFamily: FONT_HEADER, fontWeight: 800, fontSize: '11px', letterSpacing: '0.5px', padding: '9px 16px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,63,52,0.4)' },
   scoreBurstWrapper: { position: 'fixed', top: '25%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1000, pointerEvents: 'none', animation: 'popupTextAnimation 3s ease-out forwards' },
   securedFlashTag: { fontSize: '20px', fontWeight: '900', color: '#ffbe1a', fontFamily: FONT_HEADER, letterSpacing: '2px', textShadow: '2px 2px 0px #000, 0 0 16px rgba(255,190,26,0.8)', marginBottom: '4px', animation: 'securedFlash 0.9s ease-out' },
   perfectTag: { fontSize: '16px', fontWeight: '900', color: '#3cd6ff', fontFamily: FONT_HEADER, letterSpacing: '2px', textShadow: '2px 2px 0px #000, 0 0 12px rgba(60,214,255,0.7)', marginBottom: '2px' },
