@@ -1354,17 +1354,23 @@ export default function GameCanvas({
           <h3>STARTING AR…</h3>
         </div>
       )}
-      {xrState === 'denied' && (
-        <div style={styles.cameraErrorOverlay}>
-          <h3>AR PERMISSION DECLINED</h3>
-          <p style={{ marginBottom: 16, maxWidth: 280 }}>
-            Continuing without real ground-locking. You can still play — vegetables just won't stand on the real floor.
-          </p>
-          <button style={styles.fleeBtn} onClick={() => setXrState('unsupported')}>
-            CONTINUE ANYWAY
-          </button>
-        </div>
-      )}
+     {xrState === 'idle' && (
+  <div style={styles.cameraErrorOverlay}>
+    <h3>REAL AR AVAILABLE</h3>
+    <p style={{ marginBottom: 16, maxWidth: 280 }}>
+      Your device supports real ground-locked AR — vegetables will stand on the actual floor and hide behind real objects.
+    </p>
+    <button style={styles.fleeBtn} onClick={startXRSession}>
+      🌱 START AR HUNT
+    </button>
+    <button
+      style={{ ...styles.fleeBtn, marginTop: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)' }}
+      onClick={() => setXrState('unsupported')}
+    >
+      SKIP — USE BASIC CAMERA
+    </button>
+  </div>
+)}
 
       {blindAttack && (
         <div
