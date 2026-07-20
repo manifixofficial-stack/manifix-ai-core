@@ -1,7 +1,55 @@
 // ====================================================================
-// GoogleLogin.jsx — Veggie Go sign-in (MongoDB backend via /api/auth/google)
-// ====================================================================
-import React, { useState, useEffect } from 'react';
+// GoogleLogin.jsx — Veggie Go sign-in
+// Backend: MongoDB via /api/auth/google (server.js on Render, reads/writes
+// hot state through Redis Cloud)
+//
+// WHY THIS VERSION IS DIFFERENT FROM YOUR ORIGINAL:
+// Your original used ONLY the web Google Identity Services SDK
+// (accounts.google.com/gsi/client + google.accounts.id.prompt()).
+// That "One Tap" flow is built for real browser tabs. Once this app is
+// wrapped with Capacitor and run as an actual Android app, it renders
+// inside a native WebView — and One Tap is known to silently no-op there
+// (no error, button just does nothing). That's a launch-blocking bug you
+// would only discover on a real device late in your testing track.
+//
+// This version branches on Capacitor.isNativePlatform():
+//   - NATIVE (Android app)  -> native Google Sign-In via a Capacitor plugin
+//   - WEB (browser/manifixai.com) -> your original GIS flow, PLUS a
+//     visible renderButton() fallback in case One Tap is silently skipped
+//
+// ---------------------------------------------------------------------
+// ONE-TIME SETUP REQUIRED FOR THE NATIVE PATH (do this before it will work):
+//
+// 1. npm install @codetrix-studio/capacitor-google-auth
+//    npx cap sync android
+//
+// 2. In Google Cloud Console (same project as your existing OAuth client):
+//    a. Create a SECOND OAuth client of type "Android", using your release
+//       keystore's SHA-1 fingerprint (get it with:
+//       keytool -list -v -keystore veggiego-release.keystore -alias veggiego)
+//       — and ALSO create a debug one from your debug keystore's SHA-1 so
+//       local testing works before you have a signed release build.
+//    b. Your EXISTING web client ID (GOOGLE_CLIENT_ID below) becomes the
+//       "Server Client ID" / serverClientId — this is what lets the native
+//       plugin return an idToken your Node backend can verify. Keep using it.
+//
+// 3. android/app/src/main/res/values/strings.xml — add:
+//    <string name="server_client_id">YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</string>
+//
+// 4. capacitor.config.json — add:
+//    "plugins": {
+//      "GoogleAuth": {
+//        "scopes": ["profile", "email"],
+//        "serverClientId": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
+//        "forceCodeForRefreshToken": true
+//      }
+//    }
+//
+// Until steps 1-4 are done, the native branch below will throw on import —
+// it's wrapped in try/catch so the web path still works in the meantime.
+// ---------------------------------------------------------------------
+
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 
 const BG = '#F7F5EF';
@@ -13,7 +61,10 @@ const GOLD = '#D98F27';
 const ERROR = '#B3261E';
 const BORDER = '#E4E0D6';
 
-// 🔧 CONFIG — replace these two with your real values
+// 🔧 CONFIG — replace with your real values
+// This is your WEB client ID. It doubles as "serverClientId" for the
+// native Android sign-in flow (see setup notes above) — do not swap it
+// out for the Android client ID, native sign-in needs the web one here.
 const GOOGLE_CLIENT_ID = '90180381725-jjrbi2uvlfq8ouk6fvmlgbho2k8qjdha.apps.googleusercontent.com';
 const AUTH_ENDPOINT = 'https://manifix-ai-core.onrender.com/api/auth/google';
 
@@ -21,10 +72,11 @@ const STATUS = {
   idle: { text: 'Sign in to start collecting.', tone: 'muted' },
   connecting: { text: 'Connecting to Google…', tone: 'muted' },
   verifying: { text: 'Verifying your account…', tone: 'muted' },
-  success: { text: 'You\u2019re in. Loading Veggie Go…', tone: 'success' },
-  sdkError: { text: 'Couldn\u2019t reach Google. Check your connection and try again.', tone: 'error' },
-  authError: { text: 'Sign-in didn\u2019t go through. Try again.', tone: 'error' },
-  serverError: { text: 'Our server didn\u2019t respond. Try again in a moment.', tone: 'error' },
+  success: { text: "You're in. Loading Veggie Go…", tone: 'success' },
+  sdkError: { text: "Couldn't reach Google. Check your connection and try again.", tone: 'error' },
+  authError: { text: "Sign-in didn't go through. Try again.", tone: 'error' },
+  serverError: { text: "Our server didn't respond. Try again in a moment.", tone: 'error' },
+  cancelled: { text: 'Sign-in cancelled.', tone: 'muted' },
 };
 
 const GoogleIcon = () => (
@@ -36,14 +88,8 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// Single restrained signature detail — a thin hand-drawn vine curling
-// behind the card. This is the one decorative element on the page.
 const VineAccent = () => (
-  <svg
-    style={styles.vine}
-    width="420" height="420" viewBox="0 0 420 420" fill="none"
-    aria-hidden="true"
-  >
+  <svg style={styles.vine} width="420" height="420" viewBox="0 0 420 420" fill="none" aria-hidden="true">
     <path
       d="M40 380 C 90 330, 60 260, 120 230 C 180 200, 190 140, 150 90 C 120 55, 140 20, 190 10"
       stroke={GREEN} strokeOpacity="0.16" strokeWidth="2.5" strokeLinecap="round"
@@ -57,8 +103,10 @@ export default function GoogleLogin({ onLoginSuccess }) {
   const [statusKey, setStatusKey] = useState('idle');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [isNative, setIsNative] = useState(false);
+  const buttonHostRef = useRef(null);
 
-  // Load brand fonts once
+  // Fonts
   useEffect(() => {
     if (document.getElementById('veggiego-fonts')) return;
     const link = document.createElement('link');
@@ -68,8 +116,29 @@ export default function GoogleLogin({ onLoginSuccess }) {
     document.head.appendChild(link);
   }, []);
 
-  // Load the Google Identity Services SDK once
+  // Detect platform once, on mount
   useEffect(() => {
+    (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor?.isNativePlatform?.()) {
+          setIsNative(true);
+          // Native plugin needs no external <script> tag — it's ready
+          // as soon as the JS module resolves.
+          setSdkReady(true);
+          return;
+        }
+      } catch (e) {
+        // @capacitor/core not present — definitely a plain web build.
+      }
+      setIsNative(false);
+      loadWebSdk();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- WEB PATH: Google Identity Services -----------------------------
+  const loadWebSdk = () => {
     if (document.getElementById('google-login-sdk')) {
       setSdkReady(!!window.google);
       return;
@@ -82,83 +151,139 @@ export default function GoogleLogin({ onLoginSuccess }) {
     script.onload = () => setSdkReady(true);
     script.onerror = () => setStatusKey('sdkError');
     document.head.appendChild(script);
-  }, []);
+  };
 
-  const handleExecuteGoogleAuth = async () => {
+  const sendCredentialToBackend = async (credentialToken, deviceOS, deviceUUID = null) => {
+    setStatusKey('verifying');
+    try {
+      const backendResponse = await fetch(AUTH_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialToken, deviceUUID, deviceOS }),
+      });
+
+      if (!backendResponse.ok) {
+        throw new Error(`Backend responded with ${backendResponse.status}`);
+      }
+
+      const data = await backendResponse.json();
+
+      if (data.success) {
+        setStatusKey('success');
+        setTimeout(() => {
+          onLoginSuccess({ player: data.player, wallet: data.wallet, deviceUUID });
+        }, 700);
+      } else {
+        setStatusKey('authError');
+        setIsProcessing(false);
+      }
+    } catch (err) {
+      setStatusKey('serverError');
+      setIsProcessing(false);
+    }
+  };
+
+  const runWebSignIn = () => {
+    if (!window.google) {
+      setStatusKey('sdkError');
+      setIsProcessing(false);
+      return;
+    }
+
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      use_fedcm: false,
+      callback: (response) => sendCredentialToBackend(response.credential, 'WEB'),
+    });
+
+    // Try One Tap first, but don't trust it silently — if it's not
+    // displayed or gets dismissed/skipped, fall back to a real button
+    // the user can click. This is the gap your original code had: no
+    // fallback meant a silent skip left the user stuck on "Connecting…".
+    window.google.accounts.id.prompt((notification) => {
+      const skipped =
+        notification.isNotDisplayed?.() || notification.isSkippedMoment?.();
+      if (skipped && buttonHostRef.current) {
+        window.google.accounts.id.renderButton(buttonHostRef.current, {
+          theme: 'outline',
+          size: 'large',
+          width: 280,
+          text: 'continue_with',
+        });
+        setStatusKey('idle');
+        setIsProcessing(false);
+      }
+    });
+  };
+
+  // ---- NATIVE PATH: Capacitor Google Auth plugin -----------------------
+  const runNativeSignIn = async () => {
+    try {
+      const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+
+      // Safe to call repeatedly; plugin no-ops if already initialized.
+      await GoogleAuth.initialize({
+        clientId: GOOGLE_CLIENT_ID, // serverClientId, see setup notes above
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      });
+
+      const user = await GoogleAuth.signIn();
+      // user.authentication.idToken is the JWT your backend verifies —
+      // same shape/verification path as the web credential.
+      const idToken = user?.authentication?.idToken;
+      if (!idToken) {
+        setStatusKey('authError');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Best-effort device id for durable player identity on Android.
+      // Optional: npm install @capacitor/device if you want this.
+      let deviceUUID = null;
+      try {
+        const { Device } = await import('@capacitor/device');
+        const info = await Device.getId();
+        deviceUUID = info?.identifier || null;
+      } catch (e) {
+        // @capacitor/device not installed — fine, backend handles null.
+      }
+
+      await sendCredentialToBackend(idToken, 'ANDROID', deviceUUID);
+    } catch (err) {
+      // err.code === '12501' from the plugin typically means the user
+      // cancelled the native sign-in sheet — treat that as a soft cancel,
+      // not a hard error, so we don't scare them with "Sign-in didn't go
+      // through" for something they did on purpose.
+      if (String(err?.code) === '12501' || String(err?.message || '').toLowerCase().includes('cancel')) {
+        setStatusKey('cancelled');
+      } else {
+        setStatusKey('authError');
+      }
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSignInPress = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
     setStatusKey('connecting');
 
-    try {
+    if (isNative) {
+      await runNativeSignIn();
+    } else {
       if (!sdkReady || !window.google) {
         setStatusKey('sdkError');
         setIsProcessing(false);
         return;
       }
-
-      // Native device identifier removed for the web build — @capacitor/device
-      // is not installed/bundled here. deviceUUID stays null on web logins;
-      // the backend already handles a null deviceUUID gracefully.
-      const deviceUUID = null;
-
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        use_fedcm: false, // FedCM disabled during setup/testing — falls back to
-                           // the classic GSI popup flow, which gives clearer
-                           // console errors while debugging client_id/consent
-                           // screen issues. Safe to remove once everything's
-                           // confirmed working, if you want FedCM's smoother UX.
-        callback: async (response) => {
-          setStatusKey('verifying');
-
-          try {
-            // Backend verifies response.credential (a JWT) with Google,
-            // upserts the user into MongoDB, and returns session/user data.
-            const backendResponse = await fetch(AUTH_ENDPOINT, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                credentialToken: response.credential,
-                deviceUUID,
-                deviceOS: 'WEB',
-              }),
-            });
-
-            if (!backendResponse.ok) {
-              throw new Error(`Backend responded with ${backendResponse.status}`);
-            }
-
-            const data = await backendResponse.json();
-
-            if (data.success) {
-              setStatusKey('success');
-              setTimeout(() => {
-                onLoginSuccess({
-                  player: data.player,
-                  wallet: data.wallet,
-                  deviceUUID,
-                });
-              }, 700);
-            } else {
-              setStatusKey('authError');
-              setIsProcessing(false);
-            }
-          } catch (err) {
-            setStatusKey('serverError');
-            setIsProcessing(false);
-          }
-        },
-      });
-
-      window.google.accounts.id.prompt();
-    } catch (err) {
-      setStatusKey('authError');
-      setIsProcessing(false);
+      runWebSignIn();
     }
   };
 
   const status = STATUS[statusKey];
-  const statusColor = status.tone === 'error' ? ERROR : status.tone === 'success' ? GREEN : MUTED;
+  const statusColor =
+    status.tone === 'error' ? ERROR : status.tone === 'success' ? GREEN : MUTED;
 
   return (
     <div style={styles.page}>
@@ -182,7 +307,7 @@ export default function GoogleLogin({ onLoginSuccess }) {
         <p style={styles.sub}>Sign in with Google to sync your collection and matches.</p>
 
         <button
-          onClick={handleExecuteGoogleAuth}
+          onClick={handleSignInPress}
           disabled={isProcessing || !sdkReady}
           style={{
             ...styles.googleButton,
@@ -194,12 +319,15 @@ export default function GoogleLogin({ onLoginSuccess }) {
           <span>{isProcessing ? 'Signing in…' : sdkReady ? 'Continue with Google' : 'Loading…'}</span>
         </button>
 
+        {/* Fallback mount point for web renderButton() if One Tap is skipped */}
+        <div ref={buttonHostRef} style={{ marginTop: '10px', display: 'flex', justifyContent: 'center' }} />
+
         <p style={{ ...styles.status, color: statusColor }} role="status">
           {status.text}
         </p>
 
         <p style={styles.legal}>
-          By continuing, you agree to Veggie Go\u2019s{' '}
+          By continuing, you agree to Veggie Go's{' '}
           <a href="/terms" style={styles.legalLink}>Terms</a> and{' '}
           <a href="/privacy" style={styles.legalLink}>Privacy Policy</a>.
         </p>
@@ -210,112 +338,33 @@ export default function GoogleLogin({ onLoginSuccess }) {
 
 const styles = {
   page: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 700,
-    background: BG,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    fontFamily: "'Inter', -apple-system, sans-serif",
+    position: 'fixed', inset: 0, zIndex: 700, background: BG,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', fontFamily: "'Inter', -apple-system, sans-serif",
   },
-  vine: {
-    position: 'absolute',
-    left: '-60px',
-    bottom: '-40px',
-    pointerEvents: 'none',
-  },
+  vine: { position: 'absolute', left: '-60px', bottom: '-40px', pointerEvents: 'none' },
   card: {
-    position: 'relative',
-    background: '#FFFFFF',
-    border: `1px solid ${BORDER}`,
-    borderRadius: '20px',
-    padding: '40px 36px',
-    width: '90%',
-    maxWidth: '380px',
-    boxSizing: 'border-box',
-    boxShadow: '0 20px 60px rgba(27, 94, 63, 0.08)',
+    position: 'relative', background: '#FFFFFF', border: `1px solid ${BORDER}`,
+    borderRadius: '20px', padding: '40px 36px', width: '90%', maxWidth: '380px',
+    boxSizing: 'border-box', boxShadow: '0 20px 60px rgba(27, 94, 63, 0.08)',
   },
-  brandRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '28px',
-  },
+  brandRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' },
   badge: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '10px',
-    background: GREEN,
-    color: '#FFFFFF',
-    fontFamily: "'Fraunces', serif",
-    fontWeight: 600,
-    fontSize: '15px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: '40px', height: '40px', borderRadius: '10px', background: GREEN, color: '#FFFFFF',
+    fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: '15px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  wordmark: {
-    fontFamily: "'Fraunces', serif",
-    fontWeight: 600,
-    fontSize: '19px',
-    color: INK,
-    margin: 0,
-    lineHeight: 1.2,
-  },
-  publisher: {
-    fontSize: '12px',
-    color: MUTED,
-    margin: 0,
-    marginTop: '2px',
-  },
-  lead: {
-    fontFamily: "'Fraunces', serif",
-    fontSize: '24px',
-    fontWeight: 500,
-    color: INK,
-    margin: '0 0 6px 0',
-  },
-  sub: {
-    fontSize: '14px',
-    color: MUTED,
-    margin: '0 0 28px 0',
-    lineHeight: 1.5,
-  },
+  wordmark: { fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: '19px', color: INK, margin: 0, lineHeight: 1.2 },
+  publisher: { fontSize: '12px', color: MUTED, margin: 0, marginTop: '2px' },
+  lead: { fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 500, color: INK, margin: '0 0 6px 0' },
+  sub: { fontSize: '14px', color: MUTED, margin: '0 0 28px 0', lineHeight: 1.5 },
   googleButton: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '10px',
-    width: '100%',
-    background: '#FFFFFF',
-    color: INK,
-    fontFamily: "'Inter', sans-serif",
-    fontSize: '14px',
-    fontWeight: 600,
-    padding: '13px',
-    border: `1px solid ${BORDER}`,
-    borderRadius: '10px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%',
+    background: '#FFFFFF', color: INK, fontFamily: "'Inter', sans-serif", fontSize: '14px', fontWeight: 600,
+    padding: '13px', border: `1px solid ${BORDER}`, borderRadius: '10px',
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
   },
-  status: {
-    fontSize: '13px',
-    textAlign: 'center',
-    margin: '18px 0 0 0',
-    minHeight: '18px',
-  },
-  legal: {
-    fontSize: '11px',
-    color: MUTED,
-    textAlign: 'center',
-    lineHeight: 1.6,
-    margin: '20px 0 0 0',
-  },
-  legalLink: {
-    color: GREEN_DARK,
-    textDecoration: 'none',
-    fontWeight: 500,
-  },
+  status: { fontSize: '13px', textAlign: 'center', margin: '18px 0 0 0', minHeight: '18px' },
+  legal: { fontSize: '11px', color: MUTED, textAlign: 'center', lineHeight: 1.6, margin: '20px 0 0 0' },
+  legalLink: { color: GREEN_DARK, textDecoration: 'none', fontWeight: 500 },
 };
