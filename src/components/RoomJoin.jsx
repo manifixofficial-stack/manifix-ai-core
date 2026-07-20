@@ -1,11 +1,34 @@
 // src/components/RoomJoin.jsx
 // Stage 1: Premium Unified Single-Page Cyberpunk Onboarding Staging Client.
 // ULTRA-HIGH VALUE SECTOR EDITION: Embedded with brutalist animated HUD modules and drift matrices.
-// v3: Adds initialRoomCode prop so App.jsx can prefill a shared ?room=
-//     link's code (this component is now actually rendered by App.jsx
-//     as the real join gate — previously built but never wired in).
+// v4: PERFORMANCE PASS — this is the first screen every player sees, and on
+//     low-end/low-battery phones the sheer volume of concurrent ambient
+//     animation (sparks + spirals + floating "GO!" text + a rotating grid +
+//     Framer Motion springs + a 2.5s polling interval) was measurably
+//     contributing to sluggish/unresponsive taps before the player ever
+//     reached gameplay. This revision:
+//       1. Adds useLowPowerMode(): true when the OS reports
+//          prefers-reduced-motion, when the Battery API reports level<=0.15
+//          or charging===false && level<=0.2, or on narrow/mobile viewports
+//          — any of those disables ALL decorative ambient layers (sparks,
+//          spirals, floating GO! text, grid sweep) outright rather than
+//          just thinning their counts. The functional UI (inputs, swipe-
+//          to-deploy, roast line, shake-to-sync) is completely unaffected.
+//       2. Even in normal (non-low-power) mode, base particle counts are
+//          cut roughly in half from v3 (sparks 18->12, spirals 9->6,
+//          GO-texts 16->10) — desktop numbers only actually needed on
+//          desktop; mobile numbers are cut further still.
+//       3. The ping/lobby-count ticker interval is slowed from 2.5s to 4s
+//          and now pauses entirely via the Page Visibility API when the
+//          tab/app is backgrounded, instead of continuing to tick (and
+//          re-render) while nobody's looking at it.
+//       4. Google Fonts loading now uses rel="preconnect" ahead of the
+//          stylesheet link and only injects once per page load (same
+//          dedupe as before) — trims the connection-setup latency that
+//          was previously paid serially after JS mount.
 //     Everything else — swipe-to-deploy, live username roast commentary,
-//     shake-to-sync squad linking — is unchanged from v2.
+//     shake-to-sync squad linking, initialRoomCode prefill — is UNCHANGED
+//     from v3.
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, animate as fmAnimate } from 'framer-motion';
@@ -20,6 +43,11 @@ const INK = '#f5f2ea';
 const MUTED = '#51596b';
 
 const GOLD_GRADIENT = `linear-gradient(135deg, ${GOLD_START}, ${GOLD_END})`;
+
+// Ticker was 2500ms in v3 — the polling itself (state update -> re-render)
+// has a real cost even though the numbers are decorative. 4s is still
+// plenty "live-feeling" for a lobby ambience readout.
+const TICKER_INTERVAL_MS = 4000;
 
 function generateArenaCode() {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -85,7 +113,61 @@ function useIsMobile(breakpoint = 480) {
   return isMobile;
 }
 
-function useAmbientSparks(count = 18) {
+// NEW: decides whether to strip ALL decorative ambient animation (sparks,
+// spirals, floating GO! text, grid sweep) rather than just thinning counts.
+// Triggers on any of:
+//   - OS-level "reduce motion" accessibility preference
+//   - Battery API reporting critically low charge (<=15%), or low+not
+//     charging (<=20% and not plugged in) — exactly the situation that
+//     prompted this pass (7-9% battery, sluggish taps)
+//   - narrow/mobile viewport, where GPU/paint budget is already tighter
+// Fails safe: if the Battery API isn't available (Safari, some Android
+// WebViews), that check is simply skipped rather than blocking anything.
+function useLowPowerMode(isMobile) {
+  const [lowPower, setLowPower] = useState(isMobile);
+
+  useEffect(() => {
+    let cancelled = false;
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion) {
+      setLowPower(true);
+      return undefined;
+    }
+
+    if (typeof navigator !== 'undefined' && typeof navigator.getBattery === 'function') {
+      navigator.getBattery().then((battery) => {
+        if (cancelled) return;
+        const evaluate = () => {
+          const critical = battery.level <= 0.15;
+          const lowAndUnplugged = battery.level <= 0.2 && !battery.charging;
+          setLowPower(isMobile || critical || lowAndUnplugged);
+        };
+        evaluate();
+        battery.addEventListener('levelchange', evaluate);
+        battery.addEventListener('chargingchange', evaluate);
+        return () => {
+          battery.removeEventListener('levelchange', evaluate);
+          battery.removeEventListener('chargingchange', evaluate);
+        };
+      }).catch(() => {
+        // Battery API present but rejected (rare) — fall back to viewport only.
+        if (!cancelled) setLowPower(isMobile);
+      });
+    } else {
+      setLowPower(isMobile);
+    }
+
+    return () => { cancelled = true; };
+  }, [isMobile]);
+
+  return lowPower;
+}
+
+function useAmbientSparks(count) {
   return useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
@@ -101,7 +183,7 @@ function useAmbientSparks(count = 18) {
 }
 
 // Small spinning spiral glyphs drifting slowly through the background.
-function useAmbientSpirals(count = 9) {
+function useAmbientSpirals(count) {
   return useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
@@ -120,7 +202,7 @@ function useAmbientSpirals(count = 9) {
 }
 
 // Faint scattered "GO!" watermarks that quietly tile the background.
-function useAmbientGoText(count = 16) {
+function useAmbientGoText(count) {
   return useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
@@ -167,6 +249,9 @@ function Spiral({ size = 24, color = GOLD_SOFT }) {
 
 // The page's signature moment: each letter of "Go!" bounces in on load,
 // then keeps a slow, playful idle bounce so the call-to-action never goes quiet.
+// This is functional branding, not ambient decoration — left untouched by
+// the low-power pass (it's 3 elements, one-time + a slow idle loop; not a
+// meaningful cost).
 function AnimatedGo() {
   const letters = ['G', 'o', '!'];
   return (
@@ -295,11 +380,35 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
   const lastAccelRef = useRef({ x: 0, y: 0, z: 0, t: 0 });
 
   const isMobile = useIsMobile();
-  const sparks = useAmbientSparks(isMobile ? 8 : 18);
-  const spirals = useAmbientSpirals(isMobile ? 4 : 9);
-  const bgGoTexts = useAmbientGoText(isMobile ? 7 : 16);
+  const lowPower = useLowPowerMode(isMobile);
+
+  // Base counts cut ~roughly in half from the prior revision even in the
+  // normal (non-low-power) case; low-power mode zeroes decorative layers
+  // out entirely rather than just thinning them further.
+  const sparkCount = lowPower ? 0 : isMobile ? 5 : 12;
+  const spiralCount = lowPower ? 0 : isMobile ? 2 : 6;
+  const goTextCount = lowPower ? 0 : isMobile ? 3 : 10;
+
+  const sparks = useAmbientSparks(sparkCount);
+  const spirals = useAmbientSpirals(spiralCount);
+  const bgGoTexts = useAmbientGoText(goTextCount);
 
   useEffect(() => {
+    // Preconnect first so the actual stylesheet fetch that follows doesn't
+    // pay DNS/TLS setup serially after JS mount.
+    if (!document.getElementById('mx-preconnect-node')) {
+      const pre1 = document.createElement('link');
+      pre1.id = 'mx-preconnect-node';
+      pre1.rel = 'preconnect';
+      pre1.href = 'https://fonts.googleapis.com';
+      document.head.appendChild(pre1);
+
+      const pre2 = document.createElement('link');
+      pre2.rel = 'preconnect';
+      pre2.href = 'https://fonts.gstatic.com';
+      pre2.crossOrigin = 'anonymous';
+      document.head.appendChild(pre2);
+    }
     if (!document.getElementById('mx-fonts-node')) {
       const link = document.createElement('link');
       link.id = 'mx-fonts-node';
@@ -376,13 +485,40 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
     }
   }, []);
 
+  // Ticker: slowed from 2.5s -> 4s, and now pauses entirely while the tab
+  // is hidden/backgrounded instead of continuing to tick unseen.
   useEffect(() => {
-    const id = setInterval(() => {
-      setPing(Math.floor(Math.random() * 5) + 16);
-      setLobbiesToday((prev) => prev + Math.floor(Math.random() * 2));
-      setSquadIdx((prev) => (prev + 1) % SQUAD_STATES.length);
-    }, 2500);
-    return () => clearInterval(id);
+    let id = null;
+
+    const start = () => {
+      if (id) return;
+      id = setInterval(() => {
+        setPing(Math.floor(Math.random() * 5) + 16);
+        setLobbiesToday((prev) => prev + Math.floor(Math.random() * 2));
+        setSquadIdx((prev) => (prev + 1) % SQUAD_STATES.length);
+      }, TICKER_INTERVAL_MS);
+    };
+    const stop = () => {
+      if (id) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      start();
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   // Debounced live roast commentary while the player types their handle.
@@ -484,7 +620,10 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
 
   return (
     <div style={styles.lobbyShell}>
-      <div style={styles.vectorScanGrid} />
+      {/* Grid sweep animation itself is skipped in low-power mode (still
+          renders the static grid texture, just without the animated
+          background-position sweep) */}
+      <div style={{ ...styles.vectorScanGrid, animation: lowPower ? 'none' : undefined }} />
 
       {sparks.map((spark) => (
         <div
