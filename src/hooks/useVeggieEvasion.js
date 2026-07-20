@@ -17,6 +17,17 @@
 // one) that flows through the same dx/dz/state return values GameCanvas
 // already consumes. No caller-side changes needed to light this up.
 //
+// THIS REVISION (config cleanup): AUTO_IDLE_MIN_INTERVAL_MS,
+// AUTO_IDLE_MAX_INTERVAL_MS, and IDLE_STAND_DURATION_FRAMES used to be
+// hardcoded directly in this file — the only three AI-tuning constants
+// that weren't sourced from gameConfig.js, breaking the "one place to
+// tune AI behavior" pattern every other constant here follows. They now
+// import from gameConfig.js with the same CFG_* / `?? fallback` pattern
+// already used for EVASION_TRIGGER_METERS, FLEE_SPEED_CONSTANT,
+// AUTO_HIDE_MIN/MAX_INTERVAL_MS, etc. — so a missing/undefined config
+// value still falls back to the same numbers as before, and nothing
+// about the actual idle-stand behavior changes.
+//
 // Everything else — the 4 pre-existing AI states, floor-locking,
 // dead-reckoning, anti-cheat, hazard trail, dash bursts — is UNCHANGED.
 
@@ -37,6 +48,9 @@ import {
   AUTO_HIDE_MIN_INTERVAL_MS as CFG_AUTO_HIDE_MIN_INTERVAL_MS,
   AUTO_HIDE_MAX_INTERVAL_MS as CFG_AUTO_HIDE_MAX_INTERVAL_MS,
   OBSTACLE_HIDE_DURATION_FRAMES as CFG_OBSTACLE_HIDE_DURATION_FRAMES,
+  AUTO_IDLE_MIN_INTERVAL_MS as CFG_AUTO_IDLE_MIN_INTERVAL_MS,
+  AUTO_IDLE_MAX_INTERVAL_MS as CFG_AUTO_IDLE_MAX_INTERVAL_MS,
+  IDLE_STAND_DURATION_FRAMES as CFG_IDLE_STAND_DURATION_FRAMES,
   BREAKOUT_BASE_CHANCE as CFG_BREAKOUT_BASE_CHANCE,
   BREAKOUT_PLAYER_LEVEL_REDUCTION as CFG_BREAKOUT_PLAYER_LEVEL_REDUCTION,
   BREAKOUT_DIFFICULTY_WEIGHT as CFG_BREAKOUT_DIFFICULTY_WEIGHT,
@@ -121,16 +135,19 @@ const OBSTACLE_HIDE_ANGLE_JITTER_RAD = Math.PI * 0.6; // how far off-boundary-no
 const AUTO_HIDE_MIN_INTERVAL_MS = CFG_AUTO_HIDE_MIN_INTERVAL_MS ?? 7000;
 const AUTO_HIDE_MAX_INTERVAL_MS = CFG_AUTO_HIDE_MAX_INTERVAL_MS ?? 14000;
 
-// --- NEW: periodic "just stand still" pause — distinct from hiding.
-// Rolled on its own independent timer (deliberately a shorter, tighter
-// range than auto-hide so a veggie pauses more often than it ducks out
-// of sight), so a chased veggie doesn't run flat-out the entire time
-// it's on screen — it genuinely stops, stands, and starts again,
-// matching the "creature just standing there" beat real AR-catch games
-// have between chase bursts. ---
-const AUTO_IDLE_MIN_INTERVAL_MS = 4000;
-const AUTO_IDLE_MAX_INTERVAL_MS = 9000;
-const IDLE_STAND_DURATION_FRAMES = 70;
+// --- Periodic "just stand still" pause — distinct from hiding. Rolled
+// on its own independent timer (deliberately a shorter, tighter range
+// than auto-hide so a veggie pauses more often than it ducks out of
+// sight), so a chased veggie doesn't run flat-out the entire time it's
+// on screen — it genuinely stops, stands, and starts again, matching
+// the "creature just standing there" beat real AR-catch games have
+// between chase bursts. Now sourced from gameConfig.js (moved here from
+// a hardcoded local default) so it lives alongside AUTO_HIDE_* in the
+// single tunable AI-config file, same fallback pattern as every other
+// CFG_* constant above. ---
+const AUTO_IDLE_MIN_INTERVAL_MS = CFG_AUTO_IDLE_MIN_INTERVAL_MS ?? 4000;
+const AUTO_IDLE_MAX_INTERVAL_MS = CFG_AUTO_IDLE_MAX_INTERVAL_MS ?? 9000;
+const IDLE_STAND_DURATION_FRAMES = CFG_IDLE_STAND_DURATION_FRAMES ?? 70;
 
 // =====================================================================
 // 4. Dynamic hitbox scaling
@@ -352,10 +369,10 @@ export function useVeggieEvasion() {
         s.nextAutoHideAt = now + AUTO_HIDE_MIN_INTERVAL_MS + Math.random() * (AUTO_HIDE_MAX_INTERVAL_MS - AUTO_HIDE_MIN_INTERVAL_MS);
       }
 
-      // NEW: periodic idle-stand pause — own independent timer, only
-      // claims the transition if hide didn't already claim it this frame
-      // (both gate on aiState === 'running', so they can never fire on
-      // the same frame for the same veggie).
+      // Periodic idle-stand pause — own independent timer, only claims
+      // the transition if hide didn't already claim it this frame (both
+      // gate on aiState === 'running', so they can never fire on the
+      // same frame for the same veggie).
       if (s.nextAutoIdleAt == null) {
         s.nextAutoIdleAt = now + AUTO_IDLE_MIN_INTERVAL_MS + Math.random() * (AUTO_IDLE_MAX_INTERVAL_MS - AUTO_IDLE_MIN_INTERVAL_MS);
       }
@@ -396,11 +413,11 @@ export function useVeggieEvasion() {
       s.vx *= 0.9;
       s.vz *= 0.9;
     } else if (state === 'idle_stand') {
-      // NEW: genuine movement pause between chase bursts. Velocity
-      // decays to zero exactly like idle_spawn (so it actually stops,
-      // not just "runs slower"), but stays classified separately so
-      // the caller/UI can tell "resting mid-encounter" apart from
-      // "hasn't noticed the player yet" if it ever wants to.
+      // Genuine movement pause between chase bursts. Velocity decays to
+      // zero exactly like idle_spawn (so it actually stops, not just
+      // "runs slower"), but stays classified separately so the
+      // caller/UI can tell "resting mid-encounter" apart from "hasn't
+      // noticed the player yet" if it ever wants to.
       message = 'STANDING STILL...';
       s.vx *= 0.85;
       s.vz *= 0.85;
