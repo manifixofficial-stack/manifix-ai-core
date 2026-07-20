@@ -1,7 +1,11 @@
 // src/components/RoomJoin.jsx
 // Stage 1: Premium Unified Single-Page Cyberpunk Onboarding Staging Client.
 // ULTRA-HIGH VALUE SECTOR EDITION: Embedded with brutalist animated HUD modules and drift matrices.
-// v2: Adds swipe-to-deploy gesture, live username roast commentary, and shake-to-sync squad linking.
+// v3: Adds initialRoomCode prop so App.jsx can prefill a shared ?room=
+//     link's code (this component is now actually rendered by App.jsx
+//     as the real join gate — previously built but never wired in).
+//     Everything else — swipe-to-deploy, live username roast commentary,
+//     shake-to-sync squad linking — is unchanged from v2.
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, animate as fmAnimate } from 'framer-motion';
@@ -272,8 +276,8 @@ function SwipeDeploy({ canSubmit, connecting, onConfirm }) {
   );
 }
 
-export default function RoomJoin({ onJoin, error, connecting, globalScans }) {
-  const [roomCode, setRoomCode] = useState('');
+export default function RoomJoin({ onJoin, error, connecting, globalScans, initialRoomCode = '' }) {
+  const [roomCode, setRoomCode] = useState(initialRoomCode);
   const [playerName, setPlayerName] = useState('');
   const [ping, setPing] = useState(21);
   const [lobbiesToday, setLobbiesToday] = useState(1402);
