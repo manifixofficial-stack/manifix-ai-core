@@ -1,36 +1,58 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — three fixes:
+// THIS REVISION — AR bridge readiness (patch I):
 //
-//   1. IDLE-STAND VISUAL WIRING (the "standing on the floor" fix):
-//      useVeggieEvasion.js's idle_stand AI state already froze the
-//      veggie's world position correctly, but nothing told
-//      VeggieModel.jsx about it — so the model kept playing its full
-//      running gait in place, looking like it was jogging on a
-//      treadmill instead of genuinely standing still. AnimatedVeggieTarget
-//      now passes isIdleStanding={result.state === 'idle_stand'} down to
-//      <Veggie3DModel>, which uses it to prefer an idle clip and
-//      suppress procedural footfall/sway/lean (see VeggieModel.jsx).
+//   Adds three new OPTIONAL props so this component is ready to consume
+//   real plane-detection/occlusion data the moment a native AR bridge
+//   (Capacitor + ARKit/ARCore plugin, or a paid SDK) exists — without
+//   requiring any further GameCanvas.jsx changes when that bridge lands.
+//   Every one of these defaults to "off", and with all three omitted
+//   this component behaves EXACTLY as before this patch — same fixed
+//   floor, same full always-visible target list. Nothing regresses for
+//   builds that never wire a native bridge.
 //
-//   2. EVENT NAME BUG FIXED: was listening for 'round_timeout'
-//      (underscore) — server.js emits 'round-timeout' (hyphen), matching
-//      every other event name it sends. The listener never fired; the
-//      client only ever learned about round timeouts from its own local
-//      countdown, never the server's authoritative one.
+//   - arGroundY (number | null, default null): a single detected
+//     real-world floor height, in the same scene-unit space GameCanvas
+//     already uses for worldY. When present, every veggie's floor
+//     locks to this instead of the hardcoded
+//     `-CAMERA_EYE_HEIGHT_METERS` constant. This is the JS-side landing
+//     spot for a future WebXR hit-test result or a native ARKit/ARCore
+//     plane's Y coordinate, bridged in by whatever plugin eventually
+//     supplies it — GameCanvas doesn't care where the number comes
+//     from, only that it's a real detected height instead of a guess.
 //
-//   3. DEAD EMIT REMOVED: submitRoundScore() emitted 'submit-round-score',
-//      which server.js has no handler for — and server.js's own comments
-//      say this is deliberate ("the server computes and persists scores
-//      itself... deliberately never accepts client-reported scores").
-//      Removed the emit; advanceRound() still marks the round submitted
-//      locally (to prevent double-firing onExit) and exits, but no
-//      longer pretends to report a score the server was never going to
-//      accept.
+//   - arAnchors ({ [vegId]: { y: number } }, default {}): optional
+//     PER-VEGGIE override, for when detection is precise enough to
+//     anchor each veggie to its own specific surface point rather than
+//     one shared flat floor (e.g. one veggie on a table, another on
+//     the ground beside it). Takes priority over arGroundY for any
+//     veggie it covers; veggies not listed fall through to arGroundY,
+//     which itself falls through to the old fixed constant.
 //
-// Everything else — desktop block gate, layout collision fixes, iOS
-// motion-permission gate, Pokémon-GO parity pass (catch-range gate,
-// per-species chase behavior, RARITY_BY_SPECIES-derived personality) —
-// is UNCHANGED.
+//   - arOcclusion ({ [vegId]: boolean }, default {}): from a future
+//     depth-occlusion bridge — true means a real-world object is
+//     currently between the camera and that veggie. An occluded veggie:
+//       1. Has its 3D model hidden (group.visible = false — physics/AI
+//          keeps running underneath so it doesn't desync or teleport
+//          when it reappears, only the render is suppressed).
+//       2. Is dropped from the lock-on bracket UI (lockLayer).
+//       3. Is dropped from CaptureThrow's targets list entirely, so a
+//          throw literally cannot register a hit on it — matching real
+//          ARKit/ARCore occlusion, where a hidden object can't be
+//          aimed at until the player physically moves for a clear line
+//          of sight.
+//     The "LOCKS: N IN SIGHT" telemetry tag now counts only
+//     non-occluded targets, since an occluded veggie isn't actually
+//     "in sight".
+//
+//   A small "🟢 AR ANCHORED" telemetry tag appears whenever arGroundY is
+//   non-null, purely as a debugging/QA signal that the native bridge is
+//   actually feeding real data through — easy to spot at a glance during
+//   on-device testing versus the fallback fixed floor.
+//
+// On top of the previous revision (idle-stand visual wiring, the
+// 'round_timeout' -> 'round-timeout' event-name fix, and removal of the
+// dead 'submit-round-score' emit) — all of that is UNCHANGED below.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -86,9 +108,6 @@ const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes'
 const LEADERBOARD_TOP_GAP_PX = 10;
 
 // --- Blinding counter-attack ---
-// A close-range miss (not an invalid-attempt error) triggers a brief
-// screen distortion — the veggie "fighting back" beat. Per-veggie
-// cooldown so one miss can't spam-blind the player every frame.
 const BLIND_ATTACK_DURATION_MS = 1400;
 const BLIND_ATTACK_COOLDOWN_MS = 3000;
 const REAL_MISS_LABELS = ['TOO FAR', 'NOT AIMED', 'NEAR MISS', 'BREAKOUT'];
@@ -192,6 +211,7 @@ function AnimatedVeggieTarget({
   jumpScared,
   isVacuuming,
   isCaught,
+  isOccluded,
   pendingCatchAttemptsRef,
   onLiveUpdate,
   onLocalCatch,
@@ -211,9 +231,6 @@ function AnimatedVeggieTarget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
-  // FIX 1: idle-stand visual wiring — read off the hook's returned
-  // `state` and pass it down so VeggieModel.jsx can actually stop
-  // playing the run gait while the veggie's position is frozen.
   const [isIdleStanding, setIsIdleStanding] = useState(false);
 
   useFrame((_, delta) => {
@@ -240,7 +257,11 @@ function AnimatedVeggieTarget({
       catchLockSuccess,
       catchDifficulty: node.isGolden ? 0.8 : 0.3,
       chaseMode: chaseModeForSpecies(node.species),
-      floorY: -CAMERA_EYE_HEIGHT_METERS,
+      // PATCH I: use this node's resolved AR floor (real per-veggie
+      // anchor, or the real detected ground plane, or the old fixed
+      // constant — see rawTargetNodes below for the resolution order)
+      // instead of a single hardcoded constant every veggie shared.
+      floorY: node.floorY,
     });
 
     posRef.current = {
@@ -257,8 +278,6 @@ function AnimatedVeggieTarget({
       onLiveUpdate(node.id, { spinoutTriggered: true });
     }
 
-    // React state only flips when the boolean actually changes, so this
-    // doesn't re-render every frame for a veggie that's just running.
     const nowIdle = result.state === 'idle_stand';
     setIsIdleStanding((prev) => (prev === nowIdle ? prev : nowIdle));
 
@@ -272,7 +291,11 @@ function AnimatedVeggieTarget({
   });
 
   return (
-    <group ref={groupRef}>
+    // PATCH I: `visible` toggles purely the render — processEvasionFrame
+    // above still runs every frame regardless, via useFrame, so an
+    // occluded veggie keeps moving/evading underneath and won't jump or
+    // desync the instant it's no longer blocked by a real object.
+    <group ref={groupRef} visible={!isOccluded}>
       <GroundShadow position={[0, 0, 0]} distanceMeters={node.distance} />
       <Veggie3DModel
         veggieId={node.id}
@@ -302,6 +325,11 @@ export default function GameCanvas({
   selfPosition = null, deviceHeading = 0, players = {}, veggies = {}, matchPhase = null,
   initialTimingMode = null,
   targetVegId = null,
+  // PATCH I: new optional AR-bridge props — all default to "off", full
+  // fallback to pre-patch behavior. See file-header note for details.
+  arGroundY = null,
+  arAnchors = {},
+  arOcclusion = {},
   onExit
 }) {
   const [isMobileCapable] = useState(detectMobileCapable);
@@ -318,8 +346,7 @@ export default function GameCanvas({
 
   const [collectionOpen, setCollectionOpen] = useState(false);
 
-  // --- Blinding counter-attack state ---
-  const [blindAttack, setBlindAttack] = useState(null); // { id, startedAt } | null
+  const [blindAttack, setBlindAttack] = useState(null);
   const blindCooldownRef = useRef(new Map());
 
   const topBarRef = useRef(null);
@@ -398,12 +425,6 @@ export default function GameCanvas({
 
   const currentRoundPoints = isGlitched ? GLITCH_ROUND_POINTS : (ROUND_POINT_TIERS[matchRound] ?? ROUND_POINT_TIERS[1]);
 
-  // FIX 3: no longer emits 'submit-round-score' — server.js has no
-  // handler for it and its own comments say this is deliberate: it
-  // computes and persists scores itself at match-end
-  // (advanceMatch -> upsertLeaderboardEntry), never accepting a
-  // client-reported score. This now just guards against onExit firing
-  // more than once per match.
   const submitRoundScore = useCallback(() => {
     if (scoreSubmitted) return;
     setScoreSubmitted(true);
@@ -552,9 +573,6 @@ export default function GameCanvas({
           setMissPopups((prev) => prev.filter((p) => p.id !== newMiss.id));
         }, 1400);
 
-        // Blinding counter-attack — only for a real close-range miss
-        // (not an invalid-attempt error), and only if this veggie isn't
-        // still on its own cooldown from a recent attack.
         const vegId = resolution.vegId;
         if (vegId && REAL_MISS_LABELS.includes(label)) {
           const now = Date.now();
@@ -570,9 +588,6 @@ export default function GameCanvas({
       }
     };
 
-    // FIX 2: was 'round_timeout' (underscore) — server.js emits
-    // 'round-timeout' (hyphen), matching every other event name it
-    // sends. The old listener never fired.
     const handleRoundTimeout = (data) => {
       if (data?.roomCode && roomCode && data.roomCode !== roomCode) return;
       advanceRound();
@@ -589,6 +604,13 @@ export default function GameCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobileCapable, roomCode, advanceRound]);
 
+  // PATCH I: per-node floor resolution order —
+  //   1. arAnchors[id].y       (most precise: this specific veggie's own
+  //                             detected surface point)
+  //   2. arGroundY              (one shared detected floor for the whole
+  //                             scene)
+  //   3. -CAMERA_EYE_HEIGHT_METERS (old fixed fallback — unchanged
+  //                             behavior when no AR bridge is connected)
   const rawTargetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
     const projectedList = [];
@@ -607,11 +629,12 @@ export default function GameCanvas({
 
         const worldX = Math.sin(relAngleRad) * sceneDepth;
         const worldZ = -Math.cos(relAngleRad) * sceneDepth;
-        const worldY = -CAMERA_EYE_HEIGHT_METERS;
+        const resolvedFloorY = arAnchors?.[id]?.y ?? (arGroundY != null ? arGroundY : -CAMERA_EYE_HEIGHT_METERS);
 
         projectedList.push({
           id,
-          position: [worldX, worldY, worldZ],
+          position: [worldX, resolvedFloorY, worldZ],
+          floorY: resolvedFloorY,
           facing: -relAngleRad,
           species: (node.species || node.type || KNOWN_VEGGIE_SPECIES[0]).toLowerCase(),
           teamColor: node.teamColor || 'yellow',
@@ -624,7 +647,7 @@ export default function GameCanvas({
 
     return projectedList;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [veggies, selfPosition, deviceHeading]);
+  }, [veggies, selfPosition, deviceHeading, arGroundY, arAnchors]);
 
   const targetNodes = useMemo(() => {
     if (!targetVegId) return rawTargetNodes;
@@ -640,8 +663,12 @@ export default function GameCanvas({
     setGlitchTargetId((prev) => (prev === nearest.id ? prev : nearest.id));
   }, [targetNodes]);
 
+  // PATCH I: occluded veggies never make it into captureTargets — no
+  // lock-on bracket, and CaptureThrow can't register a direct hit or a
+  // nearest-target fallback hit on something not in this list.
   const captureTargets = useMemo(() => {
     return targetNodes
+      .filter((node) => !arOcclusion[node.id])
       .map((node) => {
         const live = liveVeggieSnapshot[node.id];
         const x = live ? live.x : node.position[0];
@@ -660,7 +687,7 @@ export default function GameCanvas({
         };
       })
       .filter(Boolean);
-  }, [targetNodes, liveVeggieSnapshot, windowDims]);
+  }, [targetNodes, liveVeggieSnapshot, windowDims, arOcclusion]);
 
   const lockRings = useMemo(() => {
     const cx = windowDims.w / 2;
@@ -721,6 +748,13 @@ export default function GameCanvas({
     if (targetNode && targetNode.distance > CATCH_TRIGGER_DISTANCE_METERS) {
       return;
     }
+    // PATCH I: redundant safety net — captureTargets already excludes
+    // occluded ids so CaptureThrow shouldn't be able to dispatch one at
+    // all, but this guards against a stale/cached target slipping
+    // through a race between an occlusion update and an in-flight throw.
+    if (arOcclusion[id]) {
+      return;
+    }
 
     timerFrozenRef.current = true;
     lockedSinceRef.current.delete(id);
@@ -737,7 +771,7 @@ export default function GameCanvas({
     }, CAPTURE_RESULT_TIMEOUT_MS);
 
     window.socket?.emit('capture-attempt', { vegId: id, quality });
-  }, [targetNodes]);
+  }, [targetNodes, arOcclusion]);
 
   const timerColor = secondsLeft <= 10 ? '#ff3f34' : secondsLeft <= 20 ? '#ffbe1a' : '#39ff88';
 
@@ -753,6 +787,14 @@ export default function GameCanvas({
       }))
       .sort((a, b) => b.score - a.score);
   }, [players, mySlot]);
+
+  // PATCH I: "in sight" should mean actually visible — an occluded
+  // veggie is present in the room but not something the player can
+  // currently see or aim at, so it no longer inflates this count.
+  const visibleTargetCount = useMemo(
+    () => targetNodes.filter((n) => !arOcclusion[n.id]).length,
+    [targetNodes, arOcclusion]
+  );
 
   if (!isMobileCapable) {
     return (
@@ -899,6 +941,7 @@ export default function GameCanvas({
 
         {targetNodes.map((node) => {
           const isThisGlitchTarget = isGlitched && node.id === glitchTargetId;
+          const isThisOccluded = !!arOcclusion[node.id];
           return (
             <AnimatedVeggieTarget
               key={node.id}
@@ -910,6 +953,7 @@ export default function GameCanvas({
               jumpScared={jumpScaredIds.has(node.id)}
               isVacuuming={vacuumLock?.targetId === node.id}
               isCaught={caughtIds.has(node.id)}
+              isOccluded={isThisOccluded}
               pendingCatchAttemptsRef={pendingCatchAttemptsRef}
               onLiveUpdate={handleLiveUpdate}
               onLocalCatch={(id) => {
@@ -1017,11 +1061,16 @@ export default function GameCanvas({
             TIME: <span style={{ color: timerColor, fontWeight: 900 }}>{vacuumLock ? '⏸' : secondsLeft}s</span>
           </div>
           <div style={styles.telemetryTag}>
-            LOCKS: <span style={{ color: '#ffbe1a' }}>{targetNodes.length} IN SIGHT</span>
+            LOCKS: <span style={{ color: '#ffbe1a' }}>{visibleTargetCount} IN SIGHT</span>
           </div>
           {myMode && (
             <div style={styles.telemetryTag}>
               {myMode === 'gps' ? '🛰 OUTDOOR GPS' : '📶 INDOOR SENSOR'}
+            </div>
+          )}
+          {arGroundY != null && (
+            <div style={{ ...styles.telemetryTag, borderColor: 'rgba(57,255,136,0.5)' }}>
+              🟢 AR ANCHORED
             </div>
           )}
           <button
