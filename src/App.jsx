@@ -1,42 +1,50 @@
 // src/App.jsx
 //
-// THIS REVISION:
-//   1. Removed currentLeaderName — dead state backed by
-//      room.current_leader_name, a field server.js never sends (its
-//      room-joined payload is only { room, slotId, geofence, isLeader,
-//      timingMode, reconnected?, score?, round? }) and which was never
-//      rendered anywhere in this file's JSX regardless.
-//   2. Removed the initLocalSocketBridge(joined.playerId) call —
-//      joinRoom() already opens the connection via connectSocket()
-//      internally before it emits 'join-room'; this was a no-op (the
-//      shim takes zero args) left over from before that consolidation.
-//   3. Folded the two separate window.socket.on(...) effects (mode-gate
-//      listeners, round-win tracking) into the single subscribeToRoom()
-//      pipeline, using its newly-added onTimingModeUpdated /
-//      onPromotedToLeader / onRoundWin callbacks instead of reaching
-//      into the window.socket global directly.
-//   4. Wired onCountdownCancelled (now forwarded by tickClient.js) so a
-//      cancelled countdown (e.g. a player leaving mid-lobby) resets
-//      matchPhase/stage instead of leaving the countdown overlay frozen
-//      on screen with no way out.
-//   5. ⚠️ FLAGGED, NOT FIXED: handlePrizeRematch emits 'request-rematch',
-//      which server.js has no handler for at all — tapping rematch
-//      currently does nothing server-side. Left in place since the fix
-//      belongs in server.js, not here — flag until that handler exists.
-//   6. ⚠️ FLAGGED, NOT FIXED: server.js's room-joined payload includes a
-//      `geofence: { lat, lng, radiusMeters }` that this file never
-//      captures into state. If MapView.jsx expects to draw a room
-//      boundary from it, that data currently has nowhere to land — I
-//      haven't seen MapView.jsx yet to know if it needs this.
+// THIS REVISION: RoomJoin.jsx wired in + ConnectionStatus phase fix.
+//
+//   1. RoomJoin.jsx was built (swipe-to-deploy, room code field, quick
+//      match, shake-to-sync) but never rendered anywhere — App.jsx had
+//      its own inline "ENTER YOUR NAME" gate that always auto-joined
+//      either a ?room= URL param or the hardcoded PUBLIC_FALLBACK_ROOM
+//      ('ARENA_01'), with no UI for a player to type in or share a
+//      specific friend's code beyond copy-pasting the browser URL.
+//      RoomJoin now replaces that inline gate: it collects name AND
+//      room code in one screen and calls onJoin({ room, name }), which
+//      drives the same geolocation -> joinRoom() flow the old
+//      autoMatchmaker used. A ?room= URL param (from a previously
+//      shared link) still prefills RoomJoin's code field via a new
+//      initialRoomCode prop, so shared links keep working.
+//   2. ConnectionStatus.jsx's PHASE_CONFIG only defines 'idle' / 'local'
+//      / 'disconnected', but tickStatus here is actually one of
+//      'idle' | 'connecting' | 'joined' | 'connected' | 'failed' |
+//      'error' | 'disconnected'. Every unrecognized value silently fell
+//      back to 'idle' ("SATELLITE SCANNING AREA…"), so the badge kept
+//      claiming "not connected" even mid-match. Normalized at the call
+//      site into the three phases ConnectionStatus actually understands
+//      rather than touching that component's internals.
+//   3. PUBLIC_FALLBACK_ROOM removed — no longer used now that room
+//      selection happens explicitly via RoomJoin instead of an implicit
+//      fallback.
 //
 // Everything else (motion-permission gate, playersBySlot keying,
 // PrizeCamera prop wiring, timingMode passthrough, single-GPS-owner
-// fix, arena race-condition fix, RARITY_BY_SPECIES import) is UNCHANGED
-// from the prior revision.
+// fix, arena race-condition fix, RARITY_BY_SPECIES import, the
+// consolidated subscribeToRoom pipeline, onCountdownCancelled handling)
+// is UNCHANGED from the prior revision.
+//
+// ⚠️ STILL FLAGGED, NOT FIXED (carried over):
+//   - handlePrizeRematch emits 'request-rematch', which server.js has
+//     no handler for. Tapping rematch currently does nothing
+//     server-side. Fix belongs in server.js.
+//   - server.js's room-joined payload includes `geofence: { lat, lng,
+//     radiusMeters }` that this file never captures into state. If
+//     MapView.jsx expects to draw a room boundary from it, that data
+//     has nowhere to land yet.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConnectionStatus from './components/ConnectionStatus';
+import RoomJoin from './components/RoomJoin';
 import MapView from './components/MapView';
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
@@ -46,8 +54,6 @@ import { joinRoom, subscribeToRoom } from './lib/gameClient';
 import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
 import { hasMotionPermissionCached } from './lib/motionPermission';
-
-const PUBLIC_FALLBACK_ROOM = 'ARENA_01';
 
 const SLOT_COLORS = {
   SLOT_01: '#3a86ff',
@@ -64,6 +70,17 @@ const MATCH_PHASE = {
   ENDED: 'ENDED',
 };
 
+// Normalizes App.jsx's real tickStatus values down to the three phases
+// ConnectionStatus.jsx actually renders ('idle' | 'local' | 'disconnected').
+// 'local' is reused here purely for its green "actually connected"
+// styling — nothing about the connection is local anymore, but this
+// avoids touching ConnectionStatus.jsx's internals for a one-line fix.
+function toConnectionPhase(tickStatus) {
+  if (tickStatus === 'connected' || tickStatus === 'joined') return 'local';
+  if (tickStatus === 'disconnected' || tickStatus === 'error' || tickStatus === 'failed') return 'disconnected';
+  return 'idle';
+}
+
 function veggiesPayloadToArray(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && typeof payload === 'object') return Object.values(payload);
@@ -71,9 +88,11 @@ function veggiesPayloadToArray(payload) {
 }
 
 export default function App() {
-  // --- Name Gate ---
-  const [nameInput, setNameInput] = useState('');
-  const [hasSubmittedName, setHasSubmittedName] = useState(false);
+  // --- Room Join Gate ---
+  const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
+  const initialRoomCodeRef = useRef(
+    (new URLSearchParams(window.location.search).get('room') || '').trim().toUpperCase()
+  );
 
   // --- Mode Gate ---
   const [isRoomLeader, setIsRoomLeader] = useState(false);
@@ -117,7 +136,6 @@ export default function App() {
   const lastSentAtRef = useRef(0);
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
-  const autoJoinAttemptedRef = useRef(false);
   // Kept as a ref (not state) purely so handleRoundWin below can read
   // the current player id without re-subscribing every render.
   const myPlayerIdRef = useRef(null);
@@ -134,71 +152,72 @@ export default function App() {
     myPlayerIdRef.current = myPlayerId;
   }, [myPlayerId]);
 
-  // ---- Auto-join, gated on hasSubmittedName -----------
-  useEffect(() => {
-    if (!hasSubmittedName) return undefined;
-    if (autoJoinAttemptedRef.current) return undefined;
-    autoJoinAttemptedRef.current = true;
+  // ---- Room join, triggered by RoomJoin's onJoin({ room, name }) -------
+  const handleJoinRoom = async ({ room, name }) => {
+    if (!navigator.geolocation) {
+      setErrorMessage('This device does not support location services.');
+      setGpsError('This device has no GPS sensor available.');
+      return;
+    }
 
-    const autoMatchmaker = async () => {
-      if (!navigator.geolocation) {
-        setErrorMessage('This device does not support location services.');
-        setGpsError('This device has no GPS sensor available.');
-        return;
-      }
+    setErrorMessage('');
+    setTickStatus('connecting');
+    setMyName(name);
 
-      setTickStatus('connecting');
-      setMyName(nameInput);
+    const targetRoom = room.trim().toUpperCase();
+    setRoomCode(targetRoom);
 
-      const urlRoom = new URLSearchParams(window.location.search).get('room');
-      const targetRoom = (urlRoom || PUBLIC_FALLBACK_ROOM).trim().toUpperCase();
-      setRoomCode(targetRoom);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude, accuracy } = pos.coords;
+          const joined = await joinRoom(targetRoom, latitude, longitude, name);
 
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { latitude, longitude, accuracy } = pos.coords;
-            const joined = await joinRoom(targetRoom, latitude, longitude, nameInput);
-
-            // joinRoom() already opened the connection (connectSocket()
-            // is called internally before it ever emits 'join-room') —
-            // no separate bridge call needed here.
-            if (joined?.playerId) {
-              setMyPlayerId(joined.playerId);
-            }
-
-            setIsRoomLeader(!!joined?.isLeader);
-            setPendingTimingMode(joined?.timingMode || 'outdoor');
-            setMyPosition({ lat: latitude, lng: longitude, accuracy });
-            setGpsError('');
-
-            if (joined?.slotId) {
-              setMySlot(joined.slotId);
-            } else {
-              setErrorMessage('All slots in this arena are full right now.');
-            }
-
-            const shareableUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoom}`;
-            window.history.replaceState({ path: shareableUrl }, '', shareableUrl);
-
-            setTickStatus('joined');
-          } catch (err) {
-            console.error('[App] auto-join failed', err);
-            setErrorMessage('Could not reach the game server. Check your connection and try again.');
+          // joinRoom() already opened the connection (connectSocket() is
+          // called internally before it ever emits 'join-room') — no
+          // separate bridge call needed here.
+          if (joined && joined.success === false) {
+            setErrorMessage(joined.message || 'Could not join that arena. Try a different code.');
             setTickStatus('failed');
+            return;
           }
-        },
-        () => {
-          setErrorMessage('Location permission is required to join this outdoor arena.');
-          setGpsError('Location permission denied — enable it in site settings.');
-          setTickStatus('failed');
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-      );
-    };
 
-    autoMatchmaker();
-  }, [hasSubmittedName, nameInput]);
+          if (joined?.playerId) {
+            setMyPlayerId(joined.playerId);
+          }
+
+          setIsRoomLeader(!!joined?.isLeader);
+          setPendingTimingMode(joined?.timingMode || 'outdoor');
+          setMyPosition({ lat: latitude, lng: longitude, accuracy });
+          setGpsError('');
+
+          if (joined?.slotId) {
+            setMySlot(joined.slotId);
+            setHasJoinedRoom(true);
+          } else {
+            setErrorMessage('All slots in this arena are full right now.');
+            setTickStatus('failed');
+            return;
+          }
+
+          const shareableUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoom}`;
+          window.history.replaceState({ path: shareableUrl }, '', shareableUrl);
+
+          setTickStatus('joined');
+        } catch (err) {
+          console.error('[App] join failed', err);
+          setErrorMessage('Could not reach the game server. Check your connection and try again.');
+          setTickStatus('failed');
+        }
+      },
+      () => {
+        setErrorMessage('Location permission is required to join this arena.');
+        setGpsError('Location permission denied — enable it in site settings.');
+        setTickStatus('failed');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+  };
 
   // --- Multi-User Room Real-time Subscription Pipeline ---
   // Consolidated: previously the mode-gate listeners and round-win
@@ -350,11 +369,9 @@ export default function App() {
         setMatchPhase(MATCH_PHASE.ENDED);
       },
 
-      // NEW: previously nothing reset the countdown UI if the server
-      // cancelled it (e.g. a player left the lobby mid-countdown) — the
-      // overlay would stay frozen on whatever tick it last showed, with
-      // no path back to the map. This resets state and drops the client
-      // back to MAP so they see the lobby again instead of a dead screen.
+      // Resets the countdown UI if the server cancelled it (e.g. a
+      // player left the lobby mid-countdown) — the overlay would
+      // otherwise stay frozen with no path back to the map.
       onCountdownCancelled: (data) => {
         setMatchPhase(null);
         setStage('MAP');
@@ -486,42 +503,17 @@ export default function App() {
 
   const prizeWinnerScore = victoryData?.results?.[0]?.score ?? 0;
   const prizeRunnerUp = victoryData?.results?.[1]?.name ?? null;
+  const connectionPhase = toConnectionPhase(tickStatus);
 
-  // ---- NAME GATE SCREEN ----
-  if (!hasSubmittedName) {
+  // ---- ROOM JOIN GATE (replaces the old inline name gate + auto-join) --
+  if (!hasJoinedRoom) {
     return (
-      <div
-        className="app-container"
-        style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
-      >
-        <div style={styles.nameGateWrap}>
-          <div style={styles.nameGateCard}>
-            <p style={styles.nameGateLabel}>ENTER YOUR NAME</p>
-            <input
-              style={styles.nameGateInput}
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              maxLength={16}
-              placeholder="Your name"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && nameInput.trim()) setHasSubmittedName(true);
-              }}
-            />
-            <button
-              style={{
-                ...styles.nameGateBtn,
-                opacity: nameInput.trim() ? 1 : 0.5,
-                cursor: nameInput.trim() ? 'pointer' : 'not-allowed',
-              }}
-              disabled={!nameInput.trim()}
-              onClick={() => setHasSubmittedName(true)}
-            >
-              JOIN ARENA
-            </button>
-          </div>
-        </div>
-      </div>
+      <RoomJoin
+        onJoin={handleJoinRoom}
+        error={errorMessage}
+        connecting={tickStatus === 'connecting'}
+        initialRoomCode={initialRoomCodeRef.current}
+      />
     );
   }
 
@@ -568,7 +560,7 @@ export default function App() {
 
       <DailyStreakBanner />
 
-      <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={tickStatus} />
+      <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={connectionPhase} />
 
       {errorMessage && <div style={styles.errBanner}>{errorMessage}</div>}
 
