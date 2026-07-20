@@ -26,9 +26,20 @@
 //          stylesheet link and only injects once per page load (same
 //          dedupe as before) — trims the connection-setup latency that
 //          was previously paid serially after JS mount.
-//     Everything else — swipe-to-deploy, live username roast commentary,
-//     shake-to-sync squad linking, initialRoomCode prefill — is UNCHANGED
-//     from v3.
+// v5: BUGFIX — SwipeDeploy could visually get stuck. Confirming a swipe
+//     animates the thumb to the far right (x = maxDrag) and sets
+//     settled=true. If the join then FAILS (parent passes a new `error`
+//     and connecting flips back to false), the old code only reset
+//     `settled` back to false — the drag position `x` itself was never
+//     snapped back to 0. Net effect: after a failed join, the label and
+//     opacity reset to "ready" state but the gold thumb stayed parked at
+//     the end of the track, looking broken until the player manually
+//     dragged it back. Fixed by resetting x -> 0 whenever `error` changes
+//     to a truthy value (i.e. an attempt genuinely failed), not just on
+//     the connecting flag.
+//     Everything else — swipe-to-deploy mechanics, live username roast
+//     commentary, shake-to-sync squad linking, initialRoomCode prefill —
+//     is UNCHANGED from v4.
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, animate as fmAnimate } from 'framer-motion';
@@ -113,13 +124,12 @@ function useIsMobile(breakpoint = 480) {
   return isMobile;
 }
 
-// NEW: decides whether to strip ALL decorative ambient animation (sparks,
+// Decides whether to strip ALL decorative ambient animation (sparks,
 // spirals, floating GO! text, grid sweep) rather than just thinning counts.
 // Triggers on any of:
 //   - OS-level "reduce motion" accessibility preference
 //   - Battery API reporting critically low charge (<=15%), or low+not
-//     charging (<=20% and not plugged in) — exactly the situation that
-//     prompted this pass (7-9% battery, sluggish taps)
+//     charging (<=20% and not plugged in)
 //   - narrow/mobile viewport, where GPU/paint budget is already tighter
 // Fails safe: if the Battery API isn't available (Safari, some Android
 // WebViews), that check is simply skipped rather than blocking anything.
@@ -290,7 +300,7 @@ function AnimatedGo() {
 
 // ── Swipe-to-deploy control ─────────────────────────────────────────────────
 // Drag the track hard to the right to confirm entry, instead of a plain button.
-function SwipeDeploy({ canSubmit, connecting, onConfirm }) {
+function SwipeDeploy({ canSubmit, connecting, error, onConfirm }) {
   const thumbSize = 52;
   const trackRef = useRef(null);
   const [maxDrag, setMaxDrag] = useState(240);
@@ -330,6 +340,18 @@ function SwipeDeploy({ canSubmit, connecting, onConfirm }) {
   useEffect(() => {
     if (!connecting) setSettled(false);
   }, [connecting]);
+
+  // BUGFIX (v5): a failed join previously left the thumb visually stuck at
+  // the far right — `settled` reset above, but `x` itself never snapped
+  // back. Whenever a new error comes in (i.e. the confirmed attempt
+  // actually failed), spring the thumb back to the start so the control
+  // is visibly ready to swipe again.
+  useEffect(() => {
+    if (error) {
+      fmAnimate(x, 0, { type: 'spring', stiffness: 400, damping: 30 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   const locked = !canSubmit || connecting;
 
@@ -857,7 +879,7 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
 
             {/* Swipe-to-deploy replaces the plain submit button */}
             <div style={styles.swipeWrapper}>
-              <SwipeDeploy canSubmit={canSubmit} connecting={connecting} onConfirm={handleSubmit} />
+              <SwipeDeploy canSubmit={canSubmit} connecting={connecting} error={error} onConfirm={handleSubmit} />
             </div>
           </form>
 
