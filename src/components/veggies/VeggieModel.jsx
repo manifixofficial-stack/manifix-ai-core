@@ -1,61 +1,31 @@
 // src/components/veggies/VeggieModel.jsx
 //
-// CONSOLIDATED REVISION — merges the two diverged copies of this file
-// into one, reconciled against what GameCanvas.jsx actually calls it
-// with. GameCanvas's <AnimatedVeggieTarget> renders:
+// THIS REVISION — idle-stand wiring (the "standing on the floor" fix):
 //
-//   <Veggie3DModel
-//     veggieId, type, position=[0,0,0], distanceMeters, teamColor,
-//     scale, runAmplitude, runSpeed, runSeed, leanEnabled, hyperSpeed,
-//     isGlitchPhase, isJumpScared, isVacuuming, isCaught, onCatch
-//   />
+// GameCanvas.jsx's AnimatedVeggieTarget now passes a new isIdleStanding
+// prop, true whenever useVeggieEvasion's idle_stand AI state is active
+// (position frozen, velocity decayed to zero). Previously this component
+// had no awareness of that state at all — it kept playing its full
+// running gait (baked run clip, or the procedural footfall/sway/lean
+// fallback) regardless, so a veggie whose world position had genuinely
+// stopped still looked like it was jogging in place. Two changes:
 //
-// — with the PARENT <group> (in GameCanvas) already owning real
-// world position via useVeggieEvasion, so this component always
-// receives position=[0,0,0] in practice and only needs local secondary
-// motion (bob/sway/lean) layered inside that group. isCaught means
-// "server says this is globally resolved, hide instantly"; isVacuuming
-// means "local capture animation in progress — play it, then fire
-// onCatch once, after which GameCanvas clears state." That timing
-// (VACUUM_ANIM_MS === GameCanvas's VACUUM_WINDOW_MS = 1200ms) must stay
-// in sync with GameCanvas.jsx.
+//   1. Clip selection now checks isIdleStanding before falling back to
+//      the run clip — if the model has a real idle/stand clip, that
+//      plays instead while idle-standing is active.
+//   2. The procedural fallback gait (used when there's no baked
+//      animation at all) now suppresses footfall bob, sway, and forward
+//      lean while isIdleStanding is true, so an unrigged/placeholder
+//      model actually goes still too, not just the rigged ones.
 //
-// WHAT WAS MERGED / FIXED vs. the two prior copies:
-//   1. SKELETON CLONE BUG: one prior revision cloned the loaded scene
-//      with a plain `scene.clone(true)`. That breaks skinned/rigged
-//      meshes (bones don't clone correctly), and it's also unsafe to
-//      share the useGLTF cache across multiple on-screen instances of
-//      the same species. Restored SkeletonUtils.clone from three-stdlib
-//      (correct for both rigged and static meshes, and per-instance).
-//   2. TEAM COLOR WAS DEAD: one revision accepted a `teamColor` prop
-//      but never used it anywhere. Restored applyTeamTint — tints any
-//      mesh material named "accent"/"team" (case-insensitive) with the
-//      player's team color, silently no-ops if the model has no such
-//      material.
-//   3. ROBUST CLIP DETECTION: restored candidate-list clip matching
-//      (RUN/IDLE/HIDE/JUMPSCARE/CAPTURE candidates, case-insensitive
-//      substring match) instead of a single hardcoded /run|walk/i
-//      regex, so oddly-named or non-English clip names still resolve.
-//   4. DISTINCT PER-SPECIES FALLBACK: the Suspense/error fallback is no
-//      longer a single generic green blob — each of the 6 species gets
-//      its own color, so a still-loading or a 404'd model is still
-//      visually identifiable by species (Pokémon-GO style: you should
-//      be able to tell a Tomato target from a Grapes target by color
-//      alone, even before/if the real model shows).
-//   5. JUMP-SCARE PUNCH: kept the scale-punch pop on isJumpScared going
-//      true, layered independently of whether a baked clip exists, so
-//      the beat always reads even on an unrigged/placeholder model.
-//   6. Kept from the "mobile tuning pass": no eager preload of all 6
-//      species on module import (only species actually spawned in a
-//      session get fetched), and the per-instance point light is only
-//      added when distanceMeters < POINT_LIGHT_PROXIMITY_METERS.
+// A gentle idle bob/breathe (independent of the run-gait math) still
+// plays during idle-stand so the model doesn't look frozen/dead — see
+// IDLE_STAND_BREATHE_* below. This is cosmetic-only, contained entirely
+// to this file; it does not touch useVeggieEvasion's real position.
 //
-// HONEST CAVEAT: true "walks like a real creature" motion requires a
-// skinned mesh with a run/walk clip baked into the .glb (Mixamo, Ready
-// Player Me, Blender, etc.) — this file auto-detects and plays that
-// clip if present. Without one, motion is faked at the whole-body
-// level (footfall bob + sway + lean). It cannot generate a rig or
-// animation from text, and it never invents a clip that isn't there.
+// Everything else — SkeletonUtils clone, team tint, robust clip
+// detection, distinct per-species fallback color, jump-scare punch,
+// vacuum capture timeline, no-eager-preload — is UNCHANGED.
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -81,6 +51,13 @@ const HIDE_MIN_INTERVAL_MS = 3500;
 const HIDE_MAX_INTERVAL_MS = 7000;
 const HIDE_DURATION_MS = 1100;
 
+// --- Idle-stand breathing (new) — small, slow vertical bob so a
+// genuinely-stopped veggie doesn't look frozen/dead. Deliberately much
+// gentler/slower than the run-gait footfall bob below, since this reads
+// as "resting", not "moving". ---
+const IDLE_STAND_BREATHE_SPEED = 1.6;
+const IDLE_STAND_BREATHE_HEIGHT = 0.018;
+
 // --- Glitch-phase locomotion tuning (final "everything's worth 1000
 // pts" round) — erratic sin+cos blend layered on top of normal sway ---
 const GLITCH_SPEED_X = 8, GLITCH_SPEED_X2 = 5, GLITCH_SPEED_Z = 7, GLITCH_SPEED_Z2 = 3;
@@ -94,15 +71,8 @@ const SWAY_SECOND_HARMONIC_WEIGHT = 0.18;
 const MAX_FORWARD_LEAN_RAD = 0.14;
 const FORWARD_LEAN_PER_SPEED_UNIT = 0.035;
 
-// Proximity threshold (meters) below which the veggie's ground-accent
-// point light is actually added to the scene — above this it would be
-// visually negligible (target rendered small/far), so skip it entirely
-// and save a real-time light per distant veggie.
 const POINT_LIGHT_PROXIMITY_METERS = 6;
 
-// --- Animation clip name candidates (case-insensitive substring match,
-// checked in order) — covers common Mixamo/Blender/RPM naming variance
-// instead of assuming one exact clip name. ---
 const RUN_CLIP_CANDIDATES = ['run', 'running', 'walk', 'walking', 'move'];
 const IDLE_CLIP_CANDIDATES = ['idle', 'stand', 'default'];
 const HIDE_CLIP_CANDIDATES = ['hide', 'duck', 'crouch'];
@@ -124,10 +94,6 @@ function teamColorToHex(teamColor) {
   return map[teamColor] || teamColor || '#ffbe1a';
 }
 
-// Tints any mesh material named "accent"/"team" (case-insensitive) —
-// a common glTF authoring convention for a trim material kept separate
-// from the base albedo. Silently skipped if no such material exists;
-// this will never recolor an entire model.
 function applyTeamTint(root, teamColor) {
   if (!root || !teamColor) return;
   const color = new THREE.Color(teamColorToHex(teamColor));
@@ -164,9 +130,6 @@ function sanityCheckMaterials(root, type) {
   });
 }
 
-// Distinct silhouette color per species so a still-loading or 404'd
-// model is still identifiable at a glance — same idea as Pokémon GO's
-// species-distinct silhouettes while assets stream in.
 const FALLBACK_COLOR_BY_SPECIES = {
   tomato: '#ff3b30',
   broccoli: '#3ecf4a',
@@ -194,12 +157,6 @@ function PlaceholderVeggie({ species, tiltZ = 0 }) {
   );
 }
 
-// Loads the real .glb, clones it per-instance (SkeletonUtils — required
-// for correct bone duplication on rigged meshes; a plain .clone() would
-// break skinning and would also share one transform across every
-// on-screen instance of the same species), applies material sanity
-// checks + team tint, and reports available clips up to the parent so
-// it can drive playback state (run/idle/hide/jumpscare/capture).
 function LoadedModel({ type, teamColor, groupRef, onClipsReady }) {
   const { scene, animations } = useGLTF(modelPath(type));
 
@@ -256,6 +213,7 @@ export default function VeggieModel({
   isJumpScared = false,
   isVacuuming = false,
   isCaught = false,
+  isIdleStanding = false,
   onCatch,
 }) {
   const outerRef = useRef();
@@ -283,14 +241,16 @@ export default function VeggieModel({
     return () => window.clearTimeout(hideTimeoutRef.current);
   }, [isCaught, isVacuuming]);
 
-  // --- Clip selection: run/idle by default, hide/capture/jumpscare
-  // override based on state, chosen from whatever clips actually exist
-  // on this species' .glb (robust name matching, see candidates above).
   const handleClipsReady = (actions, names) => {
     if (!names || names.length === 0) return;
     setClipInfo({ actions, names });
   };
 
+  // FIX: clip selection now checks isIdleStanding before falling back
+  // to the run clip. If this species has a real idle/stand clip, it
+  // plays while the veggie's world position is frozen — otherwise it
+  // falls through to whatever it would have played before (run/idle
+  // fallback), and the procedural math below picks up the slack instead.
   useEffect(() => {
     if (!clipInfo) return;
     const { actions } = clipInfo;
@@ -304,6 +264,7 @@ export default function VeggieModel({
     if (isVacuuming) target = captureClip || hideClip;
     else if (isJumpScared) target = jumpscareClip;
     else if (isHiding) target = hideClip;
+    else if (isIdleStanding) target = idleClip || runClip;
     else target = runClip || idleClip;
 
     if (!target || activeClipRef.current === target) return;
@@ -318,13 +279,10 @@ export default function VeggieModel({
       action.setLoop(isOneShot ? THREE.LoopOnce : THREE.LoopRepeat, isOneShot ? 1 : Infinity);
       action.clampWhenFinished = isOneShot;
     }
-  }, [clipInfo, isVacuuming, isJumpScared, isHiding, hyperSpeed]);
+  }, [clipInfo, isVacuuming, isJumpScared, isHiding, isIdleStanding, hyperSpeed]);
 
   const hasBakedAnimation = !!clipInfo;
 
-  // --- Vacuum capture timeline: shrink + spin + suck toward camera,
-  // then fire onCatch once. Timing MUST match GameCanvas's
-  // VACUUM_WINDOW_MS or the visual and the state cleanup drift apart. ---
   const catchFiredRef = useRef(false);
   const vacuumStartRef = useRef(null);
   useEffect(() => {
@@ -336,9 +294,6 @@ export default function VeggieModel({
     }
   }, [isVacuuming]);
 
-  // --- Jump-scare punch-scale: always plays, independent of whether a
-  // rigged jumpscare clip exists, so the beat never silently disappears
-  // on an unrigged/placeholder model. ---
   const jumpScareStartRef = useRef(null);
   const wasJumpScaredRef = useRef(false);
   useEffect(() => {
@@ -363,15 +318,30 @@ export default function VeggieModel({
     const speed = runSpeed;
     const amp = runAmplitude;
 
-    let swayX = (Math.sin(t * speed) + SWAY_SECOND_HARMONIC_WEIGHT * Math.sin(t * speed * 2)) * amp * 0.1;
+    // FIX: procedural fallback gait (footfall bob / sway / forward
+    // lean) is suppressed while idle-standing and there's no baked
+    // animation to lean on instead — this is the branch that actually
+    // stops an unrigged/placeholder model from "jogging in place".
+    // A gentle breathing bob replaces it so it doesn't look frozen.
+    const suppressProceduralGait = isIdleStanding && !hasBakedAnimation;
+
+    let swayX = suppressProceduralGait
+      ? 0
+      : (Math.sin(t * speed) + SWAY_SECOND_HARMONIC_WEIGHT * Math.sin(t * speed * 2)) * amp * 0.1;
     let swayZ = 0;
-    const bobY = hasBakedAnimation
+
+    const runGaitBobY = hasBakedAnimation
       ? 0
       : (Math.abs(Math.sin(t * speed * 2)) * FOOTFALL_PRIMARY_WEIGHT +
           Math.abs(Math.sin(t * speed * 2 + Math.PI * 0.5)) * FOOTFALL_SECONDARY_WEIGHT) *
         FOOTFALL_BOB_HEIGHT;
-    const stepLean = leanEnabled ? Math.sin(t * speed) * 0.18 : 0;
-    const forwardLean = leanEnabled && !hasBakedAnimation
+    const breatheBobY = isIdleStanding
+      ? (Math.sin(t * IDLE_STAND_BREATHE_SPEED) * 0.5 + 0.5) * IDLE_STAND_BREATHE_HEIGHT
+      : 0;
+    const bobY = suppressProceduralGait ? breatheBobY : runGaitBobY;
+
+    const stepLean = leanEnabled && !suppressProceduralGait ? Math.sin(t * speed) * 0.18 : 0;
+    const forwardLean = leanEnabled && !hasBakedAnimation && !suppressProceduralGait
       ? Math.min(MAX_FORWARD_LEAN_RAD, speed * FORWARD_LEAN_PER_SPEED_UNIT)
       : 0;
 
@@ -380,7 +350,6 @@ export default function VeggieModel({
       swayZ += Math.cos(t * GLITCH_SPEED_Z) * GLITCH_RANGE_Z + Math.sin(t * GLITCH_SPEED_Z2) * GLITCH_RANGE_Z2;
     }
 
-    // Jump-scare punch: quick scale pop layered on top of everything else.
     let punchScale = 1;
     if (jumpScareStartRef.current != null) {
       const elapsed = performance.now() - jumpScareStartRef.current;
@@ -399,7 +368,8 @@ export default function VeggieModel({
       runRef.current.rotation.z = stepLean;
       const targetPitch = -forwardLean;
       runRef.current.rotation.x += (targetPitch - runRef.current.rotation.x) * Math.min(1, delta * 4);
-      runRef.current.rotation.y += (Math.sin(t * speed * 0.5) * 0.4 - runRef.current.rotation.y) * Math.min(1, delta * 3);
+      const targetYaw = suppressProceduralGait ? 0 : Math.sin(t * speed * 0.5) * 0.4;
+      runRef.current.rotation.y += (targetYaw - runRef.current.rotation.y) * Math.min(1, delta * 3);
       runRef.current.scale.setScalar(punchScale);
     }
 
@@ -410,7 +380,7 @@ export default function VeggieModel({
       captureRef.current.scale.setScalar(Math.max(0.001, 1 - eased));
       captureRef.current.position.z = -eased * 2.5;
       captureRef.current.position.y = eased * 0.8;
-      captureRef.current.rotation.y += delta * 14 * (1 - eased); // spin faster as it shrinks
+      captureRef.current.rotation.y += delta * 14 * (1 - eased);
 
       if (progress >= 1 && !catchFiredRef.current) {
         catchFiredRef.current = true;
@@ -450,10 +420,5 @@ export default function VeggieModel({
   );
 }
 
-// No eager preload of all 6 species on module import — <Suspense>
-// above already handles first-load gracefully per-instance, so only
-// species actually spawned in a given AR session get downloaded, at
-// the moment they're first rendered. (Deliberate: avoids forcing all
-// 6 .glb files to start fetching the instant GameCanvas mounts, which
-// competes with the camera/GPS/compass startup for bandwidth on
-// cellular.)
+// No eager preload of all 6 species on module import — see prior
+// revision note; unchanged.
