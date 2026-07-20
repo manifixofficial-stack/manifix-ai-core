@@ -1,23 +1,34 @@
 // src/App.jsx
 //
-// THIS REVISION: forwards isNative (computed in main.jsx from
-// window.Capacitor?.isNativePlatform?.()) down to GameCanvas, so it can
-// skip WebXR entirely inside the Capacitor Android WebView — that
-// environment doesn't implement real WebXR sessions (navigator.xr can
-// exist and isSessionSupported can even resolve true, but
-// requestSession then fails/hangs with no usable passthrough), which is
-// exactly what produced the "Start AR Hunt does nothing" screenshot.
+// MVP LAUNCH REVISION — trimmed for Day 1 Play Store submission.
 //
-// Everything else — RoomJoin gate, ConnectionStatus phase normalization,
-// consolidated subscribeToRoom pipeline, onCountdownCancelled handling,
-// motion-permission gate, single-GPS-owner fix, arena race-condition
-// fix — is UNCHANGED from the prior revision.
+// Cut from the prior revision (per MVP scope review):
+//   - DailyStreakBanner: retention feature, needs durable accounts
+//     (Firebase Auth) that don't exist yet on the current ephemeral
+//     slot-join model. Post-launch.
+//   - PrizeCamera: not on the mandatory 8-component list; its rematch
+//     button (`handlePrizeRematch`) also emits 'request-rematch', which
+//     server.js has no handler for — shipping it now would be a dead
+//     button, not a feature.
 //
-// ⚠️ STILL FLAGGED, NOT FIXED (carried over):
-//   - handlePrizeRematch emits 'request-rematch', which server.js has
-//     no handler for. Fix belongs in server.js.
+// Kept, unchanged in behavior from the prior revision:
+//   - RoomJoin gate, ConnectionStatus phase normalization, consolidated
+//     subscribeToRoom pipeline, onCountdownCancelled handling,
+//     motion-permission gate, single-GPS-owner fix, arena race-condition
+//     fix, isNative forwarded to GameCanvas so it skips WebXR inside the
+//     Capacitor Android WebView.
+//
+// FIXED in this revision:
 //   - server.js's room-joined payload includes `geofence: { lat, lng,
-//     radiusMeters }` that this file never captures into state.
+//     radiusMeters }`. This was previously received but never captured
+//     into state. It's now stored in `geofence` and passed to MapView,
+//     so the 120m radar circle is server-authoritative instead of
+//     hardcoded client-side.
+//
+// STILL NOT NEEDED FOR MVP (confirmed cut, do not re-add without reason):
+//   ForgotPassword.jsx, BillingGate.jsx, Leaderboard.jsx,
+//   CollectionBook.jsx, Feedback.jsx, DailyStreakBanner.jsx,
+//   PrizeCamera.jsx
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,8 +37,6 @@ import RoomJoin from './components/RoomJoin';
 import MapView from './components/MapView';
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
-import DailyStreakBanner from './components/DailyStreakBanner';
-import PrizeCamera from './components/PrizeCamera';
 import { joinRoom, subscribeToRoom } from './lib/gameClient';
 import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
@@ -87,6 +96,9 @@ export default function App({ isNative = false } = {}) {
 
   const [gpsError, setGpsError] = useState('');
 
+  // --- Server-authoritative geofence (radar circle) ---
+  const [geofence, setGeofence] = useState(null); // { lat, lng, radiusMeters }
+
   // --- Motion permission (iOS compass gate) ---
   const [motionPermissionReady, setMotionPermissionReady] = useState(false);
 
@@ -96,10 +108,6 @@ export default function App({ isNative = false } = {}) {
   const [showGoBurst, setShowGoBurst] = useState(false);
   const [victoryData, setVictoryData] = useState(null);
   const [tickStatus, setTickStatus] = useState('idle');
-
-  // --- Prize Camera / caught-veggie tracking ---
-  const [myCaughtVeggies, setMyCaughtVeggies] = useState([]);
-  const [showPrizeCamera, setShowPrizeCamera] = useState(false);
 
   // --- Core References ---
   const goAudioRef = useRef(null);
@@ -159,6 +167,14 @@ export default function App({ isNative = false } = {}) {
           setMyPosition({ lat: latitude, lng: longitude, accuracy });
           setGpsError('');
 
+          if (joined?.geofence) {
+            setGeofence({
+              lat: joined.geofence.lat,
+              lng: joined.geofence.lng,
+              radiusMeters: joined.geofence.radiusMeters,
+            });
+          }
+
           if (joined?.slotId) {
             setMySlot(joined.slotId);
             setHasJoinedRoom(true);
@@ -203,11 +219,6 @@ export default function App({ isNative = false } = {}) {
         setIsRoomLeader(true);
         setPendingTimingMode(data?.timingMode || 'outdoor');
         setTimingModeChosen(false);
-      },
-      onRoundWin: (data) => {
-        if (data?.winnerId === myPlayerIdRef.current && data?.veggieType) {
-          setMyCaughtVeggies((prev) => [...prev, data.veggieType]);
-        }
       },
     });
 
@@ -371,12 +382,6 @@ export default function App({ isNative = false } = {}) {
     setTimingModeChosen(true);
   };
 
-  // ⚠️ 'request-rematch' has no matching handler in server.js.
-  const handlePrizeRematch = () => {
-    window.socket?.emit('request-rematch', { roomCode });
-    setShowPrizeCamera(false);
-  };
-
   // ---- DATA RE-SHAPING FOR RENDERING, WITH NULL-GUARDS ----
 
   const myColor = mySlot ? SLOT_COLORS[mySlot] : '#00d2d3';
@@ -457,8 +462,6 @@ export default function App({ isNative = false } = {}) {
     return myPosition;
   }, [players, myPlayerId, myPosition]);
 
-  const prizeWinnerScore = victoryData?.results?.[0]?.score ?? 0;
-  const prizeRunnerUp = victoryData?.results?.[1]?.name ?? null;
   const connectionPhase = toConnectionPhase(tickStatus);
 
   // ---- ROOM JOIN GATE ----
@@ -514,8 +517,6 @@ export default function App({ isNative = false } = {}) {
     >
       <audio ref={goAudioRef} src="/sounds/go.mp3" preload="auto" />
 
-      <DailyStreakBanner />
-
       <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={connectionPhase} />
 
       {errorMessage && <div style={styles.errBanner}>{errorMessage}</div>}
@@ -534,6 +535,7 @@ export default function App({ isNative = false } = {}) {
               playerId={myPlayerId}
               mySlot={mySlot}
               myPos={myPosition}
+              geofence={geofence}
               gpsError={gpsError}
               onEnterAR={handleSelectVeggieTarget}
               onExit={handleReturnToRadar}
@@ -692,36 +694,10 @@ export default function App({ isNative = false } = {}) {
               <motion.button whileTap={{ scale: 0.96 }} onClick={handleInstantReplay} style={styles.replayBtn}>
                 INSTANT REPLAY
               </motion.button>
-
-              {myCaughtVeggies.length > 0 && (
-                <motion.button
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => setShowPrizeCamera(true)}
-                  style={{
-                    ...styles.replayBtn,
-                    marginTop: '10px',
-                    background: 'linear-gradient(180deg, #ffc83c, #e0a800)',
-                  }}
-                >
-                  📸 VICTORY SELFIE
-                </motion.button>
-              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {showPrizeCamera && (
-        <PrizeCamera
-          caughtVeggies={myCaughtVeggies}
-          winnerName={myDisplayName}
-          winnerScore={prizeWinnerScore}
-          runnerUp={prizeRunnerUp}
-          roomCode={roomCode}
-          onRematch={handlePrizeRematch}
-          onClose={() => setShowPrizeCamera(false)}
-        />
-      )}
     </div>
   );
 }
@@ -730,7 +706,6 @@ const styles = {
   nameGateWrap: { position: 'fixed', inset: 0, zIndex: 3000, background: '#020306', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   nameGateCard: { width: '90%', maxWidth: '320px', textAlign: 'center' },
   nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '2px', marginBottom: '12px' },
-  nameGateInput: { width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '16px', marginBottom: '16px', boxSizing: 'border-box' },
   nameGateBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer' },
   errBanner: { position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ff4d4d', color: '#fff', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
   arenaWrapper: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#05070a' },
