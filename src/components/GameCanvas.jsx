@@ -1,99 +1,34 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — real WebXR depth-sensing occlusion, layered on top of
-// the previous ground-anchoring revision:
+// THIS REVISION — native-WebView AR fix + dedup + denied-state UI:
 //
-// WHAT CHANGED IN THIS PATCH (vs. the ground-anchoring revision):
-//   - startXRSession now also requests the optional 'depth-sensing'
-//     feature (cpu-optimized usage, so frame.getDepthInformation() is
-//     available directly without custom shader/GPU-texture work).
-//   - New <ARDepthOcclusion> component (lives inside <Canvas>): every
-//     ~150ms, for each visible veggie, samples the real WebXR depth
-//     buffer at that veggie's exact screen position and compares it to
-//     how far away the veggie actually is. If the real surface is
-//     closer than the veggie at that pixel, something is physically
-//     blocking it, so it gets marked occluded.
-//   - New internal occlusion state (internalArOcclusion) + a merged
-//     effectiveOcclusion (external arOcclusion prop always wins, for
-//     testing/overrides; otherwise falls back to what real depth
-//     sensing computed this session).
-//   - Every remaining read of the raw arOcclusion prop (captureTargets,
-//     handleCaptureAttempt, visibleTargetCount, and the per-node
-//     isThisOccluded in the render loop) now reads effectiveOcclusion
-//     instead.
-//   - Optional "🌫️ REAL OCCLUSION" telemetry tag, shown only once real
-//     depth-sensing support is confirmed for this session.
+//   1. NEW isNative prop (forwarded from main.jsx -> App.jsx -> here).
+//      Capacitor's Android WebView doesn't implement real WebXR
+//      sessions — navigator.xr can exist and isSessionSupported can
+//      even resolve true, but requestSession then fails or hangs with
+//      no usable passthrough. The XR support-check effect now skips
+//      straight to xrState='unsupported' when isNative is true, so the
+//      "Start AR Hunt" button — which could never actually work inside
+//      the app shell — is never shown there in the first place.
+//   2. DUPLICATE RENDER BLOCK REMOVED: the xrState === 'idle' gate
+//      screen was rendered twice back-to-back at identical position,
+//      stacked directly on top of each other. Kept only the complete
+//      version (with the "SKIP — USE BASIC CAMERA" fallback button).
+//   3. requiredFeatures no longer includes 'local-floor' — if a device
+//      supports immersive-ar + hit-test but not local-floor tracking
+//      specifically, the ENTIRE session request was thrown away, not
+//      just that one feature, silently dropping xrState to 'denied'
+//      with no UI for that state at all. local-floor moved to
+//      optionalFeatures.
+//   4. NEW: a real 'denied' render branch, so a failed session request
+//      is never invisible to the player — previously there was no UI
+//      for it at all, which is indistinguishable from "button does
+//      nothing."
 //
-//   On devices without hardware/software depth support,
-//   depthOcclusionSupported stays false, no tag shows, and the game
-//   plays exactly as it did before this patch — no regression, just no
-//   real occlusion.
-//
-//   NOTE: useVeggieEvasion.js's obstacle_hide state (the simulated
-//   duck-and-reposition behavior, nudging position.y down in
-//   VeggieModel.jsx) is a SEPARATE, purely simulated mechanic and is
-//   untouched by this patch. This patch is the actual "hides behind a
-//   real tree/wall" mechanic, driven by AnimatedVeggieTarget's existing
-//   visible={!isOccluded} toggle (which was already wired for this
-//   since the ground-anchoring patch).
-//
-// ---------------------------------------------------------------------
-// PRIOR REVISION NOTES (ground-anchoring) — unchanged, kept for context:
-//
-// PROBLEM THIS FIXES:
-//   Vegetables were floating because there was no real-world floor
-//   height feeding into their position — everything used a hardcoded
-//   guess (-CAMERA_EYE_HEIGHT_METERS). The old camera setup used
-//   getUserMedia() + a <video> tag with 3D objects drawn on top based
-//   on GPS bearing + compass heading math. That's a "fake AR" trick —
-//   it never touches real plane detection or depth, so there was no
-//   way to get a real ground height, and no way to hide veggies behind
-//   real objects.
-//
-// WHAT CHANGED:
-//   This file now supports TWO position/camera modes, chosen
-//   automatically at runtime:
-//
-//   1. XR MODE (Android Chrome, when immersive-ar + hit-test is
-//      granted): Real WebXR session. The browser handles camera
-//      passthrough automatically (no <video> tag needed — the XR
-//      compositor draws it behind our transparent WebGL canvas). A
-//      hit-test source gives us a real detected floor height once per
-//      session (see ARGroundAnchor). Veggie positions are computed as
-//      real ENU (east/north) meters offset from that anchor — NOT the
-//      old compressed/compass-relative trick — because the XR camera
-//      now tracks real 6-DOF device motion itself, so faking rotation
-//      would double up and put veggies in the wrong place. Screen
-//      coordinates for the 2D UI (lock brackets, capture-throw hit
-//      testing) are derived by projecting the veggie's true 3D world
-//      position through the REAL XR camera each frame.
-//
-//   2. LEGACY MODE (iOS, or any Android browser that declines
-//      immersive-ar): Falls back to exactly what this file did before
-//      — getUserMedia video + compass-bearing math + the fixed-height
-//      floor guess. Nothing about this path changed. Existing behavior
-//      preserved 1:1 as a safety net so the game still runs everywhere,
-//      it just won't have real ground-lock/occlusion on those devices.
-//
-// arGroundY / arAnchors / arOcclusion props are still accepted (for
-// forward-compat / future depth-occlusion / testing overrides) — if a
-// parent passes them explicitly they take priority. Otherwise this
-// file now manages its own internal ground anchor via real hit-test
-// data, so App.jsx does NOT need to change for the sky bug to be fixed.
-//
-//   - Scale/perspective constants (MODEL_BASE_SCALE, AR_TRIGGER_DISTANCE_METERS,
-//     CATCH_TRIGGER_DISTANCE_METERS, METERS_TO_SCENE_DIVISOR) live in
-//     gameConfig.js, which I don't have the contents of. XR mode now
-//     places veggies at TRUE real-world scale (1 scene unit = 1 meter,
-//     no compression) since that's what real AR requires — the old
-//     compressed distances only existed to make the compass-trick look
-//     OK on a flat 2D screen. You will likely need to retune those
-//     distance/scale constants once you test on-device, since a veggie
-//     20 real meters away will now look genuinely far instead of
-//     artificially close.
-//
-// Everything else — evasion AI hookup, capture-throw, glitch mode,
-// leaderboard, popups, styles, blind-attack — is UNCHANGED below.
+// Everything else — real WebXR depth-sensing occlusion, ground
+// anchoring, evasion AI hookup, capture-throw, glitch mode,
+// leaderboard, popups, blind-attack, idle-stand wiring — is UNCHANGED
+// from the prior revision.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -148,19 +83,12 @@ const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes'
 
 const LEADERBOARD_TOP_GAP_PX = 10;
 
-// --- Blinding counter-attack ---
 const BLIND_ATTACK_DURATION_MS = 1400;
 const BLIND_ATTACK_COOLDOWN_MS = 3000;
 const REAL_MISS_LABELS = ['TOO FAR', 'NOT AIMED', 'NEAR MISS', 'BREAKOUT'];
 
-// --- XR ground-anchor sync throttle (avoid re-rendering React on
-// every single XR frame just because hit-test returned a number) ---
 const AR_GROUND_SYNC_INTERVAL_MS = 200;
 
-// --- NEW: real depth-occlusion tuning ---
-// Real surface must be at least this much closer than the veggie to
-// count as "blocking" it — a buffer against flicker right at the exact
-// edge of a real object.
 const OCCLUSION_DEPTH_MARGIN_M = 0.15;
 const OCCLUSION_SYNC_INTERVAL_MS = 150;
 
@@ -192,11 +120,6 @@ function metersToSceneDepth(meters) {
   return Math.min(MAX_SCENE_DEPTH, Math.max(MIN_SCENE_DEPTH, raw));
 }
 
-// --- real flat-earth ENU (east/north) meters offset from an anchor
-// lat/lng. Used only in XR mode, where objects need TRUE real-world
-// coordinates (the XR camera provides real rotation/motion, so we
-// can't also fake rotation via bearing math like legacy mode does —
-// that would double-apply the turn). ---
 function gpsToLocalMeters(lat0, lng0, lat, lng) {
   const dLat = toRad(lat - lat0);
   const dLng = toRad(lng - lng0);
@@ -208,7 +131,6 @@ function gpsToLocalMeters(lat0, lng0, lat, lng) {
 const APPROX_MODEL_HALF_WIDTH_SCENE_UNITS = 0.42;
 const MIN_SCREEN_HIT_RADIUS_PX = 14;
 
-// Legacy fake-camera projection (unchanged) — used only in legacy mode.
 function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = APPROX_MODEL_HALF_WIDTH_SCENE_UNITS) {
   const [x, y, z] = position;
   if (z >= -0.01) return null;
@@ -230,14 +152,9 @@ function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = AP
   return { x: screenX, y: screenY, radius };
 }
 
-// real-camera projection for XR mode. Takes the ACTUAL three.js XR
-// camera (tracked by the device's real 6-DOF pose) and a veggie's true
-// world-space Vector3, and returns where that point lands on screen
-// right now. This replaces the fake FOV-math version above whenever an
-// XR session is live.
 function projectWorldToScreenXR(worldVec3, camera, screenW, screenH, halfWidthUnits = APPROX_MODEL_HALF_WIDTH_SCENE_UNITS) {
   const p = worldVec3.clone().project(camera);
-  if (p.z > 1 || p.z < -1) return null; // behind camera / outside clip range
+  if (p.z > 1 || p.z < -1) return null;
 
   const screenX = (p.x * 0.5 + 0.5) * screenW;
   const screenY = (1 - (p.y * 0.5 + 0.5)) * screenH;
@@ -258,10 +175,6 @@ function chaseModeForSpecies(species) {
   return tier === 'rare' || tier === 'ultra_rare';
 }
 
-// Legacy-mode-only: manually pitches the camera from deviceorientation
-// beta. Must NEVER render this while an XR session is active — the XR
-// camera's rotation is driven by the real device pose every frame, and
-// fighting it here would jitter/fight the real tracking.
 function CameraPitchRig({ pitchDeg }) {
   const { camera } = useThree();
   useFrame(() => {
@@ -270,9 +183,6 @@ function CameraPitchRig({ pitchDeg }) {
   return null;
 }
 
-// lives inside <Canvas>. Once an XR session exists, binds it to the r3f
-// renderer so three.js's WebXR manager takes over the render loop and
-// camera pose.
 function XRSessionBridge({ session, referenceSpaceType = 'local-floor', onEnded }) {
   const { gl } = useThree();
   useEffect(() => {
@@ -304,11 +214,6 @@ function XRSessionBridge({ session, referenceSpaceType = 'local-floor', onEnded 
   return null;
 }
 
-// lives inside <Canvas>. Requests a hit-test source once per session,
-// then every XR frame checks for a ground hit and reports the real
-// detected floor height upward (throttled). This is the actual fix for
-// the "floating in the sky" bug — a real number from the device's own
-// surface-scanning instead of a guessed constant.
 function ARGroundAnchor({ session, onGroundY }) {
   const { gl } = useThree();
   const hitTestSourceRef = useRef(null);
@@ -349,9 +254,6 @@ function ARGroundAnchor({ session, onGroundY }) {
     if (!pose) return;
 
     const now = performance.now();
-    // Always accept the very first hit immediately (so the game
-    // doesn't sit floating for 200ms extra on session start), then
-    // throttle after that.
     if (!gotFirstHitRef.current || now - lastSyncRef.current > AR_GROUND_SYNC_INTERVAL_MS) {
       gotFirstHitRef.current = true;
       lastSyncRef.current = now;
@@ -362,19 +264,10 @@ function ARGroundAnchor({ session, onGroundY }) {
   return null;
 }
 
-// --- NEW: lives inside <Canvas>. Every ~150ms, for each visible
-// veggie, samples the real WebXR depth buffer at that veggie's exact
-// screen position and compares it to how far away the veggie actually
-// is. If the real world is closer at that pixel than the veggie, a
-// real object is physically between the camera and it — mark it
-// occluded. This is the actual "hides behind a real tree/wall"
-// mechanic; obstacle_hide in useVeggieEvasion.js is a separate,
-// purely simulated duck-and-reposition behavior and is untouched by
-// this. ---
 function ARDepthOcclusion({ session, targetNodesRef, liveVeggieRef, onOcclusionUpdate, onDepthSupportChange }) {
   const { gl, camera } = useThree();
   const lastSyncRef = useRef(0);
-  const depthSupportedRef = useRef(null); // null=unknown yet, true/false once determined
+  const depthSupportedRef = useRef(null);
   const scratchVec = useRef(new THREE.Vector3());
 
   useEffect(() => {
@@ -395,7 +288,6 @@ function ARDepthOcclusion({ session, targetNodesRef, liveVeggieRef, onOcclusionU
     const pose = frame.getViewerPose(refSpace);
     if (!pose || pose.views.length === 0) return;
 
-    // Phones report a single ('mono') view in immersive-ar.
     const view = pose.views[0];
     let depthInfo;
     try {
@@ -430,13 +322,11 @@ function ARDepthOcclusion({ session, targetNodesRef, liveVeggieRef, onOcclusionU
 
       scratchVec.current.set(wx, wy, wz);
       const projected = scratchVec.current.clone().project(camera);
-      if (projected.z > 1 || projected.z < -1) continue; // behind camera / clipped, skip
+      if (projected.z > 1 || projected.z < -1) continue;
 
-      // Normalized view coordinates (0,0 = top-left, 1,1 = bottom-right)
-      // — same convention getDepthInMeters expects.
       const nx = projected.x * 0.5 + 0.5;
       const ny = 1 - (projected.y * 0.5 + 0.5);
-      if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue; // offscreen
+      if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue;
 
       let realDepthM;
       try {
@@ -500,8 +390,6 @@ function AnimatedVeggieTarget({
   const seededRef = useRef(false);
   const worldVecRef = useRef(new THREE.Vector3());
 
-  // XR mode needs the real active camera to project world->screen
-  // each frame. Legacy mode doesn't use this at all.
   const { camera } = useThree();
 
   useEffect(() => {
@@ -561,11 +449,6 @@ function AnimatedVeggieTarget({
     const nowIdle = result.state === 'idle_stand';
     setIsIdleStanding((prev) => (prev === nowIdle ? prev : nowIdle));
 
-    // In XR mode, also compute this veggie's real screen position by
-    // projecting its true world position through the REAL XR camera.
-    // In legacy mode we skip this — the old fake-camera projection
-    // (done outside the Canvas, in captureTargets below) still handles
-    // it exactly as before.
     let screenProjection = null;
     if (xrActive && groupRef.current) {
       worldVecRef.current.set(posRef.current.x, result.worldY, posRef.current.z);
@@ -619,11 +502,11 @@ export default function GameCanvas({
   arGroundY: arGroundYProp = null,
   arAnchors = {},
   arOcclusion = {},
+  isNative = false,
   onExit
 }) {
   const [isMobileCapable] = useState(detectMobileCapable);
 
-  // ---- Legacy (non-XR) camera path — UNCHANGED from before ----
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [cameraState, setCameraState] = useState('initializing');
@@ -648,20 +531,12 @@ export default function GameCanvas({
   const [xrState, setXrState] = useState('checking');
   const [xrSession, setXrSession] = useState(null);
   const [internalArGroundY, setInternalArGroundY] = useState(null);
-  // Fixed real-world anchor established the first time we get a real
-  // ground hit AND know the player's own GPS. Everything else is
-  // placed as a meters offset from this anchor. Not re-derived every
-  // frame — GPS is noisy; the XR camera's own tracking handles motion
-  // within this anchored frame far better than re-reading GPS would.
-  const arOriginRef = useRef(null); // { lat, lng }
+  const arOriginRef = useRef(null);
 
-  // ---- NEW: real depth-occlusion state ----
   const [internalArOcclusion, setInternalArOcclusion] = useState({});
-  const [depthOcclusionSupported, setDepthOcclusionSupported] = useState(null); // null|true|false
+  const [depthOcclusionSupported, setDepthOcclusionSupported] = useState(null);
   const targetNodesRef = useRef([]);
 
-  // Explicit arOcclusion prop entries always win (testing/override),
-  // else fall back to what real depth-sensing computed this session.
   const effectiveOcclusion = useMemo(
     () => ({ ...internalArOcclusion, ...arOcclusion }),
     [internalArOcclusion, arOcclusion]
@@ -746,8 +621,18 @@ export default function GameCanvas({
   }, []);
 
   // ---- detect WebXR immersive-ar support on mount ----
+  // FIX: Capacitor's Android WebView doesn't implement real WebXR
+  // sessions — skip straight to 'unsupported' there so the AR-gate
+  // button, which could never actually work inside the app shell, is
+  // never shown in the first place.
   useEffect(() => {
     if (!isMobileCapable) return undefined;
+
+    if (isNative) {
+      setXrState('unsupported');
+      return undefined;
+    }
+
     let cancelled = false;
 
     if (!navigator.xr || typeof navigator.xr.isSessionSupported !== 'function') {
@@ -763,25 +648,24 @@ export default function GameCanvas({
     });
 
     return () => { cancelled = true; };
-  }, [isMobileCapable]);
+  }, [isMobileCapable, isNative]);
 
-  // ---- start an immersive-ar session (must run from a user gesture —
-  // called from the "START AR HUNT" button below) ----
+  // ---- start an immersive-ar session ----
+  // FIX: 'local-floor' moved from requiredFeatures to optionalFeatures
+  // — previously, a device supporting immersive-ar + hit-test but not
+  // local-floor tracking specifically would have the ENTIRE session
+  // request thrown away, not just that feature, silently dropping
+  // xrState to 'denied' with (previously) no UI for that state at all.
   const startXRSession = useCallback(async () => {
     if (!navigator.xr) return;
     setXrState('requesting');
     try {
       const overlayRoot = document.getElementById('veggie-ar-dom-overlay');
       const session = await navigator.xr.requestSession('immersive-ar', {
-        requiredFeatures: ['hit-test', 'local-floor'],
-        // NEW: depth-sensing added as optional — session still starts
-        // fine on devices that don't support it, occlusion just stays
-        // off. 'cpu-optimized' is requested specifically because it's
-        // the only usage mode that supports frame.getDepthInformation()
-        // directly — the gpu-optimized path hands you a raw WebGL
-        // texture instead, which would need custom shader work outside
-        // r3f's normal flow.
-        optionalFeatures: overlayRoot ? ['dom-overlay', 'depth-sensing'] : ['depth-sensing'],
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: overlayRoot
+          ? ['dom-overlay', 'depth-sensing', 'local-floor']
+          : ['depth-sensing', 'local-floor'],
         depthSensing: {
           usagePreference: ['cpu-optimized'],
           dataFormatPreference: ['luminance-alpha', 'float32'],
@@ -803,15 +687,13 @@ export default function GameCanvas({
     arOriginRef.current = null;
   }, []);
 
-  // once we have a real ground hit AND the player's own GPS, lock in
-  // the local-space anchor exactly once per session.
   const handleGroundY = useCallback((y) => {
     setInternalArGroundY(y);
   }, []);
 
   useEffect(() => {
     if (!xrActive) return;
-    if (arOriginRef.current) return; // already anchored this session
+    if (arOriginRef.current) return;
     if (internalArGroundY == null) return;
     if (!selfPosition) return;
     arOriginRef.current = { lat: selfPosition.lat, lng: selfPosition.lng };
@@ -864,14 +746,9 @@ export default function GameCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerBaseSeconds]);
 
-  // ---- Legacy camera bootstrap — ONLY runs when XR is not active.
-  // Unchanged logic, just gated behind `!xrActive` so it never fights
-  // over the camera hardware with an active WebXR session. ----
   useEffect(() => {
     if (!isMobileCapable) return undefined;
     if (xrActive) return undefined;
-    // Don't grab the legacy camera while we're mid-way into trying XR —
-    // avoids a hardware race between getUserMedia and requestSession.
     if (xrState === 'requesting') return undefined;
 
     async function startCamera() {
@@ -889,8 +766,6 @@ export default function GameCanvas({
     return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
   }, [isMobileCapable, xrActive, xrState]);
 
-  // Stop the legacy camera stream the moment XR goes active, so the
-  // hardware is free for the XR session's own passthrough compositing.
   useEffect(() => {
     if (!xrActive) return;
     if (streamRef.current) {
@@ -901,7 +776,7 @@ export default function GameCanvas({
 
   useEffect(() => {
     if (!isMobileCapable) return undefined;
-    if (xrActive) return undefined; // XR camera pose replaces this entirely
+    if (xrActive) return undefined;
     if (motionPermission !== 'granted') return undefined;
     function handleOrientation(e) {
       if (e.beta == null) return;
@@ -1017,7 +892,6 @@ export default function GameCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobileCapable, roomCode, advanceRound]);
 
-  // ---- Per-node position resolution — branches on xrActive ----
   const rawTargetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
     const projectedList = [];
@@ -1033,18 +907,12 @@ export default function GameCanvas({
       let worldZ;
 
       if (xrActive && arOriginRef.current) {
-        // REAL AR mode: true meters offset from the fixed session
-        // anchor. No compass math here — the real XR camera's own
-        // tracked rotation is what makes this look correct as the
-        // player turns their phone; we just place the object once at
-        // its true coordinate and let the renderer do the rest.
         const { east, north } = gpsToLocalMeters(
           arOriginRef.current.lat, arOriginRef.current.lng, node.lat, node.lng
         );
         worldX = east;
         worldZ = -north;
       } else {
-        // LEGACY mode: unchanged compass-bearing + compressed-depth trick.
         const bearing = bearingDegrees(selfPosition.lat, selfPosition.lng, node.lat, node.lng);
         const relAngle = ((bearing - deviceHeading + 540) % 360) - 180;
         if (Math.abs(relAngle) > FOV_ANGLE_DEG / 2) return;
@@ -1075,9 +943,6 @@ export default function GameCanvas({
     return rawTargetNodes.filter((n) => n.id === targetVegId);
   }, [rawTargetNodes, targetVegId]);
 
-  // NEW: keep a ref of targetNodes in sync for ARDepthOcclusion, which
-  // reads it from inside a useFrame loop and can't depend on React
-  // state re-renders to see updates in time.
   useEffect(() => {
     targetNodesRef.current = targetNodes;
   }, [targetNodes]);
@@ -1091,9 +956,6 @@ export default function GameCanvas({
     setGlitchTargetId((prev) => (prev === nearest.id ? prev : nearest.id));
   }, [targetNodes]);
 
-  // ---- captureTargets: legacy uses the fake-camera 2D projection;
-  // XR uses the real screen coords AnimatedVeggieTarget computed each
-  // frame via the true XR camera (stored in liveVeggieSnapshot). ----
   const captureTargets = useMemo(() => {
     return targetNodes
       .filter((node) => !effectiveOcclusion[node.id])
@@ -1321,10 +1183,6 @@ export default function GameCanvas({
         }
       `}</style>
 
-      {/* Legacy video backdrop — only rendered when XR is NOT active.
-          During an XR session the browser composites real camera
-          passthrough itself; a <video> tag would be redundant and
-          would also be fighting XR for the camera hardware. */}
       {!xrActive && (
         cameraState === 'denied' ? (
           <div style={styles.cameraErrorOverlay}><h3>CAMERA ACCESS REJECTED</h3></div>
@@ -1334,10 +1192,10 @@ export default function GameCanvas({
       )}
       {!xrActive && <div style={styles.videoScrim} />}
 
-      {/* XR entry gate. WebXR sessions must be started from a real
-          user gesture (tap), so this button is required — we can't
-          auto-start it on mount. Shown only while XR is supported but
-          not yet active. */}
+      {/* FIX: was rendered twice at identical position — kept only the
+          complete version (with SKIP fallback). Also never shown at
+          all inside the Capacitor app shell, since isNative forces
+          xrState straight to 'unsupported'. */}
       {xrState === 'idle' && (
         <div style={styles.cameraErrorOverlay}>
           <h3>REAL AR AVAILABLE</h3>
@@ -1347,30 +1205,44 @@ export default function GameCanvas({
           <button style={styles.fleeBtn} onClick={startXRSession}>
             🌱 START AR HUNT
           </button>
+          <button
+            style={{ ...styles.fleeBtn, marginTop: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)' }}
+            onClick={() => setXrState('unsupported')}
+          >
+            SKIP — USE BASIC CAMERA
+          </button>
         </div>
       )}
+
       {xrState === 'requesting' && (
         <div style={styles.cameraErrorOverlay}>
           <h3>STARTING AR…</h3>
         </div>
       )}
-     {xrState === 'idle' && (
-  <div style={styles.cameraErrorOverlay}>
-    <h3>REAL AR AVAILABLE</h3>
-    <p style={{ marginBottom: 16, maxWidth: 280 }}>
-      Your device supports real ground-locked AR — vegetables will stand on the actual floor and hide behind real objects.
-    </p>
-    <button style={styles.fleeBtn} onClick={startXRSession}>
-      🌱 START AR HUNT
-    </button>
-    <button
-      style={{ ...styles.fleeBtn, marginTop: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)' }}
-      onClick={() => setXrState('unsupported')}
-    >
-      SKIP — USE BASIC CAMERA
-    </button>
-  </div>
-)}
+
+      {/* NEW: previously a failed session request (e.g. local-floor
+          declined) silently dropped xrState to 'denied' with NO render
+          branch at all — indistinguishable from "the button does
+          nothing." Now it's a real, actionable screen. */}
+      {xrState === 'denied' && (
+        <div style={styles.cameraErrorOverlay}>
+          <h3>AR SESSION FAILED TO START</h3>
+          <p style={{ marginBottom: 16, maxWidth: 280 }}>
+            Your device declined the AR session — this can happen if a required
+            AR feature isn't supported, or if Google Play Services for AR needs
+            updating. Falling back to basic camera mode still works fine.
+          </p>
+          <button style={styles.fleeBtn} onClick={startXRSession}>
+            TRY AGAIN
+          </button>
+          <button
+            style={{ ...styles.fleeBtn, marginTop: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)' }}
+            onClick={() => setXrState('unsupported')}
+          >
+            USE BASIC CAMERA INSTEAD
+          </button>
+        </div>
+      )}
 
       {blindAttack && (
         <div
