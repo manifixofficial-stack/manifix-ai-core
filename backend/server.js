@@ -13,7 +13,36 @@
 //   - Glitch pulse is VISUAL ONLY — does not affect point values.
 //
 // ==========================================================================
-// THIS REVISION: /health route removed
+// THIS REVISION: 'request-rematch' now actually works
+// ==========================================================================
+//   - PROBLEM: App.jsx's PrizeCamera "rematch" button has always emitted
+//     'request-rematch', but this file never had a handler for it — the
+//     event went into the void and nothing happened. Made worse by the
+//     fact that advanceMatch() used to `delete rooms[roomCode]` the
+//     INSTANT a match ended, so even if a handler existed, there'd be no
+//     room left by the time anyone pressed the button.
+//   - FIX, part 1: advanceMatch() no longer deletes the room immediately
+//     on match end. It marks `matchEnded = true` and schedules a
+//     ROOM_POST_MATCH_CLEANUP_MS-later cleanup instead, so the room (and
+//     everyone's slot/character/deviceUUID) stays addressable for a
+//     rematch request in the meantime. If nobody rematches within that
+//     window, the room is deleted exactly as before.
+//   - FIX, part 2: new 'request-rematch' handler. Any player still in a
+//     matchEnded room can trigger it. Resets everyone's score to 0, resets
+//     round/stage state back to pre-match, cancels the pending cleanup
+//     timer, and — if enough players are still present — immediately
+//     kicks off the existing startCountdown() flow (the same 'tick'/'go'
+//     events already drive App.jsx's matchPhase state on every client, so
+//     no new client-side event needed to make the victory screen clear
+//     itself and the arena restart).
+//   - Ticket spend: rematch does NOT re-spend a ticket per player here —
+//     beginMatch() (called at the end of the new countdown) already
+//     spends one ticket per player exactly as it does for a normal match
+//     start, so a rematch costs a ticket the same way starting fresh
+//     would. This is intentional, not an oversight.
+//
+// ==========================================================================
+// PRIOR REVISION: /health route removed
 // ==========================================================================
 //   - The GET /health uptime-check route (status + mongoReady/razorpayReady/
 //     activeRooms snapshot) has been removed at the user's request.
@@ -109,7 +138,10 @@
 //   'round-start' { round, pointValue, veggie }, 'round-win'
 //   { round, winnerId, winnerName, pointValue, veggieType, quality,
 //     totalScore }, 'round-timeout' { round }, 'timing-mode-updated'
-//   { mode }.
+//   { mode }, 'rematch-starting' { requestedBy } (NEW — informational only,
+//   no client currently needs to handle it since the 'tick' that follows
+//   already drives the UI transition, but it's there if you want an
+//   earlier "rematch incoming…" indicator).
 
 const express = require('express');
 const http = require('http');
@@ -370,6 +402,12 @@ const MAX_PLAYERS_PER_ROOM = 6;
 // before they're removed for good.
 const RECONNECT_GRACE_MS = 45 * 1000;
 
+// NEW: how long a room stays alive AFTER a match ends before it's torn
+// down, giving players a window to hit "rematch" without needing to
+// re-join with a fresh room code. If nobody rematches in time, the room
+// is deleted exactly as it always was.
+const ROOM_POST_MATCH_CLEANUP_MS = 5 * 60 * 1000;
+
 let rooms = {};
 const roomCreateLog = new Map();
 
@@ -520,6 +558,9 @@ function makeRoom(originLat, originLng) {
     nextStageAt: null,
     glitchCycleStart: Date.now(),
     glitchActive: false,
+    // NEW: handle for the post-match cleanup timer (see
+    // ROOM_POST_MATCH_CLEANUP_MS). Cleared/replaced by request-rematch.
+    postMatchCleanupTimer: null,
   };
 }
 
@@ -548,6 +589,7 @@ function leaveCurrentRoom(socket, roomCode) {
   socket.leave(roomCode);
   if (Object.keys(room.players).length === 0) {
     if (room.countdownTimer) clearInterval(room.countdownTimer);
+    if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
     Object.values(room.disconnectTimers).forEach((t) => clearTimeout(t));
     delete rooms[roomCode];
   }
@@ -573,6 +615,7 @@ function finalizePlayerRemoval(roomCode, playerKey) {
   }
 
   if (Object.keys(room.players).length === 0) {
+    if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
     delete rooms[roomCode];
   } else {
     io.to(roomCode).emit('player-left', { playerId: playerKey, name: player.name });
@@ -649,7 +692,8 @@ function cancelCountdown(roomCode, reason) {
 
 // Now async: spends one ticket per player (deviceUUID-based) before the
 // first round spawns. Best-effort — a Mongo hiccup or a legacy client with
-// no deviceUUID never blocks the match from starting.
+// no deviceUUID never blocks the match from starting. Also runs on a
+// rematch's restarted countdown, exactly like a fresh match start.
 async function beginMatch(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -708,6 +752,12 @@ function endStage(roomCode, room, winnerPlayer, extra = {}) {
   room.stageVeggie = null;
 }
 
+// FIX: previously this function ended with `delete rooms[roomCode]`
+// unconditionally, the instant the 3rd round resolved — which is exactly
+// why 'request-rematch' could never work; the room was already gone by
+// the time anyone saw the victory screen and tapped the button. Now the
+// room is kept alive (marked matchEnded) and cleanup is deferred via a
+// timer that 'request-rematch' can cancel.
 function advanceMatch(roomCode, room) {
   if (room.stage < TOTAL_ROUNDS) {
     startStage(roomCode, room, room.stage + 1);
@@ -732,7 +782,16 @@ function advanceMatch(roomCode, room) {
 
   io.to(roomCode).emit('round-end', ranked);
   Object.values(room.disconnectTimers).forEach((t) => clearTimeout(t));
-  delete rooms[roomCode];
+  room.disconnectTimers = {};
+
+  if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
+  room.postMatchCleanupTimer = setTimeout(() => {
+    // Guard against a stale timer firing after the room object was
+    // already replaced/deleted by some other path.
+    if (rooms[roomCode] === room) {
+      delete rooms[roomCode];
+    }
+  }, ROOM_POST_MATCH_CLEANUP_MS);
 }
 
 function getPlayerMode(p, now) {
@@ -798,6 +857,11 @@ setInterval(() => {
       io.to(roomCode).emit('glitch-pulse', { active: room.glitchActive, duration: GLITCH_DURATION_MS });
     }
 
+    // NOTE: previously `if (room.matchEnded) return;` here also skipped
+    // the players-update/veggies-update ticks below for a matchEnded
+    // room. That's still fine/intended — a matchEnded room has no active
+    // stage and doesn't need position ticks; it just now stays in
+    // `rooms` for the cleanup window instead of vanishing immediately.
     if (room.matchEnded) return;
 
     if (room.matchActive && !room.stageResolved && room.stageStartTime) {
@@ -918,9 +982,18 @@ io.on('connection', (socket) => {
 
     const room = rooms[roomCode];
 
-    if (room.matchActive || room.matchEnded) {
+    if (room.matchActive) {
       return socket.emit('room-error', { message: 'Match already in progress — only players from this match can rejoin.' });
     }
+
+    // NOTE: a matchEnded room (post-match, awaiting a possible rematch)
+    // is intentionally NOT rejected here the way an active match is —
+    // if room.matchEnded is true but a genuinely new player tries to
+    // join, they fall through to the normal slot-assignment path below,
+    // which is fine: they'll just be a fresh participant if/when
+    // 'request-rematch' fires. (A player from the FINISHED match
+    // rejoining just to spectate isn't specially handled — out of scope
+    // for this fix.)
 
     if (Object.keys(room.players).length >= MAX_PLAYERS_PER_ROOM) {
       return socket.emit('room-error', { message: 'This room session circle is full! (max 6 players)' });
@@ -998,6 +1071,56 @@ io.on('connection', (socket) => {
     io.to(currentRoom).emit('timing-mode-updated', { mode });
 
     maybeAutoStart(currentRoom);
+  });
+
+  // NEW: 'request-rematch' — was previously unhandled entirely (see file
+  // header). Any player still connected to a matchEnded room can trigger
+  // it. Resets scores + round state in place (same room code, same
+  // slots/characters/names) and restarts the normal countdown flow, which
+  // drives every client's UI back into the arena via the existing
+  // 'tick'/'go' events — no new client-side listener required.
+  socket.on('request-rematch', () => {
+    if (!currentRoom || !rooms[currentRoom]) {
+      return socket.emit('room-error', { message: 'This room no longer exists — start a new match instead.' });
+    }
+    const room = rooms[currentRoom];
+
+    if (!room.matchEnded) {
+      // Ignore stray/duplicate requests if the match somehow isn't
+      // actually over (e.g. a delayed double-tap) — nothing to do.
+      return;
+    }
+
+    if (room.postMatchCleanupTimer) {
+      clearTimeout(room.postMatchCleanupTimer);
+      room.postMatchCleanupTimer = null;
+    }
+
+    // Reset per-player match state. Slots, characters, names, and
+    // deviceUUIDs are left untouched so everyone keeps their identity/color.
+    Object.values(room.players).forEach((p) => {
+      p.score = 0;
+      p.disconnected = false;
+    });
+
+    room.stage = 0;
+    room.stageVeggie = null;
+    room.stageStartTime = null;
+    room.stageResolved = false;
+    room.nextStageAt = null;
+    room.matchStarted = false;
+    room.matchActive = false;
+    room.matchEnded = false;
+
+    io.to(currentRoom).emit('rematch-starting', { requestedBy: socket.id });
+
+    const activePlayers = Object.keys(room.players).length;
+    if (activePlayers >= MIN_PLAYERS_TO_START) {
+      startCountdown(currentRoom);
+    }
+    // If only 1 player remains, the countdown simply won't start yet —
+    // maybeAutoStart-style behavior: it'll kick off automatically once a
+    // second player is present, same as the very first match did.
   });
 
   socket.on('update-location', (data) => {
@@ -1090,5 +1213,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, working rematch flow, listening on port: ${PORT}`);
 });
