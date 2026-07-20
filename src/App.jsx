@@ -1,45 +1,23 @@
 // src/App.jsx
 //
-// THIS REVISION: RoomJoin.jsx wired in + ConnectionStatus phase fix.
+// THIS REVISION: forwards isNative (computed in main.jsx from
+// window.Capacitor?.isNativePlatform?.()) down to GameCanvas, so it can
+// skip WebXR entirely inside the Capacitor Android WebView — that
+// environment doesn't implement real WebXR sessions (navigator.xr can
+// exist and isSessionSupported can even resolve true, but
+// requestSession then fails/hangs with no usable passthrough), which is
+// exactly what produced the "Start AR Hunt does nothing" screenshot.
 //
-//   1. RoomJoin.jsx was built (swipe-to-deploy, room code field, quick
-//      match, shake-to-sync) but never rendered anywhere — App.jsx had
-//      its own inline "ENTER YOUR NAME" gate that always auto-joined
-//      either a ?room= URL param or the hardcoded PUBLIC_FALLBACK_ROOM
-//      ('ARENA_01'), with no UI for a player to type in or share a
-//      specific friend's code beyond copy-pasting the browser URL.
-//      RoomJoin now replaces that inline gate: it collects name AND
-//      room code in one screen and calls onJoin({ room, name }), which
-//      drives the same geolocation -> joinRoom() flow the old
-//      autoMatchmaker used. A ?room= URL param (from a previously
-//      shared link) still prefills RoomJoin's code field via a new
-//      initialRoomCode prop, so shared links keep working.
-//   2. ConnectionStatus.jsx's PHASE_CONFIG only defines 'idle' / 'local'
-//      / 'disconnected', but tickStatus here is actually one of
-//      'idle' | 'connecting' | 'joined' | 'connected' | 'failed' |
-//      'error' | 'disconnected'. Every unrecognized value silently fell
-//      back to 'idle' ("SATELLITE SCANNING AREA…"), so the badge kept
-//      claiming "not connected" even mid-match. Normalized at the call
-//      site into the three phases ConnectionStatus actually understands
-//      rather than touching that component's internals.
-//   3. PUBLIC_FALLBACK_ROOM removed — no longer used now that room
-//      selection happens explicitly via RoomJoin instead of an implicit
-//      fallback.
-//
-// Everything else (motion-permission gate, playersBySlot keying,
-// PrizeCamera prop wiring, timingMode passthrough, single-GPS-owner
-// fix, arena race-condition fix, RARITY_BY_SPECIES import, the
-// consolidated subscribeToRoom pipeline, onCountdownCancelled handling)
-// is UNCHANGED from the prior revision.
+// Everything else — RoomJoin gate, ConnectionStatus phase normalization,
+// consolidated subscribeToRoom pipeline, onCountdownCancelled handling,
+// motion-permission gate, single-GPS-owner fix, arena race-condition
+// fix — is UNCHANGED from the prior revision.
 //
 // ⚠️ STILL FLAGGED, NOT FIXED (carried over):
 //   - handlePrizeRematch emits 'request-rematch', which server.js has
-//     no handler for. Tapping rematch currently does nothing
-//     server-side. Fix belongs in server.js.
+//     no handler for. Fix belongs in server.js.
 //   - server.js's room-joined payload includes `geofence: { lat, lng,
-//     radiusMeters }` that this file never captures into state. If
-//     MapView.jsx expects to draw a room boundary from it, that data
-//     has nowhere to land yet.
+//     radiusMeters }` that this file never captures into state.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,11 +48,6 @@ const MATCH_PHASE = {
   ENDED: 'ENDED',
 };
 
-// Normalizes App.jsx's real tickStatus values down to the three phases
-// ConnectionStatus.jsx actually renders ('idle' | 'local' | 'disconnected').
-// 'local' is reused here purely for its green "actually connected"
-// styling — nothing about the connection is local anymore, but this
-// avoids touching ConnectionStatus.jsx's internals for a one-line fix.
 function toConnectionPhase(tickStatus) {
   if (tickStatus === 'connected' || tickStatus === 'joined') return 'local';
   if (tickStatus === 'disconnected' || tickStatus === 'error' || tickStatus === 'failed') return 'disconnected';
@@ -87,7 +60,7 @@ function veggiesPayloadToArray(payload) {
   return [];
 }
 
-export default function App() {
+export default function App({ isNative = false } = {}) {
   // --- Room Join Gate ---
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const initialRoomCodeRef = useRef(
@@ -136,8 +109,6 @@ export default function App() {
   const lastSentAtRef = useRef(0);
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
-  // Kept as a ref (not state) purely so handleRoundWin below can read
-  // the current player id without re-subscribing every render.
   const myPlayerIdRef = useRef(null);
 
   useEffect(() => {
@@ -173,9 +144,6 @@ export default function App() {
           const { latitude, longitude, accuracy } = pos.coords;
           const joined = await joinRoom(targetRoom, latitude, longitude, name);
 
-          // joinRoom() already opened the connection (connectSocket() is
-          // called internally before it ever emits 'join-room') — no
-          // separate bridge call needed here.
           if (joined && joined.success === false) {
             setErrorMessage(joined.message || 'Could not join that arena. Try a different code.');
             setTickStatus('failed');
@@ -220,11 +188,6 @@ export default function App() {
   };
 
   // --- Multi-User Room Real-time Subscription Pipeline ---
-  // Consolidated: previously the mode-gate listeners and round-win
-  // tracking each opened their own separate window.socket.on(...) effect,
-  // duplicating the subscription surface this effect already owns.
-  // subscribeToRoom() now exposes onTimingModeUpdated / onPromotedToLeader
-  // / onRoundWin directly, so everything routes through one place.
   useEffect(() => {
     if (!roomCode) return undefined;
 
@@ -252,7 +215,6 @@ export default function App() {
   }, [roomCode]);
 
   // ---- Continuous Geolocation GPS Watcher Loop -------------------------
-  // THE ONLY GPS WATCHER IN THE APP. MapView.jsx must never start its own.
   useEffect(() => {
     if (!myPlayerId || !navigator.geolocation) return undefined;
 
@@ -369,9 +331,6 @@ export default function App() {
         setMatchPhase(MATCH_PHASE.ENDED);
       },
 
-      // Resets the countdown UI if the server cancelled it (e.g. a
-      // player left the lobby mid-countdown) — the overlay would
-      // otherwise stay frozen with no path back to the map.
       onCountdownCancelled: (data) => {
         setMatchPhase(null);
         setStage('MAP');
@@ -412,10 +371,7 @@ export default function App() {
     setTimingModeChosen(true);
   };
 
-  // ⚠️ 'request-rematch' has no matching handler in server.js — this
-  // currently emits into the void. Left as-is pending a server-side fix;
-  // flagging rather than silently removing in case that handler is
-  // planned. See file-header note.
+  // ⚠️ 'request-rematch' has no matching handler in server.js.
   const handlePrizeRematch = () => {
     window.socket?.emit('request-rematch', { roomCode });
     setShowPrizeCamera(false);
@@ -505,7 +461,7 @@ export default function App() {
   const prizeRunnerUp = victoryData?.results?.[1]?.name ?? null;
   const connectionPhase = toConnectionPhase(tickStatus);
 
-  // ---- ROOM JOIN GATE (replaces the old inline name gate + auto-join) --
+  // ---- ROOM JOIN GATE ----
   if (!hasJoinedRoom) {
     return (
       <RoomJoin
@@ -616,6 +572,7 @@ export default function App() {
                   players={playersBySlot}
                   veggies={veggiesById}
                   matchPhase={matchPhase}
+                  isNative={isNative}
                   onExit={handleReturnToRadar}
                 />
               </div>
