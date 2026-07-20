@@ -13,45 +13,16 @@
 //   - Glitch pulse is VISUAL ONLY — does not affect point values.
 //
 // ==========================================================================
-// THIS REVISION: Throw-quality now actually affects capture success
+// THIS REVISION: /health route removed
 // ==========================================================================
-//   - PROBLEM: the client (CaptureThrow.jsx) sends the full throw-quality
-//     object — { tier: 'PERFECT'|'GOOD'|'GLANCING', direct, ringScaleAtRelease,
-//     curveball, vacuumPower } — but this handler was doing
-//     `data.quality === 'perfect'`, comparing an object to a string. That's
-//     always false, so every throw silently resolved as 'good' regardless
-//     of actual tier. A GLANCING throw and a PERFECT throw succeeded at
-//     identical rates once GPS/heading passed.
-//   - FIX: parseThrowQuality() reads the real tier + direct flag off the
-//     object (with safe string/bare fallback so this never crashes on an
-//     unexpected shape). Indirect (near-miss) throws are rejected outright,
-//     regardless of tier. Direct throws then get a tier-based success roll:
-//     PERFECT is guaranteed, GOOD succeeds 85% of the time, GLANCING 55%.
-//     A failed roll is a 'BREAKOUT' — the veggie stays live and the round
-//     stays open for other players, it does NOT end the round the way a
-//     genuine capture does.
-//   - round-win's `quality` field now reports the real tier instead of a
-//     hardcoded 'good'.
-//
-// ==========================================================================
-// PRIOR REVISION: Catch radius / GPS-accuracy gate alignment
-// ==========================================================================
-//   - PROBLEM: CATCH_RADIUS_METERS (15) was tighter than
-//     GPS_MODE_ACCURACY_THRESHOLD_M (25) — a phone the server itself
-//     classified as "accurate enough for GPS mode" (accuracy up to 25m)
-//     could easily have real-world error greater than the 15m catch
-//     radius. Result: a player standing directly on top of the veggie
-//     could get a legitimate GPS fix 20m off and be told 'TOO FAR' with
-//     no way to know or fix it — not a skill failure, a tuning bug.
-//   - FIX: both numbers are now equal (20m). CATCH_RADIUS_METERS raised
-//     15 -> 20, GPS_MODE_ACCURACY_THRESHOLD_M lowered 25 -> 20. A phone
-//     good enough to be treated as GPS-capable is now, by construction,
-//     good enough to satisfy the catch radius. This also now matches the
-//     client's CATCH_TRIGGER_DISTANCE_METERS (see gameConfig.js), which
-//     was the other half of this mismatch — the client's "in range"
-//     reticle previously disagreed with what the server would actually
-//     accept.
-//   - No other gameplay logic changed in this revision.
+//   - The GET /health uptime-check route (status + mongoReady/razorpayReady/
+//     activeRooms snapshot) has been removed at the user's request.
+//   - NOTE this does not fix Render free-tier cold-start / sleep behavior —
+//     it only removes the diagnostic endpoint. If the server is on a
+//     free/sleeping tier, the actual fix is either upgrading the plan or
+//     pointing an external uptime pinger (e.g. UptimeRobot) at some other
+//     route (like GET /ping, which still exists) every 10-14 minutes so
+//     the process never sleeps.
 //
 // ==========================================================================
 // PRIOR REVISION: Reconnect handling + ticket wallet wired to billing
@@ -126,7 +97,6 @@
 //   - Leaderboard upserts ONE record per player (deviceUUID, falling back
 //     to username), tracking highestMatchScore + lifetimeMatchesPlayed.
 //   - REST routes now share the SAME CORS allow-list as Socket.io.
-//   - `GET /health` for uptime monitors.
 //   - Per-action DB writes on every socket event intentionally NOT adopted;
 //     Mongo is only touched once per match at match-end (plus, as of this
 //     revision, once per match at match-START for ticket spend, and on
@@ -203,10 +173,6 @@ app.get('/', (req, res) => {
 
 app.get('/ping', (req, res) => {
   res.status(200).send('ManifiX AI Game Engine is Awake!');
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'HEALTHY_CCU_ONLINE', mongoReady, razorpayReady, activeRooms: Object.keys(rooms).length });
 });
 
 // ==========================================
@@ -383,22 +349,10 @@ const GLITCH_DURATION_MS = 6000;
 const ROOM_RADIUS_METERS = 300;
 const VEG_PANIC_RADIUS_M = 40;
 const VEG_FLEE_SPEED_MPS = 1.4;
-
-// Real gameplay "are you close enough to catch it" distance. Kept equal to
-// GPS_MODE_ACCURACY_THRESHOLD_M below and to the client's
-// CATCH_TRIGGER_DISTANCE_METERS (gameConfig.js) — all three used to
-// disagree (15 / 25 / 25), which meant a phone the server itself judged
-// "accurate enough for GPS mode" could still fail a catch it should have
-// passed. Raised 15 -> 20 so the catch radius has headroom over realistic
-// outdoor GPS error instead of being tighter than the accuracy gate that
-// feeds it.
-const CATCH_RADIUS_METERS = 20;
+const CATCH_RADIUS_METERS = 15;
 const LOCATION_STALE_MS = 15000;
 
-// A player's location update is treated as GPS-mode-capable only if their
-// reported accuracy is at or under this. Lowered 25 -> 20 to match
-// CATCH_RADIUS_METERS above — see revision note at the top of this file.
-const GPS_MODE_ACCURACY_THRESHOLD_M = 20;
+const GPS_MODE_ACCURACY_THRESHOLD_M = 25;
 const HEADING_TOLERANCE_DEG = 45;
 const LOCATION_MAX_AGE_FOR_CAPTURE_MS = 20000;
 
@@ -415,17 +369,6 @@ const MAX_PLAYERS_PER_ROOM = 6;
 // How long a mid-match disconnect keeps a player's slot + score reserved
 // before they're removed for good.
 const RECONNECT_GRACE_MS = 45 * 1000;
-
-// --- Throw-quality success tuning (this revision) ---
-// PERFECT-tier throws are guaranteed once GPS/heading already passed;
-// GOOD and GLANCING can still whiff. Keys are the tier strings sent by
-// CaptureThrow.jsx (PERFECT / GOOD / GLANCING).
-const CAPTURE_SUCCESS_CHANCE_BY_TIER = {
-  PERFECT: 1,
-  GOOD: 0.85,
-  GLANCING: 0.55,
-};
-const VALID_THROW_TIERS = Object.keys(CAPTURE_SUCCESS_CHANCE_BY_TIER);
 
 let rooms = {};
 const roomCreateLog = new Map();
@@ -480,29 +423,6 @@ function angleDiffDeg(a, b) {
 
 function isFiniteNumber(n) {
   return typeof n === 'number' && Number.isFinite(n);
-}
-
-// --- Throw-quality parsing (this revision) ---
-// CaptureThrow.jsx sends the full throw object as `quality`:
-// { tier: 'PERFECT'|'GOOD'|'GLANCING', direct, ringScaleAtRelease,
-//   curveball, vacuumPower }. This used to be compared directly against
-// the string 'perfect', which is always false for an object — every
-// throw silently resolved as 'good'. This parses the real shape, with
-// safe fallbacks for a bare string or a missing/malformed payload so a
-// weird client never crashes the handler.
-function parseThrowQuality(rawQuality) {
-  if (rawQuality && typeof rawQuality === 'object') {
-    const tier = typeof rawQuality.tier === 'string' ? rawQuality.tier.toUpperCase() : null;
-    return {
-      tier: VALID_THROW_TIERS.includes(tier) ? tier : 'GOOD',
-      direct: rawQuality.direct === true,
-    };
-  }
-  if (typeof rawQuality === 'string') {
-    const tier = rawQuality.toUpperCase();
-    return { tier: VALID_THROW_TIERS.includes(tier) ? tier : 'GOOD', direct: true };
-  }
-  return { tier: 'GOOD', direct: true };
 }
 
 function rollVeggieType() {
@@ -1100,7 +1020,7 @@ io.on('connection', (socket) => {
 
   socket.on('capture-attempt', (data) => {
     const vegId = data && data.vegId;
-    const { tier, direct } = parseThrowQuality(data && data.quality);
+    const quality = data && data.quality === 'perfect' ? 'perfect' : 'good';
 
     if (!currentRoom || !rooms[currentRoom]) {
       return emitCaptureResult(socket, { vegId, success: false, label: 'NO ROOM' });
@@ -1139,29 +1059,13 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Indirect (near-miss) throws never land, regardless of tier — a
-    // fast-timed indirect throw is still a miss, it just didn't hit the
-    // target. This is a MISS, not a round-ending failure: the veggie
-    // stays live and other players can keep trying.
-    if (!direct) {
-      return emitCaptureResult(socket, { vegId, success: false, label: 'NEAR MISS', tier });
-    }
-
-    // Tier-based success roll — this is the actual fix. PERFECT is
-    // guaranteed once range/aim already passed; GOOD and GLANCING can
-    // still whiff. A failed roll is a breakout: the round stays open.
-    const successChance = CAPTURE_SUCCESS_CHANCE_BY_TIER[tier];
-    if (Math.random() >= successChance) {
-      return emitCaptureResult(socket, { vegId, success: false, label: 'BREAKOUT', tier });
-    }
-
     const pointValue = ROUND_POINT_VALUES[room.stage - 1];
-    endStage(currentRoom, room, p, { quality: tier.toLowerCase() });
+    endStage(currentRoom, room, p, { quality });
 
     emitCaptureResult(socket, {
       vegId,
       success: true,
-      label: tier === 'PERFECT' ? 'PERFECT' : 'CAUGHT',
+      label: quality === 'perfect' ? 'PERFECT' : 'CAUGHT',
       points: pointValue,
       newScore: p.score,
     });
@@ -1172,7 +1076,7 @@ io.on('connection', (socket) => {
       newScore: p.score,
       points: pointValue,
       species: veg.type,
-      quality: tier.toLowerCase(),
+      quality,
     });
   });
 
@@ -1186,5 +1090,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, tier-based capture success, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, listening on port: ${PORT}`);
 });
