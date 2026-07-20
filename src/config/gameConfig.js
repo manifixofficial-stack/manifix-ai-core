@@ -34,6 +34,18 @@
 // the original intent of that refactor — rather than the two disagreeing
 // standalone copies each file had before.
 //
+// THIS REVISION — idle-stand AI tuning moved here from useVeggieEvasion.js:
+// AUTO_IDLE_MIN_INTERVAL_MS, AUTO_IDLE_MAX_INTERVAL_MS, and
+// IDLE_STAND_DURATION_FRAMES were previously hardcoded directly inside
+// the hook, breaking the "all AI tuning lives in gameConfig.js" pattern
+// every other evasion constant here follows (EVASION_TRIGGER_METERS,
+// FLEE_SPEED_CONSTANT, DASH_*, BREAKOUT_*, AUTO_HIDE_*, etc). Moved
+// alongside AUTO_HIDE_MIN/MAX_INTERVAL_MS below, since they're the same
+// kind of "periodic behavior timer" constant. useVeggieEvasion.js now
+// imports these three with the same CFG_* / `?? fallback` pattern as
+// everything else it already imports, so a missing/undefined config
+// value still falls back safely instead of breaking idle-stand.
+//
 // Everything else (spawn system, scoring, target-ring timing, evasion
 // AI tuning, network/throttle constants, room/team limits) is kept from
 // whichever copy had it, deduplicated.
@@ -258,9 +270,22 @@ export const DASH_COOLDOWN_MS = 2500;
 export const AGGRESSIVE_CHARGE_SPEED_MULTIPLIER = 2.2;
 export const TACTICAL_DODGE_SPEED_UNITS_S = 9;
 
+// Periodic "hide and seek" (Pokémon-GO style) — independent of being
+// cornered: every so often the veggie deliberately ducks out of sight
+// and the player has to reacquire it.
 export const AUTO_HIDE_MIN_INTERVAL_MS = 7000;
 export const AUTO_HIDE_MAX_INTERVAL_MS = 14000;
 export const OBSTACLE_HIDE_DURATION_FRAMES = 45;
+
+// NEW: periodic "just stand still" pause — distinct from hiding.
+// Deliberately a shorter/tighter range than AUTO_HIDE_* above so a
+// chased veggie pauses more often than it ducks out of sight, matching
+// the "creature just standing there" beat real AR-catch games have
+// between chase bursts. Moved here from useVeggieEvasion.js so all AI
+// timing constants live in one tunable place, same as AUTO_HIDE_* above.
+export const AUTO_IDLE_MIN_INTERVAL_MS = 4000;
+export const AUTO_IDLE_MAX_INTERVAL_MS = 9000;
+export const IDLE_STAND_DURATION_FRAMES = 70;
 
 // Break-out probability for a failed catch attempt:
 // chance = clamp(BASE - playerLevel*LEVEL_REDUCTION + catchDifficulty*DIFFICULTY_WEIGHT)
@@ -339,6 +364,9 @@ export default {
   AUTO_HIDE_MIN_INTERVAL_MS,
   AUTO_HIDE_MAX_INTERVAL_MS,
   OBSTACLE_HIDE_DURATION_FRAMES,
+  AUTO_IDLE_MIN_INTERVAL_MS,
+  AUTO_IDLE_MAX_INTERVAL_MS,
+  IDLE_STAND_DURATION_FRAMES,
   BREAKOUT_BASE_CHANCE,
   BREAKOUT_PLAYER_LEVEL_REDUCTION,
   BREAKOUT_DIFFICULTY_WEIGHT,
