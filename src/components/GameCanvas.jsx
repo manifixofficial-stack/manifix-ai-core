@@ -1,55 +1,36 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — "Desktop block gate":
+// THIS REVISION — three fixes:
 //
-//   H) MOBILE-ONLY HARD GATE: this game is structurally non-functional
-//      on a desktop/laptop browser — three separate APIs it depends on
-//      simply don't exist there:
-//        - deviceorientation (camera pitch / compass) never fires
-//          without a gyroscope/compass.
-//        - getUserMedia({ facingMode: "environment" }) has no rear
-//          camera to grab on a desktop; it either fails or falls back
-//          to a front-facing webcam pointed at the player's face.
-//        - GPS via selfPosition is city-block accurate at best on
-//          desktop browsers, which fails CATCH_TRIGGER_DISTANCE_METERS
-//          outright.
-//      Previously a desktop visitor would just hit these failing one
-//      by one with confusing partial-broken UI (camera denied or wrong
-//      camera, "ALIGN DEVICE TO CENTER LINE" that can never align,
-//      etc.). Now capability is checked ONCE on mount — touch support
-//      + DeviceOrientationEvent existence — and if either is missing,
-//      the whole camera/AR flow is skipped entirely in favor of a
-//      single clear "MOBILE DEVICE REQUIRED" screen. No camera
-//      permission prompt, no socket wiring for capture, nothing tries
-//      to start on an unsupported device.
-//      NOTE: this checks for API existence (capability), not user
-//      agent string — a phone in desktop-mode UA still passes if it
-//      genuinely has touch + orientation support, which is the
-//      correct signal (matches how the iOS motion-permission gate
-//      already checks for `DeviceOrientationEvent.requestPermission`
-//      rather than sniffing UA).
+//   1. IDLE-STAND VISUAL WIRING (the "standing on the floor" fix):
+//      useVeggieEvasion.js's idle_stand AI state already froze the
+//      veggie's world position correctly, but nothing told
+//      VeggieModel.jsx about it — so the model kept playing its full
+//      running gait in place, looking like it was jogging on a
+//      treadmill instead of genuinely standing still. AnimatedVeggieTarget
+//      now passes isIdleStanding={result.state === 'idle_stand'} down to
+//      <Veggie3DModel>, which uses it to prefer an idle clip and
+//      suppress procedural footfall/sway/lean (see VeggieModel.jsx).
 //
-// On top of the previous "Pokémon-GO parity pass" (real catch-range
-// gate tied to CATCH_TRIGGER_DISTANCE_METERS, per-species chase
-// behavior derived from RARITY_BY_SPECIES, iOS motion permission gate)
-// and the "mobile tuning pass" before that (DPR cap, lighting trim,
-// isGlitchPhase wiring, dead-code cleanup) — all of that is UNCHANGED
-// below. Only the new mount-time capability check and its block screen
-// are added.
+//   2. EVENT NAME BUG FIXED: was listening for 'round_timeout'
+//      (underscore) — server.js emits 'round-timeout' (hyphen), matching
+//      every other event name it sends. The listener never fired; the
+//      client only ever learned about round timeouts from its own local
+//      countdown, never the server's authoritative one.
 //
-// PATCH I (this pass) — layout collision fixes:
-//   1. leaderboardWidget no longer hard-coded at top:96. topBar is
-//      measured via ref + ResizeObserver and the leaderboard is
-//      positioned below its real rendered height + a gap. Fixes the
-//      leaderboard overlapping/clipping the telemetry row on narrow
-//      phones where the row wraps to 2-3 lines.
-//   2. viewport gets overflow-x hidden explicitly so wrapped telemetry
-//      tags can never push the layout into horizontal scroll/clipping.
-//   3. controlDeck (RETURN TO RADAR) moved from bottom-center (which
-//      sat on top of CaptureThrow's vacuum-charge bar) to a top-right
-//      pill under the topBar, out of the capture UI's territory. It's
-//      shrunk and restyled as a secondary action so it doesn't compete
-//      with the primary throw gesture at the bottom of the screen.
+//   3. DEAD EMIT REMOVED: submitRoundScore() emitted 'submit-round-score',
+//      which server.js has no handler for — and server.js's own comments
+//      say this is deliberate ("the server computes and persists scores
+//      itself... deliberately never accepts client-reported scores").
+//      Removed the emit; advanceRound() still marks the round submitted
+//      locally (to prevent double-firing onExit) and exits, but no
+//      longer pretends to report a score the server was never going to
+//      accept.
+//
+// Everything else — desktop block gate, layout collision fixes, iOS
+// motion-permission gate, Pokémon-GO parity pass (catch-range gate,
+// per-species chase behavior, RARITY_BY_SPECIES-derived personality) —
+// is UNCHANGED.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -102,19 +83,18 @@ const RETICLE_SNAPSHOT_INTERVAL_MS = 100;
 
 const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes', 'strawberry'];
 
-// Gap between the bottom of topBar and the top of leaderboardWidget
-// (patch I). Small on purpose — topBar already has its own bottom
-// padding, this is just breathing room so the two never touch.
 const LEADERBOARD_TOP_GAP_PX = 10;
 
-// --- Desktop block gate (patch H) ---
-// Capability check, not UA sniffing: a device only counts as "mobile
-// enough" if it has touch input AND the DeviceOrientationEvent API
-// exists at all. Both are required for the AR flow (camera aim +
-// compass/pitch) to have any chance of working. Evaluated once at
-// module load — these capabilities don't change during a session.
+// --- Blinding counter-attack ---
+// A close-range miss (not an invalid-attempt error) triggers a brief
+// screen distortion — the veggie "fighting back" beat. Per-veggie
+// cooldown so one miss can't spam-blind the player every frame.
+const BLIND_ATTACK_DURATION_MS = 1400;
+const BLIND_ATTACK_COOLDOWN_MS = 3000;
+const REAL_MISS_LABELS = ['TOO FAR', 'NOT AIMED', 'NEAR MISS', 'BREAKOUT'];
+
 function detectMobileCapable() {
-  if (typeof window === 'undefined') return true; // SSR / non-browser render: don't block
+  if (typeof window === 'undefined') return true;
   const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
   const hasOrientation = typeof DeviceOrientationEvent !== 'undefined';
   return hasTouch && hasOrientation;
@@ -165,16 +145,6 @@ function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = AP
   return { x: screenX, y: screenY, radius };
 }
 
-// Personality wins over rarity: PERSONALITY_CHASE_OVERRIDE (gameConfig.js)
-// is the source of truth for charge-vs-flee per species — Angry Tomato
-// always charges, Shy Broccoli always hides, regardless of which rarity
-// tier they're spawned at. Rarity still independently drives catch
-// difficulty/points/spawn scarcity (see CATCH_DIFFICULTY_BY_SPECIES /
-// BASE_CATCH_POINTS_BY_SPECIES in gameConfig.js) — it just no longer
-// decides this specific behavior. Any species NOT listed in the override
-// falls back to the old rarity-based rule (rare/ultra_rare = charge) so
-// a newly-added species without an explicit personality entry still gets
-// sensible default behavior instead of silently flee-ing forever.
 function chaseModeForSpecies(species) {
   if (Object.prototype.hasOwnProperty.call(PERSONALITY_CHASE_OVERRIDE, species)) {
     return PERSONALITY_CHASE_OVERRIDE[species];
@@ -241,6 +211,11 @@ function AnimatedVeggieTarget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
+  // FIX 1: idle-stand visual wiring — read off the hook's returned
+  // `state` and pass it down so VeggieModel.jsx can actually stop
+  // playing the run gait while the veggie's position is frozen.
+  const [isIdleStanding, setIsIdleStanding] = useState(false);
+
   useFrame((_, delta) => {
     if (isVacuuming) {
       return;
@@ -282,6 +257,11 @@ function AnimatedVeggieTarget({
       onLiveUpdate(node.id, { spinoutTriggered: true });
     }
 
+    // React state only flips when the boolean actually changes, so this
+    // doesn't re-render every frame for a veggie that's just running.
+    const nowIdle = result.state === 'idle_stand';
+    setIsIdleStanding((prev) => (prev === nowIdle ? prev : nowIdle));
+
     onLiveUpdate(node.id, {
       x: posRef.current.x,
       z: posRef.current.z,
@@ -310,6 +290,7 @@ function AnimatedVeggieTarget({
         isJumpScared={jumpScared}
         isVacuuming={isVacuuming}
         isCaught={isCaught}
+        isIdleStanding={isIdleStanding}
         onCatch={onLocalCatch}
       />
     </group>
@@ -323,10 +304,6 @@ export default function GameCanvas({
   targetVegId = null,
   onExit
 }) {
-  // --- Desktop block gate (patch H) ---
-  // Computed once per mount. If false, none of the camera/AR/socket
-  // wiring below ever runs — we bail straight to the block screen in
-  // the render, before the getUserMedia effect or anything else fires.
   const [isMobileCapable] = useState(detectMobileCapable);
 
   const videoRef = useRef(null);
@@ -341,15 +318,10 @@ export default function GameCanvas({
 
   const [collectionOpen, setCollectionOpen] = useState(false);
 
-  // --- Layout collision fix (patch I) ---
-  // topBar's real height varies: the telemetry row wraps to 1-3 lines
-  // depending on phone width, roomCode length, and whether myMode is
-  // set. Previously leaderboardWidget was hard-pinned at top:96 and
-  // simply overlapped topBar whenever it wrapped past ~1 line (this is
-  // exactly the bug in the screenshot — "SATELLITE SCANNING AREA" text
-  // duplicated/clipped behind the leaderboard, COLLECTION button
-  // hidden). Measuring the real node with ResizeObserver and deriving
-  // leaderboardTop from it fixes this for any wrap state or screen size.
+  // --- Blinding counter-attack state ---
+  const [blindAttack, setBlindAttack] = useState(null); // { id, startedAt } | null
+  const blindCooldownRef = useRef(new Map());
+
   const topBarRef = useRef(null);
   const [leaderboardTop, setLeaderboardTop] = useState(96);
 
@@ -363,17 +335,10 @@ export default function GameCanvas({
       }
     });
     observer.observe(node);
-    // Seed an initial measurement immediately (ResizeObserver's first
-    // callback can lag a frame behind first paint on some browsers).
     setLeaderboardTop(Math.ceil(node.offsetHeight + LEADERBOARD_TOP_GAP_PX));
     return () => observer.disconnect();
   }, []);
 
-  // --- iOS motion/compass permission gate (patch G) ---
-  // On iOS 13+ Safari, DeviceOrientationEvent.requestPermission() must
-  // exist AND be called from a genuine user gesture, or deviceorientation
-  // never fires. On Android / older iOS / desktop it doesn't exist, so
-  // we skip straight to 'granted' there.
   const [motionPermission, setMotionPermission] = useState(() => {
     const needsPrompt = typeof DeviceOrientationEvent !== 'undefined'
       && typeof DeviceOrientationEvent.requestPermission === 'function';
@@ -433,20 +398,16 @@ export default function GameCanvas({
 
   const currentRoundPoints = isGlitched ? GLITCH_ROUND_POINTS : (ROUND_POINT_TIERS[matchRound] ?? ROUND_POINT_TIERS[1]);
 
+  // FIX 3: no longer emits 'submit-round-score' — server.js has no
+  // handler for it and its own comments say this is deliberate: it
+  // computes and persists scores itself at match-end
+  // (advanceMatch -> upsertLeaderboardEntry), never accepting a
+  // client-reported score. This now just guards against onExit firing
+  // more than once per match.
   const submitRoundScore = useCallback(() => {
     if (scoreSubmitted) return;
     setScoreSubmitted(true);
-    const finalScore = players?.[mySlot]?.score ?? 0;
-    window.socket?.emit('submit-round-score', {
-      roomCode,
-      playerId,
-      slot: mySlot,
-      round: matchRound,
-      score: finalScore,
-      glitched: isGlitched,
-      completedAt: Date.now(),
-    });
-  }, [scoreSubmitted, players, mySlot, roomCode, playerId, matchRound, isGlitched]);
+  }, [scoreSubmitted]);
 
   const advanceRound = useCallback(() => {
     setMatchRound((prevRound) => {
@@ -489,7 +450,7 @@ export default function GameCanvas({
   }, [timerBaseSeconds]);
 
   useEffect(() => {
-    if (!isMobileCapable) return undefined; // patch H: never request the camera on a blocked device
+    if (!isMobileCapable) return undefined;
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
@@ -506,7 +467,7 @@ export default function GameCanvas({
   }, [isMobileCapable]);
 
   useEffect(() => {
-    if (!isMobileCapable) return undefined; // patch H
+    if (!isMobileCapable) return undefined;
     if (motionPermission !== 'granted') return undefined;
     function handleOrientation(e) {
       if (e.beta == null) return;
@@ -518,7 +479,7 @@ export default function GameCanvas({
   }, [isMobileCapable, motionPermission]);
 
   useEffect(() => {
-    if (!isMobileCapable) return undefined; // patch H: no socket capture wiring on a blocked device
+    if (!isMobileCapable) return undefined;
     if (!window.socket) return undefined;
     const socket = window.socket;
 
@@ -590,9 +551,28 @@ export default function GameCanvas({
         setTimeout(() => {
           setMissPopups((prev) => prev.filter((p) => p.id !== newMiss.id));
         }, 1400);
+
+        // Blinding counter-attack — only for a real close-range miss
+        // (not an invalid-attempt error), and only if this veggie isn't
+        // still on its own cooldown from a recent attack.
+        const vegId = resolution.vegId;
+        if (vegId && REAL_MISS_LABELS.includes(label)) {
+          const now = Date.now();
+          const nextEligible = blindCooldownRef.current.get(vegId) || 0;
+          if (now >= nextEligible) {
+            blindCooldownRef.current.set(vegId, now + BLIND_ATTACK_COOLDOWN_MS);
+            setBlindAttack({ id: vegId, startedAt: now });
+            window.setTimeout(() => {
+              setBlindAttack((prev) => (prev?.id === vegId && prev.startedAt === now ? null : prev));
+            }, BLIND_ATTACK_DURATION_MS);
+          }
+        }
       }
     };
 
+    // FIX 2: was 'round_timeout' (underscore) — server.js emits
+    // 'round-timeout' (hyphen), matching every other event name it
+    // sends. The old listener never fired.
     const handleRoundTimeout = (data) => {
       if (data?.roomCode && roomCode && data.roomCode !== roomCode) return;
       advanceRound();
@@ -600,11 +580,11 @@ export default function GameCanvas({
 
     socket.on('veggieCaught', handleCaughtBroadcast);
     socket.on('capture-result', handleCaptureResult);
-    socket.on('round_timeout', handleRoundTimeout);
+    socket.on('round-timeout', handleRoundTimeout);
     return () => {
       socket.off('veggieCaught', handleCaughtBroadcast);
       socket.off('capture-result', handleCaptureResult);
-      socket.off('round_timeout', handleRoundTimeout);
+      socket.off('round-timeout', handleRoundTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobileCapable, roomCode, advanceRound]);
@@ -682,9 +662,6 @@ export default function GameCanvas({
       .filter(Boolean);
   }, [targetNodes, liveVeggieSnapshot, windowDims]);
 
-  // Gated on BOTH screen-center proximity AND real-world GPS distance
-  // (patch E) — a target can only ever show as truly "locked" and be
-  // attempted if the player is actually within CATCH_TRIGGER_DISTANCE_METERS.
   const lockRings = useMemo(() => {
     const cx = windowDims.w / 2;
     const cy = windowDims.h / 2;
@@ -740,11 +717,6 @@ export default function GameCanvas({
   }, [lockRings]);
 
   const handleCaptureAttempt = useCallback((id, quality) => {
-    // Real-world range check (patch E) — reject before dispatching to
-    // the socket. The on-screen reticle can drift to center even for a
-    // distant target once projected through projectToScreen, so screen
-    // position alone was never a safe gate. Server should re-validate
-    // this too (flagged in the header note above).
     const targetNode = targetNodes.find((n) => n.id === id);
     if (targetNode && targetNode.distance > CATCH_TRIGGER_DISTANCE_METERS) {
       return;
@@ -782,10 +754,6 @@ export default function GameCanvas({
       .sort((a, b) => b.score - a.score);
   }, [players, mySlot]);
 
-  // --- Desktop block gate (patch H) ---
-  // Bail out before any camera/canvas/socket UI renders. Deliberately
-  // minimal and self-contained (no dependency on the AR styles below)
-  // so it can never itself be broken by something the AR flow needs.
   if (!isMobileCapable) {
     return (
       <div style={styles.desktopBlockWrap}>
@@ -871,6 +839,10 @@ export default function GameCanvas({
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.55; transform: scale(1.08); }
         }
+        @keyframes blindAttackPulse {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
       `}</style>
 
       {cameraState === 'denied' ? (
@@ -879,6 +851,15 @@ export default function GameCanvas({
         <video ref={videoRef} autoPlay playsInline muted style={styles.videoBackdrop} />
       )}
       <div style={styles.videoScrim} />
+
+      {blindAttack && (
+        <div
+          style={{
+            ...styles.blindAttackOverlay,
+            animation: 'blindAttackPulse 0.3s ease-out',
+          }}
+        />
+      )}
 
       {motionPermission === 'pending' && (
         <div style={styles.cameraErrorOverlay}>
@@ -1119,14 +1100,6 @@ export default function GameCanvas({
         <button onClick={onExit} style={styles.fleeBtn}>← RADAR</button>
       </div>
 
-      {/* NOTE: internal end-of-match Leaderboard render removed here —
-          it depended on matchPhase === 'ended' (lowercase), which
-          App.jsx's MATCH_PHASE constants never actually produce
-          ('ENDED', uppercase). App.jsx's own victory overlay is the
-          real match-end UI and already handles this correctly. If you
-          want an in-canvas leaderboard too, wire matchPhase === 'ENDED'
-          here explicitly instead of silently leaving dead code. */}
-
       <CollectionBook open={collectionOpen} onClose={() => setCollectionOpen(false)} />
     </div>
   );
@@ -1143,12 +1116,18 @@ const styles = {
   threeLayer: { position: 'absolute', inset: 0, zIndex: 20, background: 'transparent', pointerEvents: 'none' },
   cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
 
-  // --- Desktop block screen (patch H) ---
   desktopBlockWrap: { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(ellipse at 50% 30%, #101826 0%, #04060a 70%)', color: '#fff', padding: '40px 24px', textAlign: 'center', fontFamily: FONT_BODY },
   desktopBlockIcon: { fontSize: 48, marginBottom: 18, filter: 'drop-shadow(0 0 12px rgba(255,63,52,0.5))' },
   desktopBlockTitle: { fontFamily: FONT_HEADER, fontSize: 20, fontWeight: 900, letterSpacing: '2px', color: '#ffbe1a', margin: '0 0 14px 0', textShadow: '0 0 14px rgba(255,190,26,0.4)' },
   desktopBlockBody: { fontSize: 15, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', maxWidth: 400, margin: '0 0 10px 0' },
   desktopBlockSub: { fontSize: 13, lineHeight: 1.5, color: 'rgba(255,255,255,0.55)', maxWidth: 380, margin: '0 0 26px 0' },
+
+  blindAttackOverlay: {
+    position: 'absolute', inset: 0, zIndex: 140,
+    background: 'radial-gradient(ellipse at center, rgba(120,180,40,0.35) 0%, rgba(20,40,10,0.85) 75%)',
+    backdropFilter: 'blur(6px)',
+    pointerEvents: 'none',
+  },
 
   alignmentBarWrap: { position: 'absolute', top: '50%', left: 0, right: 0, zIndex: 22, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none' },
   alignmentBar: { width: '86%', height: 2, background: 'rgba(255,255,255,0.75)', boxShadow: '0 0 10px rgba(255,255,255,0.6)' },
@@ -1159,22 +1138,12 @@ const styles = {
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(6,10,18,0.92) 0%, rgba(6,10,18,0.55) 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px 12px', pointerEvents: 'none', boxSizing: 'border-box', maxWidth: '100%' },
   topBarHeader: { display: 'flex', alignItems: 'center', gap: '6px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '10px', textShadow: '0 0 8px rgba(255,190,26,0.4)' },
   scanDot: { width: 7, height: 7, borderRadius: '50%', background: '#ffbe1a', boxShadow: '0 0 8px 2px rgba(255,190,26,0.8)', animation: 'timerPulse 1.4s ease-in-out infinite' },
-  // flexWrap so tags never force horizontal overflow — combined with
-  // viewport's overflowX:hidden + topBar's maxWidth:100% this is what
-  // actually prevents the "ROUN[D]" clipped-off-edge look in the
-  // screenshot (that was tags refusing to wrap inside a box that was
-  // itself wider than the viewport due to a missing box-sizing rule).
   telemetryRow: { display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', rowGap: '8px' },
   telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', whiteSpace: 'nowrap' },
   ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)', whiteSpace: 'nowrap' },
   ptsNumber: { color: '#ffe066', fontWeight: 900, fontSize: '13px' },
   collectionBtn: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(31,174,110,0.5)', borderRadius: '7px', padding: '7px 14px', color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', pointerEvents: 'auto', whiteSpace: 'nowrap' },
 
-  // top now driven dynamically via inline override (leaderboardTop state)
-  // instead of a hardcoded 96 — see usage above. Width capped with
-  // calc() so it can never itself cause horizontal overflow on narrow
-  // phones (previous fixed 210px could exceed viewport width on some
-  // small Android devices once padding/border was added).
   leaderboardWidget: { position: 'absolute', right: 14, zIndex: 30, width: 210, maxWidth: 'calc(100vw - 28px)', background: 'rgba(8,12,22,0.92)', border: '1.5px solid #ffbe1a', borderRadius: '10px', padding: '10px 10px 8px', boxShadow: '0 0 16px rgba(255,190,26,0.2)', pointerEvents: 'none', transition: 'top 0.15s ease-out' },
   leaderboardTitle: { color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 800, letterSpacing: '2px', marginBottom: '8px', textAlign: 'center' },
   leaderboardRow: { display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '6px', padding: '6px 7px', marginBottom: '5px', background: 'rgba(255,255,255,0.04)' },
@@ -1194,15 +1163,6 @@ const styles = {
   bracketBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 4 },
   bracketLabel: { position: 'absolute', bottom: -18, fontFamily: FONT_HEADER, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(0,0,0,0.8)' },
 
-  // --- Control deck moved (patch I) ---
-  // Was: bottom:30, centered — sitting directly on top of CaptureThrow's
-  // "HOLD TO CHARGE VACUUM" bar (visible collision in the screenshot,
-  // text literally overlapping "RETURN TO RADAR"). CaptureThrow owns
-  // the entire bottom third of the screen for the swipe/charge UI, so
-  // this is relocated to a small secondary pill under the top-right
-  // leaderboard instead, out of that zone entirely. Shrunk from a
-  // full-width pill to a compact "← RADAR" tag to read as secondary,
-  // not competing with the primary throw gesture.
   controlDeck: { position: 'absolute', top: 14, left: 14, zIndex: 50 },
   fleeBtn: { background: 'rgba(255,63,52,0.92)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '999px', color: '#fff', fontFamily: FONT_HEADER, fontWeight: 800, fontSize: '11px', letterSpacing: '0.5px', padding: '9px 16px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,63,52,0.4)' },
   scoreBurstWrapper: { position: 'fixed', top: '25%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1000, pointerEvents: 'none', animation: 'popupTextAnimation 3s ease-out forwards' },
