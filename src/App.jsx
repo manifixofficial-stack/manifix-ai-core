@@ -1,46 +1,76 @@
-// src/App.jsx
+// src/App.jsx — React Native rewrite
 //
-// MVP LAUNCH REVISION — trimmed for Day 1 Play Store submission.
+// Ported off the Capacitor/web version. What changed and why:
 //
-// Cut from the prior revision (per MVP scope review):
-//   - DailyStreakBanner: retention feature, needs durable accounts
-//     (Firebase Auth) that don't exist yet on the current ephemeral
-//     slot-join model. Post-launch.
-//   - PrizeCamera: not on the mandatory 8-component list; its rematch
-//     button (`handlePrizeRematch`) also emits 'request-rematch', which
-//     server.js has no handler for — shipping it now would be a dead
-//     button, not a feature.
+//   - navigator.geolocation           -> @react-native-community/geolocation
+//     (RN core dropped navigator.geolocation years ago; this is the
+//     standard drop-in replacement with the same callback shape)
+//   - window.location / URLSearchParams -> Linking.getInitialURL(), parsed
+//     manually. This is now ASYNC (RN has no synchronous location object),
+//     so the initial room code is read in an effect instead of a ref
+//     computed at render time.
+//   - window.socket.emit(...)        -> getSocket() from ./lib/gameClient.
+//     A `window` global for the socket doesn't fit RN — this assumes
+//     gameClient exports a getSocket() accessor for the active connection.
+//     ADAPT THIS if your actual gameClient module shape differs.
+//   - <audio> tag                    -> react-native-sound. Needs native
+//     linking (autolinked on RN CLI >=0.60) and the asset bundled — see
+//     the goSoundRef setup below.
+//   - deviceorientation/deviceorientationabsolute (compass) -> there is no
+//     direct RN equivalent event. This uses react-native-sensors'
+//     magnetometer and computes heading via atan2. You'll need to add
+//     `NSMotionUsageDescription` to Info.plist (iOS); Android needs no
+//     runtime permission for the magnetometer.
+//   - hasMotionPermissionCached()    -> dropped. That existed to work
+//     around iOS Safari's DeviceMotionEvent.requestPermission() gate,
+//     which doesn't exist in RN. Motion sensors just work once the
+//     Info.plist string above is present.
+//   - framer-motion / AnimatePresence -> react-native-reanimated's
+//     Animated.View with `entering`/`exiting` layout animations, which is
+//     the closest RN analog (mount/unmount transitions keyed the same way).
+//     Needs react-native-reanimated installed + Babel plugin configured.
+//   - CSS (boxShadow, backdropFilter, vw/vh, position: fixed) -> RN
+//     StyleSheet with shadow*/elevation, no blur (backdropFilter has no
+//     built-in RN equivalent — approximated here with a translucent
+//     background; use @react-native-community/blur if you want a real blur).
+//   - window.history.replaceState(shareable URL) -> dropped. No browser
+//     history in RN. If you want a "share this room" affordance, build it
+//     with the Share API separately — it doesn't belong in this effect.
 //
-// Kept, unchanged in behavior from the prior revision:
-//   - RoomJoin gate, ConnectionStatus phase normalization, consolidated
-//     subscribeToRoom pipeline, onCountdownCancelled handling,
-//     motion-permission gate, single-GPS-owner fix, arena race-condition
-//     fix, isNative forwarded to GameCanvas so it skips WebXR inside the
-//     Capacitor Android WebView.
-//
-// FIXED in this revision:
-//   - server.js's room-joined payload includes `geofence: { lat, lng,
-//     radiusMeters }`. This was previously received but never captured
-//     into state. It's now stored in `geofence` and passed to MapView,
-//     so the 120m radar circle is server-authoritative instead of
-//     hardcoded client-side.
-//
-// STILL NOT NEEDED FOR MVP (confirmed cut, do not re-add without reason):
-//   ForgotPassword.jsx, BillingGate.jsx, Leaderboard.jsx,
-//   CollectionBook.jsx, Feedback.jsx, DailyStreakBanner.jsx,
-//   PrizeCamera.jsx
+// NOT translated here (out of scope for this file, need their own pass):
+//   - GameCanvas: your web version's AR runs on Three.js/WebXR, which has
+//     no RN equivalent. It'll need a native AR path
+//     (ViroReact / react-native-vision-camera + a 3D layer) — that's a
+//     separate, bigger piece of work than this file.
+//   - MapView, ConnectionStatus, Scoreboard: assumed to already be, or to
+//     become, RN components accepting the same props as before.
+//   - RoomJoin.jsx: still needs its own RN port (View/Text, react-native-svg,
+//     PanResponder or reanimated gesture handler for the swipe-to-deploy).
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  AppState,
+  Linking,
+  PermissionsAndroid,
+  Pressable,
+} from 'react-native';
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import Geolocation from '@react-native-community/geolocation';
+import Sound from 'react-native-sound';
+import { magnetometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
+
 import ConnectionStatus from './components/ConnectionStatus';
 import RoomJoin from './components/RoomJoin';
 import MapView from './components/MapView';
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
-import { joinRoom, subscribeToRoom } from './lib/gameClient';
+import { joinRoom, subscribeToRoom, getSocket } from './lib/gameClient';
 import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
-import { hasMotionPermissionCached } from './lib/motionPermission';
 
 const SLOT_COLORS = {
   SLOT_01: '#3a86ff',
@@ -69,12 +99,57 @@ function veggiesPayloadToArray(payload) {
   return [];
 }
 
-export default function App({ isNative = false } = {}) {
+// Manual query-string pull from a deep link, since RN has no
+// window.location / URLSearchParams for the app's own URL.
+function extractRoomCodeFromUrl(url) {
+  if (!url) return '';
+  const match = url.match(/[?&]room=([^&]+)/i);
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]).trim().toUpperCase();
+  } catch {
+    return match[1].trim().toUpperCase();
+  }
+}
+
+async function requestLocationPermission() {
+  if (Platform.OS === 'android') {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      {
+        title: 'Location permission',
+        message: 'Veggie Go needs your location to find the arena and nearby veggies.',
+        buttonPositive: 'Allow',
+      }
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  }
+  // iOS: @react-native-community/geolocation triggers the system prompt
+  // itself on first use, but requesting explicitly avoids a race where
+  // getCurrentPosition fires before the user has answered.
+  const auth = await Geolocation.requestAuthorization('whenInUse');
+  return auth === 'granted';
+}
+
+export default function App({ isNative = true } = {}) {
   // --- Room Join Gate ---
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
-  const initialRoomCodeRef = useRef(
-    (new URLSearchParams(window.location.search).get('room') || '').trim().toUpperCase()
-  );
+  const [initialRoomCode, setInitialRoomCode] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    Linking.getInitialURL().then((url) => {
+      if (isMounted && url) setInitialRoomCode(extractRoomCodeFromUrl(url));
+    });
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const code = extractRoomCodeFromUrl(url);
+      if (code) setInitialRoomCode(code);
+    });
+    return () => {
+      isMounted = false;
+      sub.remove();
+    };
+  }, []);
 
   // --- Mode Gate ---
   const [isRoomLeader, setIsRoomLeader] = useState(false);
@@ -99,9 +174,6 @@ export default function App({ isNative = false } = {}) {
   // --- Server-authoritative geofence (radar circle) ---
   const [geofence, setGeofence] = useState(null); // { lat, lng, radiusMeters }
 
-  // --- Motion permission (iOS compass gate) ---
-  const [motionPermissionReady, setMotionPermissionReady] = useState(false);
-
   // --- Dynamic Match State Parameters ---
   const [matchPhase, setMatchPhase] = useState(null);
   const [countdownTick, setCountdownTick] = useState(3);
@@ -110,7 +182,7 @@ export default function App({ isNative = false } = {}) {
   const [tickStatus, setTickStatus] = useState('idle');
 
   // --- Core References ---
-  const goAudioRef = useRef(null);
+  const goSoundRef = useRef(null);
   const tickConnectionRef = useRef(null);
   const gpsWatchIdRef = useRef(null);
   const lastSentPositionRef = useRef(null);
@@ -118,6 +190,7 @@ export default function App({ isNative = false } = {}) {
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
   const myPlayerIdRef = useRef(null);
+  const magnetometerSubRef = useRef(null);
 
   useEffect(() => {
     myPositionRef.current = myPosition;
@@ -131,11 +204,26 @@ export default function App({ isNative = false } = {}) {
     myPlayerIdRef.current = myPlayerId;
   }, [myPlayerId]);
 
+  // Load the "go" sound once. Expects go.mp3 bundled under
+  // android/app/src/main/res/raw/go.mp3 (Android) and added to the Xcode
+  // project (iOS) — react-native-sound looks it up by bare filename.
+  useEffect(() => {
+    Sound.setCategory('Playback');
+    goSoundRef.current = new Sound('go.mp3', Sound.MAIN_BUNDLE, (err) => {
+      if (err) console.warn('[App] failed to load go.mp3', err);
+    });
+    return () => {
+      goSoundRef.current?.release();
+      goSoundRef.current = null;
+    };
+  }, []);
+
   // ---- Room join, triggered by RoomJoin's onJoin({ room, name }) -------
   const handleJoinRoom = async ({ room, name }) => {
-    if (!navigator.geolocation) {
-      setErrorMessage('This device does not support location services.');
-      setGpsError('This device has no GPS sensor available.');
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      setErrorMessage('Location permission is required to join this arena.');
+      setGpsError('Location permission denied — enable it in device settings.');
       return;
     }
 
@@ -146,7 +234,7 @@ export default function App({ isNative = false } = {}) {
     const targetRoom = room.trim().toUpperCase();
     setRoomCode(targetRoom);
 
-    navigator.geolocation.getCurrentPosition(
+    Geolocation.getCurrentPosition(
       async (pos) => {
         try {
           const { latitude, longitude, accuracy } = pos.coords;
@@ -184,9 +272,6 @@ export default function App({ isNative = false } = {}) {
             return;
           }
 
-          const shareableUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoom}`;
-          window.history.replaceState({ path: shareableUrl }, '', shareableUrl);
-
           setTickStatus('joined');
         } catch (err) {
           console.error('[App] join failed', err);
@@ -196,7 +281,7 @@ export default function App({ isNative = false } = {}) {
       },
       () => {
         setErrorMessage('Location permission is required to join this arena.');
-        setGpsError('Location permission denied — enable it in site settings.');
+        setGpsError('Location permission denied — enable it in device settings.');
         setTickStatus('failed');
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
@@ -225,11 +310,11 @@ export default function App({ isNative = false } = {}) {
     return unsubscribe;
   }, [roomCode]);
 
-  // ---- Continuous Geolocation GPS Watcher Loop -------------------------
+  // ---- Continuous GPS Watcher Loop -------------------------------------
   useEffect(() => {
-    if (!myPlayerId || !navigator.geolocation) return undefined;
+    if (!myPlayerId) return undefined;
 
-    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+    gpsWatchIdRef.current = Geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         const now = Date.now();
@@ -245,8 +330,9 @@ export default function App({ isNative = false } = {}) {
         lastSentPositionRef.current = { lat: latitude, lng: longitude };
         lastSentAtRef.current = now;
 
-        if (window.socket && window.socket.connected) {
-          window.socket.emit('update-location', {
+        const socket = getSocket();
+        if (socket && socket.connected) {
+          socket.emit('update-location', {
             lat: latitude,
             lng: longitude,
             accuracy: typeof accuracy === 'number' ? accuracy : undefined,
@@ -258,46 +344,47 @@ export default function App({ isNative = false } = {}) {
         console.error('[App] geolocation watch error', err);
         setGpsError(
           err && err.code === 1
-            ? 'Location permission denied — enable it in site settings.'
+            ? 'Location permission denied — enable it in device settings.'
             : 'GPS signal unavailable. Move outdoors or check location services.'
         );
       },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000, distanceFilter: 0 }
     );
 
     return () => {
-      if (gpsWatchIdRef.current !== null) navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      if (gpsWatchIdRef.current !== null) Geolocation.clearWatch(gpsWatchIdRef.current);
     };
   }, [myPlayerId]);
 
-  // ---- Motion permission tracking ---------------------------------------
+  // ---- Compass heading via magnetometer ---------------------------------
+  // No RN equivalent of deviceorientation/deviceorientationabsolute — this
+  // computes a heading from raw magnetometer x/y instead. Accuracy will
+  // differ from the browser's fused compass value; if that matters, swap
+  // in a dedicated heading library later.
   useEffect(() => {
-    const check = () => setMotionPermissionReady(hasMotionPermissionCached());
-    check();
-    window.addEventListener('focus', check);
-    return () => window.removeEventListener('focus', check);
+    setUpdateIntervalForType(SensorTypes.magnetometer, 200);
+    magnetometerSubRef.current = magnetometer.subscribe(
+      ({ x, y }) => {
+        let heading = Math.atan2(y, x) * (180 / Math.PI);
+        if (heading < 0) heading += 360;
+        setDeviceHeading(heading);
+      },
+      (err) => console.warn('[App] magnetometer unavailable', err)
+    );
+    return () => {
+      magnetometerSubRef.current?.unsubscribe();
+      magnetometerSubRef.current = null;
+    };
   }, []);
 
-  // ---- Hardware Compass Absolute Heading Listeners ---------------------
+  // ---- App foreground/background awareness (was window focus) ----------
   useEffect(() => {
-    if (!motionPermissionReady) return undefined;
-
-    const handleOrientation = (evt) => {
-      const heading =
-        evt.webkitCompassHeading !== undefined
-          ? evt.webkitCompassHeading
-          : evt.alpha != null
-          ? 360 - evt.alpha
-          : null;
-      if (heading != null) setDeviceHeading(heading);
-    };
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    return () => {
-      window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
-      window.removeEventListener('deviceorientation', handleOrientation, true);
-    };
-  }, [motionPermissionReady]);
+    const sub = AppState.addEventListener('change', (nextState) => {
+      // Reserved: re-check anything that needs a refresh on foreground
+      // (e.g. re-validate the socket connection). No-op today.
+    });
+    return () => sub.remove();
+  }, []);
 
   // ---- Socket.io Tick Game Server Coordination Loop --------------------
   useEffect(() => {
@@ -316,7 +403,9 @@ export default function App({ isNative = false } = {}) {
         setStage('ARENA');
         setMatchPhase(MATCH_PHASE.ACTIVE);
         setShowGoBurst(true);
-        goAudioRef.current?.play().catch(() => {});
+        goSoundRef.current?.play((success) => {
+          if (!success) console.warn('[App] go.mp3 playback failed');
+        });
         setTimeout(() => setShowGoBurst(false), 650);
       },
 
@@ -372,12 +461,17 @@ export default function App({ isNative = false } = {}) {
   };
 
   const handleInstantReplay = () => {
+    // No window.location.reload() equivalent — reset state directly instead.
     setVictoryData(null);
-    window.location.reload();
+    setMatchPhase(null);
+    setStage('MAP');
+    setHasJoinedRoom(false);
+    setTimingModeChosen(false);
+    setRoomCode('');
   };
 
   const handlePickTimingMode = (mode) => {
-    window.socket?.emit('set-timing-mode', { mode });
+    getSocket()?.emit('set-timing-mode', { mode });
     setPendingTimingMode(mode);
     setTimingModeChosen(true);
   };
@@ -471,7 +565,7 @@ export default function App({ isNative = false } = {}) {
         onJoin={handleJoinRoom}
         error={errorMessage}
         connecting={tickStatus === 'connecting'}
-        initialRoomCode={initialRoomCodeRef.current}
+        initialRoomCode={initialRoomCode}
       />
     );
   }
@@ -479,249 +573,193 @@ export default function App({ isNative = false } = {}) {
   // ---- MODE GATE SCREEN ----
   if (!timingModeChosen) {
     return (
-      <div
-        className="app-container"
-        style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
-      >
-        <div style={styles.nameGateWrap}>
-          <div style={styles.nameGateCard}>
+      <View style={styles.appContainer}>
+        <View style={styles.nameGateWrap}>
+          <View style={styles.nameGateCard}>
             {isRoomLeader ? (
               <>
-                <p style={styles.nameGateLabel}>CHOOSE MATCH MODE</p>
-                <button
-                  style={{ ...styles.nameGateBtn, marginBottom: '10px' }}
-                  onClick={() => handlePickTimingMode('indoor')}
-                >
-                  🏠 INSIDE PARTY (45s rounds)
-                </button>
-                <button
-                  style={styles.nameGateBtn}
-                  onClick={() => handlePickTimingMode('outdoor')}
-                >
-                  🌳 OUTDOOR CHASE (60s rounds)
-                </button>
+                <Text style={styles.nameGateLabel}>CHOOSE MATCH MODE</Text>
+                <Pressable style={[styles.nameGateBtn, { marginBottom: 10 }]} onPress={() => handlePickTimingMode('indoor')}>
+                  <Text style={styles.nameGateBtnText}>🏠 INSIDE PARTY (45s rounds)</Text>
+                </Pressable>
+                <Pressable style={styles.nameGateBtn} onPress={() => handlePickTimingMode('outdoor')}>
+                  <Text style={styles.nameGateBtnText}>🌳 OUTDOOR CHASE (60s rounds)</Text>
+                </Pressable>
               </>
             ) : (
-              <p style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</p>
+              <Text style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</Text>
             )}
-          </div>
-        </div>
-      </div>
+          </View>
+        </View>
+      </View>
     );
   }
 
   return (
-    <div
-      className="app-container"
-      style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
-    >
-      <audio ref={goAudioRef} src="/sounds/go.mp3" preload="auto" />
-
+    <View style={styles.appContainer}>
       <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={connectionPhase} />
 
-      {errorMessage && <div style={styles.errBanner}>{errorMessage}</div>}
+      {errorMessage ? (
+        <View style={styles.errBanner}>
+          <Text style={styles.errBannerText}>{errorMessage}</Text>
+        </View>
+      ) : null}
 
-      <AnimatePresence mode="wait">
-        {stage === 'MAP' && (
-          <motion.div
-            key="map-stage"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ width: '100%', height: '100%' }}
+      {stage === 'MAP' && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.fill}>
+          <MapView
+            roomCode={roomCode}
+            playerId={myPlayerId}
+            mySlot={mySlot}
+            myPos={myPosition}
+            geofence={geofence}
+            gpsError={gpsError}
+            onEnterAR={handleSelectVeggieTarget}
+            onExit={handleReturnToRadar}
+          />
+          <View style={styles.sidebarWidget} pointerEvents="none">
+            <Scoreboard players={playersMap} mySlot={mySlot || 'SLOT_01'} leaderboard={leaderboard} />
+          </View>
+        </Animated.View>
+      )}
+
+      {stage === 'ARENA' && (
+        <Animated.View entering={ZoomIn} exiting={ZoomOut} style={styles.fill}>
+          <View style={styles.arenaWrapper}>
+            <View style={styles.arenaHeader}>
+              <Text style={styles.headerTxt}>
+                ARENA MATRIX IDENT: <Text style={{ color: '#00d2d3' }}>{roomCode}</Text>
+                {'   |   '}
+                PILOT INTERFACE SLOT: <Text style={{ color: myColor }}>{myDisplayName?.toUpperCase()}</Text>
+              </Text>
+            </View>
+
+            <View style={styles.arenaGrid}>
+              <GameCanvas
+                roomCode={roomCode}
+                playerId={myPlayerId}
+                mySlot={mySlot}
+                targetVegId={activeVegId}
+                initialTimingMode={pendingTimingMode}
+                selfPosition={selfPosition}
+                deviceHeading={deviceHeading}
+                players={playersBySlot}
+                veggies={veggiesById}
+                matchPhase={matchPhase}
+                isNative={isNative}
+                onExit={handleReturnToRadar}
+              />
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {matchPhase === MATCH_PHASE.COUNTDOWN && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.countdownShield}>
+          <Animated.Text key={countdownTick} entering={ZoomIn} exiting={ZoomOut} style={styles.tickLabel}>
+            {countdownTick}
+          </Animated.Text>
+        </Animated.View>
+      )}
+
+      {showGoBurst && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.goPanelWrap} pointerEvents="none">
+          <Animated.View entering={ZoomIn} style={styles.emeraldWave} />
+          <Animated.Text entering={ZoomIn} exiting={ZoomOut} style={styles.goText}>
+            GO!
+          </Animated.Text>
+        </Animated.View>
+      )}
+
+      {matchPhase === MATCH_PHASE.ENDED && victoryData && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.victoryShield}>
+          <Animated.View
+            entering={ZoomIn}
+            style={[
+              styles.victoryCard,
+              {
+                borderColor: victoryData.winnerColor || '#00d2d3',
+                shadowColor: victoryData.winnerColor || '#00d2d3',
+              },
+            ]}
           >
-            <MapView
-              roomCode={roomCode}
-              playerId={myPlayerId}
-              mySlot={mySlot}
-              myPos={myPosition}
-              geofence={geofence}
-              gpsError={gpsError}
-              onEnterAR={handleSelectVeggieTarget}
-              onExit={handleReturnToRadar}
-            />
-            <div style={styles.sidebarWidget}>
-              <Scoreboard players={playersMap} mySlot={mySlot || 'SLOT_01'} leaderboard={leaderboard} />
-            </div>
-          </motion.div>
-        )}
+            <Text style={styles.crownEmoji}>👑</Text>
+            <Text style={styles.roundCompleteTxt}>ROUND MATRIX COMPLETED</Text>
+            <Text style={[styles.winnerNameText, { color: victoryData.winnerColor || '#00d2d3' }]}>
+              {(victoryData.winnerName || 'EXPLORER_1').toUpperCase()}
+            </Text>
 
-        {stage === 'ARENA' && (
-          <motion.div
-            key="ar-stage"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            style={{ width: '100%', height: '100%' }}
-          >
-            <div style={styles.arenaWrapper}>
-              <div style={styles.arenaHeader}>
-                <p style={styles.headerTxt}>
-                  ARENA MATRIX IDENT: <span style={{ color: '#00d2d3' }}>{roomCode}</span> &nbsp;|&nbsp;
-                  PILOT INTERFACE SLOT: <span style={{ color: myColor }}>{myDisplayName?.toUpperCase()}</span>
-                </p>
-              </div>
+            {Array.isArray(victoryData.results) && (
+              <View style={styles.leaderboardScrollContainer}>
+                {victoryData.results.map((r, idx) => (
+                  <View key={`${r?.name || 'PILOT'}-${idx}`} style={styles.lobbyRow}>
+                    <Text style={[styles.lobbyRowText, idx === 0 && styles.lobbyRowTextTop]}>
+                      {idx + 1}. {(r?.name || 'PILOT').toUpperCase()}
+                    </Text>
+                    <Text style={styles.lobbyRowScore}>{r?.score ?? 0} pts</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
-              <div style={styles.arenaGrid}>
-                <GameCanvas
-                  roomCode={roomCode}
-                  playerId={myPlayerId}
-                  mySlot={mySlot}
-                  targetVegId={activeVegId}
-                  initialTimingMode={pendingTimingMode}
-                  selfPosition={selfPosition}
-                  deviceHeading={deviceHeading}
-                  players={playersBySlot}
-                  veggies={veggiesById}
-                  matchPhase={matchPhase}
-                  isNative={isNative}
-                  onExit={handleReturnToRadar}
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {matchPhase === MATCH_PHASE.COUNTDOWN && (
-          <motion.div
-            key="countdown-shield"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            style={styles.countdownShield}
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={countdownTick}
-                initial={{ scale: 0.2, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.6, opacity: 0 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                style={styles.tickLabel}
-              >
-                {countdownTick}
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showGoBurst && (
-          <motion.div
-            key="go-panel"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={styles.goPanelWrap}
-          >
-            <motion.div
-              initial={{ scale: 0, opacity: 0.9 }}
-              animate={{ scale: 6, opacity: 0 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-              style={styles.emeraldWave}
-            />
-            <motion.span
-              initial={{ scale: 0.3, opacity: 0 }}
-              animate={{ scale: 1.4, opacity: 1 }}
-              exit={{ scale: 2, opacity: 0 }}
-              transition={{ duration: 0.35, ease: 'backOut' }}
-              style={styles.goText}
-            >
-              GO!
-            </motion.span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {matchPhase === MATCH_PHASE.ENDED && victoryData && (
-          <motion.div
-            key="victory-shield"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            style={styles.victoryShield}
-          >
-            <motion.div
-              initial={{ y: 40, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
-              style={{
-                ...styles.victoryCard,
-                border: `1px solid ${victoryData.winnerColor || '#00d2d3'}`,
-                boxShadow: `0 0 40px ${victoryData.winnerColor || '#00d2d3'}55`,
-              }}
-            >
-              <div style={{ fontSize: '56px', marginBottom: '8px' }}>👑</div>
-              <p style={styles.roundCompleteTxt}>ROUND MATRIX COMPLETED</p>
-              <div
-                style={{
-                  fontFamily: '"Fredoka", sans-serif',
-                  fontSize: '28px',
-                  fontWeight: 700,
-                  color: victoryData.winnerColor || '#00d2d3',
-                  marginBottom: '20px',
-                }}
-              >
-                {(victoryData.winnerName || 'EXPLORER_1').toUpperCase()}
-              </div>
-
-              {Array.isArray(victoryData.results) && (
-                <div style={styles.leaderboardScrollContainer}>
-                  {victoryData.results.map((r, idx) => (
-                    <div
-                      key={`${r?.name || 'PILOT'}-${idx}`}
-                      style={{
-                        ...styles.lobbyRow,
-                        color: idx === 0 ? '#fff' : '#b6b6c0',
-                        fontWeight: idx === 0 ? 700 : 400,
-                      }}
-                    >
-                      <span>
-                        {idx + 1}. {(r?.name || 'PILOT').toUpperCase()}
-                      </span>
-                      <span style={{ fontFamily: 'monospace' }}>{r?.score ?? 0} pts</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <motion.button whileTap={{ scale: 0.96 }} onClick={handleInstantReplay} style={styles.replayBtn}>
-                INSTANT REPLAY
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            <Pressable style={styles.replayBtn} onPress={handleInstantReplay}>
+              <Text style={styles.replayBtnText}>INSTANT REPLAY</Text>
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
+      )}
+    </View>
   );
 }
 
-const styles = {
-  nameGateWrap: { position: 'fixed', inset: 0, zIndex: 3000, background: '#020306', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  nameGateCard: { width: '90%', maxWidth: '320px', textAlign: 'center' },
-  nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '2px', marginBottom: '12px' },
-  nameGateBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer' },
-  errBanner: { position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ff4d4d', color: '#fff', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
-  arenaWrapper: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#05070a' },
-  arenaHeader: { padding: '12px 20px', background: 'rgba(10,15,25,0.6)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  headerTxt: { fontSize: '12px', color: '#8a8a93', fontFamily: 'monospace', fontWeight: 'bold', margin: 0 },
-  arenaGrid: { flex: 1, position: 'relative' },
-  sidebarWidget: { position: 'absolute', top: 80, right: 15, zIndex: 40, width: '220px', pointerEvents: 'none' },
-  countdownShield: { position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(4, 4, 8, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  tickLabel: { fontFamily: '"Orbitron", sans-serif', fontSize: '120px', fontWeight: '900', color: '#ffc83b', textShadow: '0 0 25px #ffc83c' },
-  goPanelWrap: { position: 'fixed', inset: 0, zIndex: 2005, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' },
-  emeraldWave: { position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(6,214,160,0.9) 0%, rgba(6,214,160,0) 70%)' },
-  goText: { fontFamily: '"Orbitron", sans-serif', fontSize: '96px', fontWeight: 900, color: '#06d6a0', textShadow: '0 0 30px rgba(6,214,160,0.9), 0 0 70px rgba(6,214,160,0.6)' },
-  victoryShield: { position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(4, 4, 8, 0.88)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', boxSizing: 'border-box' },
-  victoryCard: { width: '100%', maxWidth: '380px', borderRadius: '20px', background: 'linear-gradient(160deg, rgba(24,24,30,0.95), rgba(10,10,14,0.95))', padding: '28px 24px', textAlign: 'center' },
-  roundCompleteTxt: { fontFamily: '"Orbitron", sans-serif', fontSize: '13px', letterSpacing: '2px', color: '#8a8a93', marginBottom: '4px' },
-  leaderboardScrollContainer: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px' },
-  lobbyRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'monospace' },
-  replayBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 0 20px rgba(6,214,160,0.6)' },
-};
+const styles = StyleSheet.create({
+  appContainer: { flex: 1, backgroundColor: '#020306' },
+  fill: { flex: 1 },
+  nameGateWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  nameGateCard: { width: '90%', maxWidth: 320, alignItems: 'center' },
+  nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: 12, letterSpacing: 2, marginBottom: 12, textAlign: 'center' },
+  nameGateBtn: { width: '100%', backgroundColor: '#06d6a0', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  nameGateBtnText: { color: '#04140f', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
+  errBanner: {
+    position: 'absolute', top: 80, alignSelf: 'center', zIndex: 1100, backgroundColor: '#ff4d4d',
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 6,
+  },
+  errBannerText: { color: '#fff', fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold' },
+  arenaWrapper: { flex: 1, backgroundColor: '#05070a' },
+  arenaHeader: { padding: 16, paddingTop: 12, backgroundColor: 'rgba(10,15,25,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  headerTxt: { fontSize: 12, color: '#8a8a93', fontFamily: 'monospace', fontWeight: 'bold' },
+  arenaGrid: { flex: 1 },
+  sidebarWidget: { position: 'absolute', top: 80, right: 15, width: 220 },
+  countdownShield: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000,
+    backgroundColor: 'rgba(4,4,8,0.85)', alignItems: 'center', justifyContent: 'center',
+  },
+  tickLabel: { fontSize: 120, fontWeight: '900', color: '#ffc83b' },
+  goPanelWrap: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2005,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emeraldWave: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(6,214,160,0.35)' },
+  goText: { fontSize: 96, fontWeight: '900', color: '#06d6a0' },
+  victoryShield: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2200,
+    backgroundColor: 'rgba(4,4,8,0.92)', alignItems: 'center', justifyContent: 'center', padding: 24,
+  },
+  victoryCard: {
+    width: '100%', maxWidth: 380, borderRadius: 20, backgroundColor: '#141419',
+    paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center',
+    borderWidth: 1, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 24, elevation: 12,
+  },
+  crownEmoji: { fontSize: 56, marginBottom: 8 },
+  roundCompleteTxt: { fontSize: 13, letterSpacing: 2, color: '#8a8a93', marginBottom: 4 },
+  winnerNameText: { fontSize: 28, fontWeight: '700', marginBottom: 20 },
+  leaderboardScrollContainer: {
+    width: '100%', gap: 8, marginBottom: 24, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 8,
+  },
+  lobbyRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  lobbyRowText: { fontSize: 13, fontFamily: 'monospace', color: '#b6b6c0' },
+  lobbyRowTextTop: { color: '#fff', fontWeight: '700' },
+  lobbyRowScore: { fontSize: 13, fontFamily: 'monospace', color: '#b6b6c0' },
+  replayBtn: { width: '100%', backgroundColor: '#06d6a0', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  replayBtnText: { color: '#04140f', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
+});
