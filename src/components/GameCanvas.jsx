@@ -1,6 +1,44 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — real WebXR immersive-ar integration (ground anchoring):
+// THIS REVISION — real WebXR depth-sensing occlusion, layered on top of
+// the previous ground-anchoring revision:
+//
+// WHAT CHANGED IN THIS PATCH (vs. the ground-anchoring revision):
+//   - startXRSession now also requests the optional 'depth-sensing'
+//     feature (cpu-optimized usage, so frame.getDepthInformation() is
+//     available directly without custom shader/GPU-texture work).
+//   - New <ARDepthOcclusion> component (lives inside <Canvas>): every
+//     ~150ms, for each visible veggie, samples the real WebXR depth
+//     buffer at that veggie's exact screen position and compares it to
+//     how far away the veggie actually is. If the real surface is
+//     closer than the veggie at that pixel, something is physically
+//     blocking it, so it gets marked occluded.
+//   - New internal occlusion state (internalArOcclusion) + a merged
+//     effectiveOcclusion (external arOcclusion prop always wins, for
+//     testing/overrides; otherwise falls back to what real depth
+//     sensing computed this session).
+//   - Every remaining read of the raw arOcclusion prop (captureTargets,
+//     handleCaptureAttempt, visibleTargetCount, and the per-node
+//     isThisOccluded in the render loop) now reads effectiveOcclusion
+//     instead.
+//   - Optional "🌫️ REAL OCCLUSION" telemetry tag, shown only once real
+//     depth-sensing support is confirmed for this session.
+//
+//   On devices without hardware/software depth support,
+//   depthOcclusionSupported stays false, no tag shows, and the game
+//   plays exactly as it did before this patch — no regression, just no
+//   real occlusion.
+//
+//   NOTE: useVeggieEvasion.js's obstacle_hide state (the simulated
+//   duck-and-reposition behavior, nudging position.y down in
+//   VeggieModel.jsx) is a SEPARATE, purely simulated mechanic and is
+//   untouched by this patch. This patch is the actual "hides behind a
+//   real tree/wall" mechanic, driven by AnimatedVeggieTarget's existing
+//   visible={!isOccluded} toggle (which was already wired for this
+//   since the ground-anchoring patch).
+//
+// ---------------------------------------------------------------------
+// PRIOR REVISION NOTES (ground-anchoring) — unchanged, kept for context:
 //
 // PROBLEM THIS FIXES:
 //   Vegetables were floating because there was no real-world floor
@@ -43,14 +81,6 @@
 // file now manages its own internal ground anchor via real hit-test
 // data, so App.jsx does NOT need to change for the sky bug to be fixed.
 //
-// STILL NOT IMPLEMENTED (flagging, not silently skipping):
-//   - Real depth-based occlusion (hiding behind real objects). That
-//     needs the WebXR 'depth-sensing' feature + per-pixel depth buffer
-//     comparison, which is a meaningfully bigger chunk of work than
-//     ground-anchoring. arOcclusion is still wired through GameCanvas's
-//     rendering/target-filtering logic exactly as before — it just has
-//     no automatic producer yet. Ground-anchoring first, occlusion as
-//     a follow-up.
 //   - Scale/perspective constants (MODEL_BASE_SCALE, AR_TRIGGER_DISTANCE_METERS,
 //     CATCH_TRIGGER_DISTANCE_METERS, METERS_TO_SCENE_DIVISOR) live in
 //     gameConfig.js, which I don't have the contents of. XR mode now
@@ -123,9 +153,16 @@ const BLIND_ATTACK_DURATION_MS = 1400;
 const BLIND_ATTACK_COOLDOWN_MS = 3000;
 const REAL_MISS_LABELS = ['TOO FAR', 'NOT AIMED', 'NEAR MISS', 'BREAKOUT'];
 
-// --- NEW: XR ground-anchor sync throttle (avoid re-rendering React on
+// --- XR ground-anchor sync throttle (avoid re-rendering React on
 // every single XR frame just because hit-test returned a number) ---
 const AR_GROUND_SYNC_INTERVAL_MS = 200;
+
+// --- NEW: real depth-occlusion tuning ---
+// Real surface must be at least this much closer than the veggie to
+// count as "blocking" it — a buffer against flicker right at the exact
+// edge of a real object.
+const OCCLUSION_DEPTH_MARGIN_M = 0.15;
+const OCCLUSION_SYNC_INTERVAL_MS = 150;
 
 function detectMobileCapable() {
   if (typeof window === 'undefined') return true;
@@ -155,11 +192,11 @@ function metersToSceneDepth(meters) {
   return Math.min(MAX_SCENE_DEPTH, Math.max(MIN_SCENE_DEPTH, raw));
 }
 
-// --- NEW: real flat-earth ENU (east/north) meters offset from an
-// anchor lat/lng. Used only in XR mode, where objects need TRUE
-// real-world coordinates (the XR camera provides real rotation/motion,
-// so we can't also fake rotation via bearing math like legacy mode
-// does — that would double-apply the turn). ---
+// --- real flat-earth ENU (east/north) meters offset from an anchor
+// lat/lng. Used only in XR mode, where objects need TRUE real-world
+// coordinates (the XR camera provides real rotation/motion, so we
+// can't also fake rotation via bearing math like legacy mode does —
+// that would double-apply the turn). ---
 function gpsToLocalMeters(lat0, lng0, lat, lng) {
   const dLat = toRad(lat - lat0);
   const dLng = toRad(lng - lng0);
@@ -193,11 +230,11 @@ function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = AP
   return { x: screenX, y: screenY, radius };
 }
 
-// --- NEW: real-camera projection for XR mode. Takes the ACTUAL
-// three.js XR camera (tracked by the device's real 6-DOF pose) and a
-// veggie's true world-space Vector3, and returns where that point
-// lands on screen right now. This replaces the fake FOV-math version
-// above whenever an XR session is live. ---
+// real-camera projection for XR mode. Takes the ACTUAL three.js XR
+// camera (tracked by the device's real 6-DOF pose) and a veggie's true
+// world-space Vector3, and returns where that point lands on screen
+// right now. This replaces the fake FOV-math version above whenever an
+// XR session is live.
 function projectWorldToScreenXR(worldVec3, camera, screenW, screenH, halfWidthUnits = APPROX_MODEL_HALF_WIDTH_SCENE_UNITS) {
   const p = worldVec3.clone().project(camera);
   if (p.z > 1 || p.z < -1) return null; // behind camera / outside clip range
@@ -233,9 +270,9 @@ function CameraPitchRig({ pitchDeg }) {
   return null;
 }
 
-// --- NEW: lives inside <Canvas>. Once an XR session exists, binds it
-// to the r3f renderer so three.js's WebXR manager takes over the
-// render loop and camera pose. ---
+// lives inside <Canvas>. Once an XR session exists, binds it to the r3f
+// renderer so three.js's WebXR manager takes over the render loop and
+// camera pose.
 function XRSessionBridge({ session, referenceSpaceType = 'local-floor', onEnded }) {
   const { gl } = useThree();
   useEffect(() => {
@@ -267,11 +304,11 @@ function XRSessionBridge({ session, referenceSpaceType = 'local-floor', onEnded 
   return null;
 }
 
-// --- NEW: lives inside <Canvas>. Requests a hit-test source once per
-// session, then every XR frame checks for a ground hit and reports the
-// real detected floor height upward (throttled). This is the actual
-// fix for the "floating in the sky" bug — a real number from the
-// device's own surface-scanning instead of a guessed constant. ---
+// lives inside <Canvas>. Requests a hit-test source once per session,
+// then every XR frame checks for a ground hit and reports the real
+// detected floor height upward (throttled). This is the actual fix for
+// the "floating in the sky" bug — a real number from the device's own
+// surface-scanning instead of a guessed constant.
 function ARGroundAnchor({ session, onGroundY }) {
   const { gl } = useThree();
   const hitTestSourceRef = useRef(null);
@@ -320,6 +357,100 @@ function ARGroundAnchor({ session, onGroundY }) {
       lastSyncRef.current = now;
       onGroundY(pose.transform.position.y);
     }
+  });
+
+  return null;
+}
+
+// --- NEW: lives inside <Canvas>. Every ~150ms, for each visible
+// veggie, samples the real WebXR depth buffer at that veggie's exact
+// screen position and compares it to how far away the veggie actually
+// is. If the real world is closer at that pixel than the veggie, a
+// real object is physically between the camera and it — mark it
+// occluded. This is the actual "hides behind a real tree/wall"
+// mechanic; obstacle_hide in useVeggieEvasion.js is a separate,
+// purely simulated duck-and-reposition behavior and is untouched by
+// this. ---
+function ARDepthOcclusion({ session, targetNodesRef, liveVeggieRef, onOcclusionUpdate, onDepthSupportChange }) {
+  const { gl, camera } = useThree();
+  const lastSyncRef = useRef(0);
+  const depthSupportedRef = useRef(null); // null=unknown yet, true/false once determined
+  const scratchVec = useRef(new THREE.Vector3());
+
+  useEffect(() => {
+    depthSupportedRef.current = null;
+  }, [session]);
+
+  useFrame((_, __, frame) => {
+    if (!frame || typeof frame.getDepthInformation !== 'function') {
+      if (depthSupportedRef.current !== false) {
+        depthSupportedRef.current = false;
+        onDepthSupportChange(false);
+      }
+      return;
+    }
+
+    const refSpace = gl.xr.getReferenceSpace();
+    if (!refSpace) return;
+    const pose = frame.getViewerPose(refSpace);
+    if (!pose || pose.views.length === 0) return;
+
+    // Phones report a single ('mono') view in immersive-ar.
+    const view = pose.views[0];
+    let depthInfo;
+    try {
+      depthInfo = frame.getDepthInformation(view);
+    } catch (err) {
+      if (depthSupportedRef.current !== false) {
+        depthSupportedRef.current = false;
+        onDepthSupportChange(false);
+      }
+      return;
+    }
+    if (!depthInfo) return;
+
+    if (depthSupportedRef.current !== true) {
+      depthSupportedRef.current = true;
+      onDepthSupportChange(true);
+    }
+
+    const now = performance.now();
+    if (now - lastSyncRef.current < OCCLUSION_SYNC_INTERVAL_MS) return;
+    lastSyncRef.current = now;
+
+    const nodes = targetNodesRef.current;
+    const live = liveVeggieRef.current;
+    const nextOcclusion = {};
+
+    for (const node of nodes) {
+      const l = live[node.id];
+      const wx = l?.x ?? node.position[0];
+      const wy = l?.worldY ?? node.position[1];
+      const wz = l?.z ?? node.position[2];
+
+      scratchVec.current.set(wx, wy, wz);
+      const projected = scratchVec.current.clone().project(camera);
+      if (projected.z > 1 || projected.z < -1) continue; // behind camera / clipped, skip
+
+      // Normalized view coordinates (0,0 = top-left, 1,1 = bottom-right)
+      // — same convention getDepthInMeters expects.
+      const nx = projected.x * 0.5 + 0.5;
+      const ny = 1 - (projected.y * 0.5 + 0.5);
+      if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue; // offscreen
+
+      let realDepthM;
+      try {
+        realDepthM = depthInfo.getDepthInMeters(nx, ny);
+      } catch {
+        continue;
+      }
+      if (!realDepthM || !Number.isFinite(realDepthM) || realDepthM <= 0) continue;
+
+      const veggieDistM = camera.position.distanceTo(scratchVec.current);
+      nextOcclusion[node.id] = realDepthM < veggieDistM - OCCLUSION_DEPTH_MARGIN_M;
+    }
+
+    onOcclusionUpdate(nextOcclusion);
   });
 
   return null;
@@ -430,11 +561,11 @@ function AnimatedVeggieTarget({
     const nowIdle = result.state === 'idle_stand';
     setIsIdleStanding((prev) => (prev === nowIdle ? prev : nowIdle));
 
-    // NEW: in XR mode, also compute this veggie's real screen position
-    // by projecting its true world position through the REAL XR
-    // camera. In legacy mode we skip this — the old fake-camera
-    // projection (done outside the Canvas, in captureTargets below)
-    // still handles it exactly as before.
+    // In XR mode, also compute this veggie's real screen position by
+    // projecting its true world position through the REAL XR camera.
+    // In legacy mode we skip this — the old fake-camera projection
+    // (done outside the Canvas, in captureTargets below) still handles
+    // it exactly as before.
     let screenProjection = null;
     if (xrActive && groupRef.current) {
       worldVecRef.current.set(posRef.current.x, result.worldY, posRef.current.z);
@@ -512,7 +643,7 @@ export default function GameCanvas({
   const topBarRef = useRef(null);
   const [leaderboardTop, setLeaderboardTop] = useState(96);
 
-  // ---- NEW: WebXR AR session state ----
+  // ---- WebXR AR session state ----
   // 'checking' | 'unsupported' | 'idle' | 'requesting' | 'active' | 'denied'
   const [xrState, setXrState] = useState('checking');
   const [xrSession, setXrSession] = useState(null);
@@ -523,6 +654,22 @@ export default function GameCanvas({
   // frame — GPS is noisy; the XR camera's own tracking handles motion
   // within this anchored frame far better than re-reading GPS would.
   const arOriginRef = useRef(null); // { lat, lng }
+
+  // ---- NEW: real depth-occlusion state ----
+  const [internalArOcclusion, setInternalArOcclusion] = useState({});
+  const [depthOcclusionSupported, setDepthOcclusionSupported] = useState(null); // null|true|false
+  const targetNodesRef = useRef([]);
+
+  // Explicit arOcclusion prop entries always win (testing/override),
+  // else fall back to what real depth-sensing computed this session.
+  const effectiveOcclusion = useMemo(
+    () => ({ ...internalArOcclusion, ...arOcclusion }),
+    [internalArOcclusion, arOcclusion]
+  );
+
+  const handleOcclusionUpdate = useCallback((next) => {
+    setInternalArOcclusion(next);
+  }, []);
 
   const xrActive = xrState === 'active' && !!xrSession;
   const effectiveGroundY = arGroundYProp != null ? arGroundYProp : internalArGroundY;
@@ -598,7 +745,7 @@ export default function GameCanvas({
     return () => clearTimeout(attemptTimeoutRef.current);
   }, []);
 
-  // ---- NEW: detect WebXR immersive-ar support on mount ----
+  // ---- detect WebXR immersive-ar support on mount ----
   useEffect(() => {
     if (!isMobileCapable) return undefined;
     let cancelled = false;
@@ -618,8 +765,8 @@ export default function GameCanvas({
     return () => { cancelled = true; };
   }, [isMobileCapable]);
 
-  // ---- NEW: start an immersive-ar session (must run from a user
-  // gesture — called from the "START AR HUNT" button below) ----
+  // ---- start an immersive-ar session (must run from a user gesture —
+  // called from the "START AR HUNT" button below) ----
   const startXRSession = useCallback(async () => {
     if (!navigator.xr) return;
     setXrState('requesting');
@@ -627,7 +774,18 @@ export default function GameCanvas({
       const overlayRoot = document.getElementById('veggie-ar-dom-overlay');
       const session = await navigator.xr.requestSession('immersive-ar', {
         requiredFeatures: ['hit-test', 'local-floor'],
-        optionalFeatures: overlayRoot ? ['dom-overlay'] : [],
+        // NEW: depth-sensing added as optional — session still starts
+        // fine on devices that don't support it, occlusion just stays
+        // off. 'cpu-optimized' is requested specifically because it's
+        // the only usage mode that supports frame.getDepthInformation()
+        // directly — the gpu-optimized path hands you a raw WebGL
+        // texture instead, which would need custom shader work outside
+        // r3f's normal flow.
+        optionalFeatures: overlayRoot ? ['dom-overlay', 'depth-sensing'] : ['depth-sensing'],
+        depthSensing: {
+          usagePreference: ['cpu-optimized'],
+          dataFormatPreference: ['luminance-alpha', 'float32'],
+        },
         ...(overlayRoot ? { domOverlay: { root: overlayRoot } } : {}),
       });
       setXrSession(session);
@@ -645,8 +803,8 @@ export default function GameCanvas({
     arOriginRef.current = null;
   }, []);
 
-  // NEW: once we have a real ground hit AND the player's own GPS,
-  // lock in the local-space anchor exactly once per session.
+  // once we have a real ground hit AND the player's own GPS, lock in
+  // the local-space anchor exactly once per session.
   const handleGroundY = useCallback((y) => {
     setInternalArGroundY(y);
   }, []);
@@ -917,6 +1075,13 @@ export default function GameCanvas({
     return rawTargetNodes.filter((n) => n.id === targetVegId);
   }, [rawTargetNodes, targetVegId]);
 
+  // NEW: keep a ref of targetNodes in sync for ARDepthOcclusion, which
+  // reads it from inside a useFrame loop and can't depend on React
+  // state re-renders to see updates in time.
+  useEffect(() => {
+    targetNodesRef.current = targetNodes;
+  }, [targetNodes]);
+
   useEffect(() => {
     if (targetNodes.length === 0) {
       setGlitchTargetId(null);
@@ -931,7 +1096,7 @@ export default function GameCanvas({
   // frame via the true XR camera (stored in liveVeggieSnapshot). ----
   const captureTargets = useMemo(() => {
     return targetNodes
-      .filter((node) => !arOcclusion[node.id])
+      .filter((node) => !effectiveOcclusion[node.id])
       .map((node) => {
         const live = liveVeggieSnapshot[node.id];
 
@@ -963,7 +1128,7 @@ export default function GameCanvas({
         };
       })
       .filter(Boolean);
-  }, [targetNodes, liveVeggieSnapshot, windowDims, arOcclusion, xrActive]);
+  }, [targetNodes, liveVeggieSnapshot, windowDims, effectiveOcclusion, xrActive]);
 
   const lockRings = useMemo(() => {
     const cx = windowDims.w / 2;
@@ -1024,7 +1189,7 @@ export default function GameCanvas({
     if (targetNode && targetNode.distance > CATCH_TRIGGER_DISTANCE_METERS) {
       return;
     }
-    if (arOcclusion[id]) {
+    if (effectiveOcclusion[id]) {
       return;
     }
 
@@ -1043,7 +1208,7 @@ export default function GameCanvas({
     }, CAPTURE_RESULT_TIMEOUT_MS);
 
     window.socket?.emit('capture-attempt', { vegId: id, quality });
-  }, [targetNodes, arOcclusion]);
+  }, [targetNodes, effectiveOcclusion]);
 
   const timerColor = secondsLeft <= 10 ? '#ff3f34' : secondsLeft <= 20 ? '#ffbe1a' : '#39ff88';
 
@@ -1061,8 +1226,8 @@ export default function GameCanvas({
   }, [players, mySlot]);
 
   const visibleTargetCount = useMemo(
-    () => targetNodes.filter((n) => !arOcclusion[n.id]).length,
-    [targetNodes, arOcclusion]
+    () => targetNodes.filter((n) => !effectiveOcclusion[n.id]).length,
+    [targetNodes, effectiveOcclusion]
   );
 
   if (!isMobileCapable) {
@@ -1169,10 +1334,10 @@ export default function GameCanvas({
       )}
       {!xrActive && <div style={styles.videoScrim} />}
 
-      {/* NEW: XR entry gate. WebXR sessions must be started from a
-          real user gesture (tap), so this button is required — we
-          can't auto-start it on mount. Shown only while XR is
-          supported but not yet active. */}
+      {/* XR entry gate. WebXR sessions must be started from a real
+          user gesture (tap), so this button is required — we can't
+          auto-start it on mount. Shown only while XR is supported but
+          not yet active. */}
       {xrState === 'idle' && (
         <div style={styles.cameraErrorOverlay}>
           <h3>REAL AR AVAILABLE</h3>
@@ -1242,6 +1407,15 @@ export default function GameCanvas({
       >
         {xrActive && <XRSessionBridge session={xrSession} onEnded={handleXRSessionEnded} />}
         {xrActive && <ARGroundAnchor session={xrSession} onGroundY={handleGroundY} />}
+        {xrActive && (
+          <ARDepthOcclusion
+            session={xrSession}
+            targetNodesRef={targetNodesRef}
+            liveVeggieRef={liveVeggieRef}
+            onOcclusionUpdate={handleOcclusionUpdate}
+            onDepthSupportChange={setDepthOcclusionSupported}
+          />
+        )}
         {!xrActive && <CameraPitchRig pitchDeg={devicePitch} />}
 
         <Environment preset="apartment" background={false} />
@@ -1251,7 +1425,7 @@ export default function GameCanvas({
 
         {targetNodes.map((node) => {
           const isThisGlitchTarget = isGlitched && node.id === glitchTargetId;
-          const isThisOccluded = !!arOcclusion[node.id];
+          const isThisOccluded = !!effectiveOcclusion[node.id];
           return (
             <AnimatedVeggieTarget
               key={node.id}
@@ -1389,6 +1563,11 @@ export default function GameCanvas({
           {xrActive && (
             <div style={{ ...styles.telemetryTag, borderColor: 'rgba(60,214,255,0.5)' }}>
               📡 REAL AR
+            </div>
+          )}
+          {xrActive && depthOcclusionSupported === true && (
+            <div style={{ ...styles.telemetryTag, borderColor: 'rgba(255,190,26,0.5)' }}>
+              🌫️ REAL OCCLUSION
             </div>
           )}
           <button
