@@ -1,58 +1,24 @@
 // src/hooks/useVeggieEvasion.js
 //
-// THIS REVISION ("tuning knobs moved to config"): the movement/timing
-// numbers that actually shape how a veggie behaves — chase speed, how
-// close it gets before orbiting, dash trigger/multiplier, dodge speed,
-// how often it auto-hides, break-out chance — are now imported from
-// gameConfig.js instead of being hardcoded in this file. That's the
-// only functional change here; all the state-machine logic, physics,
-// anti-cheat, and dead-reckoning code below is unchanged from before.
+// THIS REVISION ("idle-stand pause state"): adds a 5th AI state,
+// idle_stand, alongside the existing idle_spawn / greeting / running /
+// aggressive_charge / tactical_dodge / obstacle_hide set.
 //
-// Each imported constant has a `?? <same value as before>` fallback, so
-// removing an entry from gameConfig.js doesn't break this hook — it
-// just silently reverts that one knob to its previous default.
+// WHY: real Pokémon-GO-style creatures don't run flat-out the entire
+// time they're on screen — they periodically stop, stand still, and
+// just exist for a second or two before moving again. Previously the
+// only "pause" behavior was obstacle_hide (which relocates the veggie
+// to a boundary angle) — there was no true "just stop here and be
+// visible" beat. idle_stand fills that gap: it's rolled on the same
+// periodic-timer pattern as the existing auto-hide mechanic (separate
+// timer, separate interval range), and while active it decays velocity
+// to zero exactly like idle_spawn does, so the veggie genuinely stops
+// moving — not a cosmetic trick, a real position change (or lack of
+// one) that flows through the same dx/dz/state return values GameCanvas
+// already consumes. No caller-side changes needed to light this up.
 //
-// Constants NOT moved to config on purpose: floor plane, depth-scale
-// reference/near distances, hitbox base radius, corner-growth curve,
-// zig-zag/hazard-trail feel, anti-cheat ceiling, and dead-reckoning
-// blend/snap thresholds. Those are either tightly coupled to
-// GameCanvas's own scene-scale constants (so moving just one half to
-// config invites drift) or genuinely internal implementation details
-// rather than something a designer would want to casually retune. Say
-// the word if you want any of those exposed too.
-//
-// =====================================================================
-// (everything below this point is the same hook as before)
-// =====================================================================
-//
-// 3D world-space evasion hook.
-//
-// Features:
-//   1. Floor-locking on the Y axis + inverse-depth visual scale
-//   2. A 4-state AI selector (idle_spawn / aggressive_charge /
-//      tactical_dodge / obstacle_hide) layered on top of the existing
-//      greeting/running gating
-//   3. Delta-time interpolation (documented below)
-//   4. Dynamic hitbox radius that grows with visual scale
-//   5. A "break out" probability model for failed catch attempts
-//   6. A client-side max-speed check (anti-cheat / anti-teleport guard)
-//   7. A dead-reckoning reconciliation helper for multiplayer sync
-//   8. Gyro/compass-aware obstacle hiding
-//
-// IMPORTANT INTEGRATION NOTE ON #6/#7/#8:
-// This hook has no access to hardware or the network by itself — it's a
-// plain React hook, not a native plugin or a socket client. So:
-//   - Gyro/compass: the caller (GameCanvas.jsx) is responsible for reading
-//     the device heading (e.g. via Capacitor Motion or the DOM
-//     `deviceorientation` event) and passing it in as `deviceHeadingDeg`.
-//     This hook only does the angle math on top of that number.
-//   - Multiplayer sync: the caller's socket layer is responsible for
-//     receiving server position/velocity updates. This hook exposes
-//     `reconcileRemoteState()` so the caller can hand those updates to it
-//     and get back a corrected, extrapolated position (dead reckoning).
-// Pretending this hook directly binds to sensors or a socket would just be
-// dead code with nothing to call it — so those integration points are
-// explicit function/parameter boundaries instead.
+// Everything else — the 4 pre-existing AI states, floor-locking,
+// dead-reckoning, anti-cheat, hazard trail, dash bursts — is UNCHANGED.
 
 import { useCallback, useRef } from 'react';
 import {
@@ -130,7 +96,7 @@ const DEPTH_SCALE_REFERENCE_UNITS = 11; // matches ROAM_MAX_RADIUS_UNITS / MAX_S
 const DEPTH_SCALE_NEAR_UNITS = 1.6;   // matches GameCanvas.jsx MIN_SCENE_DEPTH
 
 // =====================================================================
-// 2. 4-state AI selector constants
+// 2. 5-state AI selector constants
 // =====================================================================
 const AGGRESSIVE_CHARGE_DURATION_FRAMES = 40;
 const AGGRESSIVE_CHARGE_SPEED_MULTIPLIER = CFG_AGGRESSIVE_CHARGE_SPEED_MULTIPLIER ?? 2.2;
@@ -154,6 +120,17 @@ const OBSTACLE_HIDE_ANGLE_JITTER_RAD = Math.PI * 0.6; // how far off-boundary-no
 // when pinned against the roam edge. ---
 const AUTO_HIDE_MIN_INTERVAL_MS = CFG_AUTO_HIDE_MIN_INTERVAL_MS ?? 7000;
 const AUTO_HIDE_MAX_INTERVAL_MS = CFG_AUTO_HIDE_MAX_INTERVAL_MS ?? 14000;
+
+// --- NEW: periodic "just stand still" pause — distinct from hiding.
+// Rolled on its own independent timer (deliberately a shorter, tighter
+// range than auto-hide so a veggie pauses more often than it ducks out
+// of sight), so a chased veggie doesn't run flat-out the entire time
+// it's on screen — it genuinely stops, stands, and starts again,
+// matching the "creature just standing there" beat real AR-catch games
+// have between chase bursts. ---
+const AUTO_IDLE_MIN_INTERVAL_MS = 4000;
+const AUTO_IDLE_MAX_INTERVAL_MS = 9000;
+const IDLE_STAND_DURATION_FRAMES = 70;
 
 // =====================================================================
 // 4. Dynamic hitbox scaling
@@ -219,6 +196,7 @@ export function useVeggieEvasion() {
         aiStateFramesLeft: 0,
         obstacleHideAngle: 0,
         nextAutoHideAt: null, // ms timestamp; rolled the first time it's seen running
+        nextAutoIdleAt: null, // ms timestamp; rolled the first time it's seen running
         // anti-cheat tracking
         lastKnownX: null,
         lastKnownZ: null,
@@ -373,6 +351,23 @@ export function useVeggieEvasion() {
         s.obstacleHideAngle = Math.atan2(worldZ, worldX) + (Math.random() - 0.5) * 2 * Math.PI;
         s.nextAutoHideAt = now + AUTO_HIDE_MIN_INTERVAL_MS + Math.random() * (AUTO_HIDE_MAX_INTERVAL_MS - AUTO_HIDE_MIN_INTERVAL_MS);
       }
+
+      // NEW: periodic idle-stand pause — own independent timer, only
+      // claims the transition if hide didn't already claim it this frame
+      // (both gate on aiState === 'running', so they can never fire on
+      // the same frame for the same veggie).
+      if (s.nextAutoIdleAt == null) {
+        s.nextAutoIdleAt = now + AUTO_IDLE_MIN_INTERVAL_MS + Math.random() * (AUTO_IDLE_MAX_INTERVAL_MS - AUTO_IDLE_MIN_INTERVAL_MS);
+      }
+      if (
+        now >= s.nextAutoIdleAt &&
+        s.aiState === 'running' &&
+        s.aiStateFramesLeft <= 0
+      ) {
+        s.aiState = 'idle_stand';
+        s.aiStateFramesLeft = IDLE_STAND_DURATION_FRAMES;
+        s.nextAutoIdleAt = now + AUTO_IDLE_MIN_INTERVAL_MS + Math.random() * (AUTO_IDLE_MAX_INTERVAL_MS - AUTO_IDLE_MIN_INTERVAL_MS);
+      }
     } else if (distanceMeters > GREETING_MIN_M && distanceMeters <= GREETING_MAX_M) {
       s.aiState = 'greeting';
       s.aiStateFramesLeft = 0;
@@ -380,6 +375,7 @@ export function useVeggieEvasion() {
       s.aiState = 'idle_spawn';
       s.aiStateFramesLeft = 0;
       s.nextAutoHideAt = null; // re-roll fresh next time it's approached
+      s.nextAutoIdleAt = null; // re-roll fresh next time it's approached
     }
 
     if (s.aiStateFramesLeft > 0) {
@@ -399,6 +395,19 @@ export function useVeggieEvasion() {
       dz = Math.sin(s.phase) * GREETING_BOB_AMPLITUDE_UNITS * dtSeconds * 10;
       s.vx *= 0.9;
       s.vz *= 0.9;
+    } else if (state === 'idle_stand') {
+      // NEW: genuine movement pause between chase bursts. Velocity
+      // decays to zero exactly like idle_spawn (so it actually stops,
+      // not just "runs slower"), but stays classified separately so
+      // the caller/UI can tell "resting mid-encounter" apart from
+      // "hasn't noticed the player yet" if it ever wants to.
+      message = 'STANDING STILL...';
+      s.vx *= 0.85;
+      s.vz *= 0.85;
+      dx = s.vx * dtSeconds;
+      dz = s.vz * dtSeconds;
+      s.squishX *= SQUISH_DECAY;
+      s.squishZ *= SQUISH_DECAY;
     } else {
       // running / aggressive_charge / tactical_dodge / obstacle_hide all
       // share the same fleeing-vector + boundary + squash pipeline, with
