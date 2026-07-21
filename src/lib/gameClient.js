@@ -3,7 +3,38 @@
 // Real-Time Multiplayer Game Client — thin wrapper around socket.io-client
 // that talks to the live server.js (Express + Socket.IO GPS game server).
 //
-// WHY THIS REPLACES THE PREVIOUS VERSION:
+// THIS REVISION — two launch-blocking gaps closed:
+//
+//   1. joinRoom() now accepts a 5th `deviceUUID` argument and includes it
+//      in the 'join-room' payload. server.js's entire mid-match reconnect
+//      grace window (RECONNECT_GRACE_MS, 45s — restores a dropped
+//      player's slot/score/character if they rejoin in time) is keyed
+//      entirely on deviceUUID matching an existing room.players entry.
+//      Previously this function silently dropped it: App.jsx could
+//      generate and pass a UUID all day, but it never reached the
+//      server, so every mid-match GPS drop or backgrounding permanently
+//      ejected the player — on an outdoor GPS game, that's routine, not
+//      an edge case. Wallet/ticket-gating and personal-best leaderboard
+//      upserts are also deviceUUID-keyed server-side and were equally
+//      unreachable until now.
+//
+//   2. subscribeToRoom() now accepts and wires onTimingModeUpdated and
+//      onPromotedToLeader callbacks, forwarding server.js's
+//      'timing-mode-updated' and 'promoted-to-leader' broadcasts.
+//      App.jsx has been subscribing to these two callback names since
+//      an earlier revision, but this file never forwarded them to any
+//      socket event — they were silently dropped at this layer. Net
+//      effect: when the room leader picked a timing mode, only their own
+//      client (which sets state locally in the click handler) ever
+//      advanced past the mode-gate screen. Every OTHER player in the
+//      room stayed stuck on "WAITING FOR HOST TO CHOOSE MODE…" forever,
+//      even though the match was actually running server-side (tick/go/
+//      rounds all fired normally) — meaning only the room leader could
+//      ever actually play. This was the single largest blocker to a
+//      working multiplayer MVP; every other reviewed file was sound
+//      once this one gap is closed.
+//
+// WHY THIS REPLACES THE PREVIOUS VERSION (unchanged from before):
 // The previous gameClient.js was a "local storage stand-in" — it never
 // opened a network connection at all. joinRoom/claimCharacter/capture
 // calls read and wrote to window.localStorage, and window.socket was a
@@ -22,32 +53,32 @@
 //   client emits            server responds with
 //   ------------------      ---------------------------------
 //   join-room          -->  room-joined | room-error
-//   claim-character    -->  slot-confirmed | character-error
+//   claim-character    -->  slot-confirmed | character-error  (DEPRECATED
+//                            — server.js no longer implements
+//                            'claim-character' at all; slots are
+//                            auto-assigned inside join-room now. Kept
+//                            here only so nothing that still imports it
+//                            crashes at build time. Do not call it.)
 //   update-location     (fire-and-forget, no direct response)
 //   capture-attempt    -->  capture-result (+ broadcast veggieCaught)
 //
 // Server -> all clients in room (no request needed, just subscribe):
 //   players-update, veggies-update, tick, go, glitch-pulse,
-//   match-countdown-cancelled, round-end
+//   match-countdown-cancelled, round-end, timing-mode-updated,
+//   promoted-to-leader
 //
-// SLOT_IDS matches CharacterSelect.jsx's SLOT_01..SLOT_06 and server.js's
-// takenCharacters / CHARACTER_COLORS keys exactly.
+// SLOT_IDS matches server.js's takenCharacters / CHARACTER_COLORS keys
+// exactly.
 //
-// WHAT CHANGED (this revision — hybrid gps/indoor wiring):
+// PRIOR REVISION (hybrid gps/indoor wiring):
 // updateLocation() and makeThrottledLocationWriter() previously only
-// forwarded { lat, lng } to the server. The new hybrid server.js needs
+// forwarded { lat, lng } to the server. The hybrid server.js needs
 // `accuracy` (to classify a player as 'gps' vs 'indoor' mode per-update)
 // and `heading` (to validate indoor-mode capture attempts against a
 // vegetable's fixed bearing) — see server.js's getPlayerMode and
-// capture-attempt handler. App.jsx's own GPS watcher was already fixed to
-// send both, but it does so via a direct window.socket.emit(...) call
-// that bypasses this file entirely. MapView.jsx, however, routes its
-// location updates through makeThrottledLocationWriter() -> this file's
-// updateLocation() — so every update sent from the radar screen was
-// silently dropping accuracy/heading before it ever reached the server,
-// even after App.jsx's fix. Both functions now accept and forward an
-// optional { accuracy, heading } alongside lat/lng, matching what
-// server.js's update-location handler already reads.
+// capture-attempt handler. Both functions accept and forward an optional
+// { accuracy, heading } alongside lat/lng, matching what server.js's
+// update-location handler already reads.
 //
 // NOTE ON A REJECTED "REPLACEMENT" VERSION:
 // A different gameClient.js was proposed alongside this one, using
@@ -138,12 +169,11 @@ export function getSocket() {
 // initLocalSocketBridge() existed in the old localStorage-based
 // gameClient.js to set up a fake window.socket whose .emit() just called
 // local functions directly (see the file-header note above for why that
-// approach couldn't support real cross-device multiplayer). App.jsx still
-// imports it. Rather than leave the build broken, this now simply opens
-// the real socket.io connection — the same thing connectSocket() does —
-// so existing call sites keep working, but nothing "local" is bridged
-// anymore. Once App.jsx is updated to call connectSocket() directly, this
-// export (and the App.jsx import of it) can be deleted.
+// approach couldn't support real cross-device multiplayer). Rather than
+// leave any old call site broken, this now simply opens the real
+// socket.io connection — the same thing connectSocket() does — so
+// existing call sites keep working, but nothing "local" is bridged
+// anymore.
 export function initLocalSocketBridge() {
   return connectSocket();
 }
@@ -218,8 +248,20 @@ function waitForFirstBroadcast(eventName, getCached, timeoutMs = ACK_TIMEOUT_MS)
 
 // roomCode: string. lat/lng: numbers (used only when creating a brand new
 // room, to seed vegetable spawn origin). name: player's typed call sign —
-// forwarded up front so it's available even before claimCharacter().
-export async function joinRoom(roomCode, lat, lng, name) {
+// forwarded up front so it's available even before a slot is assigned.
+//
+// FIX: deviceUUID is a new 5th argument, forwarded in the 'join-room'
+// payload as `deviceUUID`. server.js reads this to:
+//   - match a returning player against an existing `disconnected: true`
+//     entry in room.players (the reconnect-grace-window path)
+//   - key wallet/ticket lookups (getOrCreateWallet(deviceUUID))
+//   - key personal-best leaderboard upserts (upsertLeaderboardEntry)
+// Passing undefined here is still safe — server.js's own handlers all
+// null-check deviceUUID and degrade gracefully (no reconnect match, no
+// ticket gate, leaderboard falls back to a username-keyed record) — but
+// every caller should pass a real, persisted UUID whenever one is
+// available. See App.jsx's getOrCreateDeviceUUID().
+export async function joinRoom(roomCode, lat, lng, name, deviceUUID) {
   connectSocket();
 
   // Wait for the socket to actually be connected before emitting, since
@@ -236,18 +278,17 @@ export async function joinRoom(roomCode, lat, lng, name) {
 
   const result = await emitAndWaitOnce(
     'join-room',
-    { room: roomCode, lat, lng, name },
+    { room: roomCode, lat, lng, name, deviceUUID },
     'room-joined',
     'room-error'
   );
 
   if (result && result.room) {
     currentRoomCode = result.room;
-    // server.js identifies players by socket.id (see slot-confirmed's
-    // player_id field, and room.players being keyed by socket.id in
-    // server.js) — attach it here so App.jsx's
-    // setMyPlayerId(joined.playerId) / initLocalSocketBridge(joined.playerId)
-    // have a real value to use instead of undefined.
+    // server.js identifies players by socket.id (room.players is keyed
+    // by socket.id) — attach it here so App.jsx's
+    // setMyPlayerId(joined.playerId) has a real value to use instead of
+    // undefined.
     result.playerId = socket.id;
   }
 
@@ -290,6 +331,12 @@ export async function fetchVeggies(roomCode) {
   return waitForFirstBroadcast('veggies-update', () => lastKnownVeggies);
 }
 
+// DEPRECATED — server.js no longer implements a 'claim-character' event
+// at all (see this file's header note). Slots are auto-assigned inside
+// join-room now. Kept only so an old, unremoved call site doesn't crash
+// the build; calling this will time out waiting for a response the
+// server will never send. Delete both this and its call site when
+// convenient.
 export async function claimCharacter(roomCode, slotId, name) {
   if (!SLOT_IDS.includes(slotId)) {
     return { success: false, message: 'invalid_slot' };
@@ -298,6 +345,10 @@ export async function claimCharacter(roomCode, slotId, name) {
     return { success: false, message: 'not_connected' };
   }
 
+  console.warn(
+    '[gameClient] claimCharacter() is deprecated — server.js auto-assigns slots inside join-room and has no "claim-character" handler. This call will time out.'
+  );
+
   const result = await emitAndWaitOnce(
     'claim-character',
     { character: slotId, name },
@@ -305,28 +356,15 @@ export async function claimCharacter(roomCode, slotId, name) {
     'character-error'
   );
 
-  // server.js emits { success: true, slot_id, player_id } on success, or
-  // { message } (no explicit success flag) on 'character-error' — the
-  // emitAndWaitOnce error branch above already spreads { success: false,
-  // ...data }, so failed claims come back as { success: false, message }.
-  // NOTE: this function always RESOLVES, never throws, on a failed claim
-  // — a caller doing `if (!res.success) throw new Error(res.message)`
-  // is not this file. If you're chasing a thrown "Role taken by a
-  // friend!" error, that throw happens somewhere else in the codebase
-  // (search for "auto-claim" — that's not a string used anywhere here).
   return result;
 }
 
 // --- Live gameplay ---------------------------------------------------
 
-// FIX (hybrid gps/indoor wiring): now accepts an optional third
-// `extra` object ({ accuracy, heading }) and forwards it alongside
-// lat/lng. server.js's update-location handler already reads both
-// fields (see its isFiniteNumber(data.accuracy)/data.heading checks) —
-// previously this function only ever sent { lat, lng }, so any caller
-// routing through here (MapView.jsx's throttled writer, below) silently
-// never sent accuracy/heading at all, regardless of what App.jsx's own
-// direct-emit GPS watcher was doing.
+// FIX (hybrid gps/indoor wiring): accepts an optional third `extra`
+// object ({ accuracy, heading }) and forwards it alongside lat/lng.
+// server.js's update-location handler reads both fields (see its
+// isFiniteNumber(data.accuracy)/data.heading checks).
 export function updateLocation(lat, lng, extra = {}) {
   if (!socket || !socket.connected) return;
   const { accuracy, heading } = extra;
@@ -338,12 +376,12 @@ export function updateLocation(lat, lng, extra = {}) {
   });
 }
 
-// FIX (hybrid gps/indoor wiring): sendIfDue now accepts and forwards an
+// FIX (hybrid gps/indoor wiring): sendIfDue accepts and forwards an
 // optional third arg ({ accuracy, heading }) through to updateLocation().
 // Existing call sites that only pass (lat, lng) keep working unchanged
-// (extra defaults to {}, so accuracy/heading are simply omitted, same as
-// before this fix) — callers that want hybrid-mode detection to work
-// need to start passing it, see MapView.jsx.
+// (extra defaults to {}, so accuracy/heading are simply omitted) —
+// callers that want hybrid-mode detection to work need to pass it, see
+// MapView.jsx.
 export function makeThrottledLocationWriter({ minIntervalMs = 3000, minDistanceMeters = 5 } = {}) {
   let lastSentAt = 0;
   let lastSentPos = null;
@@ -386,12 +424,31 @@ export function attemptCapture(vegId, quality) {
 
 // --- Subscriptions ------------------------------------------------------
 
-// Replaces the old cross-tab localStorage subscribeToRoom(). The live
-// server already pushes 'players-update' and 'veggies-update' to every
-// socket in the room once per tick (TICK_MS in server.js), so this just
-// wires those straight through, plus keeps lastKnownPlayers current for
-// fetchTakenCharacters()'s snapshot use above.
-export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeggiesUpdate, onTick, onGo, onRoundEnd, onGlitch, onCountdownCancelled } = {}) {
+// FIX: added onTimingModeUpdated and onPromotedToLeader params, wired to
+// server.js's 'timing-mode-updated' and 'promoted-to-leader' broadcasts.
+// Previously neither was forwarded at all — App.jsx has been passing
+// both callback names into subscribeToRoom() since an earlier revision,
+// but they were silently dropped here, so no non-leader client ever
+// received the room leader's mode selection. That left every non-leader
+// player stuck on the "WAITING FOR HOST TO CHOOSE MODE…" gate screen
+// forever, even while the match ran to completion server-side — i.e.
+// only the room leader could ever actually play a match. This was the
+// single largest blocker to a working MVP.
+export function subscribeToRoom(
+  roomCode,
+  {
+    onRoomUpdate,
+    onPlayersUpdate,
+    onVeggiesUpdate,
+    onTick,
+    onGo,
+    onRoundEnd,
+    onGlitch,
+    onCountdownCancelled,
+    onTimingModeUpdated,
+    onPromotedToLeader,
+  } = {}
+) {
   if (!socket) connectSocket();
 
   function handlePlayersUpdate(players) {
@@ -421,6 +478,8 @@ export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeg
   if (onRoundEnd) socket.on('round-end', onRoundEnd);
   if (onGlitch) socket.on('glitch-pulse', onGlitch);
   if (onCountdownCancelled) socket.on('match-countdown-cancelled', onCountdownCancelled);
+  if (onTimingModeUpdated) socket.on('timing-mode-updated', onTimingModeUpdated);
+  if (onPromotedToLeader) socket.on('promoted-to-leader', onPromotedToLeader);
 
   // room-joined already fired once during joinRoom(); onRoomUpdate here is
   // for components that mount subscribeToRoom after the join already
@@ -437,6 +496,8 @@ export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeg
     if (onRoundEnd) socket.off('round-end', onRoundEnd);
     if (onGlitch) socket.off('glitch-pulse', onGlitch);
     if (onCountdownCancelled) socket.off('match-countdown-cancelled', onCountdownCancelled);
+    if (onTimingModeUpdated) socket.off('timing-mode-updated', onTimingModeUpdated);
+    if (onPromotedToLeader) socket.off('promoted-to-leader', onPromotedToLeader);
     if (onRoomUpdate) socket.off('room-joined', onRoomUpdate);
   };
 }
