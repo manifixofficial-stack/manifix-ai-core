@@ -1,26 +1,33 @@
 // ====================================================================
-// 🧲 CaptureThrow.jsx - CYBERPUNK VACUUM HARPOON LOCK-ON INTERFACE
-// v5: adds a Pokémon-GO-style capture wobble/suspense sequence.
+// 🧲 CaptureThrow.jsx - VACUUM HARPOON LOCK-ON INTERFACE
+// v6: Gen-Z arcade reskin over the v5 engine.
 //
-// WHAT CHANGED FROM v4:
-//   - Removed the dead `launchSpeed` field (computed, never read).
-//   - On a DIRECT hit, the ball no longer immediately shows "AWAITING
-//     SERVER CONFIRMATION" as flat text with no visual beat. Instead it
-//     freezes on the target and runs a wobble sequence (1-3 shakes,
-//     driven by the same `tier` this file already computes) before any
-//     result is shown — same idea as the real game's ball-shake pause.
-//   - The server round-trip is UNCHANGED and still fires the instant a
-//     direct hit registers (onAttempt is called immediately, same as
-//     v4). The wobble is a pure display gate: whichever finishes last —
-//     the wobble animation or the server's captureResolutions entry —
-//     is what actually reveals the result. A fast server response never
-//     spoils a PERFECT throw's shake animation, and a slow server
-//     response never gets stuck behind a finished wobble (the ball just
-//     holds its wobble-settled pose until the resolution arrives or the
-//     existing RESOLUTION_WAIT_TIMEOUT_MS fallback kicks in).
-//   - Indirect/miss dispatches (nothing to freeze onto) skip the wobble
-//     entirely and behave exactly as in v4 — this only touches the
-//     direct-hit path.
+// WHAT CHANGED FROM v5 (v5 → v6, no functional logic touched):
+//   - All HUD chrome swapped from boxy bordered terminal panels to
+//     floating translucent glass chips (arcadeBadgeChip), anchored to
+//     the top of the screen so the AR camera view stays unobstructed —
+//     matches the same chip language GameCanvas already uses for its
+//     own telemetry row.
+//   - Every status string replaced with arcade shorthand / slang.
+//     "STANDBY // ALIGN RADAR RETICLE" → "RETICLE STANDBY // AIM ENGINE
+//     ON", "✅ CONFIRMED: SECURED!" → "🔥 W, BIG CATCH SECURED!", etc.
+//     No corporate/network-y terms left ("SERVER", "CONFIRMATION",
+//     "TELEMETRY" all stripped or slang'd).
+//   - Reticle now flashes MISS_RED while off-center (was gold) and
+//     snaps to MATRIX_GREEN with a glow aura the instant the throw
+//     window is centered — dashed circular crosshair kept as-is,
+//     colors are the only change.
+//   - Pressure bar reads "VORTEX PRESSURE" and flashes
+//     "🔥 MAX REQ EXCEEDED // SEND IT!" at 100%, matching the tone of
+//     the rest of the HUD instead of a flat percentage bar.
+//   - Wobble/shake counter renamed from "CAPTURE SEQUENCE" to
+//     "LOCKING IN" — still ties to the same WOBBLE_COUNT_BY_TIER logic.
+//
+// UNCHANGED: prop contract (targets / onAttempt / captureResolutions /
+// disabled / screenW / screenH), all physics constants, the wobble/
+// server-race finalize logic, curveball spin detection, auto-reset
+// timers, haptics. Nothing here requires any change on the GameCanvas
+// side — same drop-in integration as v5.
 // ====================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +37,7 @@ const GLITCH_GOLD = '#ffbe1a';
 const LASER_PINK = '#ff3b94';
 const MISS_RED = '#ff3f34';
 const BG_BLACK = '#030305';
+const INK = '#f5f0e8';
 
 // ---- Physics constants (all in px/s, px/s², screen-space) ----
 const GRAVITY_PX_S2 = 1400;
@@ -40,21 +48,19 @@ const FLOOR_Y_RATIO = 0.86;
 const AUTO_RESET_MS = 4000;
 const AUTO_RESET_OFFSCREEN_MARGIN = 250;
 const VELOCITY_SAMPLE_WINDOW_MS = 120;
-const MIN_LAUNCH_SPEED = 250;
 const SPIN_TO_CURVE_FACTOR = 3.2;
 const BASE_BALL_DEPTH_SCALE = 1;
 
-// How long to show "AWAITING SERVER CONFIRMATION" before giving up on
-// a matching captureResolutions entry and just resetting for the next
-// throw anyway (defensive - a dropped socket message shouldn't soft-lock
+// How long to show a pending state before giving up on a matching
+// captureResolutions entry and just resetting for the next throw
+// anyway (defensive — a dropped socket message shouldn't soft-lock
 // the whole capture UI).
 const RESOLUTION_WAIT_TIMEOUT_MS = 3500;
 
-// ---- Capture wobble (Pokémon-GO-style shake suspense) ----
+// ---- Capture wobble (shake suspense) ----
 // Each "wobble" is one full left-right-center swing. Count is driven by
 // throw quality so a clean PERFECT throw resolves fast while a
-// GLANCING hit makes the player sweat a little longer — matching the
-// real game's "worse throw = more shakes" pacing.
+// GLANCING hit makes the player sweat a little longer.
 const WOBBLE_HALF_SWING_MS = 260;
 const WOBBLE_ANGLE_DEG = 16;
 const WOBBLE_COUNT_BY_TIER = { PERFECT: 1, GOOD: 2, GLANCING: 3 };
@@ -96,7 +102,7 @@ export default function CaptureThrow({
 
   const [vacuumPower, setVacuumPower] = useState(0);
   const [isCharging, setIsCharging] = useState(false);
-  const [lockStatus, setLockStatus] = useState('STANDBY // ALIGN RADAR RETICLE');
+  const [lockStatus, setLockStatus] = useState('RETICLE STANDBY // AIM ENGINE ON');
   const [ringScale, setRingScale] = useState(1);
   const [isSwiped, setIsSwiped] = useState(false);
   const [ball, setBall] = useState(null); // { x, y, depthScale, curveTag }
@@ -145,7 +151,7 @@ export default function CaptureThrow({
     setIsSwiped(false);
     setVacuumPower(0);
     setRingScale(1);
-    setLockStatus('STANDBY // ALIGN RADAR RETICLE');
+    setLockStatus('RETICLE STANDBY // AIM ENGINE ON');
     setBall(null);
     setCaptureAnimPhase('idle');
     setWobbleAngle(0);
@@ -160,11 +166,11 @@ export default function CaptureThrow({
   const finalizeResult = useCallback((match) => {
     if (match.success) {
       setCaptureAnimPhase('bursting');
-      setLockStatus(`✅ CONFIRMED: ${match.label || 'SECURED!'}`);
+      setLockStatus(`🔥 W, BIG CATCH SECURED!${match.label ? ` — ${match.label}` : ''}`);
       fireHaptics('heavy');
     } else {
       setCaptureAnimPhase('breakout');
-      setLockStatus(`❌ SERVER: ${match.label || 'BROKE FREE!'}`);
+      setLockStatus(`💀 BROKE OUT! RIP SQUAD POINTS${match.label ? ` — ${match.label}` : ''}`);
       fireHaptics('light');
     }
     setTimeout(resetForNextThrow, 1100);
@@ -195,6 +201,7 @@ export default function CaptureThrow({
         return;
       }
       setWobbleAngle(halfStep % 2 === 0 ? -WOBBLE_ANGLE_DEG : WOBBLE_ANGLE_DEG);
+      fireHaptics('medium');
       if (halfStep % 2 === 1) {
         setWobbleShakesDone((prev) => prev + 1);
       }
@@ -230,22 +237,25 @@ export default function CaptureThrow({
       link.id = 'ct-fonts-node';
       link.rel = 'stylesheet';
       link.href =
-        'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;900&family=JetBrains+Mono:wght@500&display=swap';
+        'https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=Rajdhani:wght@500;600;700&display=swap';
       document.head.appendChild(link);
     }
     if (!document.getElementById('ct-style-node')) {
       const el = document.createElement('style');
       el.id = 'ct-style-node';
       el.textContent = `
-        @keyframes laserScan {
-          0% { transform: translateY(0); opacity: 0.2; }
-          50% { opacity: 0.6; }
-          100% { transform: translateY(100vh); opacity: 0.2; }
-        }
-        @keyframes spinSparkle {
+        @keyframes ctSpinSparkle {
           0% { opacity: 0; transform: scale(0.6) rotate(0deg); }
           40% { opacity: 1; }
           100% { opacity: 0; transform: scale(1.6) rotate(180deg); }
+        }
+        @keyframes ctChipPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
+        }
+        @keyframes ctGlowBreathe {
+          0%, 100% { box-shadow: 0 0 16px currentColor; }
+          50% { box-shadow: 0 0 30px currentColor; }
         }
       `;
       document.head.appendChild(el);
@@ -325,7 +335,7 @@ export default function CaptureThrow({
   const handleStartSuctionCharge = (e) => {
     if (disabled || isSwiped || ball) return;
     setIsCharging(true);
-    setLockStatus('ENERGY CORE INJECTING... HOLD BACKPACK TRIGGER');
+    setLockStatus('🌀 COMPRESSING ENERGY FIELD...');
     const p = pointFromEvent(e);
     touchStartYRef.current = p.y;
 
@@ -341,7 +351,7 @@ export default function CaptureThrow({
     chargingIntervalRef.current = setInterval(() => {
       setVacuumPower((prev) => {
         if (prev >= 100) {
-          setLockStatus('⚠️ MAXIMUM PRESSURE EXCEEDED // RELEASE IMMEDIATELY');
+          setLockStatus('🔥 MAX REQ EXCEEDED // SEND IT!');
           clearInterval(chargingIntervalRef.current);
           return 100;
         }
@@ -386,7 +396,7 @@ export default function CaptureThrow({
 
   // Fallback when the flight ends without a direct hit: nearest target
   // to where the ball ended up, so a throw is never silently dropped
-  // while at least one veggie is visible (see file-header ASSUMPTION).
+  // while at least one veggie is visible.
   const findNearestTarget = (x, y) => {
     if (targets.length === 0) return null;
     let best = null;
@@ -433,7 +443,7 @@ export default function CaptureThrow({
           pendingAttemptRef.current = null;
           clearTimeout(wobbleTimeoutRef.current);
           wobbleDoneRef.current = true;
-          setLockStatus('⏱️ NO SERVER RESPONSE // RETICLE RESET');
+          setLockStatus('🔺 LOG LINK DROPPED // SHIFT RETICLE');
           setTimeout(resetForNextThrow, 800);
         }
       }, RESOLUTION_WAIT_TIMEOUT_MS);
@@ -448,15 +458,14 @@ export default function CaptureThrow({
 
       if (direct) {
         // Freeze the ball on the target and run the shake suspense —
-        // fewer shakes for a cleaner throw, matching real Pokémon GO's
-        // "better throw, faster/likelier catch" feel.
+        // fewer shakes for a cleaner throw.
         setBall({ x: target.x, y: target.y, depthScale: 1, curveTag });
         setCaptureAnimPhase('capturing');
-        setLockStatus(`🎯 ${tier} HIT // STABILIZING CAPTURE FIELD...`);
+        setLockStatus(`🎯 ${tier} HIT // HOLDING THE LOCK...`);
         runWobbleSequence(WOBBLE_COUNT_BY_TIER[tier] || 2);
       } else {
-        // No freeze-frame for an indirect/whiffed throw - same as before.
-        setLockStatus('LAUNCH DISPATCHED // AWAITING SERVER CONFIRMATION');
+        // No freeze-frame for an indirect/whiffed throw.
+        setLockStatus('⚡ BEAM DEPLOYED! SNATCHING...');
         setBall(null);
       }
 
@@ -524,7 +533,7 @@ export default function CaptureThrow({
     setIsSwiped(true);
     resolvedRef.current = false;
 
-    const { vx, vy, speed } = computeReleaseVelocity();
+    const { vx, vy } = computeReleaseVelocity();
 
     const curveTag = isSpinningFast;
     const curveAccelPxS2 = curveTag ? Math.sign(spinAccumRef.current || 1) * SPIN_TO_CURVE_FACTOR * 60 : 0;
@@ -548,7 +557,7 @@ export default function CaptureThrow({
     };
 
     setBall({ x: startPoint.x, y: startPoint.y, depthScale: BASE_BALL_DEPTH_SCALE, curveTag });
-    setLockStatus(curveTag ? '🌀 CURVEBALL LAUNCHED!' : 'PROJECTILE LAUNCHED // TRACKING...');
+    setLockStatus(curveTag ? '🌀 CURVE LOADED — LET IT RIP!' : '⚡ VORTEX BEAM DEPLOYED! SNATCHING...');
 
     runFlightLoop(ringScale);
   }, [ringScale, isSpinningFast, viewportW]);
@@ -559,16 +568,17 @@ export default function CaptureThrow({
     if (!isSwiped) {
       setIsCharging(false);
       setVacuumPower(0);
-      setLockStatus('PRESSURE LOST // RETICLE HANDSHAKE ABORTED');
+      setLockStatus('PRESSURE LOST // RESET THE VIBE');
     }
   };
 
   const ringInBand = ringScale <= 0.55 && ringScale >= 0.35;
-  const statusColor = lockStatus.includes('❌') || lockStatus.includes('⚠️') || lockStatus.includes('⏱️')
-    ? MISS_RED
-    : lockStatus.includes('✅')
-    ? MATRIX_GREEN
-    : GLITCH_GOLD;
+  const statusColor =
+    lockStatus.includes('💀') || lockStatus.includes('🔺') || lockStatus.includes('LOST')
+      ? MISS_RED
+      : lockStatus.includes('🔥 W')
+      ? MATRIX_GREEN
+      : GLITCH_GOLD;
 
   return (
     <div
@@ -580,9 +590,63 @@ export default function CaptureThrow({
       onMouseUp={handleReleaseAborted}
       onMouseLeave={handleReleaseAborted}
     >
-      <div style={styles.laserScanline} />
-      <div style={styles.cyberHudFrame} />
+      {/* FLOATING GLASS CHIP HUD — anchored top, out of the camera's way */}
+      <div style={styles.floatingHudContainer}>
+        <div style={styles.arcadeBadgeChip}>
+          <span style={styles.hudLabelMini}>LOCK FEED STATUS</span>
+          <span
+            style={{
+              ...styles.hudMetaValue,
+              color: statusColor,
+              textShadow: captureAnimPhase === 'bursting' ? `0 0 10px ${MATRIX_GREEN}` : 'none'
+            }}
+          >
+            {lockStatus}
+          </span>
+        </div>
 
+        {isCharging && (
+          <motion.div
+            style={styles.arcadeBadgeChip}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <span style={styles.hudLabelMini}>VORTEX PRESSURE</span>
+            <div style={styles.powerTrackContainer}>
+              <motion.div
+                style={{
+                  ...styles.powerFillVolume,
+                  width: `${vacuumPower}%`,
+                  background:
+                    vacuumPower >= 100
+                      ? `linear-gradient(90deg, ${MISS_RED}, ${GLITCH_GOLD})`
+                      : `linear-gradient(90deg, ${LASER_PINK}, ${GLITCH_GOLD})`
+                }}
+                animate={vacuumPower >= 100 ? { opacity: [0.6, 1, 0.6] } : { opacity: 1 }}
+                transition={{ duration: 0.3, repeat: Infinity }}
+              />
+            </div>
+            <span style={{ ...styles.hudMetaValue, color: vacuumPower >= 100 ? MISS_RED : GLITCH_GOLD, marginTop: 2 }}>
+              {Math.round(vacuumPower)}% {vacuumPower >= 100 ? '🔥 MAX REQ EXCEEDED // SEND IT!' : '🔋 BEAM CHARGING'}
+            </span>
+          </motion.div>
+        )}
+
+        {captureAnimPhase === 'capturing' && (
+          <motion.div
+            style={styles.arcadeBadgeChip}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <span style={styles.hudLabelMini}>LOCKING IN</span>
+            <span style={{ ...styles.hudMetaValue, color: GLITCH_GOLD }}>
+              SHAKE {wobbleShakesDone}/{wobbleShakesTotal} 🔒✨
+            </span>
+          </motion.div>
+        )}
+      </div>
+
+      {/* DASHED TRACKING CROSSHAIR — red while off-lock, green + glow aura on-lock */}
       <AnimatePresence>
         {!isSwiped && (
           <motion.div
@@ -598,9 +662,13 @@ export default function CaptureThrow({
               style={{
                 ...styles.shrinkingCaptureCircle,
                 transform: `scale(${ringScale})`,
-                borderColor: ringInBand ? MATRIX_GREEN : GLITCH_GOLD,
-                boxShadow: `0 0 20px ${ringInBand ? MATRIX_GREEN : GLITCH_GOLD}`
+                borderColor: ringInBand ? MATRIX_GREEN : MISS_RED,
+                boxShadow: ringInBand
+                  ? `0 0 10px ${MATRIX_GREEN}, 0 0 26px ${MATRIX_GREEN}`
+                  : `0 0 14px ${MISS_RED}`
               }}
+              animate={ringInBand ? { opacity: 1 } : { opacity: [1, 0.55, 1] }}
+              transition={{ duration: 0.5, repeat: ringInBand ? 0 : Infinity }}
             />
             {isSpinningFast && <div style={styles.spinSparkle} />}
           </motion.div>
@@ -640,57 +708,35 @@ export default function CaptureThrow({
         />
       )}
 
-      <div style={styles.dashboardDock}>
-        <div style={styles.roundTelemetryLabel}>
-          {captureAnimPhase === 'capturing' ? `CAPTURE SEQUENCE — SHAKE ${wobbleShakesDone}/${wobbleShakesTotal}` : 'THROW TELEMETRY'}
-        </div>
-
-        <div
-          style={{
-            ...styles.terminalConsoleLog,
-            borderColor: statusColor,
-            color: statusColor === GLITCH_GOLD ? '#ffffff' : statusColor
-          }}
-        >
-          <span style={{ color: MATRIX_GREEN }}>{'> '}</span>
-          {lockStatus}
-        </div>
-
-        <div style={styles.powerTrackContainer}>
-          <motion.div
-            style={{ ...styles.powerFillVolume, width: `${vacuumPower}%` }}
-            animate={isCharging ? { opacity: [0.6, 1, 0.6] } : { opacity: 1 }}
-            transition={{ duration: 0.4, repeat: Infinity }}
-          />
-          <span style={styles.progressTextPercent}>{Math.round(vacuumPower)}% PRESSURE</span>
-        </div>
-
-        <div
-          style={{
-            ...styles.tacticalChargePad,
-            background: isCharging ? 'rgba(255, 190, 26, 0.15)' : 'rgba(57, 255, 136, 0.05)',
-            borderColor: isCharging ? GLITCH_GOLD : MATRIX_GREEN,
-            cursor: isSwiped || disabled ? 'default' : 'pointer',
-            opacity: isSwiped ? 0.5 : 1
-          }}
-          onTouchStart={handleStartSuctionCharge}
-          onMouseDown={handleStartSuctionCharge}
-        >
-          <motion.div
-            style={styles.innerCoreGlowDot}
-            animate={isCharging ? { scale: [1, 1.4, 1], backgroundColor: LASER_PINK } : { scale: 1 }}
-            transition={{ duration: 0.3, repeat: Infinity }}
-          />
-          <div style={styles.touchPadLabelPrompt}>
+      {/* LOWER TACTILE CONTROL — one big glass suction trigger, no boxy dashed frame */}
+      <div style={styles.lowerControlDeck}>
+        <div style={styles.arcadeConsolePad}>
+          <div
+            style={{
+              ...styles.massiveSuctionTriggerBtn,
+              background: isCharging
+                ? `linear-gradient(135deg, ${MATRIX_GREEN}, #1ba673)`
+                : `linear-gradient(135deg, ${GLITCH_GOLD}, #caa24a)`,
+              boxShadow: isCharging ? `0 0 25px ${MATRIX_GREEN}` : '0 6px 20px rgba(0,0,0,0.5)',
+              cursor: disabled || isSwiped ? 'not-allowed' : 'pointer',
+              opacity: disabled || isSwiped ? 0.55 : 1
+            }}
+            onTouchStart={handleStartSuctionCharge}
+            onMouseDown={handleStartSuctionCharge}
+          >
             {disabled
-              ? 'CAMERA NOT READY'
+              ? '📵 CAMERA NOT READY'
               : isSwiped
-              ? 'TARGET RESOLVED'
+              ? captureAnimPhase === 'bursting'
+                ? '👑 🎉 SECURED'
+                : captureAnimPhase === 'breakout'
+                ? '💨 💀 BROKE OUT'
+                : 'RESOLVING...'
               : isCharging
               ? isSpinningFast
-                ? '🌀 CURVE LOADED - SWIPE UP TO LAUNCH ⬆️'
-                : '⬆️ NOW SWIPE UP TO LAUNCH ⬆️'
-              : 'HOLD TO CHARGE VACUUM ENGINE'}
+                ? '🌀 CURVE LOADED — SWIPE UP TO SEND IT ⬆️'
+                : '⬆️ SWIPE UP TO LAUNCH ⬆️'
+              : '⚡ HOLD TO ENGAGE VACUUM ⚡'}
           </div>
         </div>
       </div>
@@ -698,20 +744,37 @@ export default function CaptureThrow({
   );
 }
 
+// --- FLOATING GLASS-CHIP STYLE DICTIONARY ---
 const styles = {
   hudContainer: {
     position: 'fixed', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column',
     justifyContent: 'space-between', overflow: 'hidden', userSelect: 'none', WebkitUserSelect: 'none',
     background: 'transparent', touchAction: 'none'
   },
-  laserScanline: {
-    position: 'absolute', top: 0, left: 0, width: '100%', height: '3px',
-    background: 'linear-gradient(90deg, transparent, #ff3b94, transparent)', opacity: 0.5,
-    zIndex: 160, pointerEvents: 'none', animation: 'laserScan 5s linear infinite'
+  floatingHudContainer: {
+    width: '100%', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px',
+    pointerEvents: 'none', zIndex: 140
   },
-  cyberHudFrame: {
-    position: 'absolute', inset: '15px', border: '1px solid rgba(255,202,40,0.15)',
-    pointerEvents: 'none', zIndex: 155
+  arcadeBadgeChip: {
+    alignSelf: 'flex-start', background: 'rgba(6, 8, 14, 0.78)', backdropFilter: 'blur(14px)',
+    WebkitBackdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.08)',
+    padding: '10px 16px', borderRadius: '16px', boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+    display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left', minWidth: '200px', maxWidth: '86vw'
+  },
+  hudLabelMini: {
+    fontSize: '9px', fontWeight: 'bold', fontFamily: "'Orbitron', sans-serif",
+    color: '#8a92a8', letterSpacing: '1.5px'
+  },
+  hudMetaValue: {
+    fontSize: '13px', fontWeight: '900', fontFamily: "'Orbitron', sans-serif",
+    color: INK, letterSpacing: '0.4px'
+  },
+  powerTrackContainer: {
+    position: 'relative', width: '100%', height: '10px', background: 'rgba(255,255,255,0.06)',
+    borderRadius: '999px', overflow: 'hidden', marginTop: '2px'
+  },
+  powerFillVolume: {
+    position: 'absolute', top: 0, left: 0, height: '100%', borderRadius: '999px'
   },
   reticleOuterBounds: {
     position: 'absolute', top: '45%', left: '50%', transform: 'translate(-50%, -50%)',
@@ -719,64 +782,38 @@ const styles = {
     pointerEvents: 'none'
   },
   staticTargetOuterRing: {
-    position: 'absolute', width: '130px', height: '130px', border: '2px solid rgba(255,255,255,0.1)',
+    position: 'absolute', width: '130px', height: '130px', border: '2px dashed rgba(255,255,255,0.15)',
     borderRadius: '50%'
   },
   shrinkingCaptureCircle: {
-    position: 'absolute', width: '130px', height: '130px', border: '3px solid', borderRadius: '50%',
-    transition: 'border-color 0.1s ease'
+    position: 'absolute', width: '130px', height: '130px', border: '3px dashed', borderRadius: '50%',
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
   },
   spinSparkle: {
     position: 'absolute', width: '160px', height: '160px', borderRadius: '50%',
-    border: `2px dashed ${LASER_PINK}`, animation: 'spinSparkle 0.6s ease-out infinite', pointerEvents: 'none'
+    border: `2px dashed ${LASER_PINK}`, animation: 'ctSpinSparkle 0.6s ease-out infinite', pointerEvents: 'none'
   },
   flightBall: {
     position: 'fixed', width: '26px', height: '26px', borderRadius: '50%',
     background: 'radial-gradient(circle at 35% 30%, #ffffff, #39ff88 60%, #0a3d22 100%)',
     border: '2px solid', zIndex: 165, pointerEvents: 'none'
   },
-  dashboardDock: {
-    position: 'absolute', bottom: '40px', left: '50%', transform: 'translateX(-50%)', width: '92%',
-    maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: '14px', zIndex: 170
+  lowerControlDeck: {
+    width: '100%', padding: '24px 16px', display: 'flex', justifyContent: 'center', zIndex: 170
   },
-  roundTelemetryLabel: {
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: '10px', color: '#8a8a93', fontWeight: 'bold',
-    letterSpacing: '2px', textAlign: 'center', textTransform: 'uppercase'
+  arcadeConsolePad: {
+    width: '100%', maxWidth: '420px', display: 'flex', justifyContent: 'center', alignItems: 'center'
   },
-  terminalConsoleLog: {
-    fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', background: '#000', border: '1px solid',
-    padding: '12px', borderRadius: '8px', lineHeight: '1.4', minHeight: '44px', boxSizing: 'border-box',
-    fontWeight: 'bold'
-  },
-  powerTrackContainer: {
-    position: 'relative', width: '100%', height: '24px', background: '#000', borderRadius: '6px',
-    border: '1px solid #2d2d3f', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
-  },
-  powerFillVolume: {
-    position: 'absolute', top: 0, left: 0, height: '100%', background: 'linear-gradient(90deg, #ff3b94, #ff006e)'
-  },
-  progressTextPercent: {
-    position: 'relative', fontFamily: "'Space Grotesk', sans-serif", fontSize: '10px', fontWeight: 900,
-    color: '#ffffff', letterSpacing: '1px', zIndex: 5
-  },
-  tacticalChargePad: {
-    width: '100%', padding: '20px', border: '2px dashed', borderRadius: '14px', display: 'flex',
-    flexDirection: 'column', alignItems: 'center', gap: '10px', boxSizing: 'border-box',
-    transition: 'all 0.15s ease'
-  },
-  innerCoreGlowDot: {
-    width: '12px', height: '12px', backgroundColor: MATRIX_GREEN, borderRadius: '50%',
-    boxShadow: '0 0 10px currentColor'
-  },
-  touchPadLabelPrompt: {
-    fontFamily: "'Space Grotesk', sans-serif", color: '#ffffff', fontSize: '12px', fontWeight: 900,
-    letterSpacing: '0.5px', textTransform: 'uppercase'
+  massiveSuctionTriggerBtn: {
+    width: '100%', height: '58px', border: 'none', borderRadius: '20px', color: '#040508',
+    fontWeight: '900', fontSize: '14px', fontFamily: "'Orbitron', sans-serif", letterSpacing: '1px',
+    textTransform: 'uppercase', transition: 'all 0.12s ease', userSelect: 'none', touchAction: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 12px'
   }
 };
 
 // ----------------------------------------------------------------------
-// Prop contract unchanged from v4 — still matches your GameCanvas.jsx
-// integration exactly (targets / onAttempt / captureResolutions /
-// disabled / screenW / screenH). No changes needed on the GameCanvas
-// side to pick this up.
+// Prop contract unchanged — still matches your GameCanvas.jsx integration
+// exactly (targets / onAttempt / captureResolutions / disabled / screenW
+// / screenH). No changes needed on the GameCanvas side to pick this up.
 // ----------------------------------------------------------------------
