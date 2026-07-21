@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.manifix.veggimon"
+    namespace "com.manifixai.veggiego"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.manifixai.veggiego"
