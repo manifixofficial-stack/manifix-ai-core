@@ -1,6 +1,7 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — vacuum-lock catch flash + camera.far correction:
+// THIS REVISION — vacuum-lock catch flash + camera.far correction +
+// CollectionBook removed:
 //
 //   1. NEW "SECURED!" flash tied to real `vacuumLock` state (fixes the
 //      earlier `captureStatus` ReferenceError — that identifier never
@@ -23,6 +24,11 @@
 //      positions use real GPS-derived distances rather than the
 //      1.6–11 scene-depth remap the camera-overlay (non-AR) mode uses
 //      — anything under ~120 would start clipping distant real targets.
+//   3. CollectionBook removed entirely: import, `recordCatch` call,
+//      `collectionOpen` state, the "📖 COLLECTION" button, and the
+//      `<CollectionBook>` render are all gone. Nothing else in this
+//      component referenced that state or component, so removal is
+//      isolated and doesn't touch any other wiring.
 //
 // NOT applied, and why:
 //   - A per-frame `useFrame` that sets `camera.far = 150` and re-runs
@@ -75,7 +81,6 @@ import {
   PERSONALITY_CHASE_OVERRIDE,
 } from '../config/gameConfig';
 import Leaderboard from './Leaderboard';
-import CollectionBook, { recordCatch } from './CollectionBook';
 import { useVeggieEvasion } from '../hooks/useVeggieEvasion';
 
 const EARTH_RADIUS_M = 6371000;
@@ -570,8 +575,6 @@ export default function GameCanvas({
   const [captureResolutions, setCaptureResolutions] = useState([]);
   const [devicePitch, setDevicePitch] = useState(0);
 
-  const [collectionOpen, setCollectionOpen] = useState(false);
-
   const [blindAttack, setBlindAttack] = useState(null);
   const blindCooldownRef = useRef(new Map());
 
@@ -855,10 +858,6 @@ export default function GameCanvas({
       }
 
       if (data.playerId !== socket.id) return;
-
-      if (data.species) {
-        recordCatch(data.species);
-      }
 
       const newPopup = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1518,12 +1517,6 @@ export default function GameCanvas({
               🌫️ REAL OCCLUSION
             </div>
           )}
-          <button
-            style={styles.collectionBtn}
-            onClick={() => setCollectionOpen(true)}
-          >
-            📖 COLLECTION
-          </button>
         </div>
       </div>
 
@@ -1593,8 +1586,6 @@ export default function GameCanvas({
       <div style={styles.controlDeck}>
         <button onClick={onExit} style={styles.fleeBtn}>← RADAR</button>
       </div>
-
-      <CollectionBook open={collectionOpen} onClose={() => setCollectionOpen(false)} />
     </div>
   );
 }
@@ -1637,7 +1628,6 @@ const styles = {
   telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', whiteSpace: 'nowrap' },
   ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)', whiteSpace: 'nowrap' },
   ptsNumber: { color: '#ffe066', fontWeight: 900, fontSize: '13px' },
-  collectionBtn: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(31,174,110,0.5)', borderRadius: '7px', padding: '7px 14px', color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer', pointerEvents: 'auto', whiteSpace: 'nowrap' },
 
   leaderboardWidget: { position: 'absolute', right: 14, zIndex: 30, width: 210, maxWidth: 'calc(100vw - 28px)', background: 'rgba(8,12,22,0.92)', border: '1.5px solid #ffbe1a', borderRadius: '10px', padding: '10px 10px 8px', boxShadow: '0 0 16px rgba(255,190,26,0.2)', pointerEvents: 'none', transition: 'top 0.15s ease-out' },
   leaderboardTitle: { color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 800, letterSpacing: '2px', marginBottom: '8px', textAlign: 'center' },
