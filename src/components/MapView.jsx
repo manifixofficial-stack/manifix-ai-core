@@ -1,33 +1,30 @@
 // src/components/MapView.jsx
 //
-// PERFORMANCE PATCH (this revision):
+// VISUAL OVERHAUL PATCH (this revision):
 //
-// Previously this file ran its OWN navigator.geolocation.watchPosition()
-// loop, completely independent from the one already running in App.jsx.
-// That meant two live hardware GPS subscriptions active simultaneously
-// the entire time a player sat on the map screen — real, measurable
-// battery drain for zero benefit — plus a data race: MapView's own
-// throttled writer and App.jsx's socket emit could send two different,
-// out-of-order location payloads (different throttle windows, and only
-// App.jsx's included `heading`) for the same player within the same
-// second, so the server could non-deterministically flip a player's
-// gps/indoor mode classification depending on which arrived last.
+// 1) Killed the spreadsheet-style scoreboard. Players are now rendered as
+//    glowing avatar badges stacked in the top-right corner (stream-overlay
+//    style), ranked live by score. The post-round results list uses the
+//    same avatar-badge treatment instead of a plain numbered table.
 //
-// FIX: GPS is now owned by exactly ONE place — App.jsx, which already
-// had the richer watcher (accuracy + heading) and the single socket
-// emit path. MapView no longer touches navigator.geolocation at all.
-// Position and any GPS error message are passed in as props (`myPos`,
-// `gpsError`) exactly the same shape App.jsx already tracks internally,
-// so nothing else in this file's logic (veggiesWithGeo, teammatesWithGeo,
-// clientTrackingMode, etc.) needed to change — only the two effects that
-// owned the watcher and the throttled writer push are removed, and the
-// local `myPos`/`gpsError` state is replaced with props of the same name.
+// 2) Ditched static compass/bearing text on radar blips. Each veggie blip
+//    now tracks its own distance across renders (prevDistancesRef) and
+//    colors itself on a hot (closing in) <-> cold (falling behind)
+//    gradient, independent of its fruit-type identity color, so players
+//    get an instant "getting warmer" signal instead of doing mental math
+//    on a bearing number.
 //
-// Everything else (hybrid gps/indoor support, indoor bearing-only
-// targeting, motion-permission gate on CATCH tap) is UNCHANGED from the
-// previous revision.
+// 3) Replaced the instructional paragraphs in the bottom action card with
+//    short, heavy, italicized arcade callouts (RUN! 12M LEFT / STEAL THE
+//    POINTS!) sized to be readable at a glance while moving.
+//
+// GPS OWNERSHIP (unchanged from prior revision): MapView still does not
+// touch navigator.geolocation. Position and any GPS error message are
+// passed in as props (`myPos`, `gpsError`) from App.jsx's single watcher.
+// Everything about hybrid gps/indoor support, indoor bearing-only
+// targeting, and the motion-permission gate on CATCH tap is unchanged.
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { requestMotionPermission } from '../lib/motionPermission';
 
@@ -38,6 +35,11 @@ const CYAN = '#3cd6ff';
 const RED = '#ff3b3b';
 const INK = '#f5f0e8';
 const DIM = '#666';
+
+// Hot/cold trend gradient endpoints (see heatColorFromTrend).
+const HEAT_COLD = [58, 134, 255]; // falling behind — winter blue
+const HEAT_NEUTRAL = [255, 190, 26]; // no signal yet / holding steady — gold
+const HEAT_HOT = [255, 45, 20]; // closing in — volcanic red
 
 const CATCH_RADIUS_METERS = 15;
 // Client-side mirror of server.js's GPS_MODE_ACCURACY_THRESHOLD_M.
@@ -66,6 +68,10 @@ const RADAR_PIXEL_RADIUS = 150;
 // implying a real measured distance.
 const INDOOR_TARGET_PIXEL_RADIUS = RADAR_PIXEL_RADIUS * 0.62;
 const EARTH_RADIUS_M = 6371000;
+
+// Player-count avatar palette — cycled by slot index so every squadmate
+// gets a stable, distinguishable ring color in the avatar stack.
+const AVATAR_RING_COLORS = ['#3a86ff', '#ff4d6d', '#2ecc71', '#f1c40f', '#8e44ad', '#3cd6ff'];
 
 function toRad(deg) { return (deg * Math.PI) / 180; }
 function toDeg(rad) { return (rad * 180) / Math.PI; }
@@ -100,6 +106,51 @@ function bearingToCompass(bearing) {
 function bearingToRadarXY(bearing, pixelDist) {
   const rad = toRad(bearing - 90);
   return { x: Math.cos(rad) * pixelDist, y: Math.sin(rad) * pixelDist };
+}
+
+// Trend-based hot/cold: delta is (previous distance - current distance),
+// so positive means the player closed the gap since last sample. Distances
+// within +/-1.5m of flat are treated as "holding" (neutral gold) so the
+// blip doesn't flicker between hot/cold from GPS jitter while standing
+// still. Clamped at +/-6m/sample for the full hot or full cold end.
+function heatColorFromTrend(delta) {
+  if (!isFiniteNumber(delta)) return `rgb(${HEAT_NEUTRAL.join(',')})`;
+  if (delta > 1.5) {
+    const t = Math.min(1, (delta - 1.5) / 6);
+    return lerpRgb(HEAT_NEUTRAL, HEAT_HOT, t);
+  }
+  if (delta < -1.5) {
+    const t = Math.min(1, (-delta - 1.5) / 6);
+    return lerpRgb(HEAT_NEUTRAL, HEAT_COLD, t);
+  }
+  return `rgb(${HEAT_NEUTRAL.join(',')})`;
+}
+
+function lerpRgb(from, to, t) {
+  const r = Math.round(from[0] + (to[0] - from[0]) * t);
+  const g = Math.round(from[1] + (to[1] - from[1]) * t);
+  const b = Math.round(from[2] + (to[2] - from[2]) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function initialsOf(name) {
+  return (name || '??').trim().slice(0, 2).toUpperCase();
+}
+
+// Short, glanceable arcade callouts for the bottom action card — replaces
+// the old multi-line lowercase instructional paragraphs. Kept as plain
+// functions (not JSX) so the render body stays readable.
+function huntCallout({ isIndoorMode, nearestVeggie, squadSize }) {
+  if (!nearestVeggie) {
+    return isIndoorMode ? 'SCANNING THE ROOM…' : `MOVE OUT! ${squadSize} SQUAD LIVE`;
+  }
+  if (isIndoorMode) return `SCAN ${nearestVeggie.compass}!`;
+  return `RUN! ${Math.round(nearestVeggie.distance)}M ${nearestVeggie.compass}`;
+}
+
+function captureCallout({ isIndoorMode, activeCaptureTarget }) {
+  if (isIndoorMode) return `LOCK ON — SCAN ${activeCaptureTarget.compass}!`;
+  return 'STEAL THE POINTS!';
 }
 
 // NEW PROPS: myPos, gpsError — both now owned by App.jsx's single GPS
@@ -160,6 +211,26 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
     return 'CLIQUE OVERLORD FORCE ON';
   }, [squadSize]);
 
+  // Live-ranked roster for the avatar stack: self + teammates, sorted by
+  // score descending, each given a stable ring color by original slot
+  // index (not by rank, so a color doesn't jump between players as
+  // scores change — only position in the stack does).
+  const rosterWithRank = useMemo(() => {
+    const all = selfPlayer ? [selfPlayer, ...teammates] : teammates;
+    return all
+      .map((p, i) => ({
+        ...p,
+        isSelf: p.id === playerId,
+        ringColor: AVATAR_RING_COLORS[i % AVATAR_RING_COLORS.length],
+      }))
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }, [selfPlayer, teammates, playerId]);
+
+  // Distance-trend tracking for the hot/cold radar heat. Read during
+  // render (reflects the PREVIOUS render's distances), written back in
+  // the effect below after commit — never mutated mid-render.
+  const prevVeggieDistancesRef = useRef(new Map());
+
   const veggiesWithGeo = useMemo(() => {
     if (!myPos) return [];
     const mapped = veggies.map((v) => {
@@ -167,19 +238,46 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
 
       if (isIndoorMode) {
         const bearing = isFiniteNumber(v.bearing) ? v.bearing : 0;
-        return { ...v, type, distance: null, bearing, compass: bearingToCompass(bearing) };
+        return {
+          ...v,
+          type,
+          distance: null,
+          bearing,
+          compass: bearingToCompass(bearing),
+          heatColor: `rgb(${HEAT_NEUTRAL.join(',')})`,
+        };
       }
 
       const lat = v.lat ?? v.latitude;
       const lng = v.lng ?? v.longitude;
       const distance = distanceMeters(myPos.lat, myPos.lng, lat, lng);
       const bearing = bearingDegrees(myPos.lat, myPos.lng, lat, lng);
-      return { ...v, lat, lng, type, distance, bearing, compass: bearingToCompass(bearing) };
+      const prevDistance = prevVeggieDistancesRef.current.get(v.id);
+      const delta = isFiniteNumber(prevDistance) ? prevDistance - distance : NaN;
+      return {
+        ...v,
+        lat,
+        lng,
+        type,
+        distance,
+        bearing,
+        compass: bearingToCompass(bearing),
+        heatColor: heatColorFromTrend(delta),
+      };
     });
 
     if (isIndoorMode) return mapped;
     return mapped.sort((a, b) => a.distance - b.distance);
   }, [veggies, myPos, isIndoorMode]);
+
+  // Commit this render's distances for next render's trend comparison.
+  useEffect(() => {
+    const next = new Map();
+    veggiesWithGeo.forEach((v) => {
+      if (isFiniteNumber(v.distance)) next.set(v.id, v.distance);
+    });
+    prevVeggieDistancesRef.current = next;
+  }, [veggiesWithGeo]);
 
   const teammatesWithGeo = useMemo(() => {
     if (!myPos || isIndoorMode) return [];
@@ -206,7 +304,7 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
 
     const granted = await requestMotionPermission();
     if (!granted) {
-      setMotionError('Motion & orientation access is needed for AR targeting — enable it in Settings and try again.');
+      setMotionError('Enable motion & orientation access in Settings, then try again.');
       setEnteringAR(false);
       return;
     }
@@ -214,10 +312,10 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
     onEnterAR?.(activeCaptureTarget.id);
   }, [activeCaptureTarget, enteringAR, onEnterAR]);
 
-  const connectionLabel = playerId ? 'LIVE' : 'CONNECTING…';
+  const connectionLabel = playerId ? 'LIVE' : 'LINKING…';
   const connectionColor = playerId ? GREEN : GOLD;
 
-  const modeLabel = clientTrackingMode === 'gps' ? '🛰️ OUTDOOR GPS' : clientTrackingMode === 'indoor' ? '📶 INDOOR SENSOR' : '—';
+  const modeLabel = clientTrackingMode === 'gps' ? '🛰️ FIELD GPS' : clientTrackingMode === 'indoor' ? '📶 INDOOR SCAN' : '—';
   const modeColor = clientTrackingMode === 'gps' ? GREEN : clientTrackingMode === 'indoor' ? CYAN : DIM;
 
   return (
@@ -227,31 +325,47 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
 
       <div style={styles.topHudBar}>
         <div style={styles.hudMetaSector}>
-          <span style={styles.hudLabelText}>INSTANCE FREQUENCY SECTOR:</span>
-          <span style={styles.hudValueText}>{roomCode ? roomCode.toUpperCase() : 'ARENA-STAGE'}</span>
+          <span style={styles.hudLabelText}>ARENA ZONE</span>
+          <span style={styles.hudValueText}>{roomCode ? roomCode.toUpperCase() : 'ARENA-1'}</span>
         </div>
         <div style={styles.hudMetaSector}>
-          <span style={styles.hudLabelText}>LOBBY STATUS FIELD:</span>
-          <span style={{ ...styles.hudValueText, color: GREEN }}>{squadStatusLabel}</span>
-        </div>
-        <div style={styles.hudMetaSector}>
-          <span style={styles.hudLabelText}>LINK STATUS:</span>
+          <span style={styles.hudLabelText}>SQUAD LINK</span>
           <span style={{ ...styles.hudValueText, color: connectionColor }}>⚡ {connectionLabel}</span>
         </div>
         <div style={styles.hudMetaSector}>
-          <span style={styles.hudLabelText}>TRACKING MODE:</span>
+          <span style={styles.hudLabelText}>TRACKING</span>
           <span style={{ ...styles.hudValueText, color: modeColor }}>{modeLabel}</span>
         </div>
-        <div style={styles.hudMetaSector}>
-          <span style={styles.hudLabelText}>GPS ACCURACY:</span>
-          <span style={styles.hudValueText}>{myPos?.accuracy != null ? `±${Math.round(myPos.accuracy)}M` : '—'}</span>
-        </div>
       </div>
+
+      {/* Live squad avatar stack — replaces the old plain-text roster.
+          Glowing, ranked, stream-overlay style in the top-right corner. */}
+      {rosterWithRank.length > 0 && (
+        <div style={styles.avatarStack}>
+          {rosterWithRank.slice(0, 6).map((p, rank) => (
+            <div
+              key={p.id || p.name || rank}
+              style={{
+                ...styles.avatarBadge,
+                borderColor: rank === 0 ? GOLD : p.ringColor,
+                boxShadow: `0 0 ${rank === 0 ? 16 : 10}px ${rank === 0 ? GOLD : p.ringColor}88`,
+                transform: `translateX(${rank * -10}px)`,
+                zIndex: 10 - rank,
+              }}
+            >
+              <span style={{ ...styles.avatarInitials, color: p.isSelf ? GOLD : INK }}>
+                {initialsOf(p.name || (p.isSelf ? myDisplayName : 'OP'))}
+              </span>
+              <span style={styles.avatarScoreChip}>{p.score ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {matchTick != null && (
         <div style={styles.countdownOverlay}>
           <span style={styles.countdownNumber}>{matchTick}</span>
-          <span style={styles.countdownLabel}>MATCH STARTING</span>
+          <span style={styles.countdownLabel}>SQUAD SPRINT INCOMING</span>
         </div>
       )}
 
@@ -288,7 +402,7 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
                       boxShadow: '0 0 12px #3a86ff',
                     }}
                   >
-                    <span style={styles.markerTagHandleText}>{(mate.name || 'OPERATOR').toUpperCase()}</span>
+                    <span style={styles.teammateAvatarInitials}>{initialsOf(mate.name)}</span>
                   </div>
                 );
               })}
@@ -304,20 +418,17 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
                 return (
                   <motion.div
                     key={v.id}
-                    animate={{ scale: [0.95, 1.05, 0.95] }}
-                    transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                    animate={{ scale: [0.92, 1.12, 0.92] }}
+                    transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}
                     style={{
                       ...styles.targetEntityMarkerNode,
                       transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
-                      borderColor: meta.color,
+                      borderColor: v.heatColor,
                       borderStyle: beyondRange ? 'dashed' : 'solid',
-                      boxShadow: `0 0 15px ${meta.color}66`,
+                      boxShadow: `0 0 18px ${v.heatColor}`,
                     }}
                   >
                     <span style={{ fontSize: '15px' }}>{meta.emoji}</span>
-                    <span style={{ ...styles.entityDistanceOverlayText, background: `${meta.color}dd` }}>
-                      {v.distance == null ? `SCAN ${v.compass}` : `${Math.round(v.distance)}M ${v.compass}`}
-                    </span>
                   </motion.div>
                 );
               })}
@@ -325,24 +436,6 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
           </div>
         </div>
       </div>
-
-      {myPos && veggiesWithGeo.length > 0 && !roundResults && (
-        <div style={styles.veggieListPanel}>
-          {veggiesWithGeo.slice(0, 4).map((v) => {
-            const meta = VEGGIE_META[v.type] || DEFAULT_VEGGIE_META;
-            const pts = VEGGIE_POINTS[v.type] ?? 1;
-            return (
-              <div key={v.id} style={styles.veggieListRow}>
-                <span>{meta.emoji}</span>
-                <span style={{ color: meta.color, fontWeight: 'bold' }}>{meta.label}</span>
-                <span style={styles.veggieListDist}>
-                  {v.distance == null ? `SCAN ${v.compass}` : `${Math.round(v.distance)}M ${v.compass}`} · {glitchActive ? pts * 2 : pts}PTS
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       <AnimatePresence>
         {motionError && (
@@ -370,12 +463,26 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
               <div style={styles.cardHeaderRow}>
                 <span style={{ color: GOLD }}>● ROUND COMPLETE</span>
               </div>
-              {roundResults.slice(0, 6).map((r, i) => (
-                <div key={r.slot_id || i} style={styles.resultRow}>
-                  <span>{i + 1}. {r.name}</span>
-                  <span style={{ color: GOLD, fontWeight: 'bold' }}>{r.score} PTS</span>
-                </div>
-              ))}
+              {/* Podium-style avatar badges instead of a plain numbered
+                  table. */}
+              <div style={styles.resultsAvatarRow}>
+                {roundResults.slice(0, 6).map((r, i) => (
+                  <div key={r.slot_id || i} style={styles.resultAvatarCol}>
+                    <div
+                      style={{
+                        ...styles.avatarBadge,
+                        position: 'relative',
+                        borderColor: i === 0 ? GOLD : AVATAR_RING_COLORS[i % AVATAR_RING_COLORS.length],
+                        boxShadow: `0 0 ${i === 0 ? 16 : 8}px ${i === 0 ? GOLD : AVATAR_RING_COLORS[i % AVATAR_RING_COLORS.length]}88`,
+                      }}
+                    >
+                      <span style={styles.avatarInitials}>{initialsOf(r.name)}</span>
+                    </div>
+                    <span style={styles.resultRankLabel}>#{i + 1}</span>
+                    <span style={styles.resultScoreLabel}>{r.score} PTS</span>
+                  </div>
+                ))}
+              </div>
               <button onClick={onExit} style={{ ...styles.primaryActionButton, background: GOLD, color: '#000' }}>
                 EXIT MATRIX
               </button>
@@ -391,21 +498,16 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
             >
               <div style={styles.cardHeaderRow}>
                 <span style={{ color: GREEN, fontWeight: 'bold' }}>
-                  ● {isIndoorMode ? 'TARGET DETECTED NEARBY' : 'CAPTURE ZONE DETECTED'}
+                  ● {isIndoorMode ? 'TARGET NEARBY' : 'CATCH ZONE'}
                 </span>
                 <span style={styles.targetMetricsText}>
-                  VALUE: +{(VEGGIE_POINTS[activeCaptureTarget.type] ?? 1) * (glitchActive ? 2 : 1)} PTS
-                  {glitchActive ? ' (×2 GLITCH)' : ''}
+                  +{(VEGGIE_POINTS[activeCaptureTarget.type] ?? 1) * (glitchActive ? 2 : 1)} PTS
+                  {glitchActive ? ' ×2' : ''}
                 </span>
               </div>
-              <h2 style={styles.targetHeaderTitleText}>
-                {(VEGGIE_META[activeCaptureTarget.type] || DEFAULT_VEGGIE_META).label} IN RANGE
+              <h2 style={styles.bigActionTitle}>
+                {captureCallout({ isIndoorMode, activeCaptureTarget })}
               </h2>
-              <p style={styles.targetActionParagraphText}>
-                {isIndoorMode
-                  ? `Somewhere to the ${activeCaptureTarget.compass} in the room — enter AR and scan that direction to lock on.`
-                  : `${Math.round(activeCaptureTarget.distance)}m ${activeCaptureTarget.compass} — within the ${CATCH_RADIUS_METERS}m catch radius.`}
-              </p>
               <button
                 onClick={handleCatchTap}
                 disabled={enteringAR}
@@ -428,29 +530,12 @@ export default function MapView({ roomCode, playerId, mySlot, myPos, gpsError, o
               style={styles.tacticalActionCard}
             >
               <div style={styles.cardHeaderRow}>
-                <span style={{ color: GOLD }}>● RADAR RECONNAISSANCE ACTIVE</span>
+                <span style={{ color: GOLD }}>● HUNTING</span>
                 <span style={styles.targetMetricsText}>SCORE: {myScore}</span>
               </div>
-              {gpsError ? (
-                <h2 style={{ ...styles.targetHeaderTitleText, color: RED, fontSize: '15px' }}>{gpsError}</h2>
-              ) : nearestVeggie ? (
-                <>
-                  <h2 style={styles.targetHeaderTitleText}>
-                    {isIndoorMode ? 'DETECTED' : 'NEAREST'}: {(VEGGIE_META[nearestVeggie.type] || DEFAULT_VEGGIE_META).label}
-                  </h2>
-                  <p style={styles.targetActionParagraphText}>
-                    {isIndoorMode
-                      ? `Somewhere to the ${nearestVeggie.compass} — no need to walk, just turn and scan with the camera in AR.`
-                      : `${Math.round(nearestVeggie.distance)}m to the ${nearestVeggie.compass} — walk that way and it'll rise up the list.`}
-                  </p>
-                </>
-              ) : (
-                <p style={styles.targetActionParagraphText}>
-                  {isIndoorMode
-                    ? `Scanning the room for hidden vegetables. Syncing ${squadSize} active squad unit${squadSize === 1 ? '' : 's'}.`
-                    : `Walk outdoors to align your coordinates with hidden vegetable parameters. Syncing ${squadSize} active squad unit${squadSize === 1 ? '' : 's'}.`}
-                </p>
-              )}
+              <h2 style={{ ...styles.bigActionTitle, color: gpsError ? RED : INK, fontSize: gpsError ? '17px' : undefined }}>
+                {gpsError || huntCallout({ isIndoorMode, nearestVeggie, squadSize })}
+              </h2>
               <div style={styles.actionButtonsInlineFlexRow}>
                 <button
                   onClick={() => setRadarRotating((prev) => !prev)}
@@ -477,13 +562,20 @@ const styles = {
   screen: { position: 'fixed', inset: 0, background: '#040508', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', userSelect: 'none' },
   scanGrid: { position: 'absolute', inset: 0, zIndex: 1, backgroundImage: 'linear-gradient(rgba(255,186,26,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,186,26,0.012) 1px, transparent 1px)', backgroundSize: '32px 32px', maskImage: 'radial-gradient(circle at 50% 50%, black 0%, transparent 85%)', WebkitMaskImage: 'radial-gradient(circle at 50% 50%, black 0%, transparent 85%)' },
   scanLine: { position: 'absolute', inset: 0, zIndex: 2, background: 'linear-gradient(180deg, transparent, rgba(255,186,26,0.015) 50%, transparent 100%)', backgroundSize: '100% 10px', pointerEvents: 'none' },
-  topHudBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', padding: '16px 24px', background: 'linear-gradient(180deg, rgba(5,8,16,0.92) 0%, transparent 100%)', borderBottom: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
+  topHudBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, display: 'flex', justifyContent: 'flex-start', gap: '20px', padding: '14px 20px', background: 'linear-gradient(180deg, rgba(5,8,16,0.92) 0%, transparent 100%)', borderBottom: '1px solid rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)' },
   hudMetaSector: { display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' },
   hudLabelText: { fontSize: '8.5px', fontFamily: 'monospace', fontWeight: 'bold', color: '#444', letterSpacing: '0.5px' },
   hudValueText: { fontSize: '12px', fontFamily: 'monospace', fontWeight: '900', color: INK, letterSpacing: '0.5px' },
+
+  // --- Avatar stack (top-right, stream-overlay style) ---
+  avatarStack: { position: 'absolute', top: '14px', right: '16px', zIndex: 25, display: 'flex', flexDirection: 'row-reverse', justifyContent: 'flex-start', paddingLeft: '40px' },
+  avatarBadge: { position: 'relative', width: '40px', height: '40px', borderRadius: '50%', background: '#0a0e16', border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarInitials: { fontSize: '11px', fontFamily: 'monospace', fontWeight: '900' },
+  avatarScoreChip: { position: 'absolute', bottom: '-7px', left: '50%', transform: 'translateX(-50%)', fontSize: '8px', fontFamily: 'monospace', fontWeight: '900', color: '#000', background: GOLD, borderRadius: '8px', padding: '1px 5px', whiteSpace: 'nowrap' },
+
   countdownOverlay: { position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(4,5,8,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' },
   countdownNumber: { fontSize: '96px', fontWeight: '900', fontFamily: 'monospace', color: GOLD, textShadow: `0 0 30px ${GOLD}` },
-  countdownLabel: { fontSize: '13px', fontFamily: 'monospace', letterSpacing: '2px', color: '#888' },
+  countdownLabel: { fontSize: '13px', fontFamily: 'monospace', letterSpacing: '2px', color: '#888', fontStyle: 'italic' },
   radarContainerChassis: { position: 'relative', zIndex: 10, width: 'min(86vw, 360px)', height: 'min(86vw, 360px)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '76px 0 20px' },
   radarOuterRing: { width: '100%', height: '100%', borderRadius: '50%', border: '1.5px solid rgba(255,190,26,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, rgba(10,14,22,0.4) 0%, transparent 100%)' },
   radarMidRing: { width: '70%', height: '70%', borderRadius: '50%', border: '1px solid rgba(255,190,26,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -492,21 +584,23 @@ const styles = {
   radarWaitingLabel: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, 60px)', width: '220px', textAlign: 'center', fontSize: '10px', fontFamily: 'monospace', color: '#888', letterSpacing: '0.5px' },
   localPlayerAnchorNode: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '32px', height: '32px', borderRadius: '50%', background: '#0a0e16', border: `1.5px solid ${GOLD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, boxShadow: `0 0 20px ${GOLD}` },
   playerInitialsBadge: { fontSize: '10px', fontFamily: 'monospace', fontWeight: '900', color: GOLD },
-  teammateMarkerNode: { position: 'absolute', top: '50%', left: '50%', width: '8px', height: '8px', borderRadius: '50%', background: '#000', border: '2px solid transparent', zIndex: 25, transition: 'all 0.3s ease' },
-  markerTagHandleText: { position: 'absolute', top: '-14px', left: '50%', transform: 'translateX(-50%)', fontSize: '7.5px', fontFamily: 'monospace', fontWeight: 'bold', color: '#fff', opacity: 0.5, whiteSpace: 'nowrap' },
-  targetEntityMarkerNode: { position: 'absolute', top: '50%', left: '50%', width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(4,5,8,0.75)', border: '1.5px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 28, cursor: 'pointer' },
-  entityDistanceOverlayText: { position: 'absolute', bottom: '-16px', left: '50%', transform: 'translateX(-50%)', fontSize: '8px', fontFamily: 'monospace', fontWeight: 'bold', color: '#000', padding: '1px 4px', borderRadius: '4px', whiteSpace: 'nowrap' },
-  veggieListPanel: { position: 'relative', zIndex: 20, width: 'min(90vw, 420px)', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px', padding: '10px 14px', background: 'rgba(10,14,22,0.7)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px' },
-  veggieListRow: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontFamily: 'monospace' },
-  veggieListDist: { marginLeft: 'auto', color: '#888' },
+  teammateMarkerNode: { position: 'absolute', top: '50%', left: '50%', width: '20px', height: '20px', borderRadius: '50%', background: '#0a0e16', border: '2px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 25, transition: 'all 0.3s ease' },
+  teammateAvatarInitials: { fontSize: '7px', fontFamily: 'monospace', fontWeight: '900', color: '#fff' },
+  targetEntityMarkerNode: { position: 'absolute', top: '50%', left: '50%', width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(4,5,8,0.8)', border: '2px solid transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 28, cursor: 'pointer', transition: 'border-color 0.4s ease, box-shadow 0.4s ease' },
   captureFeedbackBanner: { position: 'absolute', top: '90px', zIndex: 70, padding: '8px 18px', borderRadius: '10px', border: '1.5px solid', background: 'rgba(4,5,8,0.9)', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '12px', letterSpacing: '0.5px' },
   bottomControlDeck: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20, display: 'flex', justifyContent: 'center', padding: '24px 16px', background: 'linear-gradient(0deg, rgba(4,5,8,0.95) 0%, transparent 100%)' },
   tacticalActionCard: { width: '100%', maxWidth: '420px', background: 'rgba(10,14,22,0.96)', border: `1.5px solid ${GOLD_SOFT}`, borderRadius: '24px', padding: '20px 24px', boxSizing: 'border-box', backdropFilter: 'blur(15px)', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' },
   cardHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '0.5px' },
   targetMetricsText: { color: '#666' },
-  targetHeaderTitleText: { fontSize: '18px', fontWeight: '900', fontFamily: 'monospace', color: INK, margin: '4px 0 0 0', letterSpacing: '0.5px' },
-  targetActionParagraphText: { fontSize: '11px', color: '#888', fontFamily: 'sans-serif', margin: 0, lineHeight: '1.4' },
-  resultRow: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontFamily: 'monospace', color: INK, padding: '3px 0' },
+
+  // Big arcade callout — replaces the old descriptive paragraph.
+  bigActionTitle: { fontSize: '26px', fontWeight: '900', fontFamily: 'monospace', fontStyle: 'italic', color: INK, margin: '4px 0 0 0', letterSpacing: '0.5px', lineHeight: '1.1', textTransform: 'uppercase' },
+
+  resultsAvatarRow: { display: 'flex', gap: '14px', overflowX: 'auto', padding: '6px 0 4px' },
+  resultAvatarCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 },
+  resultRankLabel: { fontSize: '9px', fontFamily: 'monospace', color: '#888', fontWeight: 'bold' },
+  resultScoreLabel: { fontSize: '10px', fontFamily: 'monospace', color: GOLD, fontWeight: '900' },
+
   primaryActionButton: { width: '100%', border: 'none', borderRadius: '14px', padding: '16px', marginTop: '8px', boxSizing: 'border-box', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s ease', letterSpacing: '0.5px' },
   actionButtonsInlineFlexRow: { display: 'flex', gap: '12px', width: '100%', marginTop: '8px' },
   secondaryUtilityButton: { flex: 1, background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '12px', boxSizing: 'border-box', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', transition: 'all 0.15s ease', outline: 'none' },
