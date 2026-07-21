@@ -100,7 +100,7 @@ const BORDER = '#E4E0D6';
 // This is your WEB client ID. It doubles as "serverClientId" for the
 // native Android sign-in flow (see setup notes above) — do not swap it
 // out for the Android client ID, native sign-in needs the web one here.
-const GOOGLE_CLIENT_ID = '90180381725-jjrbi2uvlfq8ouk6fvmlgbho2k8qjdha.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '90180381725-a9f6vnrul1gue0f5dl6uh668n4oh6kc0.apps.googleusercontent.com';
 const AUTH_ENDPOINT = 'https://manifix-ai-core.onrender.com/api/auth/google';
 
 const STATUS = {
