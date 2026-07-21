@@ -1,38 +1,67 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — native-WebView AR fix + dedup + denied-state UI:
+// THIS REVISION — vacuum-lock catch flash + camera.far correction:
 //
-//   1. NEW isNative prop (forwarded from main.jsx -> App.jsx -> here).
-//      Capacitor's Android WebView doesn't implement real WebXR
-//      sessions — navigator.xr can exist and isSessionSupported can
-//      even resolve true, but requestSession then fails or hangs with
-//      no usable passthrough. The XR support-check effect now skips
-//      straight to xrState='unsupported' when isNative is true, so the
-//      "Start AR Hunt" button — which could never actually work inside
-//      the app shell — is never shown there in the first place.
-//   2. DUPLICATE RENDER BLOCK REMOVED: the xrState === 'idle' gate
-//      screen was rendered twice back-to-back at identical position,
-//      stacked directly on top of each other. Kept only the complete
-//      version (with the "SKIP — USE BASIC CAMERA" fallback button).
-//   3. requiredFeatures no longer includes 'local-floor' — if a device
-//      supports immersive-ar + hit-test but not local-floor tracking
-//      specifically, the ENTIRE session request was thrown away, not
-//      just that one feature, silently dropping xrState to 'denied'
-//      with no UI for that state at all. local-floor moved to
-//      optionalFeatures.
-//   4. NEW: a real 'denied' render branch, so a failed session request
-//      is never invisible to the player — previously there was no UI
-//      for it at all, which is indistinguishable from "button does
-//      nothing."
+//   1. NEW "SECURED!" flash tied to real `vacuumLock` state (fixes the
+//      earlier `captureStatus` ReferenceError — that identifier never
+//      existed anywhere in this component). `vacuumLock` is set the
+//      instant `capture-result` confirms a hit and cleared after
+//      VACUUM_WINDOW_MS, so it's a clean, real signal to key the flash
+//      off. Uses `currentRoundPoints` (the same value already shown in
+//      the TIER HUD tag) instead of a hardcoded 300/1000, so the number
+//      on the flash can't drift from the number on the HUD. This is
+//      deliberately a *quick* flash layered under the fuller SECURED
+//      popup (`popups` state, driven by the separate `veggieCaught`
+//      broadcast) — that one still owns the real per-catch point value,
+//      species card, and share button; this one just gives instant
+//      feedback in sync with the vortex-suction animation while that
+//      broadcast is still in flight.
+//   2. `camera.far` restored to 150 (was briefly 100, before that a
+//      proposed 30) via the normal <Canvas> `camera` prop. Real outdoor
+//      spawns are placed out to the full AR_TRIGGER_DISTANCE_METERS
+//      (120m) when in true WebXR AR mode, since xrActive world
+//      positions use real GPS-derived distances rather than the
+//      1.6–11 scene-depth remap the camera-overlay (non-AR) mode uses
+//      — anything under ~120 would start clipping distant real targets.
 //
-// Everything else — real WebXR depth-sensing occlusion, ground
-// anchoring, evasion AI hookup, capture-throw, glitch mode,
-// leaderboard, popups, blind-attack, idle-stand wiring — is UNCHANGED
-// from the prior revision.
+// NOT applied, and why:
+//   - A per-frame `useFrame` that sets `camera.far = 150` and re-runs
+//     `camera.updateProjectionMatrix()` every frame, plus a full
+//     `scene.traverse()` forcing `frustumCulled = true` on every mesh
+//     every frame. `far` is a constant here, so it only needs to be set
+//     once via the `camera` prop (done above) — recomputing the
+//     projection matrix 60x/sec for a value that never changes is pure
+//     waste. And `frustumCulled` already defaults to `true` for
+//     three.js meshes, so that traversal was flipping something that
+//     was never off — it would cost more per-frame CPU (a full scene
+//     walk) than it could ever save on the GPU. On a battery-and-heat
+//     sensitive mobile AR scene, this "optimization" would net negative.
+//   - A `window.addEventListener('onVeggieARUpdate', ...)` bridge for a
+//     native `VeggieGoARPlugin`/ARCore event. Nothing in this codebase
+//     (here or anywhere referenced) ever dispatches that event, and the
+//     established native-vs-web split is the `isNative` prop, which
+//     routes Capacitor straight to `xrState = 'unsupported'` (camera-
+//     overlay fallback) rather than a native ARCore bridge — so this
+//     would be a dead listener for an event that will never fire. Worse,
+//     if something ever did fire it, writing `anchors` straight into
+//     `targetNodesRef.current` would race against the existing
+//     `useEffect` that syncs `targetNodesRef.current = targetNodes`
+//     on every real target recompute, and native anchor data wouldn't
+//     match the node shape (`id`, `position`, `floorY`, `species`,
+//     `teamColor`, `distance`, `isGolden`, `runSeed`) that
+//     `ARDepthOcclusion` and the render loop actually expect — so it
+//     wasn't wired in.
+//
+// Everything else — the vortex-suction catch animation and WebGL perf
+// flags from the prior revision, real WebXR depth-sensing occlusion,
+// ground anchoring, evasion AI hookup, glitch mode, leaderboard, popups,
+// blind-attack, idle-stand wiring, the native-WebView AR gating — is
+// UNCHANGED.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
 import CaptureThrow from './CaptureThrow';
 import Veggie3DModel from '../components/veggies/VeggieModel';
@@ -91,6 +120,13 @@ const AR_GROUND_SYNC_INTERVAL_MS = 200;
 
 const OCCLUSION_DEPTH_MARGIN_M = 0.15;
 const OCCLUSION_SYNC_INTERVAL_MS = 150;
+
+// Vortex-suction tuning for the cartoon catch animation (see
+// AnimatedVeggieTarget's useFrame). Higher = snappier collapse.
+const VORTEX_SPIN_Y_RAD_PER_SEC = 15;
+const VORTEX_SPIN_X_RAD_PER_SEC = 8;
+const VORTEX_POSITION_LERP_SPEED = 6;
+const VORTEX_SCALE_LERP_SPEED = 5;
 
 function detectMobileCapable() {
   if (typeof window === 'undefined') return true;
@@ -406,7 +442,23 @@ function AnimatedVeggieTarget({
   const [isIdleStanding, setIsIdleStanding] = useState(false);
 
   useFrame((_, delta) => {
+    // Cartoon vortex-suction catch beat: rather than freezing the model
+    // in place for the whole VACUUM_WINDOW_MS, spin it up and lerp it
+    // straight toward the camera lens (world origin) while collapsing
+    // its scale to zero, like it's being sucked into the phone.
     if (isVacuuming) {
+      if (groupRef.current) {
+        groupRef.current.rotation.y += delta * VORTEX_SPIN_Y_RAD_PER_SEC;
+        groupRef.current.rotation.x += delta * VORTEX_SPIN_X_RAD_PER_SEC;
+
+        groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, 0, delta * VORTEX_POSITION_LERP_SPEED);
+        groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, 0, delta * VORTEX_POSITION_LERP_SPEED);
+        groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, 0, delta * VORTEX_POSITION_LERP_SPEED);
+
+        groupRef.current.scale.x = THREE.MathUtils.lerp(groupRef.current.scale.x, 0, delta * VORTEX_SCALE_LERP_SPEED);
+        groupRef.current.scale.y = THREE.MathUtils.lerp(groupRef.current.scale.y, 0, delta * VORTEX_SCALE_LERP_SPEED);
+        groupRef.current.scale.z = THREE.MathUtils.lerp(groupRef.current.scale.z, 0, delta * VORTEX_SCALE_LERP_SPEED);
+      }
       return;
     }
 
@@ -621,10 +673,10 @@ export default function GameCanvas({
   }, []);
 
   // ---- detect WebXR immersive-ar support on mount ----
-  // FIX: Capacitor's Android WebView doesn't implement real WebXR
-  // sessions — skip straight to 'unsupported' there so the AR-gate
-  // button, which could never actually work inside the app shell, is
-  // never shown in the first place.
+  // Capacitor's Android WebView doesn't implement real WebXR sessions —
+  // skip straight to 'unsupported' there so the AR-gate button, which
+  // could never actually work inside the app shell, is never shown in
+  // the first place.
   useEffect(() => {
     if (!isMobileCapable) return undefined;
 
@@ -651,11 +703,10 @@ export default function GameCanvas({
   }, [isMobileCapable, isNative]);
 
   // ---- start an immersive-ar session ----
-  // FIX: 'local-floor' moved from requiredFeatures to optionalFeatures
-  // — previously, a device supporting immersive-ar + hit-test but not
-  // local-floor tracking specifically would have the ENTIRE session
-  // request thrown away, not just that feature, silently dropping
-  // xrState to 'denied' with (previously) no UI for that state at all.
+  // 'local-floor' stays in optionalFeatures (not requiredFeatures) — a
+  // device supporting immersive-ar + hit-test but not local-floor
+  // tracking specifically would otherwise have the ENTIRE session
+  // request thrown away, not just that feature.
   const startXRSession = useCallback(async () => {
     if (!navigator.xr) return;
     setXrState('requesting');
@@ -1192,10 +1243,8 @@ export default function GameCanvas({
       )}
       {!xrActive && <div style={styles.videoScrim} />}
 
-      {/* FIX: was rendered twice at identical position — kept only the
-          complete version (with SKIP fallback). Also never shown at
-          all inside the Capacitor app shell, since isNative forces
-          xrState straight to 'unsupported'. */}
+      {/* Never shown at all inside the Capacitor app shell, since
+          isNative forces xrState straight to 'unsupported'. */}
       {xrState === 'idle' && (
         <div style={styles.cameraErrorOverlay}>
           <h3>REAL AR AVAILABLE</h3>
@@ -1220,10 +1269,6 @@ export default function GameCanvas({
         </div>
       )}
 
-      {/* NEW: previously a failed session request (e.g. local-floor
-          declined) silently dropped xrState to 'denied' with NO render
-          branch at all — indistinguishable from "the button does
-          nothing." Now it's a real, actionable screen. */}
       {xrState === 'denied' && (
         <div style={styles.cameraErrorOverlay}>
           <h3>AR SESSION FAILED TO START</h3>
@@ -1275,9 +1320,11 @@ export default function GameCanvas({
       <Canvas
         style={styles.threeLayer}
         dpr={[1, Math.min(window.devicePixelRatio || 1, 2)]}
-        camera={{ position: [0, 0, 0], fov: FOV_ANGLE_DEG, near: 0.1, far: 100 }}
+        camera={{ position: [0, 0, 0], fov: FOV_ANGLE_DEG, near: 0.1, far: 150 }}
         gl={{
           alpha: true,
+          powerPreference: 'high-performance',
+          failIfMajorPerformanceCaveat: false,
           outputColorSpace: THREE.SRGBColorSpace,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
@@ -1335,6 +1382,29 @@ export default function GameCanvas({
         })}
       </Canvas>
 
+      {/* Quick "SECURED!" flash tied to the real vacuumLock state — fires
+          the instant capture-result confirms a hit (in sync with the
+          vortex-suction animation above), ahead of the fuller SECURED
+          popup below (which waits on the separate veggieCaught broadcast
+          and carries the server's actual point value + share button).
+          Uses currentRoundPoints (the same number shown in the TIER HUD
+          tag) rather than a hardcoded guess, so it can't drift out of
+          sync with what's actually on screen. */}
+      <AnimatePresence>
+        {vacuumLock && (
+          <motion.div
+            key={vacuumLock.targetId}
+            initial={{ opacity: 0, scale: 0.3, y: 50 }}
+            animate={{ opacity: 1, scale: [1.3, 1], y: -100 }}
+            exit={{ opacity: 0, y: -200 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            style={styles.vacuumFlashLabel}
+          >
+            🎉 SECURED! +{currentRoundPoints} PTS
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div style={styles.lockLayer}>
         {lockRings.map((ring) => {
           const color = ring.vacuuming ? '#ffbe1a' : ring.locked ? '#39ff6e' : '#ff3b3b';
@@ -1363,11 +1433,11 @@ export default function GameCanvas({
                 </div>
               ) : ring.locked ? (
                 <div style={{ ...styles.bracketLabel, color: '#39ff6e' }}>
-                  LOCK TARGET ENGAGED · {distLabel}
+                  LOCKED ON! · {distLabel}
                 </div>
               ) : !ring.inRealRange ? (
                 <div style={{ ...styles.bracketLabel, color: '#ff8f85' }}>
-                  GET CLOSER · {distLabel}
+                  MOVE CLOSER! · {distLabel}
                 </div>
               ) : (
                 <div style={{ ...styles.bracketLabel, color: '#ff8f85' }}>
@@ -1399,7 +1469,7 @@ export default function GameCanvas({
       <div ref={topBarRef} style={styles.topBar}>
         <div style={styles.topBarHeader}>
           <span style={styles.scanDot} />
-          SATELLITE SCANNING AREA
+          HUNTING FOR TARGETS
         </div>
         <div style={styles.telemetryRow}>
           <div style={styles.ptsTag}>
@@ -1539,6 +1609,7 @@ const styles = {
   videoScrim: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,6,10,0.2) 0%, rgba(4,6,10,0.5) 100%)', zIndex: 1 },
   threeLayer: { position: 'absolute', inset: 0, zIndex: 20, background: 'transparent', pointerEvents: 'none' },
   cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+  vacuumFlashLabel: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '36px', fontWeight: '900', fontFamily: "'Orbitron', sans-serif", color: '#39ff88', textShadow: '0 0 20px rgba(57,255,136,0.8), 0 4px 10px rgba(0,0,0,0.9)', zIndex: 200, pointerEvents: 'none' },
 
   desktopBlockWrap: { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(ellipse at 50% 30%, #101826 0%, #04060a 70%)', color: '#fff', padding: '40px 24px', textAlign: 'center', fontFamily: FONT_BODY },
   desktopBlockIcon: { fontSize: 48, marginBottom: 18, filter: 'drop-shadow(0 0 12px rgba(255,63,52,0.5))' },
