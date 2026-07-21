@@ -1,43 +1,46 @@
 // src/App.jsx
 //
-// MVP LAUNCH REVISION 2 — deviceUUID persistence wired in.
+// MVP LAUNCH REVISION 3 — Google Sign-In gate wired in ahead of RoomJoin.
 //
 // WHY THIS REVISION:
-// server.js has a full mid-match reconnect grace window (RECONNECT_GRACE_MS,
-// 45s) keyed entirely on `deviceUUID` — a player who drops signal keeps
-// their slot/score/character reserved and is restored automatically if
-// they rejoin within the window. That feature could never activate,
-// because this file's joinRoom() call never sent a deviceUUID at all —
-// every reconnect fell through to the "match already in progress, cannot
-// join" rejection path instead. On an outdoor GPS game, losing signal
-// under a bridge or backgrounding the app for a few seconds is routine,
-// not an edge case, so this was effectively "every mid-match interruption
-// permanently ejects the player."
+// GoogleLogin.jsx existed but was never imported or rendered anywhere in
+// this file — the flow started directly at RoomJoin, with no auth or
+// legal-consent gate before it. That meant nothing ever collected Google
+// sign-in before a player used camera/GPS, and (since GoogleLogin.jsx's
+// Terms/Privacy modals only fire while that component is on-screen)
+// nothing ever surfaced a reachable privacy policy in the app's actual
+// runtime flow either — a real Play Store review risk given this app
+// requests CAMERA + location permissions.
 //
-// FIX: getOrCreateDeviceUUID() generates a UUID on first launch and
-// persists it in localStorage (works fine inside the Capacitor WebView —
-// it's still a real browser storage context, just sandboxed per-app).
-// The same UUID is sent on every joinRoom() call from here on, so
-// server.js's reconnect matching (`p.deviceUUID === deviceUUID`) has
-// something real to match against.
+// FIX: a new AUTH GATE renders first, before the ROOM JOIN GATE. It stays
+// up until `authInfo` is set via GoogleLogin's onLoginSuccess callback.
 //
-// NOTE: gameClient.js's exported joinRoom(roomCode, lat, lng, name) does
-// NOT yet accept a 5th deviceUUID argument — that file needs a matching
-// update next so this value actually reaches the server payload instead
-// of being silently dropped at the call site. Flagging here so the two
-// changes land together, not as a mismatched pair.
+// IDENTITY NOTE: GoogleLogin.jsx now takes App's own deviceUUIDRef.current
+// as a required `deviceUUID` prop instead of inventing its own (it used to
+// send null on web / a separate @capacitor/device id on native). That
+// keeps the Google-auth wallet and server.js's Wallet/reconnect system
+// keyed on the exact same value — see GoogleLogin.jsx's header for the
+// full reasoning. handleLoginSuccess() below intentionally ignores the
+// `deviceUUID` field GoogleLogin's callback payload still carries, since
+// App.jsx's own ref is already the single source of truth.
 //
-// Everything else in this revision is unchanged from the prior MVP-trimmed
-// pass: DailyStreakBanner/PrizeCamera cut, geofence captured from
-// room-joined into state and passed to MapView, onTimingModeUpdated /
-// onPromotedToLeader already subscribed here (the gap for those two
-// events is on gameClient.js's subscribeToRoom implementation, not here
-// — see that file for the matching fix).
+// STILL FLAGGED, NOT FIXED: `authInfo` is plain component state, so it
+// resets on every reload/relaunch — a signed-in player sees this gate
+// again on return visits (Google's own session will likely resolve the
+// OAuth step quickly, but there's no persisted "already signed in" flag
+// of ours). Add one in localStorage, keyed off the same deviceUUID, if
+// you want to skip the gate on repeat visits.
+//
+// Everything else in this revision is unchanged from the prior
+// deviceUUID-persistence pass: DailyStreakBanner/PrizeCamera cut, geofence
+// captured from room-joined into state and passed to MapView,
+// onTimingModeUpdated / onPromotedToLeader already subscribed here.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ConnectionStatus from './components/ConnectionStatus';
 import RoomJoin from './components/RoomJoin';
+import GoogleLogin from './components/GoogleLogin';
 import MapView from './components/MapView';
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
@@ -79,7 +82,10 @@ function veggiesPayloadToArray(payload) {
 // every reconnect). server.js's reconnect-grace-window, wallet lookups,
 // and leaderboard upserts are all keyed on this value — it must survive
 // a dropped socket, an app background/foreground cycle, and (ideally) an
-// app restart, which socket.id cannot do by design.
+// app restart, which socket.id cannot do by design. GoogleLogin.jsx now
+// also uses this exact value (passed down as a prop) for its own auth
+// backend call, so the Google-auth wallet and the in-game wallet never
+// diverge into two separate records.
 function getOrCreateDeviceUUID() {
   try {
     const existing = localStorage.getItem(DEVICE_UUID_STORAGE_KEY);
@@ -111,11 +117,15 @@ export default function App({ isNative = false } = {}) {
     (new URLSearchParams(window.location.search).get('room') || '').trim().toUpperCase()
   );
 
-  // --- Stable per-install device identity (for server-side reconnect) ---
+  // --- Stable per-install device identity (for server-side reconnect,
+  // wallet lookups, and now GoogleLogin's auth backend call too) ---
   const deviceUUIDRef = useRef(null);
   if (deviceUUIDRef.current === null) {
     deviceUUIDRef.current = getOrCreateDeviceUUID();
   }
+
+  // --- Auth gate (Google Sign-In) — must resolve before RoomJoin -------
+  const [authInfo, setAuthInfo] = useState(null); // { player, wallet } | null
 
   // --- Mode Gate ---
   const [isRoomLeader, setIsRoomLeader] = useState(false);
@@ -176,6 +186,15 @@ export default function App({ isNative = false } = {}) {
     myPlayerIdRef.current = myPlayerId;
   }, [myPlayerId]);
 
+  // ---- Google Sign-In success handler ----------------------------------
+  // GoogleLogin's callback payload still includes `deviceUUID`, but it's
+  // intentionally unused here: App.jsx's own deviceUUIDRef.current is the
+  // single source of truth for identity (and is what was passed INTO
+  // GoogleLogin in the first place — see the render call below).
+  const handleLoginSuccess = ({ player, wallet }) => {
+    setAuthInfo({ player, wallet });
+  };
+
   // ---- Room join, triggered by RoomJoin's onJoin({ room, name }) -------
   const handleJoinRoom = async ({ room, name }) => {
     if (!navigator.geolocation) {
@@ -196,9 +215,6 @@ export default function App({ isNative = false } = {}) {
         try {
           const { latitude, longitude, accuracy } = pos.coords;
 
-          // NOTE: passes deviceUUID as a 5th argument. gameClient.js's
-          // joinRoom() must be updated to accept it and include it in the
-          // 'join-room' socket payload — see file header note.
           const joined = await joinRoom(targetRoom, latitude, longitude, name, deviceUUIDRef.current);
 
           if (joined && joined.success === false) {
@@ -583,6 +599,15 @@ export default function App({ isNative = false } = {}) {
   }, [players, myPlayerId, myPosition]);
 
   const connectionPhase = isReconnecting ? 'reconnecting' : toConnectionPhase(tickStatus);
+
+  // ---- AUTH GATE (Google Sign-In) — must clear before room join or any
+  // gameplay screen renders. Also the earliest point in the app where
+  // GoogleLogin's Terms/Privacy modal buttons are reachable, which is
+  // what makes the privacy policy actually surfaced in the app's runtime
+  // flow (see file header). ----
+  if (!authInfo) {
+    return <GoogleLogin onLoginSuccess={handleLoginSuccess} deviceUUID={deviceUUIDRef.current} />;
+  }
 
   // ---- ROOM JOIN GATE ----
   if (!hasJoinedRoom) {
