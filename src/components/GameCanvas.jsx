@@ -1,6 +1,7 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — camera-blocked-behind-AR-prompt fix:
+// THIS REVISION — camera-blocked-behind-AR-prompt fix + CaptureThrow
+// touch-layer swallowing taps fix:
 //
 //   1. FIXED: the "REAL AR AVAILABLE / START AR HUNT / SKIP" prompt (and
 //      its siblings — STARTING AR…, AR SESSION FAILED, ENABLE AR SENSORS)
@@ -19,6 +20,23 @@
 //      motionPermission 'pending' block. `cameraErrorOverlay` (opaque)
 //      is now used ONLY for `cameraState === 'denied'`, the one case
 //      where there's genuinely no camera feed behind it to show.
+//   2. FIXED: once the camera was visible behind the AR prompt, the
+//      START AR HUNT / SKIP / TRY AGAIN / ENABLE MOTION ACCESS buttons
+//      stopped responding to taps entirely. Root cause: CaptureThrow's
+//      full-screen touch-capture layer was only ever disabled while
+//      `cameraState !== 'ready'` — but by the time any of these prompts
+//      show, the camera-start effect has usually already resolved to
+//      'ready', so CaptureThrow's gesture catcher was fully armed and
+//      sitting on top of (later in paint order than) the prompt buttons,
+//      silently swallowing every tap before it reached them.
+//      Fix: added a single `blockingOverlayActive` flag covering every
+//      full-screen gating prompt (AR opt-in, AR requesting/denied,
+//      camera denied, motion-permission pending) and folded it into
+//      CaptureThrow's `disabled` prop, so its touch layer stays fully
+//      inert (pointerEvents: 'none') while any of those screens is up.
+//      Also bumped `arPromptOverlay` / `cameraErrorOverlay` to zIndex 400
+//      (was 150) as a belt-and-suspenders guarantee that they paint above
+//      CaptureThrow's own zIndex-150 HUD layer regardless of DOM order.
 //
 // PRIOR REVISION — vacuum-lock catch flash + camera.far correction +
 // CollectionBook removed + unused Leaderboard import removed:
@@ -654,6 +672,21 @@ export default function GameCanvas({
       setMotionPermission('denied');
     }
   }, []);
+
+  // Any full-screen gating prompt currently on top of the game — while
+  // one of these is showing, CaptureThrow's touch-capture layer must
+  // stay disabled, or it silently swallows taps meant for the prompt's
+  // own buttons (START AR HUNT / SKIP / TRY AGAIN / ENABLE MOTION ACCESS).
+  // Without this, cameraState reaches 'ready' before the player has
+  // dismissed the AR prompt, so CaptureThrow's full-screen gesture
+  // catcher was fully armed the entire time those buttons were visible,
+  // swallowing every tap before it reached them.
+  const blockingOverlayActive =
+    cameraState === 'denied' ||
+    xrState === 'idle' ||
+    xrState === 'requesting' ||
+    xrState === 'denied' ||
+    (!xrActive && motionPermission === 'pending');
 
   const timerBaseSeconds = TIMER_SECONDS_BY_MODE[initialTimingMode] ?? FALLBACK_SESSION_SECONDS;
   const [secondsLeft, setSecondsLeft] = useState(timerBaseSeconds);
@@ -1488,7 +1521,7 @@ export default function GameCanvas({
         targets={captureTargets}
         onAttempt={handleCaptureAttempt}
         captureResolutions={captureResolutions}
-        disabled={!xrActive && cameraState !== 'ready'}
+        disabled={blockingOverlayActive || (!xrActive && cameraState !== 'ready')}
         screenW={windowDims.w}
         screenH={windowDims.h}
       />
@@ -1638,14 +1671,21 @@ const styles = {
 
   // Used ONLY for cameraState === 'denied' — the one case where there's
   // genuinely no camera feed running behind the overlay, so opaque is
-  // correct here (nothing to hide, nothing to show through).
-  cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+  // correct here (nothing to hide, nothing to show through). zIndex
+  // bumped to 400 (was 150) so it's unambiguously above CaptureThrow's
+  // own HUD layer (zIndex 150), regardless of DOM paint order.
+  cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
 
-  // NEW: translucent variant for AR opt-in / permission prompts
-  // (xrState 'idle' | 'requesting' | 'denied', motionPermission
-  // 'pending') where the live camera feed IS running underneath and
-  // should stay visible — frosted-glass look instead of solid black.
-  arPromptOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(13, 17, 26, 0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+  // Translucent variant for AR opt-in / permission prompts (xrState
+  // 'idle' | 'requesting' | 'denied', motionPermission 'pending') where
+  // the live camera feed IS running underneath and should stay visible —
+  // frosted-glass look instead of solid black. zIndex bumped to 400
+  // (was 150) so it's unambiguously above CaptureThrow's own HUD layer
+  // (zIndex 150), regardless of DOM paint order. The real interactivity
+  // fix is `blockingOverlayActive` disabling CaptureThrow's touch layer
+  // entirely while any of these prompts is up — this zIndex bump is just
+  // a belt-and-suspenders guarantee on top of that.
+  arPromptOverlay: { position: 'absolute', inset: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(13, 17, 26, 0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
 
   vacuumFlashLabel: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '36px', fontWeight: '900', fontFamily: "'Orbitron', sans-serif", color: '#39ff88', textShadow: '0 0 20px rgba(57,255,136,0.8), 0 4px 10px rgba(0,0,0,0.9)', zIndex: 200, pointerEvents: 'none' },
 
