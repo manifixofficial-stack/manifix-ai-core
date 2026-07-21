@@ -1,76 +1,50 @@
-// src/App.jsx — React Native rewrite
+// src/App.jsx
 //
-// Ported off the Capacitor/web version. What changed and why:
+// MVP LAUNCH REVISION 2 — deviceUUID persistence wired in.
 //
-//   - navigator.geolocation           -> @react-native-community/geolocation
-//     (RN core dropped navigator.geolocation years ago; this is the
-//     standard drop-in replacement with the same callback shape)
-//   - window.location / URLSearchParams -> Linking.getInitialURL(), parsed
-//     manually. This is now ASYNC (RN has no synchronous location object),
-//     so the initial room code is read in an effect instead of a ref
-//     computed at render time.
-//   - window.socket.emit(...)        -> getSocket() from ./lib/gameClient.
-//     A `window` global for the socket doesn't fit RN — this assumes
-//     gameClient exports a getSocket() accessor for the active connection.
-//     ADAPT THIS if your actual gameClient module shape differs.
-//   - <audio> tag                    -> react-native-sound. Needs native
-//     linking (autolinked on RN CLI >=0.60) and the asset bundled — see
-//     the goSoundRef setup below.
-//   - deviceorientation/deviceorientationabsolute (compass) -> there is no
-//     direct RN equivalent event. This uses react-native-sensors'
-//     magnetometer and computes heading via atan2. You'll need to add
-//     `NSMotionUsageDescription` to Info.plist (iOS); Android needs no
-//     runtime permission for the magnetometer.
-//   - hasMotionPermissionCached()    -> dropped. That existed to work
-//     around iOS Safari's DeviceMotionEvent.requestPermission() gate,
-//     which doesn't exist in RN. Motion sensors just work once the
-//     Info.plist string above is present.
-//   - framer-motion / AnimatePresence -> react-native-reanimated's
-//     Animated.View with `entering`/`exiting` layout animations, which is
-//     the closest RN analog (mount/unmount transitions keyed the same way).
-//     Needs react-native-reanimated installed + Babel plugin configured.
-//   - CSS (boxShadow, backdropFilter, vw/vh, position: fixed) -> RN
-//     StyleSheet with shadow*/elevation, no blur (backdropFilter has no
-//     built-in RN equivalent — approximated here with a translucent
-//     background; use @react-native-community/blur if you want a real blur).
-//   - window.history.replaceState(shareable URL) -> dropped. No browser
-//     history in RN. If you want a "share this room" affordance, build it
-//     with the Share API separately — it doesn't belong in this effect.
+// WHY THIS REVISION:
+// server.js has a full mid-match reconnect grace window (RECONNECT_GRACE_MS,
+// 45s) keyed entirely on `deviceUUID` — a player who drops signal keeps
+// their slot/score/character reserved and is restored automatically if
+// they rejoin within the window. That feature could never activate,
+// because this file's joinRoom() call never sent a deviceUUID at all —
+// every reconnect fell through to the "match already in progress, cannot
+// join" rejection path instead. On an outdoor GPS game, losing signal
+// under a bridge or backgrounding the app for a few seconds is routine,
+// not an edge case, so this was effectively "every mid-match interruption
+// permanently ejects the player."
 //
-// NOT translated here (out of scope for this file, need their own pass):
-//   - GameCanvas: your web version's AR runs on Three.js/WebXR, which has
-//     no RN equivalent. It'll need a native AR path
-//     (ViroReact / react-native-vision-camera + a 3D layer) — that's a
-//     separate, bigger piece of work than this file.
-//   - MapView, ConnectionStatus, Scoreboard: assumed to already be, or to
-//     become, RN components accepting the same props as before.
-//   - RoomJoin.jsx: still needs its own RN port (View/Text, react-native-svg,
-//     PanResponder or reanimated gesture handler for the swipe-to-deploy).
+// FIX: getOrCreateDeviceUUID() generates a UUID on first launch and
+// persists it in localStorage (works fine inside the Capacitor WebView —
+// it's still a real browser storage context, just sandboxed per-app).
+// The same UUID is sent on every joinRoom() call from here on, so
+// server.js's reconnect matching (`p.deviceUUID === deviceUUID`) has
+// something real to match against.
+//
+// NOTE: gameClient.js's exported joinRoom(roomCode, lat, lng, name) does
+// NOT yet accept a 5th deviceUUID argument — that file needs a matching
+// update next so this value actually reaches the server payload instead
+// of being silently dropped at the call site. Flagging here so the two
+// changes land together, not as a mismatched pair.
+//
+// Everything else in this revision is unchanged from the prior MVP-trimmed
+// pass: DailyStreakBanner/PrizeCamera cut, geofence captured from
+// room-joined into state and passed to MapView, onTimingModeUpdated /
+// onPromotedToLeader already subscribed here (the gap for those two
+// events is on gameClient.js's subscribeToRoom implementation, not here
+// — see that file for the matching fix).
 
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Platform,
-  AppState,
-  Linking,
-  PermissionsAndroid,
-  Pressable,
-} from 'react-native';
-import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
-import Geolocation from '@react-native-community/geolocation';
-import Sound from 'react-native-sound';
-import { magnetometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
-
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ConnectionStatus from './components/ConnectionStatus';
 import RoomJoin from './components/RoomJoin';
 import MapView from './components/MapView';
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
-import { joinRoom, subscribeToRoom, getSocket } from './lib/gameClient';
+import { joinRoom, subscribeToRoom } from './lib/gameClient';
 import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
+import { hasMotionPermissionCached } from './lib/motionPermission';
 
 const SLOT_COLORS = {
   SLOT_01: '#3a86ff',
@@ -87,6 +61,8 @@ const MATCH_PHASE = {
   ENDED: 'ENDED',
 };
 
+const DEVICE_UUID_STORAGE_KEY = 'veggiego_device_uuid_v1';
+
 function toConnectionPhase(tickStatus) {
   if (tickStatus === 'connected' || tickStatus === 'joined') return 'local';
   if (tickStatus === 'disconnected' || tickStatus === 'error' || tickStatus === 'failed') return 'disconnected';
@@ -99,57 +75,47 @@ function veggiesPayloadToArray(payload) {
   return [];
 }
 
-// Manual query-string pull from a deep link, since RN has no
-// window.location / URLSearchParams for the app's own URL.
-function extractRoomCodeFromUrl(url) {
-  if (!url) return '';
-  const match = url.match(/[?&]room=([^&]+)/i);
-  if (!match) return '';
+// Stable per-install identity, independent of socket.id (which changes on
+// every reconnect). server.js's reconnect-grace-window, wallet lookups,
+// and leaderboard upserts are all keyed on this value — it must survive
+// a dropped socket, an app background/foreground cycle, and (ideally) an
+// app restart, which socket.id cannot do by design.
+function getOrCreateDeviceUUID() {
   try {
-    return decodeURIComponent(match[1]).trim().toUpperCase();
-  } catch {
-    return match[1].trim().toUpperCase();
+    const existing = localStorage.getItem(DEVICE_UUID_STORAGE_KEY);
+    if (existing) return existing;
+
+    const fresh =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `duid-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+    localStorage.setItem(DEVICE_UUID_STORAGE_KEY, fresh);
+    return fresh;
+  } catch (err) {
+    // localStorage can throw in rare locked-down webview configurations.
+    // Fall back to an in-memory-only UUID rather than crashing the join
+    // flow — reconnect support degrades (won't survive an app restart)
+    // but the match itself still works normally.
+    console.warn('[App] localStorage unavailable, deviceUUID will not persist across restarts:', err?.message);
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `duid-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   }
 }
 
-async function requestLocationPermission() {
-  if (Platform.OS === 'android') {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Location permission',
-        message: 'Veggie Go needs your location to find the arena and nearby veggies.',
-        buttonPositive: 'Allow',
-      }
-    );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
-  }
-  // iOS: @react-native-community/geolocation triggers the system prompt
-  // itself on first use, but requesting explicitly avoids a race where
-  // getCurrentPosition fires before the user has answered.
-  const auth = await Geolocation.requestAuthorization('whenInUse');
-  return auth === 'granted';
-}
-
-export default function App({ isNative = true } = {}) {
+export default function App({ isNative = false } = {}) {
   // --- Room Join Gate ---
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
-  const [initialRoomCode, setInitialRoomCode] = useState('');
+  const initialRoomCodeRef = useRef(
+    (new URLSearchParams(window.location.search).get('room') || '').trim().toUpperCase()
+  );
 
-  useEffect(() => {
-    let isMounted = true;
-    Linking.getInitialURL().then((url) => {
-      if (isMounted && url) setInitialRoomCode(extractRoomCodeFromUrl(url));
-    });
-    const sub = Linking.addEventListener('url', ({ url }) => {
-      const code = extractRoomCodeFromUrl(url);
-      if (code) setInitialRoomCode(code);
-    });
-    return () => {
-      isMounted = false;
-      sub.remove();
-    };
-  }, []);
+  // --- Stable per-install device identity (for server-side reconnect) ---
+  const deviceUUIDRef = useRef(null);
+  if (deviceUUIDRef.current === null) {
+    deviceUUIDRef.current = getOrCreateDeviceUUID();
+  }
 
   // --- Mode Gate ---
   const [isRoomLeader, setIsRoomLeader] = useState(false);
@@ -174,6 +140,13 @@ export default function App({ isNative = true } = {}) {
   // --- Server-authoritative geofence (radar circle) ---
   const [geofence, setGeofence] = useState(null); // { lat, lng, radiusMeters }
 
+  // --- Reconnect UX: lets MapView/ConnectionStatus show "reconnecting…"
+  // instead of the player just seeing themselves vanish and reappear. ---
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // --- Motion permission (iOS compass gate) ---
+  const [motionPermissionReady, setMotionPermissionReady] = useState(false);
+
   // --- Dynamic Match State Parameters ---
   const [matchPhase, setMatchPhase] = useState(null);
   const [countdownTick, setCountdownTick] = useState(3);
@@ -182,7 +155,7 @@ export default function App({ isNative = true } = {}) {
   const [tickStatus, setTickStatus] = useState('idle');
 
   // --- Core References ---
-  const goSoundRef = useRef(null);
+  const goAudioRef = useRef(null);
   const tickConnectionRef = useRef(null);
   const gpsWatchIdRef = useRef(null);
   const lastSentPositionRef = useRef(null);
@@ -190,7 +163,6 @@ export default function App({ isNative = true } = {}) {
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
   const myPlayerIdRef = useRef(null);
-  const magnetometerSubRef = useRef(null);
 
   useEffect(() => {
     myPositionRef.current = myPosition;
@@ -204,26 +176,11 @@ export default function App({ isNative = true } = {}) {
     myPlayerIdRef.current = myPlayerId;
   }, [myPlayerId]);
 
-  // Load the "go" sound once. Expects go.mp3 bundled under
-  // android/app/src/main/res/raw/go.mp3 (Android) and added to the Xcode
-  // project (iOS) — react-native-sound looks it up by bare filename.
-  useEffect(() => {
-    Sound.setCategory('Playback');
-    goSoundRef.current = new Sound('go.mp3', Sound.MAIN_BUNDLE, (err) => {
-      if (err) console.warn('[App] failed to load go.mp3', err);
-    });
-    return () => {
-      goSoundRef.current?.release();
-      goSoundRef.current = null;
-    };
-  }, []);
-
   // ---- Room join, triggered by RoomJoin's onJoin({ room, name }) -------
   const handleJoinRoom = async ({ room, name }) => {
-    const hasPermission = await requestLocationPermission();
-    if (!hasPermission) {
-      setErrorMessage('Location permission is required to join this arena.');
-      setGpsError('Location permission denied — enable it in device settings.');
+    if (!navigator.geolocation) {
+      setErrorMessage('This device does not support location services.');
+      setGpsError('This device has no GPS sensor available.');
       return;
     }
 
@@ -234,14 +191,22 @@ export default function App({ isNative = true } = {}) {
     const targetRoom = room.trim().toUpperCase();
     setRoomCode(targetRoom);
 
-    Geolocation.getCurrentPosition(
+    navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
           const { latitude, longitude, accuracy } = pos.coords;
-          const joined = await joinRoom(targetRoom, latitude, longitude, name);
+
+          // NOTE: passes deviceUUID as a 5th argument. gameClient.js's
+          // joinRoom() must be updated to accept it and include it in the
+          // 'join-room' socket payload — see file header note.
+          const joined = await joinRoom(targetRoom, latitude, longitude, name, deviceUUIDRef.current);
 
           if (joined && joined.success === false) {
-            setErrorMessage(joined.message || 'Could not join that arena. Try a different code.');
+            if (joined.code === 'INSUFFICIENT_TICKETS') {
+              setErrorMessage(joined.message || 'You need at least one ticket to join a match.');
+            } else {
+              setErrorMessage(joined.message || 'Could not join that arena. Try a different code.');
+            }
             setTickStatus('failed');
             return;
           }
@@ -254,6 +219,7 @@ export default function App({ isNative = true } = {}) {
           setPendingTimingMode(joined?.timingMode || 'outdoor');
           setMyPosition({ lat: latitude, lng: longitude, accuracy });
           setGpsError('');
+          setIsReconnecting(false);
 
           if (joined?.geofence) {
             setGeofence({
@@ -272,6 +238,16 @@ export default function App({ isNative = true } = {}) {
             return;
           }
 
+          // A reconnected player already has match progress — skip the
+          // mode-gate screen entirely, since the match (and its timing
+          // mode) is already underway server-side.
+          if (joined?.reconnected) {
+            setTimingModeChosen(true);
+          }
+
+          const shareableUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoom}`;
+          window.history.replaceState({ path: shareableUrl }, '', shareableUrl);
+
           setTickStatus('joined');
         } catch (err) {
           console.error('[App] join failed', err);
@@ -281,11 +257,44 @@ export default function App({ isNative = true } = {}) {
       },
       () => {
         setErrorMessage('Location permission is required to join this arena.');
-        setGpsError('Location permission denied — enable it in device settings.');
+        setGpsError('Location permission denied — enable it in site settings.');
         setTickStatus('failed');
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
+  };
+
+  // ---- Silent rejoin attempt, used to actually exercise the reconnect
+  // path when the socket drops mid-match (see the 'disconnect'/'connect'
+  // handling below). Distinct from handleJoinRoom(): no location prompt,
+  // no gate transitions, just re-emits join-room with the same
+  // deviceUUID + room code so server.js's reconnect branch can find and
+  // restore the existing player entry. ----
+  const attemptSilentRejoin = async () => {
+    if (!roomCode || !myPositionRef.current) return;
+    setIsReconnecting(true);
+    try {
+      const joined = await joinRoom(
+        roomCode,
+        myPositionRef.current.lat,
+        myPositionRef.current.lng,
+        myName,
+        deviceUUIDRef.current
+      );
+      if (joined && joined.success === false) {
+        // Grace window likely expired server-side, or the match ended.
+        // Surface it rather than silently failing forever.
+        setErrorMessage(joined.message || 'Could not reconnect to the match.');
+        setIsReconnecting(false);
+        return;
+      }
+      if (joined?.playerId) setMyPlayerId(joined.playerId);
+      setIsReconnecting(false);
+    } catch (err) {
+      console.error('[App] silent rejoin failed', err);
+      // Leave isReconnecting true — the socket's own 'reconnect' event
+      // (wired in tickClient.js) will trigger another attempt.
+    }
   };
 
   // --- Multi-User Room Real-time Subscription Pipeline ---
@@ -310,11 +319,11 @@ export default function App({ isNative = true } = {}) {
     return unsubscribe;
   }, [roomCode]);
 
-  // ---- Continuous GPS Watcher Loop -------------------------------------
+  // ---- Continuous Geolocation GPS Watcher Loop -------------------------
   useEffect(() => {
-    if (!myPlayerId) return undefined;
+    if (!myPlayerId || !navigator.geolocation) return undefined;
 
-    gpsWatchIdRef.current = Geolocation.watchPosition(
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
         const now = Date.now();
@@ -330,9 +339,8 @@ export default function App({ isNative = true } = {}) {
         lastSentPositionRef.current = { lat: latitude, lng: longitude };
         lastSentAtRef.current = now;
 
-        const socket = getSocket();
-        if (socket && socket.connected) {
-          socket.emit('update-location', {
+        if (window.socket && window.socket.connected) {
+          window.socket.emit('update-location', {
             lat: latitude,
             lng: longitude,
             accuracy: typeof accuracy === 'number' ? accuracy : undefined,
@@ -344,47 +352,72 @@ export default function App({ isNative = true } = {}) {
         console.error('[App] geolocation watch error', err);
         setGpsError(
           err && err.code === 1
-            ? 'Location permission denied — enable it in device settings.'
+            ? 'Location permission denied — enable it in site settings.'
             : 'GPS signal unavailable. Move outdoors or check location services.'
         );
       },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000, distanceFilter: 0 }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
 
     return () => {
-      if (gpsWatchIdRef.current !== null) Geolocation.clearWatch(gpsWatchIdRef.current);
+      if (gpsWatchIdRef.current !== null) navigator.geolocation.clearWatch(gpsWatchIdRef.current);
     };
   }, [myPlayerId]);
 
-  // ---- Compass heading via magnetometer ---------------------------------
-  // No RN equivalent of deviceorientation/deviceorientationabsolute — this
-  // computes a heading from raw magnetometer x/y instead. Accuracy will
-  // differ from the browser's fused compass value; if that matters, swap
-  // in a dedicated heading library later.
+  // ---- Socket-level disconnect/reconnect awareness ----------------------
+  // socket.io already auto-reconnects the transport (see gameClient.js's
+  // reconnection: true config), but a raw transport reconnect does NOT by
+  // itself restore this player's seat in server.js's room state — that
+  // only happens via a fresh 'join-room' emit carrying the same
+  // deviceUUID, which the server's reconnect branch matches against.
+  // Without this effect, the socket could reconnect successfully while
+  // the player remains permanently absent from the room they were
+  // actually still trying to play in.
   useEffect(() => {
-    setUpdateIntervalForType(SensorTypes.magnetometer, 200);
-    magnetometerSubRef.current = magnetometer.subscribe(
-      ({ x, y }) => {
-        let heading = Math.atan2(y, x) * (180 / Math.PI);
-        if (heading < 0) heading += 360;
-        setDeviceHeading(heading);
-      },
-      (err) => console.warn('[App] magnetometer unavailable', err)
-    );
+    if (!myPlayerId) return undefined;
+    const socket = window.socket;
+    if (!socket) return undefined;
+
+    const handleDisconnect = () => setIsReconnecting(true);
+    const handleReconnect = () => attemptSilentRejoin();
+
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect', handleReconnect);
     return () => {
-      magnetometerSubRef.current?.unsubscribe();
-      magnetometerSubRef.current = null;
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect', handleReconnect);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myPlayerId, roomCode]);
+
+  // ---- Motion permission tracking ---------------------------------------
+  useEffect(() => {
+    const check = () => setMotionPermissionReady(hasMotionPermissionCached());
+    check();
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
   }, []);
 
-  // ---- App foreground/background awareness (was window focus) ----------
+  // ---- Hardware Compass Absolute Heading Listeners ---------------------
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
-      // Reserved: re-check anything that needs a refresh on foreground
-      // (e.g. re-validate the socket connection). No-op today.
-    });
-    return () => sub.remove();
-  }, []);
+    if (!motionPermissionReady) return undefined;
+
+    const handleOrientation = (evt) => {
+      const heading =
+        evt.webkitCompassHeading !== undefined
+          ? evt.webkitCompassHeading
+          : evt.alpha != null
+          ? 360 - evt.alpha
+          : null;
+      if (heading != null) setDeviceHeading(heading);
+    };
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    return () => {
+      window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.removeEventListener('deviceorientation', handleOrientation, true);
+    };
+  }, [motionPermissionReady]);
 
   // ---- Socket.io Tick Game Server Coordination Loop --------------------
   useEffect(() => {
@@ -403,9 +436,7 @@ export default function App({ isNative = true } = {}) {
         setStage('ARENA');
         setMatchPhase(MATCH_PHASE.ACTIVE);
         setShowGoBurst(true);
-        goSoundRef.current?.play((success) => {
-          if (!success) console.warn('[App] go.mp3 playback failed');
-        });
+        goAudioRef.current?.play().catch(() => {});
         setTimeout(() => setShowGoBurst(false), 650);
       },
 
@@ -461,17 +492,12 @@ export default function App({ isNative = true } = {}) {
   };
 
   const handleInstantReplay = () => {
-    // No window.location.reload() equivalent — reset state directly instead.
     setVictoryData(null);
-    setMatchPhase(null);
-    setStage('MAP');
-    setHasJoinedRoom(false);
-    setTimingModeChosen(false);
-    setRoomCode('');
+    window.location.reload();
   };
 
   const handlePickTimingMode = (mode) => {
-    getSocket()?.emit('set-timing-mode', { mode });
+    window.socket?.emit('set-timing-mode', { mode });
     setPendingTimingMode(mode);
     setTimingModeChosen(true);
   };
@@ -556,7 +582,7 @@ export default function App({ isNative = true } = {}) {
     return myPosition;
   }, [players, myPlayerId, myPosition]);
 
-  const connectionPhase = toConnectionPhase(tickStatus);
+  const connectionPhase = isReconnecting ? 'reconnecting' : toConnectionPhase(tickStatus);
 
   // ---- ROOM JOIN GATE ----
   if (!hasJoinedRoom) {
@@ -565,7 +591,7 @@ export default function App({ isNative = true } = {}) {
         onJoin={handleJoinRoom}
         error={errorMessage}
         connecting={tickStatus === 'connecting'}
-        initialRoomCode={initialRoomCode}
+        initialRoomCode={initialRoomCodeRef.current}
       />
     );
   }
@@ -573,193 +599,254 @@ export default function App({ isNative = true } = {}) {
   // ---- MODE GATE SCREEN ----
   if (!timingModeChosen) {
     return (
-      <View style={styles.appContainer}>
-        <View style={styles.nameGateWrap}>
-          <View style={styles.nameGateCard}>
+      <div
+        className="app-container"
+        style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
+      >
+        <div style={styles.nameGateWrap}>
+          <div style={styles.nameGateCard}>
             {isRoomLeader ? (
               <>
-                <Text style={styles.nameGateLabel}>CHOOSE MATCH MODE</Text>
-                <Pressable style={[styles.nameGateBtn, { marginBottom: 10 }]} onPress={() => handlePickTimingMode('indoor')}>
-                  <Text style={styles.nameGateBtnText}>🏠 INSIDE PARTY (45s rounds)</Text>
-                </Pressable>
-                <Pressable style={styles.nameGateBtn} onPress={() => handlePickTimingMode('outdoor')}>
-                  <Text style={styles.nameGateBtnText}>🌳 OUTDOOR CHASE (60s rounds)</Text>
-                </Pressable>
+                <p style={styles.nameGateLabel}>CHOOSE MATCH MODE</p>
+                <button
+                  style={{ ...styles.nameGateBtn, marginBottom: '10px' }}
+                  onClick={() => handlePickTimingMode('indoor')}
+                >
+                  🏠 INSIDE PARTY (45s rounds)
+                </button>
+                <button
+                  style={styles.nameGateBtn}
+                  onClick={() => handlePickTimingMode('outdoor')}
+                >
+                  🌳 OUTDOOR CHASE (60s rounds)
+                </button>
               </>
             ) : (
-              <Text style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</Text>
+              <p style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</p>
             )}
-          </View>
-        </View>
-      </View>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <View style={styles.appContainer}>
+    <div
+      className="app-container"
+      style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
+    >
+      <audio ref={goAudioRef} src="/sounds/go.mp3" preload="auto" />
+
       <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={connectionPhase} />
 
-      {errorMessage ? (
-        <View style={styles.errBanner}>
-          <Text style={styles.errBannerText}>{errorMessage}</Text>
-        </View>
-      ) : null}
-
-      {stage === 'MAP' && (
-        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.fill}>
-          <MapView
-            roomCode={roomCode}
-            playerId={myPlayerId}
-            mySlot={mySlot}
-            myPos={myPosition}
-            geofence={geofence}
-            gpsError={gpsError}
-            onEnterAR={handleSelectVeggieTarget}
-            onExit={handleReturnToRadar}
-          />
-          <View style={styles.sidebarWidget} pointerEvents="none">
-            <Scoreboard players={playersMap} mySlot={mySlot || 'SLOT_01'} leaderboard={leaderboard} />
-          </View>
-        </Animated.View>
+      {isReconnecting && (
+        <div style={styles.reconnectBanner}>RECONNECTING…</div>
       )}
 
-      {stage === 'ARENA' && (
-        <Animated.View entering={ZoomIn} exiting={ZoomOut} style={styles.fill}>
-          <View style={styles.arenaWrapper}>
-            <View style={styles.arenaHeader}>
-              <Text style={styles.headerTxt}>
-                ARENA MATRIX IDENT: <Text style={{ color: '#00d2d3' }}>{roomCode}</Text>
-                {'   |   '}
-                PILOT INTERFACE SLOT: <Text style={{ color: myColor }}>{myDisplayName?.toUpperCase()}</Text>
-              </Text>
-            </View>
+      {errorMessage && <div style={styles.errBanner}>{errorMessage}</div>}
 
-            <View style={styles.arenaGrid}>
-              <GameCanvas
-                roomCode={roomCode}
-                playerId={myPlayerId}
-                mySlot={mySlot}
-                targetVegId={activeVegId}
-                initialTimingMode={pendingTimingMode}
-                selfPosition={selfPosition}
-                deviceHeading={deviceHeading}
-                players={playersBySlot}
-                veggies={veggiesById}
-                matchPhase={matchPhase}
-                isNative={isNative}
-                onExit={handleReturnToRadar}
-              />
-            </View>
-          </View>
-        </Animated.View>
-      )}
-
-      {matchPhase === MATCH_PHASE.COUNTDOWN && (
-        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.countdownShield}>
-          <Animated.Text key={countdownTick} entering={ZoomIn} exiting={ZoomOut} style={styles.tickLabel}>
-            {countdownTick}
-          </Animated.Text>
-        </Animated.View>
-      )}
-
-      {showGoBurst && (
-        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.goPanelWrap} pointerEvents="none">
-          <Animated.View entering={ZoomIn} style={styles.emeraldWave} />
-          <Animated.Text entering={ZoomIn} exiting={ZoomOut} style={styles.goText}>
-            GO!
-          </Animated.Text>
-        </Animated.View>
-      )}
-
-      {matchPhase === MATCH_PHASE.ENDED && victoryData && (
-        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.victoryShield}>
-          <Animated.View
-            entering={ZoomIn}
-            style={[
-              styles.victoryCard,
-              {
-                borderColor: victoryData.winnerColor || '#00d2d3',
-                shadowColor: victoryData.winnerColor || '#00d2d3',
-              },
-            ]}
+      <AnimatePresence mode="wait">
+        {stage === 'MAP' && (
+          <motion.div
+            key="map-stage"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ width: '100%', height: '100%' }}
           >
-            <Text style={styles.crownEmoji}>👑</Text>
-            <Text style={styles.roundCompleteTxt}>ROUND MATRIX COMPLETED</Text>
-            <Text style={[styles.winnerNameText, { color: victoryData.winnerColor || '#00d2d3' }]}>
-              {(victoryData.winnerName || 'EXPLORER_1').toUpperCase()}
-            </Text>
+            <MapView
+              roomCode={roomCode}
+              playerId={myPlayerId}
+              mySlot={mySlot}
+              myPos={myPosition}
+              geofence={geofence}
+              gpsError={gpsError}
+              onEnterAR={handleSelectVeggieTarget}
+              onExit={handleReturnToRadar}
+            />
+            <div style={styles.sidebarWidget}>
+              <Scoreboard players={playersMap} mySlot={mySlot || 'SLOT_01'} leaderboard={leaderboard} />
+            </div>
+          </motion.div>
+        )}
 
-            {Array.isArray(victoryData.results) && (
-              <View style={styles.leaderboardScrollContainer}>
-                {victoryData.results.map((r, idx) => (
-                  <View key={`${r?.name || 'PILOT'}-${idx}`} style={styles.lobbyRow}>
-                    <Text style={[styles.lobbyRowText, idx === 0 && styles.lobbyRowTextTop]}>
-                      {idx + 1}. {(r?.name || 'PILOT').toUpperCase()}
-                    </Text>
-                    <Text style={styles.lobbyRowScore}>{r?.score ?? 0} pts</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+        {stage === 'ARENA' && (
+          <motion.div
+            key="ar-stage"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <div style={styles.arenaWrapper}>
+              <div style={styles.arenaHeader}>
+                <p style={styles.headerTxt}>
+                  ARENA MATRIX IDENT: <span style={{ color: '#00d2d3' }}>{roomCode}</span> &nbsp;|&nbsp;
+                  PILOT INTERFACE SLOT: <span style={{ color: myColor }}>{myDisplayName?.toUpperCase()}</span>
+                </p>
+              </div>
 
-            <Pressable style={styles.replayBtn} onPress={handleInstantReplay}>
-              <Text style={styles.replayBtnText}>INSTANT REPLAY</Text>
-            </Pressable>
-          </Animated.View>
-        </Animated.View>
-      )}
-    </View>
+              <div style={styles.arenaGrid}>
+                <GameCanvas
+                  roomCode={roomCode}
+                  playerId={myPlayerId}
+                  mySlot={mySlot}
+                  targetVegId={activeVegId}
+                  initialTimingMode={pendingTimingMode}
+                  selfPosition={selfPosition}
+                  deviceHeading={deviceHeading}
+                  players={playersBySlot}
+                  veggies={veggiesById}
+                  matchPhase={matchPhase}
+                  isNative={isNative}
+                  onExit={handleReturnToRadar}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {matchPhase === MATCH_PHASE.COUNTDOWN && (
+          <motion.div
+            key="countdown-shield"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            style={styles.countdownShield}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={countdownTick}
+                initial={{ scale: 0.2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 1.6, opacity: 0 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                style={styles.tickLabel}
+              >
+                {countdownTick}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGoBurst && (
+          <motion.div
+            key="go-panel"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={styles.goPanelWrap}
+          >
+            <motion.div
+              initial={{ scale: 0, opacity: 0.9 }}
+              animate={{ scale: 6, opacity: 0 }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              style={styles.emeraldWave}
+            />
+            <motion.span
+              initial={{ scale: 0.3, opacity: 0 }}
+              animate={{ scale: 1.4, opacity: 1 }}
+              exit={{ scale: 2, opacity: 0 }}
+              transition={{ duration: 0.35, ease: 'backOut' }}
+              style={styles.goText}
+            >
+              GO!
+            </motion.span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {matchPhase === MATCH_PHASE.ENDED && victoryData && (
+          <motion.div
+            key="victory-shield"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            style={styles.victoryShield}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+              style={{
+                ...styles.victoryCard,
+                border: `1px solid ${victoryData.winnerColor || '#00d2d3'}`,
+                boxShadow: `0 0 40px ${victoryData.winnerColor || '#00d2d3'}55`,
+              }}
+            >
+              <div style={{ fontSize: '56px', marginBottom: '8px' }}>👑</div>
+              <p style={styles.roundCompleteTxt}>ROUND MATRIX COMPLETED</p>
+              <div
+                style={{
+                  fontFamily: '"Fredoka", sans-serif',
+                  fontSize: '28px',
+                  fontWeight: 700,
+                  color: victoryData.winnerColor || '#00d2d3',
+                  marginBottom: '20px',
+                }}
+              >
+                {(victoryData.winnerName || 'EXPLORER_1').toUpperCase()}
+              </div>
+
+              {Array.isArray(victoryData.results) && (
+                <div style={styles.leaderboardScrollContainer}>
+                  {victoryData.results.map((r, idx) => (
+                    <div
+                      key={`${r?.name || 'PILOT'}-${idx}`}
+                      style={{
+                        ...styles.lobbyRow,
+                        color: idx === 0 ? '#fff' : '#b6b6c0',
+                        fontWeight: idx === 0 ? 700 : 400,
+                      }}
+                    >
+                      <span>
+                        {idx + 1}. {(r?.name || 'PILOT').toUpperCase()}
+                      </span>
+                      <span style={{ fontFamily: 'monospace' }}>{r?.score ?? 0} pts</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <motion.button whileTap={{ scale: 0.96 }} onClick={handleInstantReplay} style={styles.replayBtn}>
+                INSTANT REPLAY
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
-const styles = StyleSheet.create({
-  appContainer: { flex: 1, backgroundColor: '#020306' },
-  fill: { flex: 1 },
-  nameGateWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  nameGateCard: { width: '90%', maxWidth: 320, alignItems: 'center' },
-  nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: 12, letterSpacing: 2, marginBottom: 12, textAlign: 'center' },
-  nameGateBtn: { width: '100%', backgroundColor: '#06d6a0', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  nameGateBtnText: { color: '#04140f', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
-  errBanner: {
-    position: 'absolute', top: 80, alignSelf: 'center', zIndex: 1100, backgroundColor: '#ff4d4d',
-    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 6,
-  },
-  errBannerText: { color: '#fff', fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold' },
-  arenaWrapper: { flex: 1, backgroundColor: '#05070a' },
-  arenaHeader: { padding: 16, paddingTop: 12, backgroundColor: 'rgba(10,15,25,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
-  headerTxt: { fontSize: 12, color: '#8a8a93', fontFamily: 'monospace', fontWeight: 'bold' },
-  arenaGrid: { flex: 1 },
-  sidebarWidget: { position: 'absolute', top: 80, right: 15, width: 220 },
-  countdownShield: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000,
-    backgroundColor: 'rgba(4,4,8,0.85)', alignItems: 'center', justifyContent: 'center',
-  },
-  tickLabel: { fontSize: 120, fontWeight: '900', color: '#ffc83b' },
-  goPanelWrap: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2005,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  emeraldWave: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(6,214,160,0.35)' },
-  goText: { fontSize: 96, fontWeight: '900', color: '#06d6a0' },
-  victoryShield: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2200,
-    backgroundColor: 'rgba(4,4,8,0.92)', alignItems: 'center', justifyContent: 'center', padding: 24,
-  },
-  victoryCard: {
-    width: '100%', maxWidth: 380, borderRadius: 20, backgroundColor: '#141419',
-    paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center',
-    borderWidth: 1, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 24, elevation: 12,
-  },
-  crownEmoji: { fontSize: 56, marginBottom: 8 },
-  roundCompleteTxt: { fontSize: 13, letterSpacing: 2, color: '#8a8a93', marginBottom: 4 },
-  winnerNameText: { fontSize: 28, fontWeight: '700', marginBottom: 20 },
-  leaderboardScrollContainer: {
-    width: '100%', gap: 8, marginBottom: 24, backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 8,
-  },
-  lobbyRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  lobbyRowText: { fontSize: 13, fontFamily: 'monospace', color: '#b6b6c0' },
-  lobbyRowTextTop: { color: '#fff', fontWeight: '700' },
-  lobbyRowScore: { fontSize: 13, fontFamily: 'monospace', color: '#b6b6c0' },
-  replayBtn: { width: '100%', backgroundColor: '#06d6a0', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  replayBtnText: { color: '#04140f', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
-});
+const styles = {
+  nameGateWrap: { position: 'fixed', inset: 0, zIndex: 3000, background: '#020306', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  nameGateCard: { width: '90%', maxWidth: '320px', textAlign: 'center' },
+  nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '2px', marginBottom: '12px' },
+  nameGateBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer' },
+  errBanner: { position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ff4d4d', color: '#fff', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
+  reconnectBanner: { position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ffbe1a', color: '#04140f', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
+  arenaWrapper: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#05070a' },
+  arenaHeader: { padding: '12px 20px', background: 'rgba(10,15,25,0.6)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  headerTxt: { fontSize: '12px', color: '#8a8a93', fontFamily: 'monospace', fontWeight: 'bold', margin: 0 },
+  arenaGrid: { flex: 1, position: 'relative' },
+  sidebarWidget: { position: 'absolute', top: 80, right: 15, zIndex: 40, width: '220px', pointerEvents: 'none' },
+  countdownShield: { position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(4, 4, 8, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  tickLabel: { fontFamily: '"Orbitron", sans-serif', fontSize: '120px', fontWeight: '900', color: '#ffc83b', textShadow: '0 0 25px #ffc83c' },
+  goPanelWrap: { position: 'fixed', inset: 0, zIndex: 2005, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' },
+  emeraldWave: { position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(6,214,160,0.9) 0%, rgba(6,214,160,0) 70%)' },
+  goText: { fontFamily: '"Orbitron", sans-serif', fontSize: '96px', fontWeight: 900, color: '#06d6a0', textShadow: '0 0 30px rgba(6,214,160,0.9), 0 0 70px rgba(6,214,160,0.6)' },
+  victoryShield: { position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(4, 4, 8, 0.88)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', boxSizing: 'border-box' },
+  victoryCard: { width: '100%', maxWidth: '380px', borderRadius: '20px', background: 'linear-gradient(160deg, rgba(24,24,30,0.95), rgba(10,10,14,0.95))', padding: '28px 24px', textAlign: 'center' },
+  roundCompleteTxt: { fontFamily: '"Orbitron", sans-serif', fontSize: '13px', letterSpacing: '2px', color: '#8a8a93', marginBottom: '4px' },
+  leaderboardScrollContainer: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px' },
+  lobbyRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'monospace' },
+  replayBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 0 20px rgba(6,214,160,0.6)' },
+};
