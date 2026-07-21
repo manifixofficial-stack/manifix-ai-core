@@ -3,6 +3,6 @@
     <string name="app_name">Veggie Go</string>
     <string name="title_activity_main">Veggie Go</string>
     <string name="package_name">com.manifixai.veggiego</string>
-    <string name="server_client_id">90180381725-jjrbi2uvlfq8ouk6fvmlgbho2k8qjdha.apps.googleusercontent.com</string>
+    <string name="server_client_id">90180381725-a9f6vnrul1gue0f5dl6uh668n4oh6kc0.apps.googleusercontent.com</string>
     <string name="custom_url_scheme">com.manifixai.veggiego</string>
 </resources>
