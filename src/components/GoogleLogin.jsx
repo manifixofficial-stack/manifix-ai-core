@@ -3,7 +3,26 @@
 // Backend: MongoDB via /api/auth/google (server.js on Render, reads/writes
 // hot state through Redis Cloud)
 //
-// THIS REVISION — single deviceUUID identity, shared with App.jsx:
+// THIS REVISION — FedCM enabled on the web path:
+//
+//   Was: use_fedcm: false — explicitly opting OUT of Google's newer
+//   FedCM-based flow and staying on the legacy cookie-based One Tap
+//   status check. That legacy path is exactly what's been throwing
+//   "Access blocked: invalid_client / no registered origin" — Google is
+//   tightening enforcement around it, and third-party-cookie blocking in
+//   Chrome/Safari/Firefox breaks the old status-check endpoint outright.
+//
+//   Now: use_fedcm: true — switches to the browser-native Credential
+//   Management flow, which doesn't depend on third-party cookies and is
+//   the path Google actually wants new integrations on. This does NOT
+//   fix an origin that's missing from Cloud Console — if the frontend's
+//   real domain isn't in "Authorized JavaScript origins" for this exact
+//   client ID (a9f6vnrul1gue0f5dl6uh668n4oh6kc0), you'll still get
+//   invalid_client regardless of this flag. Confirm that origin is
+//   registered before assuming this flag alone closes it out.
+//
+// ---------------------------------------------------------------------
+// PRIOR REVISION — single deviceUUID identity, shared with App.jsx:
 //
 //   PROBLEM: this file previously invented its OWN device identity for
 //   the /api/auth/google call — null on web, or @capacitor/device's
@@ -80,6 +99,14 @@
 // on return visits, that needs a token/flag written to localStorage
 // (keyed off the same deviceUUID) and checked before App.jsx even renders
 // the gate. Not done here — flagging so it isn't mistaken for finished.
+//
+// ⚠️ ALSO STILL OPEN: "Access blocked: invalid_client / no registered
+// origin" reported against this client ID (a9f6vnrul1gue0f5dl6uh668n4oh6kc0).
+// The use_fedcm flip above is a real fix for the cookie-dependent legacy
+// path, but it will NOT resolve a client ID that's missing the frontend's
+// actual origin under "Authorized JavaScript origins" in Cloud Console.
+// Confirm Veggie Go's real deployed frontend URL is registered there for
+// THIS client ID before assuming this revision closes the error out.
 // ---------------------------------------------------------------------
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -236,7 +263,7 @@ export default function GoogleLogin({ onLoginSuccess, deviceUUID }) {
 
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
-      use_fedcm: false,
+      use_fedcm_for_prompt: true, // was: use_fedcm: false — see header note
       callback: (response) => sendCredentialToBackend(response.credential, 'WEB'),
     });
 
