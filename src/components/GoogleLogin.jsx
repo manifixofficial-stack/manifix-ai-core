@@ -3,22 +3,39 @@
 // Backend: MongoDB via /api/auth/google (server.js on Render, reads/writes
 // hot state through Redis Cloud)
 //
-// WHY THIS VERSION IS DIFFERENT FROM YOUR ORIGINAL:
-// Your original used ONLY the web Google Identity Services SDK
-// (accounts.google.com/gsi/client + google.accounts.id.prompt()).
-// That "One Tap" flow is built for real browser tabs. Once this app is
-// wrapped with Capacitor and run as an actual Android app, it renders
-// inside a native WebView — and One Tap is known to silently no-op there
-// (no error, button just does nothing). That's a launch-blocking bug you
-// would only discover on a real device late in your testing track.
+// THIS REVISION — legal links fixed to actually work inside the native app:
 //
-// This version branches on Capacitor.isNativePlatform():
+//   PROBLEM: the previous version linked Privacy/Terms with plain
+//   <a href="/terms"> / <a href="/privacy"> tags. That works fine in a
+//   real browser tab (resolves against manifixai.com), but once this
+//   runs inside the packaged Capacitor Android app, the WebView's origin
+//   is NOT manifixai.com — it's a local app-scheme origin (typically
+//   capacitor://localhost). Tapping either link would try to navigate
+//   the entire app shell to a path that doesn't exist there, producing a
+//   blank/broken screen instead of the actual policy — and since this is
+//   the ONLY place in the reviewed codebase that currently surfaces
+//   Privacy/Terms at all (the game's own App.jsx flow doesn't gate on
+//   them), a broken link here means Play Store reviewers may not be able
+//   to reach your privacy policy at all from within the submitted app.
+//
+//   FIX: both links are now buttons that open PrivacyModal.jsx /
+//   TermsModal.jsx in-place — the same "borderless WebView modal"
+//   components already built for exactly this purpose, so nothing ever
+//   navigates the app shell away from itself. Works identically on web
+//   and native since it's just local React state, not a route.
+//
+// WHY THE REST OF THIS FILE LOOKS THE WAY IT DOES (unchanged from prior
+// revision): branches on Capacitor.isNativePlatform():
 //   - NATIVE (Android app)  -> native Google Sign-In via a Capacitor plugin
-//   - WEB (browser/manifixai.com) -> your original GIS flow, PLUS a
-//     visible renderButton() fallback in case One Tap is silently skipped
+//   - WEB (browser/manifixai.com) -> Google Identity Services (GIS) One
+//     Tap, PLUS a visible renderButton() fallback in case One Tap is
+//     silently skipped (a known native-WebView failure mode — One Tap is
+//     built for real browser tabs and no-ops with no error inside a
+//     wrapped WebView, which is why the native branch exists at all).
 //
 // ---------------------------------------------------------------------
-// ONE-TIME SETUP REQUIRED FOR THE NATIVE PATH (do this before it will work):
+// ONE-TIME SETUP REQUIRED FOR THE NATIVE PATH (unchanged, do this before
+// the native branch will work):
 //
 // 1. npm install @codetrix-studio/capacitor-google-auth
 //    npx cap sync android
@@ -47,10 +64,33 @@
 //
 // Until steps 1-4 are done, the native branch below will throw on import —
 // it's wrapped in try/catch so the web path still works in the meantime.
+//
+// ---------------------------------------------------------------------
+// ⚠️ STILL FLAGGED, NOT FIXED — architecture-level, needs App.jsx changes:
+//
+// This component is not currently imported or rendered anywhere in the
+// game's App.jsx (the RoomJoin -> MapView -> GameCanvas -> Scoreboard
+// flow reviewed in prior revisions starts directly at RoomJoin, with no
+// auth or legal-consent gate before it). That means:
+//   - Nothing currently collects Google sign-in before a player uses
+//     camera/GPS in the live app.
+//   - Nothing currently shows Privacy/Terms before gameplay starts either
+//     — this file's modals only fire if THIS component is on-screen,
+//     which it presently never is.
+// Google Play requires an in-app privacy policy be reachable, and your
+// AndroidManifest.xml grants CAMERA + location permissions — an app that
+// never surfaces a privacy policy anywhere in its actual runtime flow is
+// a real review-rejection risk, independent of whether the modal itself
+// works correctly. This file being correct in isolation does not fix
+// that; App.jsx needs an AUTH/LEGAL stage wired in ahead of RoomJoin
+// that actually renders GoogleLogin (and, on first run, the legal gate)
+// before the room-join screen. Flagging so it isn't mistaken for done.
 // ---------------------------------------------------------------------
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import PrivacyModal from './PrivacyModal';
+import TermsModal from './TermsModal';
 
 const BG = '#F7F5EF';
 const INK = '#1A1F1B';
@@ -105,6 +145,13 @@ export default function GoogleLogin({ onLoginSuccess }) {
   const [sdkReady, setSdkReady] = useState(false);
   const [isNative, setIsNative] = useState(false);
   const buttonHostRef = useRef(null);
+
+  // FIX: replaces the old <a href="/terms">/<a href="/privacy"> tags.
+  // Local modal visibility state — opens PrivacyModal/TermsModal in place
+  // instead of navigating the WebView, so this works identically on web
+  // and inside the native Capacitor app shell.
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   // Fonts
   useEffect(() => {
@@ -326,12 +373,24 @@ export default function GoogleLogin({ onLoginSuccess }) {
           {status.text}
         </p>
 
+        {/* FIX: was <a href="/terms">/<a href="/privacy"> — broken inside
+            the native app's WebView origin. Now opens the same in-app
+            modal components (PrivacyModal/TermsModal) used elsewhere,
+            so this never navigates the app shell away from itself. */}
         <p style={styles.legal}>
           By continuing, you agree to Veggie Go's{' '}
-          <a href="/terms" style={styles.legalLink}>Terms</a> and{' '}
-          <a href="/privacy" style={styles.legalLink}>Privacy Policy</a>.
+          <button type="button" onClick={() => setShowTerms(true)} style={styles.legalLinkBtn}>
+            Terms
+          </button>{' '}
+          and{' '}
+          <button type="button" onClick={() => setShowPrivacy(true)} style={styles.legalLinkBtn}>
+            Privacy Policy
+          </button>.
         </p>
       </motion.div>
+
+      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 }
@@ -366,5 +425,10 @@ const styles = {
   },
   status: { fontSize: '13px', textAlign: 'center', margin: '18px 0 0 0', minHeight: '18px' },
   legal: { fontSize: '11px', color: MUTED, textAlign: 'center', lineHeight: 1.6, margin: '20px 0 0 0' },
-  legalLink: { color: GREEN_DARK, textDecoration: 'none', fontWeight: 500 },
+  legalLinkBtn: {
+    background: 'none', border: 'none', padding: 0, margin: 0,
+    color: GREEN_DARK, textDecoration: 'underline', fontWeight: 500,
+    fontFamily: "'Inter', sans-serif", fontSize: '11px', cursor: 'pointer',
+    display: 'inline',
+  },
 };
