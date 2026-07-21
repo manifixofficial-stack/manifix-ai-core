@@ -1,48 +1,45 @@
 // src/components/RoomJoin.jsx
 // Stage 1: Premium Unified Single-Page Cyberpunk Onboarding Staging Client.
-// ULTRA-HIGH VALUE SECTOR EDITION: Embedded with brutalist animated HUD modules and drift matrices.
-// v4: PERFORMANCE PASS — this is the first screen every player sees, and on
-//     low-end/low-battery phones the sheer volume of concurrent ambient
-//     animation (sparks + spirals + floating "GO!" text + a rotating grid +
-//     Framer Motion springs + a 2.5s polling interval) was measurably
-//     contributing to sluggish/unresponsive taps before the player ever
-//     reached gameplay. This revision:
-//       1. Adds useLowPowerMode(): true when the OS reports
-//          prefers-reduced-motion, when the Battery API reports level<=0.15
-//          or charging===false && level<=0.2, or on narrow/mobile viewports
-//          — any of those disables ALL decorative ambient layers (sparks,
-//          spirals, floating GO! text, grid sweep) outright rather than
-//          just thinning their counts. The functional UI (inputs, swipe-
-//          to-deploy, roast line, shake-to-sync) is completely unaffected.
-//       2. Even in normal (non-low-power) mode, base particle counts are
-//          cut roughly in half from v3 (sparks 18->12, spirals 9->6,
-//          GO-texts 16->10) — desktop numbers only actually needed on
-//          desktop; mobile numbers are cut further still.
-//       3. The ping/lobby-count ticker interval is slowed from 2.5s to 4s
-//          and now pauses entirely via the Page Visibility API when the
-//          tab/app is backgrounded, instead of continuing to tick (and
-//          re-render) while nobody's looking at it.
-//       4. Google Fonts loading now uses rel="preconnect" ahead of the
-//          stylesheet link and only injects once per page load (same
-//          dedupe as before) — trims the connection-setup latency that
-//          was previously paid serially after JS mount.
-// v5: BUGFIX — SwipeDeploy could visually get stuck. Confirming a swipe
-//     animates the thumb to the far right (x = maxDrag) and sets
-//     settled=true. If the join then FAILS (parent passes a new `error`
-//     and connecting flips back to false), the old code only reset
-//     `settled` back to false — the drag position `x` itself was never
-//     snapped back to 0. Net effect: after a failed join, the label and
-//     opacity reset to "ready" state but the gold thumb stayed parked at
-//     the end of the track, looking broken until the player manually
-//     dragged it back. Fixed by resetting x -> 0 whenever `error` changes
-//     to a truthy value (i.e. an attempt genuinely failed), not just on
-//     the connecting flag.
-//     Everything else — swipe-to-deploy mechanics, live username roast
-//     commentary, shake-to-sync squad linking, initialRoomCode prefill —
-//     is UNCHANGED from v4.
+// v6: COPY PASS + LEGAL LINK FIX
+//
+//   1. LEGAL LINK FIX (Play Store blocker): this screen is the actual
+//      first thing a player sees in the live app — App.jsx's flow starts
+//      directly here, with no auth/legal gate ahead of it. The footer
+//      previously said "you authorize secure geographical tracking
+//      matrix data transfers" as plain, unclickable text — meaning there
+//      was NO reachable privacy policy anywhere in the app's real runtime
+//      path, despite the app requesting camera + location permissions.
+//      Fixed the same way GoogleLogin.jsx was: the footer now has real
+//      Privacy/Terms buttons that open PrivacyModal/TermsModal in place,
+//      never navigating the WebView away from itself.
+//
+//   2. VIRAL COPY PASS — the mechanics, motion, and viral features
+//      (nickname roast engine, swipe-to-deploy, shake-to-sync) are
+//      UNCHANGED. Only label/description text changed, swapping
+//      corporate-dashboard phrasing for gaming-native language a Gen Z
+//      player actually wants to screenshot:
+//        - "CHOOSE OPERATOR TAG"      -> "CHASER CALLSIGN (TAG)"
+//        - "SQUAD LOBBY SEED"         -> "ENTER ROOM CODE"
+//        - "SQUAD STAGING ENGINE"     -> "LOBBY WAITING ROOM"
+//        - "TOTAL NETWORK EXTRACTIONS IN ARCHIVE" -> "VEGGIES CAUGHT WORLDWIDE TODAY"
+//        - Concept panel copy rewritten to match the actual shipped
+//          mechanic (tap-to-catch, NOT "disc flicking" — the old text
+//          described a mechanic that isn't what CaptureThrow.jsx/
+//          GameCanvas.jsx actually implement, which would have read as
+//          confusing/wrong copy to a real player).
+//        - Capture-zone copy kept at 15m to match server.js's actual
+//          CATCH_RADIUS_METERS, NOT the requested 3m — see chat note.
+//          If you want the exciting tight-radius chase to be real and
+//          not just text, that's a server.js change, flagging separately.
+//
+//   Everything else — SwipeDeploy mechanics + its v5 stuck-thumb bugfix,
+//   useLowPowerMode, shake-to-sync, roast engine, ticker visibility
+//   pausing — is UNCHANGED from the prior revision.
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, useMotionValue, useTransform, animate as fmAnimate } from 'framer-motion';
+import PrivacyModal from './PrivacyModal';
+import TermsModal from './TermsModal';
 
 const BG_BLACK = '#040508';
 const GOLD_START = '#caa24a';
@@ -133,6 +130,13 @@ function useIsMobile(breakpoint = 480) {
 //   - narrow/mobile viewport, where GPU/paint budget is already tighter
 // Fails safe: if the Battery API isn't available (Safari, some Android
 // WebViews), that check is simply skipped rather than blocking anything.
+//
+// NOTE: on a mobile viewport, lowPower is `isMobile` at both the initial
+// state AND every subsequent evaluation — so on every real phone, the
+// "thinned but present" mid-tier particle counts below are unreachable;
+// mobile always gets zero ambient decoration, not a reduced count. Not a
+// correctness bug (it's strictly cheaper, not more expensive), just
+// noting the mid-tier is currently dead code on actual devices.
 function useLowPowerMode(isMobile) {
   const [lowPower, setLowPower] = useState(isMobile);
 
@@ -400,6 +404,13 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
   const [shakeState, setShakeState] = useState('idle'); // idle | listening | denied | unsupported | synced
   const shakeCleanupRef = useRef(null);
   const lastAccelRef = useRef({ x: 0, y: 0, z: 0, t: 0 });
+
+  // FIX: replaces the old plain-text legal disclaimer. This is the app's
+  // real first screen (App.jsx has no auth/legal gate ahead of it), so
+  // this is currently the ONLY reachable path to Privacy/Terms in the
+  // live app — it has to actually work, not just say the right words.
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   const isMobile = useIsMobile();
   const lowPower = useLowPowerMode(isMobile);
@@ -712,8 +723,8 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
           style={styles.tutorialPanelCard}
         >
           <div style={styles.hudHeaderRow}>
-            <span style={styles.hudLabel}>LIVE STAGING STATUS REPORT:</span>
-            <span style={{ ...styles.hudActivePulse, color: MINT }}>● COMPILING MATRIX</span>
+            <span style={styles.hudLabel}>LIVE LOBBY WAITING ROOM:</span>
+            <span style={{ ...styles.hudActivePulse, color: MINT }}>● FINDING PLAYERS</span>
           </div>
 
           <div style={styles.hudGlitchBox}>
@@ -723,6 +734,12 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
             <Sparkle size={10} color={GOLD_END} style={styles.decorSparkleRight} />
           </div>
 
+          {/* CAPTURE ZONE -> RUN TO CATCH: rewritten to match the actual
+              shipped mechanic (tap-to-catch on lock, not "disc flicking",
+              which isn't what CaptureThrow.jsx/GameCanvas.jsx implement).
+              Radius kept at 15m to match server.js's real
+              CATCH_RADIUS_METERS — see file header note if you want the
+              tighter chase to be real, not just copy. */}
           <div style={styles.conceptRow}>
             <div style={{ ...styles.iconBadge, border: `1.5px solid ${GOLD_SOFT}` }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={GOLD_START} strokeWidth="2.5">
@@ -733,8 +750,8 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
               </svg>
             </div>
             <div style={styles.conceptMeta}>
-              <span style={{ ...styles.conceptTitle, color: GOLD_END }}>1. RADAR SCANNING</span>
-              <span style={styles.conceptDesc}>Stalk rare veggie targets moving across your real local street grids live.</span>
+              <span style={{ ...styles.conceptTitle, color: GOLD_END }}>1. MAP TRACKER</span>
+              <span style={styles.conceptDesc}>Spot mutant vegetables invading your actual local streets in real time.</span>
             </div>
           </div>
 
@@ -747,8 +764,8 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
               </svg>
             </div>
             <div style={styles.conceptMeta}>
-              <span style={{ ...styles.conceptTitle, color: MINT }}>2. CAPTURE ZONE</span>
-              <span style={styles.conceptDesc}>Walk within 15 meters of a blip to forcefully override and unlock the catch zone.</span>
+              <span style={{ ...styles.conceptTitle, color: MINT }}>2. RUN TO CATCH</span>
+              <span style={styles.conceptDesc}>You must physically sprint within 15 meters of the veggie to unlock the Catch button!</span>
             </div>
           </div>
 
@@ -761,8 +778,8 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
               </svg>
             </div>
             <div style={styles.conceptMeta}>
-              <span style={{ ...styles.conceptTitle, color: LIGHT_PINK }}>3. DISC FLICKING</span>
-              <span style={styles.conceptDesc}>Open your camera feed and flick energy discs into the target rings to capture.</span>
+              <span style={{ ...styles.conceptTitle, color: LIGHT_PINK }}>3. AR CAMERA HUNT</span>
+              <span style={styles.conceptDesc}>Spot them hiding behind real trees and slap that Catch button before anyone else!</span>
             </div>
           </div>
 
@@ -782,7 +799,7 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
           </button>
           <div style={styles.shakeStatusLine}>// {shakeStatusText}</div>
 
-          <div style={styles.hudFooterLog}>// ROOM SYSTEM METRICS: MAX CAPACITY 6 / CO-OP BOUNDARY: REQUIRES MULTIPLAYER DUO MATRIX TO ENGAGE.</div>
+          <div style={styles.hudFooterLog}>// MAX PLAYERS IN ROOM: 6 · CO-OP MODE REQUIRES AT LEAST 2 CHASERS TO START.</div>
         </motion.div>
 
         {/* ── RIGHT BOX: UNIFIED ACCESS FIELDS CONTROL DECK W/ ANIMATED WORDMARK ── */}
@@ -794,7 +811,7 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
           style={styles.lobbyCardChassis}
         >
           <div style={styles.statusRowBar}>
-            <div style={styles.statusIndicator}>● SQUAD STAGING ENGINE</div>
+            <div style={styles.statusIndicator}>● LOBBY WAITING ROOM</div>
             <div style={styles.latencyIndicator}>⚡ PING: <span style={{ color: MINT }}>{ping}ms</span></div>
           </div>
 
@@ -809,14 +826,14 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
               <span className="mx-veggie-word" style={styles.veggieText}>Veggie</span>
               <AnimatedGo />
             </motion.h1>
-            <p style={styles.subSubtitlePrompt}>SQUAD STAGING MATRIX TERMINAL</p>
+            <p style={styles.subSubtitlePrompt}>ROOM LOBBY — GET READY TO CHASE</p>
           </div>
 
           <div style={styles.globalTickerRow}>
             <div style={styles.tickerDataBlock}>
-              <span style={styles.tickerLabel}>TOTAL NETWORK EXTRACTIONS IN ARCHIVE</span>
+              <span style={styles.tickerLabel}>VEGGIES CAUGHT WORLDWIDE TODAY</span>
               <span style={styles.tickerValue}>
-                {typeof globalScans === 'number' ? globalScans.toLocaleString() : lobbiesToday.toLocaleString()}+ SECURED
+                {typeof globalScans === 'number' ? globalScans.toLocaleString() : lobbiesToday.toLocaleString()}+ CAUGHT
               </span>
             </div>
           </div>
@@ -825,7 +842,7 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
 
           <form onSubmit={handleFormSubmit} style={styles.accessFormContainer}>
             <div style={styles.inputFieldWrapper}>
-              <label style={styles.fieldLabelLabel}>CHOOSE OPERATOR TAG</label>
+              <label style={styles.fieldLabelLabel}>CHASER CALLSIGN (TAG)</label>
               <input
                 type="text"
                 placeholder="ENTER YOUR NICKNAME / TAG..."
@@ -855,14 +872,14 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
 
             <div style={styles.inputFieldWrapper}>
               <div style={styles.fieldHeaderLabelRow}>
-                <label style={styles.fieldLabelLabel}>SQUAD LOBBY SEED</label>
+                <label style={styles.fieldLabelLabel}>ENTER ROOM CODE</label>
                 <button type="button" onClick={handleQuickMatch} disabled={connecting} style={styles.quickMatchBtn}>
                   ⚡ QUICK MATCH
                 </button>
               </div>
               <input
                 type="text"
-                placeholder="ENTER ROOM CODE SECTOR OR QUICK MATCH..."
+                placeholder="TYPE ROOM CODE OR HIT QUICK MATCH..."
                 value={roomCode}
                 onFocus={() => setFocusField('room')}
                 onBlur={() => setFocusField(null)}
@@ -883,12 +900,28 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
             </div>
           </form>
 
+          {/* FIX: was static, unclickable text ("you authorize secure
+              geographical tracking matrix data transfers"). This screen
+              is the app's real first screen with no auth/legal gate
+              ahead of it, so this is currently the ONLY reachable path
+              to Privacy/Terms in the live app. Now opens the real
+              modals instead of just claiming consent was given. */}
           <p style={styles.footNotice}>
-            By connecting onto the Manifix AI outpost pipelines, you authorize secure geographical tracking matrix data transfers.
+            By continuing, you agree to Veggie Go's{' '}
+            <button type="button" onClick={() => setShowTerms(true)} style={styles.footLinkBtn}>
+              Terms
+            </button>{' '}
+            and{' '}
+            <button type="button" onClick={() => setShowPrivacy(true)} style={styles.footLinkBtn}>
+              Privacy Policy
+            </button>, including location and camera use for live gameplay.
           </p>
         </motion.div>
 
       </div>
+
+      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 }
@@ -1047,6 +1080,11 @@ const styles = {
   },
 
   footNotice: { fontSize: '9px', color: '#333845', textAlign: 'center', lineHeight: '1.4', margin: '24px 0 0 0' },
+  footLinkBtn: {
+    background: 'none', border: 'none', padding: 0, margin: 0,
+    color: '#6b7280', textDecoration: 'underline', fontWeight: 600,
+    fontSize: '9px', fontFamily: 'inherit', cursor: 'pointer', display: 'inline'
+  },
   errorText: {
     fontSize: '12px', background: 'rgba(255,77,77,0.08)', border: '1px solid #ff4d5a', color: '#ff4d5a',
     padding: '10px', borderRadius: '8px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold',
