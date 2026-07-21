@@ -1,7 +1,7 @@
 // src/components/GameCanvas.jsx
 //
 // THIS REVISION — vacuum-lock catch flash + camera.far correction +
-// CollectionBook removed:
+// CollectionBook removed + unused Leaderboard import removed:
 //
 //   1. NEW "SECURED!" flash tied to real `vacuumLock` state (fixes the
 //      earlier `captureStatus` ReferenceError — that identifier never
@@ -26,9 +26,12 @@
 //      — anything under ~120 would start clipping distant real targets.
 //   3. CollectionBook removed entirely: import, `recordCatch` call,
 //      `collectionOpen` state, the "📖 COLLECTION" button, and the
-//      `<CollectionBook>` render are all gone. Nothing else in this
-//      component referenced that state or component, so removal is
-//      isolated and doesn't touch any other wiring.
+//      `<CollectionBook>` render are all gone.
+//   4. Unused `Leaderboard` import removed. It was never actually
+//      rendered anywhere in this file — the top-right ranking widget
+//      is its own inline JSX below, built straight off `rankedPlayers`
+//      / styled with `leaderboardWidget` etc. Dropping the dead import
+//      doesn't change any rendered output or behavior.
 //
 // NOT applied, and why:
 //   - A per-frame `useFrame` that sets `camera.far = 150` and re-runs
@@ -60,9 +63,9 @@
 //
 // Everything else — the vortex-suction catch animation and WebGL perf
 // flags from the prior revision, real WebXR depth-sensing occlusion,
-// ground anchoring, evasion AI hookup, glitch mode, leaderboard, popups,
-// blind-attack, idle-stand wiring, the native-WebView AR gating — is
-// UNCHANGED.
+// ground anchoring, evasion AI hookup, glitch mode, inline leaderboard,
+// popups, blind-attack, idle-stand wiring, the native-WebView AR gating
+// — is UNCHANGED.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -80,7 +83,6 @@ import {
   RARITY_BY_SPECIES,
   PERSONALITY_CHASE_OVERRIDE,
 } from '../config/gameConfig';
-import Leaderboard from './Leaderboard';
 import { useVeggieEvasion } from '../hooks/useVeggieEvasion';
 
 const EARTH_RADIUS_M = 6371000;
