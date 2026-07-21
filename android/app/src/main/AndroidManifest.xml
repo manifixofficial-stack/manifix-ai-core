@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 📡 NATIVE HARDWARE PERMISSIONS (REQUIRED FOR APP STORE APPROVAL) -->
+    <!-- 📡 NATIVE HARDWARE NETWORK & STORAGE PERMISSIONS -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- 📷 CAMERA REAR LENS INTERACTION HARDWARE PERMISSIONS -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- 🛰️ HIGH-PRECISION GEOGRAPHICAL GPS LOCATION TRACKING CLOCKS -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="true" />
 
     <application
         android:allowBackup="true"
@@ -15,6 +23,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
+        <!-- 👾 GOOGLE PLAY SERVICES FOR ARCORE CONFIGURATION METADATA -->
+        <meta-data android:name="com.google.ar.core" android:value="optional" />
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
@@ -34,12 +45,11 @@
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
+            <meta-data 
+                android:name="android.support.FILE_PROVIDER_PATHS" 
                 android:resource="@xml/file_paths">
             </meta-data>
         </provider>
 
     </application>
-
 </manifest>
