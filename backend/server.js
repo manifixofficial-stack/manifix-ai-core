@@ -3,6 +3,29 @@
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
 //
 // ==========================================================================
+// THIS REVISION: Razorpay / real-money billing route removed
+// ==========================================================================
+//   - Removed entirely: the `razorpay` require, the razorpayReady/
+//     razorpayInstance setup block, the billingLimiter, and the
+//     POST /api/billing/verify-payment route.
+//   - Wallet/ticket gating (getOrCreateWallet, spendTicket, totalTickets,
+//     the join-room INSUFFICIENT_TICKETS check, and the per-match spend in
+//     beginMatch) is UNCHANGED and still fully active — the only thing
+//     removed is the one route that could ever CREDIT premium_passes via a
+//     real-money purchase. Until a Google Play Billing integration is
+//     wired in, players only ever have whatever free_tickets a new Wallet
+//     document defaults to (see models/Wallet.js) — there is currently no
+//     way to buy more from inside the app, which is intentional: it
+//     removes the real-money purchase flow that would otherwise require
+//     Play Billing compliance for this Android build.
+//   - GET /api/wallet/:deviceUUID is unchanged and still serves the
+//     mobile app's ticket HUD.
+//   - Ops note (not a code change): remove RAZORPAY_KEY_ID /
+//     RAZORPAY_KEY_SECRET from the Render environment, and
+//     `npm uninstall razorpay` from package.json once nothing else in the
+//     repo references it.
+//
+// ==========================================================================
 // MATCH STRUCTURE: WINNER-TAKE-ROUND (100/300/600, 3 rounds)
 // ==========================================================================
 //   - 2 to 6 players per room.
@@ -13,7 +36,7 @@
 //   - Glitch pulse is VISUAL ONLY — does not affect point values.
 //
 // ==========================================================================
-// THIS REVISION: 'request-rematch' now actually works
+// PRIOR REVISION: 'request-rematch' now actually works
 // ==========================================================================
 //   - PROBLEM: App.jsx's PrizeCamera "rematch" button has always emitted
 //     'request-rematch', but this file never had a handler for it — the
@@ -84,6 +107,7 @@
 //     (called by BillingGate.jsx after Razorpay checkout — fetches the
 //     payment from Razorpay's own API before crediting, and is idempotent
 //     against the same razorpay_payment_id being submitted twice).
+//     [REMOVED THIS REVISION — see top of file.]
 //   - Ticket/wallet logic fails OPEN on a Mongo hiccup (logs and lets the
 //     player through) rather than blocking gameplay on a transient DB issue.
 //     If Mongo isn't configured at all (`mongoReady === false`), ticket
@@ -150,7 +174,6 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const Razorpay = require('razorpay');
 require('dotenv').config();
 
 const Leaderboard = require('./models/Leaderboard');
@@ -224,23 +247,6 @@ if (!mongoURI) {
     .catch((err) => console.error('❌ MongoDB Atlas connection failure error:', err));
 }
 
-// ==========================================
-// 💳 RAZORPAY — fails soft. A missing/bad key disables ONLY the billing
-// route; it never takes down the game server itself.
-// ==========================================
-let razorpayReady = false;
-let razorpayInstance = null;
-
-if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-  razorpayInstance = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-  });
-  razorpayReady = true;
-} else {
-  console.log('⚠️ RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing. Billing endpoint disabled.');
-}
-
 async function getOrCreateWallet(deviceUUID) {
   let wallet = await Wallet.findOne({ deviceUUID });
   if (!wallet) {
@@ -298,64 +304,6 @@ app.get('/api/wallet/:deviceUUID', async (req, res) => {
   } catch (err) {
     console.error('[wallet] fetch failed', err.message);
     res.status(500).json({ error: 'Failed to fetch wallet' });
-  }
-});
-
-const billingLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  message: { success: false, message: 'TOO MANY REQUESTS — SLOW DOWN' },
-});
-
-// 💰 Called by BillingGate.jsx right after the Razorpay checkout modal's
-// `handler` fires. Verifies the payment against Razorpay's own API (never
-// trusts the client's say-so on amount/status) and is idempotent: replaying
-// the same razorpay_payment_id never credits twice.
-app.post('/api/billing/verify-payment', billingLimiter, async (req, res) => {
-  if (!razorpayReady) {
-    return res.status(503).json({ success: false, message: 'BILLING NOT CONFIGURED' });
-  }
-  const { deviceUUID, razorpay_payment_id, bundle_tickets } = req.body;
-  if (!deviceUUID || !razorpay_payment_id || !bundle_tickets) {
-    return res.status(400).json({ success: false, message: 'MISSING REQUIRED FIELDS' });
-  }
-
-  try {
-    const wallet = await getOrCreateWallet(deviceUUID);
-
-    const alreadySettled = wallet.transaction_history.some(
-      (tx) => tx.invoice_id === razorpay_payment_id && tx.status === 'SETTLED'
-    );
-    if (alreadySettled) {
-      return res.status(200).json({ success: true, message: 'PAYMENT ALREADY PROCESSED', wallet: wallet.balances });
-    }
-
-    const payment = await razorpayInstance.payments.fetch(razorpay_payment_id);
-
-    if (payment && payment.status === 'captured') {
-      wallet.balances.premium_passes += parseInt(bundle_tickets, 10);
-      wallet.transaction_history.push({
-        invoice_id: razorpay_payment_id,
-        amount_paid: payment.amount / 100,
-        currency: payment.currency,
-        status: 'SETTLED',
-      });
-      wallet.updated_at = new Date();
-      await wallet.save();
-      return res.status(200).json({ success: true, message: 'WALLET CREDITED', wallet: wallet.balances });
-    }
-
-    wallet.transaction_history.push({
-      invoice_id: razorpay_payment_id,
-      amount_paid: payment ? payment.amount / 100 : 0,
-      currency: payment ? payment.currency : 'INR',
-      status: 'FAILED',
-    });
-    await wallet.save();
-    return res.status(400).json({ success: false, message: 'PAYMENT NOT CAPTURED' });
-  } catch (err) {
-    console.error('[verify-payment] error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1213,5 +1161,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, working rematch flow, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated wallet (no real-money billing route), working rematch flow, listening on port: ${PORT}`);
 });
