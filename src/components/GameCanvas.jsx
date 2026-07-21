@@ -1,9 +1,29 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — vacuum-lock catch flash + camera.far correction +
+// THIS REVISION — camera-blocked-behind-AR-prompt fix:
+//
+//   1. FIXED: the "REAL AR AVAILABLE / START AR HUNT / SKIP" prompt (and
+//      its siblings — STARTING AR…, AR SESSION FAILED, ENABLE AR SENSORS)
+//      were rendering on a fully OPAQUE `cameraErrorOverlay` style
+//      (background: '#0d111a', zIndex: 150), which sat directly on top
+//      of the live <video> feed (zIndex: 0) and the three.js canvas
+//      (zIndex: 20) and hid them completely — even though the camera
+//      stream was actually running behind it the whole time. That style
+//      is only correct for genuine "nothing to show" states (camera
+//      permission actually rejected).
+//      Fix: added a new `arPromptOverlay` style — same layout, but a
+//      translucent `rgba(13,17,26,0.55)` background with a blur, so the
+//      live camera passthrough is visible (frosted-glass look) behind
+//      these prompts instead of a dead black screen. Swapped it into the
+//      xrState 'idle' / 'requesting' / 'denied' blocks and the
+//      motionPermission 'pending' block. `cameraErrorOverlay` (opaque)
+//      is now used ONLY for `cameraState === 'denied'`, the one case
+//      where there's genuinely no camera feed behind it to show.
+//
+// PRIOR REVISION — vacuum-lock catch flash + camera.far correction +
 // CollectionBook removed + unused Leaderboard import removed:
 //
-//   1. NEW "SECURED!" flash tied to real `vacuumLock` state (fixes the
+//   1. "SECURED!" flash tied to real `vacuumLock` state (fixes the
 //      earlier `captureStatus` ReferenceError — that identifier never
 //      existed anywhere in this component). `vacuumLock` is set the
 //      instant `capture-result` confirms a hit and cleared after
@@ -1244,10 +1264,16 @@ export default function GameCanvas({
       )}
       {!xrActive && <div style={styles.videoScrim} />}
 
-      {/* Never shown at all inside the Capacitor app shell, since
-          isNative forces xrState straight to 'unsupported'. */}
+      {/* FIXED: was rendering on the opaque `cameraErrorOverlay` style,
+          which painted a solid #0d111a block over the live camera feed
+          and hid it completely even though it was running underneath.
+          Now uses `arPromptOverlay` — same layout, translucent blurred
+          background — so the camera passthrough stays visible behind
+          the AR opt-in prompt. Never shown at all inside the Capacitor
+          app shell, since isNative forces xrState straight to
+          'unsupported'. */}
       {xrState === 'idle' && (
-        <div style={styles.cameraErrorOverlay}>
+        <div style={styles.arPromptOverlay}>
           <h3>REAL AR AVAILABLE</h3>
           <p style={{ marginBottom: 16, maxWidth: 280 }}>
             Your device supports real ground-locked AR — vegetables will stand on the actual floor and hide behind real objects.
@@ -1264,14 +1290,19 @@ export default function GameCanvas({
         </div>
       )}
 
+      {/* FIXED: same overlay swap as above — camera feed stays visible
+          while the AR session spins up instead of cutting to black. */}
       {xrState === 'requesting' && (
-        <div style={styles.cameraErrorOverlay}>
+        <div style={styles.arPromptOverlay}>
           <h3>STARTING AR…</h3>
         </div>
       )}
 
+      {/* FIXED: same overlay swap — the basic camera is still running
+          here (xrActive is false while denied), so it should stay
+          visible behind the retry/fallback choice. */}
       {xrState === 'denied' && (
-        <div style={styles.cameraErrorOverlay}>
+        <div style={styles.arPromptOverlay}>
           <h3>AR SESSION FAILED TO START</h3>
           <p style={{ marginBottom: 16, maxWidth: 280 }}>
             Your device declined the AR session — this can happen if a required
@@ -1299,8 +1330,11 @@ export default function GameCanvas({
         />
       )}
 
+      {/* FIXED: same overlay swap — camera is live here too
+          (!xrActive), so the motion-permission prompt should sit over
+          it translucently rather than blacking it out. */}
       {!xrActive && motionPermission === 'pending' && (
-        <div style={styles.cameraErrorOverlay}>
+        <div style={styles.arPromptOverlay}>
           <h3>ENABLE AR SENSORS</h3>
           <p style={{ marginBottom: 16, maxWidth: 280 }}>
             Tap below to allow compass &amp; motion access — needed to lock veggies to their real-world positions.
@@ -1601,7 +1635,18 @@ const styles = {
   videoBackdrop: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 },
   videoScrim: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,6,10,0.2) 0%, rgba(4,6,10,0.5) 100%)', zIndex: 1 },
   threeLayer: { position: 'absolute', inset: 0, zIndex: 20, background: 'transparent', pointerEvents: 'none' },
+
+  // Used ONLY for cameraState === 'denied' — the one case where there's
+  // genuinely no camera feed running behind the overlay, so opaque is
+  // correct here (nothing to hide, nothing to show through).
   cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+
+  // NEW: translucent variant for AR opt-in / permission prompts
+  // (xrState 'idle' | 'requesting' | 'denied', motionPermission
+  // 'pending') where the live camera feed IS running underneath and
+  // should stay visible — frosted-glass look instead of solid black.
+  arPromptOverlay: { position: 'absolute', inset: 0, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(13, 17, 26, 0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+
   vacuumFlashLabel: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '36px', fontWeight: '900', fontFamily: "'Orbitron', sans-serif", color: '#39ff88', textShadow: '0 0 20px rgba(57,255,136,0.8), 0 4px 10px rgba(0,0,0,0.9)', zIndex: 200, pointerEvents: 'none' },
 
   desktopBlockWrap: { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(ellipse at 50% 30%, #101826 0%, #04060a 70%)', color: '#fff', padding: '40px 24px', textAlign: 'center', fontFamily: FONT_BODY },
