@@ -3,27 +3,46 @@
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
 //
 // ==========================================================================
-// THIS REVISION: Razorpay / real-money billing route removed
+// THIS REVISION: Google Sign-In verification route added
+// ==========================================================================
+//   - PROBLEM: GoogleLogin.jsx has been POSTing to /api/auth/google, which
+//     never existed on this backend — every sign-in attempt 404'd. There
+//     was also no server-side verification anywhere: nothing checked that
+//     a credential token POSTed to the server actually came from Google
+//     and belonged to this app (GOOGLE_CLIENT_ID as audience).
+//   - FIX: new POST /api/auth/google route. Verifies the ID token via
+//     google-auth-library's OAuth2Client.verifyIdToken() against
+//     GOOGLE_CLIENT_ID (must be set as a server env var — previously only
+//     existed hardcoded client-side in GoogleLogin.jsx). On success, finds
+//     or creates a Player document keyed on the token's `sub` (Google's
+//     stable user id), links the current deviceUUID to it, and returns
+//     { success, player, wallet } — matching the exact shape
+//     sendCredentialToBackend() in GoogleLogin.jsx already expects.
+//   - NEW MODEL: models/Player.js. Kept separate from Wallet on purpose —
+//     Wallet is deviceUUID-keyed (survives no reinstall), Player is
+//     googleId-keyed (survives a reinstall/new device, since the same
+//     Google account can sign back in from anywhere). deviceUUID is
+//     denormalized onto Player too so you can look up "whose wallet is
+//     this device's owner's account" without a join if you need it later.
+//   - NEW DEPENDENCY: `google-auth-library` (npm install google-auth-library).
+//   - NEW ENV VAR REQUIRED: GOOGLE_CLIENT_ID — same client ID
+//     GoogleLogin.jsx already uses client-side, now also needed server-side
+//     to verify the token audience. Without this set, the route will throw
+//     on every request (fails closed, not open — an auth route should
+//     never silently accept unverifiable tokens).
+//   - No other routes/gameplay logic changed in this revision.
+//
+// ==========================================================================
+// PRIOR REVISION: Razorpay / real-money billing route removed
 // ==========================================================================
 //   - Removed entirely: the `razorpay` require, the razorpayReady/
 //     razorpayInstance setup block, the billingLimiter, and the
 //     POST /api/billing/verify-payment route.
 //   - Wallet/ticket gating (getOrCreateWallet, spendTicket, totalTickets,
 //     the join-room INSUFFICIENT_TICKETS check, and the per-match spend in
-//     beginMatch) is UNCHANGED and still fully active — the only thing
-//     removed is the one route that could ever CREDIT premium_passes via a
-//     real-money purchase. Until a Google Play Billing integration is
-//     wired in, players only ever have whatever free_tickets a new Wallet
-//     document defaults to (see models/Wallet.js) — there is currently no
-//     way to buy more from inside the app, which is intentional: it
-//     removes the real-money purchase flow that would otherwise require
-//     Play Billing compliance for this Android build.
+//     beginMatch) is UNCHANGED and still fully active.
 //   - GET /api/wallet/:deviceUUID is unchanged and still serves the
 //     mobile app's ticket HUD.
-//   - Ops note (not a code change): remove RAZORPAY_KEY_ID /
-//     RAZORPAY_KEY_SECRET from the Render environment, and
-//     `npm uninstall razorpay` from package.json once nothing else in the
-//     repo references it.
 //
 // ==========================================================================
 // MATCH STRUCTURE: WINNER-TAKE-ROUND (100/300/600, 3 rounds)
@@ -38,107 +57,47 @@
 // ==========================================================================
 // PRIOR REVISION: 'request-rematch' now actually works
 // ==========================================================================
-//   - PROBLEM: App.jsx's PrizeCamera "rematch" button has always emitted
-//     'request-rematch', but this file never had a handler for it — the
-//     event went into the void and nothing happened. Made worse by the
-//     fact that advanceMatch() used to `delete rooms[roomCode]` the
-//     INSTANT a match ended, so even if a handler existed, there'd be no
-//     room left by the time anyone pressed the button.
-//   - FIX, part 1: advanceMatch() no longer deletes the room immediately
-//     on match end. It marks `matchEnded = true` and schedules a
-//     ROOM_POST_MATCH_CLEANUP_MS-later cleanup instead, so the room (and
-//     everyone's slot/character/deviceUUID) stays addressable for a
-//     rematch request in the meantime. If nobody rematches within that
-//     window, the room is deleted exactly as before.
-//   - FIX, part 2: new 'request-rematch' handler. Any player still in a
-//     matchEnded room can trigger it. Resets everyone's score to 0, resets
-//     round/stage state back to pre-match, cancels the pending cleanup
-//     timer, and — if enough players are still present — immediately
-//     kicks off the existing startCountdown() flow (the same 'tick'/'go'
-//     events already drive App.jsx's matchPhase state on every client, so
-//     no new client-side event needed to make the victory screen clear
-//     itself and the arena restart).
-//   - Ticket spend: rematch does NOT re-spend a ticket per player here —
-//     beginMatch() (called at the end of the new countdown) already
-//     spends one ticket per player exactly as it does for a normal match
-//     start, so a rematch costs a ticket the same way starting fresh
-//     would. This is intentional, not an oversight.
+//   - advanceMatch() no longer deletes the room immediately on match end.
+//     It marks matchEnded = true and schedules a
+//     ROOM_POST_MATCH_CLEANUP_MS-later cleanup instead.
+//   - New 'request-rematch' handler resets scores/round state and restarts
+//     the countdown flow. Ticket spend happens the same way a fresh match
+//     start does (via beginMatch), not re-charged separately here.
 //
 // ==========================================================================
 // PRIOR REVISION: /health route removed
 // ==========================================================================
-//   - The GET /health uptime-check route (status + mongoReady/razorpayReady/
-//     activeRooms snapshot) has been removed at the user's request.
-//   - NOTE this does not fix Render free-tier cold-start / sleep behavior —
-//     it only removes the diagnostic endpoint. If the server is on a
-//     free/sleeping tier, the actual fix is either upgrading the plan or
-//     pointing an external uptime pinger (e.g. UptimeRobot) at some other
-//     route (like GET /ping, which still exists) every 10-14 minutes so
-//     the process never sleeps.
+//   - The GET /health uptime-check route was removed at the user's request.
+//     GET /ping still exists for external uptime pingers.
 //
 // ==========================================================================
-// PRIOR REVISION: Reconnect handling + ticket wallet wired to billing
+// PRIOR REVISION: Reconnect handling + ticket wallet
 // ==========================================================================
-//   - PROBLEM: any socket drop during an active match (extremely common on
-//     mobile — the whole point of this game) permanently removed the player:
-//     their slot opened back up and their score was gone, with no way back
-//     in even if they reconnected 2 seconds later.
-//   - FIX: a player who disconnects mid-match is marked `disconnected: true`
-//     and kept in `room.players` (slot NOT freed) for RECONNECT_GRACE_MS.
-//     If the same deviceUUID calls `join-room` on the same room code before
-//     that timer fires, they're restored under their new socket.id with
-//     their existing score/character intact ('room-joined' includes
-//     `reconnected: true`). If the grace window expires, they're removed
-//     for good via finalizePlayerRemoval — same end state as before.
-//   - New events: `player-disconnected` (grace window started) and
-//     `player-reconnected` (restored) — both broadcast to the room so
-//     clients can show a "reconnecting…" indicator instead of just seeing
-//     someone vanish and reappear as a stranger.
-//   - A brand new (non-reconnecting) join is now rejected once
-//     `room.matchActive` is true — previously nothing stopped an unrelated
-//     new player from being slotted into an in-progress match.
-//   - TICKET GATING: join-room now checks a Mongo-backed Wallet (keyed by
-//     deviceUUID) and rejects the join with `INSUFFICIENT_TICKETS` if the
-//     device has 0 free_tickets + premium_passes. The ticket itself is only
-//     SPENT when the match actually starts (beginMatch), not at join —
-//     backing out of the lobby before kickoff costs nothing.
-//   - New REST routes for the mobile app: `GET /api/wallet/:deviceUUID`
-//     (balance for the HUD) and `POST /api/billing/verify-payment`
-//     (called by BillingGate.jsx after Razorpay checkout — fetches the
-//     payment from Razorpay's own API before crediting, and is idempotent
-//     against the same razorpay_payment_id being submitted twice).
-//     [REMOVED THIS REVISION — see top of file.]
-//   - Ticket/wallet logic fails OPEN on a Mongo hiccup (logs and lets the
-//     player through) rather than blocking gameplay on a transient DB issue.
-//     If Mongo isn't configured at all (`mongoReady === false`), ticket
-//     gating is skipped entirely — same behavior as before this revision.
+//   - A player who disconnects mid-match is marked disconnected: true and
+//     kept in room.players for RECONNECT_GRACE_MS, restorable via a
+//     matching deviceUUID join-room call.
+//   - join-room checks a Mongo-backed Wallet and rejects with
+//     INSUFFICIENT_TICKETS if the device has 0 free_tickets + premium_passes.
+//     Ticket is SPENT at match start (beginMatch), not at join.
 //
 // ==========================================================================
-// PRIOR REVISION: PASS 1 — room-wide timing mode (indoor 45s / outdoor 60s)
-// PRIOR REVISION: PASS 2 — lobby leader sets timing mode
+// PRIOR REVISION: room-wide timing mode (indoor 45s / outdoor 60s)
 // ==========================================================================
 //   - room.timingMode: 'indoor' | 'outdoor', defaults to 'outdoor'.
-//   - getStageDurationMs(room) resolves the right duration per room.
-//   - room.leaderId: socket.id of whoever created the room. Reassigned to
-//     another player in the room if the leader disconnects before the
-//     match starts.
-//   - 'room-joined' now also reports { isLeader, timingMode } to the
-//     joining client.
-//   - 'set-timing-mode' — leader-only, pre-match-only. Broadcasts
-//     'timing-mode-updated' to the whole room on success.
+//   - room.leaderId reassigned if the leader disconnects pre-match.
+//   - 'set-timing-mode' — leader-only, pre-match-only.
 //
 // ==========================================================================
-// PRIOR REVISION: FIX — match no longer auto-starts on player count alone.
+// PRIOR REVISION: match no longer auto-starts on player count alone
 // ==========================================================================
-//   - room.modeChosen (defaults false) gates auto-start alongside player
-//     count; the actual trigger lives in the 'set-timing-mode' handler.
+//   - room.modeChosen gates auto-start alongside player count.
 //
 // ==========================================================================
 // PRIOR REVISION: Mobile (Capacitor) CORS support + Top-5 leaderboard route
 // ==========================================================================
-//   - ALLOWED_ORIGIN_PATTERNS also accepts `capacitor://localhost` and bare
-//     `http://localhost` (no port).
-//   - `app.get('/api/leaderboard-top')` — limited to 5 results.
+//   - ALLOWED_ORIGIN_PATTERNS also accepts capacitor://localhost and bare
+//     http://localhost (no port).
+//   - app.get('/api/leaderboard-top') — limited to 5 results.
 //
 // ==========================================================================
 // PRIOR REVISION: claim-character REMOVED, slot auto-assigned in join-room
@@ -149,11 +108,7 @@
 // ==========================================================================
 //   - Leaderboard upserts ONE record per player (deviceUUID, falling back
 //     to username), tracking highestMatchScore + lifetimeMatchesPlayed.
-//   - REST routes now share the SAME CORS allow-list as Socket.io.
-//   - Per-action DB writes on every socket event intentionally NOT adopted;
-//     Mongo is only touched once per match at match-end (plus, as of this
-//     revision, once per match at match-START for ticket spend, and on
-//     demand for wallet/billing REST calls).
+//   - REST routes share the SAME CORS allow-list as Socket.io.
 //
 // KEPT AS-IS FOR CLIENT COMPATIBILITY:
 //   'tick' / 'go', 'round-end' (fires once at MATCH end), 'veggies-update',
@@ -162,10 +117,7 @@
 //   'round-start' { round, pointValue, veggie }, 'round-win'
 //   { round, winnerId, winnerName, pointValue, veggieType, quality,
 //     totalScore }, 'round-timeout' { round }, 'timing-mode-updated'
-//   { mode }, 'rematch-starting' { requestedBy } (NEW — informational only,
-//   no client currently needs to handle it since the 'tick' that follows
-//   already drives the UI transition, but it's there if you want an
-//   earlier "rematch incoming…" indicator).
+//   { mode }, 'rematch-starting' { requestedBy }.
 
 const express = require('express');
 const http = require('http');
@@ -173,10 +125,12 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const cors = require('cors');
+const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
 const Leaderboard = require('./models/Leaderboard');
 const Wallet = require('./models/Wallet');
+const Player = require('./models/Player');
 
 const app = express();
 const server = http.createServer(app);
@@ -236,7 +190,7 @@ const mongoURI = process.env.MONGODB_URI;
 let mongoReady = false;
 
 if (!mongoURI) {
-  console.log('⚠️ MONGODB_URI missing. High-scores and tickets won\'t be saved.');
+  console.log('⚠️ MONGODB_URI missing. High-scores, tickets, and accounts won\'t be saved.');
 } else {
   mongoose.connect(mongoURI)
     .then(() => {
@@ -244,6 +198,20 @@ if (!mongoURI) {
       console.log('📦 Connected to MongoDB Atlas Cloud!');
     })
     .catch((err) => console.error('❌ MongoDB Atlas connection failure error:', err));
+}
+
+// ==========================================
+// 🔐 GOOGLE SIGN-IN VERIFICATION
+// ==========================================
+// GOOGLE_CLIENT_ID must match the client ID GoogleLogin.jsx uses on the
+// frontend — it's the audience the token is checked against. If this env
+// var is missing, the route below fails closed (401) rather than
+// accepting an unverified token.
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || null;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
+
+if (!GOOGLE_CLIENT_ID) {
+  console.log('⚠️ GOOGLE_CLIENT_ID missing. /api/auth/google will reject all requests until it is set.');
 }
 
 async function getOrCreateWallet(deviceUUID) {
@@ -306,6 +274,65 @@ app.get('/api/wallet/:deviceUUID', async (req, res) => {
   }
 });
 
+// 🔐 Google Sign-In verification — see revision note at top of file.
+// Matches the { credentialToken, deviceUUID, deviceOS } shape
+// GoogleLogin.jsx POSTs, and returns { success, player, wallet } which is
+// exactly what sendCredentialToBackend() checks for on the client.
+app.post('/api/auth/google', async (req, res) => {
+  const { credentialToken, deviceUUID, deviceOS } = req.body || {};
+
+  if (!credentialToken || !deviceUUID) {
+    return res.status(400).json({ success: false, message: 'Missing credentialToken or deviceUUID' });
+  }
+
+  if (!googleClient) {
+    return res.status(503).json({ success: false, message: 'GOOGLE SIGN-IN NOT CONFIGURED' });
+  }
+
+  if (!mongoReady) {
+    return res.status(503).json({ success: false, message: 'ACCOUNTS UNAVAILABLE — DATABASE NOT CONNECTED' });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credentialToken,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload(); // { sub, email, name, picture, ... }
+
+    if (!payload || !payload.sub) {
+      return res.status(401).json({ success: false, message: 'Invalid Google token payload' });
+    }
+
+    let player = await Player.findOne({ googleId: payload.sub });
+    if (!player) {
+      player = await new Player({
+        googleId: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        deviceUUID,
+        deviceOS,
+      }).save();
+    } else {
+      player.deviceUUID = deviceUUID; // keep latest device linked
+      player.deviceOS = deviceOS;
+      player.lastLoginAt = new Date();
+      await player.save();
+    }
+
+    const wallet = (await getOrCreateWallet(deviceUUID)).balances;
+
+    res.status(200).json({
+      success: true,
+      player: { id: player._id, name: player.name, email: player.email },
+      wallet,
+    });
+  } catch (err) {
+    console.error('[auth/google] verification failed', err.message);
+    res.status(401).json({ success: false, message: 'Invalid Google token' });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 const TICK_MS = 1000;
 const COUNTDOWN_TICK_MS = 1000;
@@ -345,14 +372,7 @@ const DEVICE_UUID_MAX_LEN = 100;
 const MIN_PLAYERS_TO_START = 2;
 const MAX_PLAYERS_PER_ROOM = 6;
 
-// How long a mid-match disconnect keeps a player's slot + score reserved
-// before they're removed for good.
 const RECONNECT_GRACE_MS = 45 * 1000;
-
-// NEW: how long a room stays alive AFTER a match ends before it's torn
-// down, giving players a window to hit "rematch" without needing to
-// re-join with a fresh room code. If nobody rematches in time, the room
-// is deleted exactly as it always was.
 const ROOM_POST_MATCH_CLEANUP_MS = 5 * 60 * 1000;
 
 let rooms = {};
@@ -505,8 +525,6 @@ function makeRoom(originLat, originLng) {
     nextStageAt: null,
     glitchCycleStart: Date.now(),
     glitchActive: false,
-    // NEW: handle for the post-match cleanup timer (see
-    // ROOM_POST_MATCH_CLEANUP_MS). Cleared/replaced by request-rematch.
     postMatchCleanupTimer: null,
   };
 }
@@ -542,7 +560,6 @@ function leaveCurrentRoom(socket, roomCode) {
   }
 }
 
-// Removes a player for good once their reconnect grace window has expired.
 function finalizePlayerRemoval(roomCode, playerKey) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -569,9 +586,6 @@ function finalizePlayerRemoval(roomCode, playerKey) {
   }
 }
 
-// Disconnect router: mid-match drops from a device we can identify get a
-// grace window (see RECONNECT_GRACE_MS); everything else uses the original
-// immediate-removal path.
 function handleDisconnect(socket, roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -637,10 +651,6 @@ function cancelCountdown(roomCode, reason) {
   io.to(roomCode).emit('match-countdown-cancelled', { reason: reason || 'player-left' });
 }
 
-// Now async: spends one ticket per player (deviceUUID-based) before the
-// first round spawns. Best-effort — a Mongo hiccup or a legacy client with
-// no deviceUUID never blocks the match from starting. Also runs on a
-// rematch's restarted countdown, exactly like a fresh match start.
 async function beginMatch(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -658,7 +668,7 @@ async function beginMatch(roomCode) {
     );
   }
 
-  if (!rooms[roomCode]) return; // room could've emptied out during the await
+  if (!rooms[roomCode]) return;
   startStage(roomCode, room, 1);
 }
 
@@ -699,12 +709,6 @@ function endStage(roomCode, room, winnerPlayer, extra = {}) {
   room.stageVeggie = null;
 }
 
-// FIX: previously this function ended with `delete rooms[roomCode]`
-// unconditionally, the instant the 3rd round resolved — which is exactly
-// why 'request-rematch' could never work; the room was already gone by
-// the time anyone saw the victory screen and tapped the button. Now the
-// room is kept alive (marked matchEnded) and cleanup is deferred via a
-// timer that 'request-rematch' can cancel.
 function advanceMatch(roomCode, room) {
   if (room.stage < TOTAL_ROUNDS) {
     startStage(roomCode, room, room.stage + 1);
@@ -733,8 +737,6 @@ function advanceMatch(roomCode, room) {
 
   if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
   room.postMatchCleanupTimer = setTimeout(() => {
-    // Guard against a stale timer firing after the room object was
-    // already replaced/deleted by some other path.
     if (rooms[roomCode] === room) {
       delete rooms[roomCode];
     }
@@ -804,11 +806,6 @@ setInterval(() => {
       io.to(roomCode).emit('glitch-pulse', { active: room.glitchActive, duration: GLITCH_DURATION_MS });
     }
 
-    // NOTE: previously `if (room.matchEnded) return;` here also skipped
-    // the players-update/veggies-update ticks below for a matchEnded
-    // room. That's still fine/intended — a matchEnded room has no active
-    // stage and doesn't need position ticks; it just now stays in
-    // `rooms` for the cleanup window instead of vanishing immediately.
     if (room.matchEnded) return;
 
     if (room.matchActive && !room.stageResolved && room.stageStartTime) {
@@ -864,8 +861,6 @@ setInterval(() => {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  // join-room — now async (wallet check), handles reconnect-into-active-
-  // match, and auto-assigns a slot for genuinely new joiners.
   socket.on('join-room', async (data) => {
     const roomCode = sanitizeRoomCode(data && data.room);
     if (!roomCode) return socket.emit('room-error', { message: 'Invalid Room Code Input' });
@@ -877,10 +872,6 @@ io.on('connection', (socket) => {
       currentRoom = null;
     }
 
-    // ---- RECONNECT PATH ----
-    // A deviceUUID that already has a `disconnected: true` player sitting
-    // in this room gets restored under the new socket.id instead of being
-    // treated as a fresh joiner.
     if (deviceUUID && rooms[roomCode]) {
       const room = rooms[roomCode];
       const reconnectEntry = Object.entries(room.players).find(
@@ -916,7 +907,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // ---- NORMAL JOIN PATH ----
     if (!rooms[roomCode]) {
       if (!canCreateRoom(socket.id)) {
         return socket.emit('room-error', { message: 'Too many rooms created too quickly.' });
@@ -933,15 +923,6 @@ io.on('connection', (socket) => {
       return socket.emit('room-error', { message: 'Match already in progress — only players from this match can rejoin.' });
     }
 
-    // NOTE: a matchEnded room (post-match, awaiting a possible rematch)
-    // is intentionally NOT rejected here the way an active match is —
-    // if room.matchEnded is true but a genuinely new player tries to
-    // join, they fall through to the normal slot-assignment path below,
-    // which is fine: they'll just be a fresh participant if/when
-    // 'request-rematch' fires. (A player from the FINISHED match
-    // rejoining just to spectate isn't specially handled — out of scope
-    // for this fix.)
-
     if (Object.keys(room.players).length >= MAX_PLAYERS_PER_ROOM) {
       return socket.emit('room-error', { message: 'This room session circle is full! (max 6 players)' });
     }
@@ -951,8 +932,6 @@ io.on('connection', (socket) => {
       return socket.emit('room-error', { message: 'This room session circle is full! (max 6 players)' });
     }
 
-    // 🎟️ Ticket gate — needs at least one ticket on hand to enter the
-    // lobby. The ticket is SPENT at match start (beginMatch), not here.
     if (deviceUUID && mongoReady) {
       try {
         const wallet = await getOrCreateWallet(deviceUUID);
@@ -964,7 +943,6 @@ io.on('connection', (socket) => {
         }
       } catch (err) {
         console.error('[join-room] wallet check failed', err.message);
-        // Fail open — a transient DB issue shouldn't block play.
       }
     }
 
@@ -1020,12 +998,6 @@ io.on('connection', (socket) => {
     maybeAutoStart(currentRoom);
   });
 
-  // NEW: 'request-rematch' — was previously unhandled entirely (see file
-  // header). Any player still connected to a matchEnded room can trigger
-  // it. Resets scores + round state in place (same room code, same
-  // slots/characters/names) and restarts the normal countdown flow, which
-  // drives every client's UI back into the arena via the existing
-  // 'tick'/'go' events — no new client-side listener required.
   socket.on('request-rematch', () => {
     if (!currentRoom || !rooms[currentRoom]) {
       return socket.emit('room-error', { message: 'This room no longer exists — start a new match instead.' });
@@ -1033,8 +1005,6 @@ io.on('connection', (socket) => {
     const room = rooms[currentRoom];
 
     if (!room.matchEnded) {
-      // Ignore stray/duplicate requests if the match somehow isn't
-      // actually over (e.g. a delayed double-tap) — nothing to do.
       return;
     }
 
@@ -1043,8 +1013,6 @@ io.on('connection', (socket) => {
       room.postMatchCleanupTimer = null;
     }
 
-    // Reset per-player match state. Slots, characters, names, and
-    // deviceUUIDs are left untouched so everyone keeps their identity/color.
     Object.values(room.players).forEach((p) => {
       p.score = 0;
       p.disconnected = false;
@@ -1065,9 +1033,6 @@ io.on('connection', (socket) => {
     if (activePlayers >= MIN_PLAYERS_TO_START) {
       startCountdown(currentRoom);
     }
-    // If only 1 player remains, the countdown simply won't start yet —
-    // maybeAutoStart-style behavior: it'll kick off automatically once a
-    // second player is present, same as the very first match did.
   });
 
   socket.on('update-location', (data) => {
@@ -1160,5 +1125,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated wallet (no real-money billing route), working rematch flow, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated wallet, working rematch flow, verified Google Sign-In, listening on port: ${PORT}`);
 });
