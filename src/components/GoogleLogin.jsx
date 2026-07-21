@@ -3,26 +3,25 @@
 // Backend: MongoDB via /api/auth/google (server.js on Render, reads/writes
 // hot state through Redis Cloud)
 //
-// THIS REVISION — legal links fixed to actually work inside the native app:
+// THIS REVISION — single deviceUUID identity, shared with App.jsx:
 //
-//   PROBLEM: the previous version linked Privacy/Terms with plain
-//   <a href="/terms"> / <a href="/privacy"> tags. That works fine in a
-//   real browser tab (resolves against manifixai.com), but once this
-//   runs inside the packaged Capacitor Android app, the WebView's origin
-//   is NOT manifixai.com — it's a local app-scheme origin (typically
-//   capacitor://localhost). Tapping either link would try to navigate
-//   the entire app shell to a path that doesn't exist there, producing a
-//   blank/broken screen instead of the actual policy — and since this is
-//   the ONLY place in the reviewed codebase that currently surfaces
-//   Privacy/Terms at all (the game's own App.jsx flow doesn't gate on
-//   them), a broken link here means Play Store reviewers may not be able
-//   to reach your privacy policy at all from within the submitted app.
+//   PROBLEM: this file previously invented its OWN device identity for
+//   the /api/auth/google call — null on web, or @capacitor/device's
+//   Device.getId() on native — which is a DIFFERENT value from the
+//   deviceUUID App.jsx already generates and persists in localStorage
+//   (veggiego_device_uuid_v1). That second value is what server.js's
+//   Wallet/reconnect-grace/leaderboard system is actually keyed on for
+//   join-room, ticket spend, and wallet balance. Two different device
+//   identities feeding two different backends meant a player's Google
+//   sign-in wallet (from /api/auth/google) and their in-game wallet
+//   (from server.js) could silently diverge into two separate records.
 //
-//   FIX: both links are now buttons that open PrivacyModal.jsx /
-//   TermsModal.jsx in-place — the same "borderless WebView modal"
-//   components already built for exactly this purpose, so nothing ever
-//   navigates the app shell away from itself. Works identically on web
-//   and native since it's just local React state, not a route.
+//   FIX: GoogleLogin no longer generates or looks up its own device id.
+//   It now requires a `deviceUUID` prop — the SAME value App.jsx already
+//   holds in deviceUUIDRef.current — and sends that to the backend on
+//   both the web and native sign-in paths. One identity, one wallet.
+//   The @capacitor/device import/lookup that used to run inside
+//   runNativeSignIn() has been removed entirely; it's no longer needed.
 //
 // WHY THE REST OF THIS FILE LOOKS THE WAY IT DOES (unchanged from prior
 // revision): branches on Capacitor.isNativePlatform():
@@ -32,6 +31,11 @@
 //     silently skipped (a known native-WebView failure mode — One Tap is
 //     built for real browser tabs and no-ops with no error inside a
 //     wrapped WebView, which is why the native branch exists at all).
+//
+// Legal links (unchanged from the revision before this one): Terms/
+// Privacy open PrivacyModal.jsx/TermsModal.jsx in-place rather than
+// navigating via <a href>, since a packaged Capacitor app's WebView
+// origin isn't manifixai.com and a path-based link would 404 inside it.
 //
 // ---------------------------------------------------------------------
 // ONE-TIME SETUP REQUIRED FOR THE NATIVE PATH (unchanged, do this before
@@ -66,25 +70,16 @@
 // it's wrapped in try/catch so the web path still works in the meantime.
 //
 // ---------------------------------------------------------------------
-// ⚠️ STILL FLAGGED, NOT FIXED — architecture-level, needs App.jsx changes:
+// ⚠️ STILL FLAGGED, NOT FIXED — needs a follow-up if you want it:
 //
-// This component is not currently imported or rendered anywhere in the
-// game's App.jsx (the RoomJoin -> MapView -> GameCanvas -> Scoreboard
-// flow reviewed in prior revisions starts directly at RoomJoin, with no
-// auth or legal-consent gate before it). That means:
-//   - Nothing currently collects Google sign-in before a player uses
-//     camera/GPS in the live app.
-//   - Nothing currently shows Privacy/Terms before gameplay starts either
-//     — this file's modals only fire if THIS component is on-screen,
-//     which it presently never is.
-// Google Play requires an in-app privacy policy be reachable, and your
-// AndroidManifest.xml grants CAMERA + location permissions — an app that
-// never surfaces a privacy policy anywhere in its actual runtime flow is
-// a real review-rejection risk, independent of whether the modal itself
-// works correctly. This file being correct in isolation does not fix
-// that; App.jsx needs an AUTH/LEGAL stage wired in ahead of RoomJoin
-// that actually renders GoogleLogin (and, on first run, the legal gate)
-// before the room-join screen. Flagging so it isn't mistaken for done.
+// `authInfo` on the App.jsx side (see that file) is plain component
+// state — it resets on every reload/relaunch, so a returning player sees
+// this screen again every time, even though Google's own session may
+// resolve the OAuth step near-instantly. There's no persisted "already
+// signed in" flag of ours. If you want to skip straight past this screen
+// on return visits, that needs a token/flag written to localStorage
+// (keyed off the same deviceUUID) and checked before App.jsx even renders
+// the gate. Not done here — flagging so it isn't mistaken for finished.
 // ---------------------------------------------------------------------
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -139,14 +134,16 @@ const VineAccent = () => (
   </svg>
 );
 
-export default function GoogleLogin({ onLoginSuccess }) {
+// deviceUUID: REQUIRED — pass App.jsx's deviceUUIDRef.current so this
+// component's auth identity and the in-game Wallet/reconnect identity in
+// server.js are the same value. See file header for why that matters.
+export default function GoogleLogin({ onLoginSuccess, deviceUUID }) {
   const [statusKey, setStatusKey] = useState('idle');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [isNative, setIsNative] = useState(false);
   const buttonHostRef = useRef(null);
 
-  // FIX: replaces the old <a href="/terms">/<a href="/privacy"> tags.
   // Local modal visibility state — opens PrivacyModal/TermsModal in place
   // instead of navigating the WebView, so this works identically on web
   // and inside the native Capacitor app shell.
@@ -200,7 +197,7 @@ export default function GoogleLogin({ onLoginSuccess }) {
     document.head.appendChild(script);
   };
 
-  const sendCredentialToBackend = async (credentialToken, deviceOS, deviceUUID = null) => {
+  const sendCredentialToBackend = async (credentialToken, deviceOS) => {
     setStatusKey('verifying');
     try {
       const backendResponse = await fetch(AUTH_ENDPOINT, {
@@ -285,18 +282,10 @@ export default function GoogleLogin({ onLoginSuccess }) {
         return;
       }
 
-      // Best-effort device id for durable player identity on Android.
-      // Optional: npm install @capacitor/device if you want this.
-      let deviceUUID = null;
-      try {
-        const { Device } = await import('@capacitor/device');
-        const info = await Device.getId();
-        deviceUUID = info?.identifier || null;
-      } catch (e) {
-        // @capacitor/device not installed — fine, backend handles null.
-      }
-
-      await sendCredentialToBackend(idToken, 'ANDROID', deviceUUID);
+      // deviceUUID now comes from the `deviceUUID` prop (App.jsx's own
+      // persisted identity) — no separate @capacitor/device lookup here
+      // anymore, so this can't diverge from the in-game wallet identity.
+      await sendCredentialToBackend(idToken, 'ANDROID');
     } catch (err) {
       // err.code === '12501' from the plugin typically means the user
       // cancelled the native sign-in sheet — treat that as a soft cancel,
@@ -373,10 +362,6 @@ export default function GoogleLogin({ onLoginSuccess }) {
           {status.text}
         </p>
 
-        {/* FIX: was <a href="/terms">/<a href="/privacy"> — broken inside
-            the native app's WebView origin. Now opens the same in-app
-            modal components (PrivacyModal/TermsModal) used elsewhere,
-            so this never navigates the app shell away from itself. */}
         <p style={styles.legal}>
           By continuing, you agree to Veggie Go's{' '}
           <button type="button" onClick={() => setShowTerms(true)} style={styles.legalLinkBtn}>
