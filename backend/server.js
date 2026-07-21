@@ -173,7 +173,6 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const Leaderboard = require('./models/Leaderboard');
