@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/ionic-team/capacitor/main/cli/config-schema.json",
   "appId": "com.manifixai.veggiego",
   "appName": "Veggie Go",
-  "webDir": "build",
+  "webDir": "dist",
   "bundledWebRuntime": false,
   "_comment_server": "During native AR development, point `server.url` at your running dev server (e.g. http://192.168.x.x:3000) so the app loads live JS instead of a bundled build. Remove the `server` block entirely for production builds so it loads from webDir instead.",
   "server": {
