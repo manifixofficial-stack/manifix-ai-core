@@ -1,45 +1,150 @@
-// src/components/RoomJoin.jsx
-// Stage 1: Premium Unified Single-Page Cyberpunk Onboarding Staging Client.
-// v6: COPY PASS + LEGAL LINK FIX
+// src/components/RoomJoin.native.jsx
 //
-//   1. LEGAL LINK FIX (Play Store blocker): this screen is the actual
-//      first thing a player sees in the live app — App.jsx's flow starts
-//      directly here, with no auth/legal gate ahead of it. The footer
-//      previously said "you authorize secure geographical tracking
-//      matrix data transfers" as plain, unclickable text — meaning there
-//      was NO reachable privacy policy anywhere in the app's real runtime
-//      path, despite the app requesting camera + location permissions.
-//      Fixed the same way GoogleLogin.jsx was: the footer now has real
-//      Privacy/Terms buttons that open PrivacyModal/TermsModal in place,
-//      never navigating the WebView away from itself.
+// REACT NATIVE PORT of RoomJoin.jsx (was: web build using framer-motion,
+// raw DOM elements, CSS injection, navigator.vibrate/DeviceMotionEvent).
 //
-//   2. VIRAL COPY PASS — the mechanics, motion, and viral features
-//      (nickname roast engine, swipe-to-deploy, shake-to-sync) are
-//      UNCHANGED. Only label/description text changed, swapping
-//      corporate-dashboard phrasing for gaming-native language a Gen Z
-//      player actually wants to screenshot:
-//        - "CHOOSE OPERATOR TAG"      -> "CHASER CALLSIGN (TAG)"
-//        - "SQUAD LOBBY SEED"         -> "ENTER ROOM CODE"
-//        - "SQUAD STAGING ENGINE"     -> "LOBBY WAITING ROOM"
-//        - "TOTAL NETWORK EXTRACTIONS IN ARCHIVE" -> "VEGGIES CAUGHT WORLDWIDE TODAY"
-//        - Concept panel copy rewritten to match the actual shipped
-//          mechanic (tap-to-catch, NOT "disc flicking" — the old text
-//          described a mechanic that isn't what CaptureThrow.jsx/
-//          GameCanvas.jsx actually implement, which would have read as
-//          confusing/wrong copy to a real player).
-//        - Capture-zone copy kept at 15m to match server.js's actual
-//          CATCH_RADIUS_METERS, NOT the requested 3m — see chat note.
-//          If you want the exciting tight-radius chase to be real and
-//          not just text, that's a server.js change, flagging separately.
+// ============================================================================
+// Why this port exists / what it's for
+// ============================================================================
+// Per the mobile-app strategy doc, this screen is the REAL first screen a
+// player sees — App.jsx's flow starts here with no auth/legal gate ahead
+// of it. It's also the ONLY reachable path to Privacy/Terms in the live
+// app (the footer's Terms/Privacy buttons are load-bearing for Play Store
+// compliance, not decoration) — so those two buttons had to survive the
+// port working correctly, not just visually.
 //
-//   Everything else — SwipeDeploy mechanics + its v5 stuck-thumb bugfix,
-//   useLowPowerMode, shake-to-sync, roast engine, ticker visibility
-//   pausing — is UNCHANGED from the prior revision.
+// ============================================================================
+// Library / API swaps made for RN
+// ============================================================================
+//   framer-motion (motion.div, AnimatePresence)  -> Animated (RN core).
+//                                                    Spring/timing configs
+//                                                    instead of variants;
+//                                                    AnimatePresence's
+//                                                    mount/unmount fade
+//                                                    replaced with a small
+//                                                    local Fade wrapper.
+//   Drag-to-confirm (framer-motion `drag="x"`)    -> PanResponder (RN core,
+//                                                    no extra native module
+//                                                    needed — deliberately
+//                                                    NOT react-native-
+//                                                    gesture-handler, to
+//                                                    avoid adding a new
+//                                                    native dependency for
+//                                                    one control).
+//   navigator.vibrate([...])                      -> expo-haptics
+//                                                    (Haptics.notificationAsync
+//                                                    / impactAsync) — RN has
+//                                                    no vibrate-pattern API,
+//                                                    haptics is the native
+//                                                    equivalent gesture.
+//   DeviceMotionEvent.requestPermission /
+//   window.addEventListener('devicemotion')       -> expo-sensors
+//                                                    DeviceMotion, same
+//                                                    module GameCanvas.
+//                                                    native.jsx already
+//                                                    uses for the camera-
+//                                                    pitch rig, so no new
+//                                                    dependency introduced.
+//   navigator.getBattery()                        -> expo-battery
+//                                                    (getBatteryLevelAsync
+//                                                    + isBatteryCharging
+//                                                    Async, polled — RN has
+//                                                    no levelchange event).
+//   document.createElement('style'/'link') font
+//   + @keyframes injection                        -> DROPPED. RN has no
+//                                                    CSS/DOM. Space Grotesk
+//                                                    /Inter/JetBrains Mono
+//                                                    are loaded via
+//                                                    expo-font in App's
+//                                                    root (see AR_HOOK-style
+//                                                    FONT_HOOK note below)
+//                                                    with a system-font
+//                                                    fallback so this file
+//                                                    never hard-depends on
+//                                                    that load succeeding.
+//   <div>/<button>/<input>                        -> View/TouchableOpacity/
+//                                                    TextInput.
+//   backdropFilter: blur(...)                     -> DROPPED (unsupported
+//                                                    in RN). Panels use a
+//                                                    slightly more opaque
+//                                                    solid background
+//                                                    instead to recover
+//                                                    some of the same
+//                                                    depth without the
+//                                                    blur.
+//   CSS gradient text (WebkitBackgroundClip)       -> DROPPED — RN can't
+//                                                    clip text to a
+//                                                    gradient without a
+//                                                    masked-image library.
+//                                                    Wordmark renders as a
+//                                                    solid gold color
+//                                                    instead; visually
+//                                                    close, not identical.
+//   Inline decorative <svg> (Sparkle/Spiral)       -> react-native-svg
+//                                                    (Svg/Path), same
+//                                                    path data.
+//   CSS keyframe ambient loops (sparks/spirals/
+//   floating GO! text/grid sweep)                 -> Animated.loop timing
+//                                                    sequences. Kept the
+//                                                    same low-power/mobile
+//                                                    gating logic and
+//                                                    count scaling as the
+//                                                    web version — RN is
+//                                                    mobile-only, so
+//                                                    isMobile is always
+//                                                    true here and the
+//                                                    "desktop" tier of
+//                                                    sparkCount/spiralCount
+//                                                    /goTextCount is
+//                                                    unreachable by
+//                                                    construction (this
+//                                                    mirrors the same
+//                                                    "mid-tier already dead
+//                                                    code on real devices"
+//                                                    situation the web file
+//                                                    itself already noted).
+//   window.matchMedia('prefers-reduced-motion')    -> AccessibilityInfo.
+//                                                    isReduceMotionEnabled()
+//                                                    (RN's real equivalent).
+//   visibilitychange (pause ticker when hidden)    -> AppState listener,
+//                                                    same intent: pause the
+//                                                    decorative ticker
+//                                                    interval when the app
+//                                                    is backgrounded.
+//
+// Unchanged logic (still lives here, same behavior/contract):
+//   roast-engine string rules (getRoastForName), SQUAD_STATES rotation,
+//   generateArenaCode, canSubmit gating, onJoin({room, name}) contract,
+//   initialRoomCode prop, error/connecting prop contract, PrivacyModal/
+//   TermsModal usage (now importing the .native versions of those files —
+//   see FONT_HOOK/MODAL_HOOK notes below for what still needs to exist).
+//
+// MODAL_HOOK: this file imports PrivacyModal and TermsModal from
+// './PrivacyModal' and './TermsModal' exactly as the web version did. If
+// those two files haven't been ported to RN yet (Modal + ScrollView
+// instead of a DOM overlay), that's the next real blocker after this file
+// — same category of issue this file itself was fixing for RoomJoin.
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { motion, useMotionValue, useTransform, animate as fmAnimate } from 'framer-motion';
-import PrivacyModal from './PrivacyModal';
-import TermsModal from './TermsModal';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  PanResponder,
+  Dimensions,
+  AppState,
+  AccessibilityInfo,
+  Platform,
+} from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
+import { DeviceMotion } from 'expo-sensors';
+import * as Battery from 'expo-battery';
+import PrivacyModal from './PrivacyModal.native';
+import TermsModal from './TermsModal.native';
 
 const BG_BLACK = '#040508';
 const GOLD_START = '#caa24a';
@@ -50,12 +155,17 @@ const LIGHT_PINK = '#ff7ebb';
 const INK = '#f5f2ea';
 const MUTED = '#51596b';
 
-const GOLD_GRADIENT = `linear-gradient(135deg, ${GOLD_START}, ${GOLD_END})`;
+// FONT_HOOK: register these three families via expo-font in App's root
+// (Font.loadAsync) using the same Google Fonts files the web version
+// pulled from fonts.googleapis.com. Until that's wired, RN silently falls
+// back to the platform system font for any unmatched fontFamily — the
+// screen stays fully functional, just not pixel-identical to web.
+const FONT_DISPLAY = Platform.select({ ios: 'SpaceGrotesk-Bold', android: 'SpaceGrotesk-Bold', default: undefined });
+const FONT_BODY = Platform.select({ ios: 'Inter-Regular', android: 'Inter-Regular', default: undefined });
+const FONT_MONO = Platform.select({ ios: 'JetBrainsMono-Medium', android: 'JetBrainsMono-Medium', default: 'monospace' });
 
-// Ticker was 2500ms in v3 — the polling itself (state update -> re-render)
-// has a real cost even though the numbers are decorative. 4s is still
-// plenty "live-feeling" for a lobby ambience readout.
 const TICKER_INTERVAL_MS = 4000;
+const BATTERY_POLL_MS = 15000;
 
 function generateArenaCode() {
   const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -63,32 +173,30 @@ function generateArenaCode() {
   return `${pick()}${pick()}${pick()}-${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
-// Adaptive multi-player squad states running live inside the terminal telemetry view
 const SQUAD_STATES = [
   { count: 2, headline: 'DUO MATRIX ACTIVE', note: 'SYNCING TWO-MAN CO-OP LANES' },
   { count: 3, headline: 'TRIO APEX RUNNING', note: 'THREE-MAN STRIKE TEAM LOCKED' },
   { count: 4, headline: 'CORE FOUR LOCK ON', note: 'QUARTET COMBAT FREQUENCY ON' },
   { count: 5, headline: 'SQUAD STRIKE ONLINE', note: 'QUINTET ASSAULT FORCE OPERATIONAL' },
-  { count: 6, headline: 'CLIQUE OVERLORD FORCE', note: '6/6 HEXA MAXIMUM CAPACITY REACHED' }
+  { count: 6, headline: 'CLIQUE OVERLORD FORCE', note: '6/6 HEXA MAXIMUM CAPACITY REACHED' },
 ];
 
-// ── Username roast rule set ────────────────────────────────────────────────
-// Deterministic-ish so retyping the same handle gives the same read.
+// ── Username roast rule set — unchanged from web ──────────────────────────
 const GENERIC_HANDLES = ['gamer', 'player', 'user', 'test', 'name', 'guest', 'noob', 'pro'];
 const HYPE_LINES = [
   'ok this one actually has main-character energy ✨',
   'certified lore-accurate callsign, we accept 🫡',
   'the rizz on this handle is unreasonably high 🔥',
   'squad is gonna remember this one, no cap',
-  'this tag passed the vibe check first try 💫'
+  'this tag passed the vibe check first try 💫',
 ];
 const ROAST_LINES = {
   tooShort: 'bro typed one letter and called it a day 💀',
-  repeatedChar: 'mashing the same key isn\'t a personality, npc behavior 😭',
-  genericWord: 'username too generic, bro thinks he\'s the main character 💀',
+  repeatedChar: "mashing the same key isn't a personality, npc behavior 😭",
+  genericWord: "username too generic, bro thinks he's the main character 💀",
   numberSuffix: 'name + random number, the true starter pack move 🫠',
   keyboardMash: 'bro mashed his keyboard, actual npc behavior 😭',
-  allCapsYelling: 'the caps lock is doing a LOT of emotional labor rn'
+  allCapsYelling: 'the caps lock is doing a LOT of emotional labor rn',
 };
 
 function getRoastForName(rawName) {
@@ -100,82 +208,56 @@ function getRoastForName(rawName) {
   if (/^[a-z]+_?\d+$/i.test(name)) return ROAST_LINES.numberSuffix;
   if (/^[bcdfghjklmnpqrstvwxyz]{3,}\d*$/i.test(name) && !/[aeiou]/i.test(name)) return ROAST_LINES.keyboardMash;
   if (name.length > 3 && name === name.toUpperCase() && /[A-Z]/.test(name)) return ROAST_LINES.allCapsYelling;
-  // Deterministic pick from the hype pool based on a cheap char-sum hash,
-  // so the same name always gets the same compliment.
   const hash = name.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return HYPE_LINES[hash % HYPE_LINES.length];
 }
 
-// Tracks whether the viewport is at/under the mobile breakpoint so JS-driven
-// values (particle counts, gesture-track sizing) can scale down accordingly.
-function useIsMobile(breakpoint = 480) {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth <= breakpoint : false
-  );
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= breakpoint);
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [breakpoint]);
-  return isMobile;
+// RN is mobile-only, so this is always true by construction — kept as a
+// function (not a bare constant) so the low-power hook below reads the
+// same way it did on web, for anyone diffing the two files later.
+function useIsMobile() {
+  return true;
 }
 
-// Decides whether to strip ALL decorative ambient animation (sparks,
-// spirals, floating GO! text, grid sweep) rather than just thinning counts.
-// Triggers on any of:
-//   - OS-level "reduce motion" accessibility preference
-//   - Battery API reporting critically low charge (<=15%), or low+not
-//     charging (<=20% and not plugged in)
-//   - narrow/mobile viewport, where GPU/paint budget is already tighter
-// Fails safe: if the Battery API isn't available (Safari, some Android
-// WebViews), that check is simply skipped rather than blocking anything.
-//
-// NOTE: on a mobile viewport, lowPower is `isMobile` at both the initial
-// state AND every subsequent evaluation — so on every real phone, the
-// "thinned but present" mid-tier particle counts below are unreachable;
-// mobile always gets zero ambient decoration, not a reduced count. Not a
-// correctness bug (it's strictly cheaper, not more expensive), just
-// noting the mid-tier is currently dead code on actual devices.
+// Same intent as web: strip ambient decoration under reduce-motion or low
+// battery. RN equivalents: AccessibilityInfo for reduce-motion,
+// expo-battery (polled, since RN has no native levelchange event) for
+// power state.
 function useLowPowerMode(isMobile) {
   const [lowPower, setLowPower] = useState(isMobile);
 
   useEffect(() => {
     let cancelled = false;
-    const prefersReducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let pollId = null;
 
-    if (prefersReducedMotion) {
-      setLowPower(true);
-      return undefined;
-    }
-
-    if (typeof navigator !== 'undefined' && typeof navigator.getBattery === 'function') {
-      navigator.getBattery().then((battery) => {
-        if (cancelled) return;
-        const evaluate = () => {
-          const critical = battery.level <= 0.15;
-          const lowAndUnplugged = battery.level <= 0.2 && !battery.charging;
+    AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
+      if (cancelled) return;
+      if (reduced) {
+        setLowPower(true);
+        return;
+      }
+      const evaluate = async () => {
+        try {
+          const [level, charging] = await Promise.all([
+            Battery.getBatteryLevelAsync(),
+            Battery.isBatteryChargingAsync(),
+          ]);
+          if (cancelled) return;
+          const critical = level >= 0 && level <= 0.15;
+          const lowAndUnplugged = level >= 0 && level <= 0.2 && !charging;
           setLowPower(isMobile || critical || lowAndUnplugged);
-        };
-        evaluate();
-        battery.addEventListener('levelchange', evaluate);
-        battery.addEventListener('chargingchange', evaluate);
-        return () => {
-          battery.removeEventListener('levelchange', evaluate);
-          battery.removeEventListener('chargingchange', evaluate);
-        };
-      }).catch(() => {
-        // Battery API present but rejected (rare) — fall back to viewport only.
-        if (!cancelled) setLowPower(isMobile);
-      });
-    } else {
-      setLowPower(isMobile);
-    }
+        } catch {
+          if (!cancelled) setLowPower(isMobile);
+        }
+      };
+      evaluate();
+      pollId = setInterval(evaluate, BATTERY_POLL_MS);
+    });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (pollId) clearInterval(pollId);
+    };
   }, [isMobile]);
 
   return lowPower;
@@ -187,16 +269,15 @@ function useAmbientSparks(count) {
       Array.from({ length: count }, (_, i) => ({
         id: i,
         left: Math.round(Math.random() * 100),
-        delay: (Math.random() * 6).toFixed(2),
-        duration: (10 + Math.random() * 8).toFixed(2),
-        size: (Math.random() * 2.5 + 1.5).toFixed(1),
-        gold: Math.random() > 0.4
+        delay: Math.random() * 4000,
+        duration: 6000 + Math.random() * 5000,
+        size: Math.random() * 2.5 + 2.5,
+        gold: Math.random() > 0.4,
       })),
     [count]
   );
 }
 
-// Small spinning spiral glyphs drifting slowly through the background.
 function useAmbientSpirals(count) {
   return useMemo(
     () =>
@@ -204,18 +285,15 @@ function useAmbientSpirals(count) {
         id: i,
         left: Math.round(Math.random() * 100),
         top: Math.round(Math.random() * 100),
-        size: Math.round(18 + Math.random() * 26),
-        duration: (18 + Math.random() * 14).toFixed(2),
-        spinDuration: (6 + Math.random() * 8).toFixed(2),
-        delay: (Math.random() * 8).toFixed(2),
+        size: Math.round(16 + Math.random() * 20),
+        spinDuration: 6000 + Math.random() * 7000,
         reverse: Math.random() > 0.5,
-        gold: Math.random() > 0.45
+        gold: Math.random() > 0.45,
       })),
     [count]
   );
 }
 
-// Faint scattered "GO!" watermarks that quietly tile the background.
 function useAmbientGoText(count) {
   return useMemo(
     () =>
@@ -224,166 +302,272 @@ function useAmbientGoText(count) {
         left: Math.round(Math.random() * 100),
         top: Math.round(Math.random() * 100),
         rotate: Math.round(Math.random() * 50 - 25),
-        size: Math.round(14 + Math.random() * 34),
-        duration: (12 + Math.random() * 10).toFixed(2),
-        delay: (Math.random() * 8).toFixed(2),
-        gold: Math.random() > 0.5
+        size: Math.round(12 + Math.random() * 22),
+        duration: 5000 + Math.random() * 4000,
+        gold: Math.random() > 0.5,
       })),
     [count]
   );
 }
 
-function Sparkle({ size = 10, color = GOLD_END, style, className }) {
+// One drifting spark: fades/rises on an Animated.loop, same visual role as
+// the web version's mxDrift keyframe.
+function AmbientSpark({ spark }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(spark.delay),
+        Animated.timing(progress, { toValue: 1, duration: spark.duration, useNativeDriver: true }),
+        Animated.timing(progress, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [0, -160] });
+  const opacity = progress.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, spark.gold ? 0.35 : 0.45, spark.gold ? 0.35 : 0.45, 0] });
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.2] });
+
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} style={style} aria-hidden="true">
-      <path d="M12 0 C12.8 6.2 13.8 9.4 24 12 C13.8 14.6 12.8 17.8 12 24 C11.2 17.8 10.2 14.6 0 12 C10.2 9.4 11.2 6.2 12 0 Z" fill={color} />
-    </svg>
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.spark,
+        {
+          left: `${spark.left}%`,
+          width: spark.size,
+          height: spark.size,
+          borderRadius: spark.size / 2,
+          backgroundColor: spark.gold ? GOLD_END : MINT,
+          opacity,
+          transform: [{ translateY }, { scale }],
+        },
+      ]}
+    />
   );
 }
 
-// A quiet decorative spiral used for background texture only.
+function AmbientSpiral({ spiral }) {
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: spiral.spinDuration, useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const rotate = spin.interpolate({
+    inputRange: [0, 1],
+    outputRange: spiral.reverse ? ['360deg', '0deg'] : ['0deg', '360deg'],
+  });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.bgDecor,
+        { left: `${spiral.left}%`, top: `${spiral.top}%`, opacity: spiral.gold ? 0.16 : 0.14, transform: [{ rotate }] },
+      ]}
+    >
+      <Spiral size={spiral.size} color={spiral.gold ? GOLD_SOFT : 'rgba(52, 224, 161, 0.35)'} />
+    </Animated.View>
+  );
+}
+
+function AmbientGoText({ item }) {
+  const bob = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bob, { toValue: 1, duration: item.duration / 2, useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 0, duration: item.duration / 2, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const translateY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -14] });
+  return (
+    <Animated.Text
+      pointerEvents="none"
+      style={[
+        styles.bgGoText,
+        {
+          left: `${item.left}%`,
+          top: `${item.top}%`,
+          fontSize: item.size,
+          color: item.gold ? GOLD_SOFT : 'rgba(52, 224, 161, 0.3)',
+          transform: [{ translateY }, { rotate: `${item.rotate}deg` }],
+        },
+      ]}
+    >
+      GO!
+    </Animated.Text>
+  );
+}
+
+function Sparkle({ size = 10, color = GOLD_END }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 0 C12.8 6.2 13.8 9.4 24 12 C13.8 14.6 12.8 17.8 12 24 C11.2 17.8 10.2 14.6 0 12 C10.2 9.4 11.2 6.2 12 0 Z" fill={color} />
+    </Svg>
+  );
+}
+
 function Spiral({ size = 24, color = GOLD_SOFT }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true">
-      <path
-        d="M20 20 
-           m 0,-2 
-           a 2,2 0 1 1 -2,2 
-           a 5,5 0 1 1 5,5 
-           a 9,9 0 1 1 -9,-9 
-           a 14,14 0 1 1 14,14"
+    <Svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <Path
+        d="M20 20 m 0,-2 a 2,2 0 1 1 -2,2 a 5,5 0 1 1 5,5 a 9,9 0 1 1 -9,-9 a 14,14 0 1 1 14,14"
         stroke={color}
         strokeWidth="1.4"
         strokeLinecap="round"
         fill="none"
       />
-    </svg>
+    </Svg>
   );
 }
 
-// The page's signature moment: each letter of "Go!" bounces in on load,
-// then keeps a slow, playful idle bounce so the call-to-action never goes quiet.
-// This is functional branding, not ambient decoration — left untouched by
-// the low-power pass (it's 3 elements, one-time + a slow idle loop; not a
-// meaningful cost).
+// The idle-bounce "Go!" wordmark — small, one-time + slow idle loop, kept
+// exactly as cheap as the web version treated it (not gated by low-power).
 function AnimatedGo() {
   const letters = ['G', 'o', '!'];
+  const anims = useRef(letters.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    letters.forEach((_, i) => {
+      Animated.sequence([
+        Animated.delay(500 + i * 100),
+        Animated.spring(anims[i], { toValue: 1, friction: 6, tension: 120, useNativeDriver: true }),
+      ]).start(() => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(1100 + i * 120),
+            Animated.timing(anims[i], { toValue: 1.4, duration: 550, useNativeDriver: true }),
+            Animated.timing(anims[i], { toValue: 1, duration: 550, useNativeDriver: true }),
+            Animated.delay(1400),
+          ])
+        ).start();
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <span style={styles.goWrap} aria-label="Go!">
-      {letters.map((ch, i) => (
-        <motion.span
-          key={i}
-          className="mx-go-letter"
-          style={styles.goLetter}
-          initial={{ opacity: 0, y: -24, scale: 0.4, rotate: -12 }}
-          animate={{
-            opacity: 1,
-            y: [0, -9, 0],
-            scale: 1,
-            rotate: 0
-          }}
-          transition={{
-            opacity: { duration: 0.4, delay: 0.5 + i * 0.1 },
-            scale: { type: 'spring', stiffness: 400, damping: 12, delay: 0.5 + i * 0.1 },
-            rotate: { duration: 0.4, delay: 0.5 + i * 0.1 },
-            y: {
-              duration: 1.1,
-              repeat: Infinity,
-              repeatDelay: 1.4,
-              delay: 1.6 + i * 0.12,
-              ease: 'easeInOut'
-            }
-          }}
-        >
-          {ch}
-        </motion.span>
-      ))}
-    </span>
+    <View style={styles.goWrap}>
+      {letters.map((ch, i) => {
+        const translateY = anims[i].interpolate({ inputRange: [0, 1, 1.4], outputRange: [-24, 0, -9] });
+        const opacity = anims[i].interpolate({ inputRange: [0, 0.4, 1, 1.4], outputRange: [0, 1, 1, 1] });
+        return (
+          <Animated.Text key={i} style={[styles.goLetter, { opacity, transform: [{ translateY }] }]}>
+            {ch}
+          </Animated.Text>
+        );
+      })}
+    </View>
   );
 }
 
-// ── Swipe-to-deploy control ─────────────────────────────────────────────────
-// Drag the track hard to the right to confirm entry, instead of a plain button.
+// ── Swipe-to-deploy control, ported from framer-motion drag to PanResponder ──
 function SwipeDeploy({ canSubmit, connecting, error, onConfirm }) {
   const thumbSize = 52;
-  const trackRef = useRef(null);
-  const [maxDrag, setMaxDrag] = useState(240);
-  const x = useMotionValue(0);
-  const glowOpacity = useTransform(x, [0, maxDrag], [0.15, 0.9]);
+  const [trackWidth, setTrackWidth] = useState(280);
+  const maxDrag = Math.max(60, trackWidth - thumbSize - 8);
+  const x = useRef(new Animated.Value(0)).current;
+  const dragStartX = useRef(0);
   const [settled, setSettled] = useState(false);
 
-  // Measure the actual rendered track width (it's fluid on mobile) so the
-  // drag distance always matches the visible track instead of a fixed px.
-  useEffect(() => {
-    const measure = () => {
-      if (trackRef.current) {
-        setMaxDrag(Math.max(60, trackRef.current.offsetWidth - thumbSize - 8));
-      }
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
+  const snapTo = useCallback((toValue, cb) => {
+    Animated.spring(x, { toValue, friction: 8, tension: 60, useNativeDriver: true }).start(cb);
+  }, [x]);
 
-  const handleDragEnd = () => {
-    const current = x.get();
-    if (!canSubmit || connecting) {
-      fmAnimate(x, 0, { type: 'spring', stiffness: 400, damping: 30 });
-      return;
-    }
-    if (current > maxDrag * 0.72) {
-      fmAnimate(x, maxDrag, { type: 'spring', stiffness: 260, damping: 24 });
-      setSettled(true);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([12, 30, 40]);
-      onConfirm();
-    } else {
-      fmAnimate(x, 0, { type: 'spring', stiffness: 400, damping: 30 });
-    }
-  };
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => canSubmit && !connecting,
+      onMoveShouldSetPanResponder: () => canSubmit && !connecting,
+      onPanResponderGrant: () => {
+        x.stopAnimation((val) => { dragStartX.current = val; });
+      },
+      onPanResponderMove: (_, gesture) => {
+        const next = Math.min(maxDrag, Math.max(0, dragStartX.current + gesture.dx));
+        x.setValue(next);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        const final = Math.min(maxDrag, Math.max(0, dragStartX.current + gesture.dx));
+        if (!canSubmit || connecting) {
+          snapTo(0);
+          return;
+        }
+        if (final > maxDrag * 0.72) {
+          snapTo(maxDrag);
+          setSettled(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          onConfirm();
+        } else {
+          snapTo(0);
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (!connecting) setSettled(false);
   }, [connecting]);
 
-  // BUGFIX (v5): a failed join previously left the thumb visually stuck at
-  // the far right — `settled` reset above, but `x` itself never snapped
-  // back. Whenever a new error comes in (i.e. the confirmed attempt
-  // actually failed), spring the thumb back to the start so the control
-  // is visibly ready to swipe again.
+  // Same bugfix as web v5: a failed join must snap the thumb back so the
+  // control is visibly ready to swipe again.
   useEffect(() => {
-    if (error) {
-      fmAnimate(x, 0, { type: 'spring', stiffness: 400, damping: 30 });
-    }
+    if (error) snapTo(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
   const locked = !canSubmit || connecting;
+  const glowOpacity = x.interpolate({ inputRange: [0, maxDrag], outputRange: [0.15, 0.9], extrapolate: 'clamp' });
 
   return (
-    <div
-      ref={trackRef}
-      style={{
-        ...styles.swipeTrack,
-        opacity: locked && !settled ? 0.45 : 1,
-        borderColor: settled ? MINT : GOLD_SOFT
-      }}
+    <View
+      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      style={[styles.swipeTrack, { opacity: locked && !settled ? 0.45 : 1, borderColor: settled ? MINT : GOLD_SOFT }]}
     >
-      <motion.div style={{ ...styles.swipeGlow, opacity: glowOpacity }} />
-      <span style={styles.swipeLabel}>
+      <Animated.View style={[styles.swipeGlow, { opacity: glowOpacity }]} />
+      <Text style={styles.swipeLabel} pointerEvents="none">
         {settled ? 'SYNCING STAGING CORES…' : locked ? 'FILL FIELDS TO UNLOCK' : 'SWIPE TO DEPLOY SQUAD →'}
-      </span>
-      <motion.div
-        drag={locked ? false : 'x'}
-        dragConstraints={{ left: 0, right: maxDrag }}
-        dragElastic={0.05}
-        dragMomentum={false}
-        style={{ x, ...styles.swipeThumb, cursor: locked ? 'not-allowed' : 'grab' }}
-        onDragEnd={handleDragEnd}
-        whileTap={{ cursor: 'grabbing' }}
+      </Text>
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[styles.swipeThumb, { transform: [{ translateX: x }] }]}
       >
-        ⚡
-      </motion.div>
-    </div>
+        <Text style={{ fontSize: 20 }}>⚡</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+// Small fade-mount/unmount wrapper — RN's answer to AnimatePresence for
+// the roast-line and error banner, which only need enter/exit fade+slide.
+function Fade({ visible, children, style }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = useState(visible);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    } else {
+      Animated.timing(anim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setMounted(false));
+    }
+  }, [visible, anim]);
+
+  if (!mounted) return null;
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] });
+  return (
+    <Animated.View style={[style, { opacity: anim, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
   );
 }
 
@@ -394,135 +578,36 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
   const [lobbiesToday, setLobbiesToday] = useState(1402);
   const [squadIdx, setSquadIdx] = useState(1);
   const [focusField, setFocusField] = useState(null);
-  const [logoFailed, setLogoFailed] = useState(false);
 
-  // Roast commentary state
   const [roastLine, setRoastLine] = useState(null);
   const roastTimerRef = useRef(null);
 
-  // Shake-to-sync state
   const [shakeState, setShakeState] = useState('idle'); // idle | listening | denied | unsupported | synced
-  const shakeCleanupRef = useRef(null);
+  const shakeSubRef = useRef(null);
   const lastAccelRef = useRef({ x: 0, y: 0, z: 0, t: 0 });
 
-  // FIX: replaces the old plain-text legal disclaimer. This is the app's
-  // real first screen (App.jsx has no auth/legal gate ahead of it), so
-  // this is currently the ONLY reachable path to Privacy/Terms in the
-  // live app — it has to actually work, not just say the right words.
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
 
   const isMobile = useIsMobile();
   const lowPower = useLowPowerMode(isMobile);
 
-  // Base counts cut ~roughly in half from the prior revision even in the
-  // normal (non-low-power) case; low-power mode zeroes decorative layers
-  // out entirely rather than just thinning them further.
-  const sparkCount = lowPower ? 0 : isMobile ? 5 : 12;
-  const spiralCount = lowPower ? 0 : isMobile ? 2 : 6;
-  const goTextCount = lowPower ? 0 : isMobile ? 3 : 10;
+  // On RN, isMobile is always true — so this always takes the lowest
+  // (mobile) tier, same as the web build's real-device behavior. The
+  // "desktop" tier from the web file has no RN equivalent and is omitted
+  // rather than left as unreachable dead code here.
+  const sparkCount = lowPower ? 0 : 5;
+  const spiralCount = lowPower ? 0 : 2;
+  const goTextCount = lowPower ? 0 : 3;
 
   const sparks = useAmbientSparks(sparkCount);
   const spirals = useAmbientSpirals(spiralCount);
   const bgGoTexts = useAmbientGoText(goTextCount);
 
-  useEffect(() => {
-    // Preconnect first so the actual stylesheet fetch that follows doesn't
-    // pay DNS/TLS setup serially after JS mount.
-    if (!document.getElementById('mx-preconnect-node')) {
-      const pre1 = document.createElement('link');
-      pre1.id = 'mx-preconnect-node';
-      pre1.rel = 'preconnect';
-      pre1.href = 'https://fonts.googleapis.com';
-      document.head.appendChild(pre1);
-
-      const pre2 = document.createElement('link');
-      pre2.rel = 'preconnect';
-      pre2.href = 'https://fonts.gstatic.com';
-      pre2.crossOrigin = 'anonymous';
-      document.head.appendChild(pre2);
-    }
-    if (!document.getElementById('mx-fonts-node')) {
-      const link = document.createElement('link');
-      link.id = 'mx-fonts-node';
-      link.rel = 'stylesheet';
-      link.href =
-        'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap';
-      document.head.appendChild(link);
-    }
-    if (!document.getElementById('mx-style-node')) {
-      const el = document.createElement("style");
-      el.id = "mx-style-node";
-      el.textContent = `
-        @keyframes mxTwinkle {
-          0%, 100% { opacity: 0.15; transform: scale(0.85) rotate(0deg); }
-          50% { opacity: 0.95; transform: scale(1.15) rotate(12deg); }
-        }
-        @keyframes mxDrift {
-          0% { transform: translateY(0) scale(0.8); opacity: 0; }
-          12% { opacity: var(--mx-op, 0.5); }
-          88% { opacity: var(--mx-op, 0.5); }
-          100% { transform: translateY(-160px) scale(1.2); opacity: 0; }
-        }
-        @keyframes mxGridSweep {
-          0% { background-position: 0 0; }
-          100% { background-position: 0 32px; }
-        }
-        @keyframes mxSpinCW {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes mxSpinCCW {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
-        @keyframes mxFloatText {
-          0%, 100% { transform: translateY(0) rotate(var(--mx-rot, 0deg)); opacity: var(--mx-go-op, 0.05); }
-          50% { transform: translateY(-14px) rotate(var(--mx-rot, 0deg)); opacity: calc(var(--mx-go-op, 0.05) * 1.8); }
-        }
-        @keyframes mxShakePulse {
-          0%, 100% { box-shadow: 0 0 0 rgba(52,224,161,0); }
-          50% { box-shadow: 0 0 22px rgba(52,224,161,0.55); }
-        }
-        .mx-bg-spiral {
-          position: absolute; pointer-events: none; z-index: 1;
-        }
-        .mx-bg-go {
-          position: absolute; pointer-events: none; z-index: 1;
-          font-family: 'Space Grotesk', sans-serif; font-weight: 800;
-          animation: mxFloatText linear infinite;
-        }
-        .mx-btn-core:hover:not(:disabled) {
-          filter: brightness(1.12);
-          box-shadow: 0 0 30px rgba(244, 221, 160, 0.4) !important;
-          transform: translateY(-2px);
-        }
-        .mx-btn-core:active:not(:disabled) {
-          transform: translateY(0);
-        }
-        .mx-shake-btn.listening {
-          animation: mxShakePulse 1.4s ease-in-out infinite;
-        }
-        @media (max-width: 768px) {
-          .mx-split-chassis { flex-direction: column !important; padding: 12px !important; }
-          .mx-pane-half { width: 100% !important; flex: 1 1 auto !important; }
-        }
-        @media (max-width: 480px) {
-          .mx-card-surface { padding: 16px !important; border-radius: 18px !important; }
-          .mx-brand-word { font-size: 16px !important; }
-          .mx-veggie-word { font-size: 21px !important; }
-          .mx-go-letter { font-size: 24px !important; }
-        }
-      `;
-      document.head.appendChild(el);
-    }
-  }, []);
-
-  // Ticker: slowed from 2.5s -> 4s, and now pauses entirely while the tab
-  // is hidden/backgrounded instead of continuing to tick unseen.
+  // Ticker — pauses while backgrounded via AppState, same intent as the
+  // web version's visibilitychange handling.
   useEffect(() => {
     let id = null;
-
     const start = () => {
       if (id) return;
       id = setInterval(() => {
@@ -532,29 +617,20 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
       }, TICKER_INTERVAL_MS);
     };
     const stop = () => {
-      if (id) {
-        clearInterval(id);
-        id = null;
-      }
+      if (id) { clearInterval(id); id = null; }
     };
-
-    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-      start();
-    }
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') start();
+    start();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') start();
       else stop();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-
+    });
     return () => {
       stop();
-      document.removeEventListener('visibilitychange', onVisibility);
+      sub.remove();
     };
   }, []);
 
-  // Debounced live roast commentary while the player types their handle.
+  // Debounced roast commentary — unchanged logic from web.
   useEffect(() => {
     if (roastTimerRef.current) clearTimeout(roastTimerRef.current);
     if (!playerName.trim()) {
@@ -574,69 +650,58 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
     onJoin({ room, name });
   }, [roomCode, playerName, connecting, onJoin]);
 
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    handleSubmit();
-  };
-
   const handleQuickMatch = () => {
     if (connecting) return;
     setRoomCode(generateArenaCode());
   };
 
-  // Shake-to-sync: two or more phones shaken together auto-generate and
-  // share a room seed instead of anyone typing a code.
+  // Shake-to-sync, ported from window devicemotion to expo-sensors
+  // DeviceMotion — same sample-delta-magnitude threshold logic as web.
   const stopShakeListening = useCallback(() => {
-    if (shakeCleanupRef.current) {
-      shakeCleanupRef.current();
-      shakeCleanupRef.current = null;
+    if (shakeSubRef.current) {
+      shakeSubRef.current.remove();
+      shakeSubRef.current = null;
     }
   }, []);
 
-  const onDeviceMotion = useCallback(
-    (evt) => {
-      const acc = evt.accelerationIncludingGravity || evt.acceleration;
-      if (!acc) return;
-      const now = Date.now();
-      const prev = lastAccelRef.current;
-      if (now - prev.t < 80) return; // throttle sampling
-      const dx = (acc.x || 0) - prev.x;
-      const dy = (acc.y || 0) - prev.y;
-      const dz = (acc.z || 0) - prev.z;
-      const delta = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      lastAccelRef.current = { x: acc.x || 0, y: acc.y || 0, z: acc.z || 0, t: now };
-
-      if (delta > 22) {
-        setShakeState('synced');
-        if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([20, 40, 20]);
-        setRoomCode((prevRoom) => (prevRoom.trim() ? prevRoom : generateArenaCode()));
-        stopShakeListening();
-      }
-    },
-    [stopShakeListening]
-  );
-
   const startShakeListening = useCallback(async () => {
-    if (typeof window === 'undefined' || typeof DeviceMotionEvent === 'undefined') {
-      setShakeState('unsupported');
-      return;
-    }
     try {
-      if (typeof DeviceMotionEvent.requestPermission === 'function') {
-        const perm = await DeviceMotionEvent.requestPermission();
-        if (perm !== 'granted') {
-          setShakeState('denied');
-          return;
-        }
+      const available = await DeviceMotion.isAvailableAsync();
+      if (!available) {
+        setShakeState('unsupported');
+        return;
+      }
+      const { status } = await DeviceMotion.requestPermissionsAsync();
+      if (status !== 'granted') {
+        setShakeState('denied');
+        return;
       }
       lastAccelRef.current = { x: 0, y: 0, z: 0, t: Date.now() };
-      window.addEventListener('devicemotion', onDeviceMotion);
-      shakeCleanupRef.current = () => window.removeEventListener('devicemotion', onDeviceMotion);
+      DeviceMotion.setUpdateInterval(80);
+      shakeSubRef.current = DeviceMotion.addListener(({ accelerationIncludingGravity, acceleration }) => {
+        const acc = accelerationIncludingGravity || acceleration;
+        if (!acc) return;
+        const now = Date.now();
+        const prev = lastAccelRef.current;
+        if (now - prev.t < 80) return;
+        const dx = (acc.x || 0) - prev.x;
+        const dy = (acc.y || 0) - prev.y;
+        const dz = (acc.z || 0) - prev.z;
+        const delta = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        lastAccelRef.current = { x: acc.x || 0, y: acc.y || 0, z: acc.z || 0, t: now };
+
+        if (delta > 22) {
+          setShakeState('synced');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          setRoomCode((prevRoom) => (prevRoom.trim() ? prevRoom : generateArenaCode()));
+          stopShakeListening();
+        }
+      });
       setShakeState('listening');
     } catch {
       setShakeState('unsupported');
     }
-  }, [onDeviceMotion]);
+  }, [stopShakeListening]);
 
   useEffect(() => stopShakeListening, [stopShakeListening]);
 
@@ -648,446 +713,361 @@ export default function RoomJoin({ onJoin, error, connecting, globalScans, initi
     listening: 'LISTENING FOR SQUAD SHAKE…',
     synced: '✅ SHAKE DETECTED — SEED LINKED',
     denied: '🚨 MOTION ACCESS DENIED',
-    unsupported: '⚠ MOTION SENSORS UNAVAILABLE'
+    unsupported: '⚠ MOTION SENSORS UNAVAILABLE',
   }[shakeState];
 
   return (
-    <div style={styles.lobbyShell}>
-      {/* Grid sweep animation itself is skipped in low-power mode (still
-          renders the static grid texture, just without the animated
-          background-position sweep) */}
-      <div style={{ ...styles.vectorScanGrid, animation: lowPower ? 'none' : undefined }} />
+    <View style={styles.lobbyShell}>
+      {sparks.map((s) => <AmbientSpark key={s.id} spark={s} />)}
+      {spirals.map((s) => <AmbientSpiral key={`spiral-${s.id}`} spiral={s} />)}
+      {bgGoTexts.map((g) => <AmbientGoText key={`go-${g.id}`} item={g} />)}
 
-      {sparks.map((spark) => (
-        <div
-          key={spark.id}
-          style={{
-            ...styles.spark,
-            left: `${spark.left}%`,
-            width: `${spark.size}px`,
-            height: `${spark.size}px`,
-            background: spark.gold ? GOLD_END : MINT,
-            opacity: spark.gold ? 0.35 : 0.45,
-            animation: `mxDrift ${spark.duration}s linear infinite`,
-            animationDelay: `${spark.delay}s`,
-            '--mx-op': spark.gold ? 0.55 : 0.7
-          }}
-        />
-      ))}
+      <View style={styles.scrollArea}>
+        {/* ── LIVE MULTIPLAYER HUD SQUAD STATUS ── */}
+        <View style={styles.tutorialPanelCard}>
+          <View style={styles.hudHeaderRow}>
+            <Text style={styles.hudLabel}>LIVE LOBBY WAITING ROOM:</Text>
+            <Text style={[styles.hudActivePulse, { color: MINT }]}>● FINDING PLAYERS</Text>
+          </View>
 
-      {/* Small spinning spirals scattered through the backdrop */}
-      {spirals.map((s) => (
-        <div
-          key={`spiral-${s.id}`}
-          className="mx-bg-spiral"
-          style={{
-            left: `${s.left}%`,
-            top: `${s.top}%`,
-            animation: `${s.reverse ? 'mxSpinCCW' : 'mxSpinCW'} ${s.spinDuration}s linear infinite`,
-            animationDelay: `${s.delay}s`,
-            opacity: s.gold ? 0.16 : 0.14
-          }}
-        >
-          <Spiral size={s.size} color={s.gold ? GOLD_SOFT : 'rgba(52, 224, 161, 0.35)'} />
-        </div>
-      ))}
+          <View style={styles.hudGlitchBox}>
+            <View style={styles.decorSparkleLeft}><Sparkle size={12} color={GOLD_START} /></View>
+            <Text style={styles.hudStatusHeading}>{currentSquadState.headline}</Text>
+            <Text style={styles.hudStatusSubText}>{currentSquadState.note}</Text>
+            <View style={styles.decorSparkleRight}><Sparkle size={10} color={GOLD_END} /></View>
+          </View>
 
-      {/* Faint "GO!" watermarks tiling the background */}
-      {bgGoTexts.map((g) => (
-        <span
-          key={`bg-go-${g.id}`}
-          className="mx-bg-go"
-          style={{
-            left: `${g.left}%`,
-            top: `${g.top}%`,
-            fontSize: `${g.size}px`,
-            color: g.gold ? GOLD_SOFT : 'rgba(52, 224, 161, 0.3)',
-            animationDuration: `${g.duration}s`,
-            animationDelay: `${g.delay}s`,
-            '--mx-rot': `${g.rotate}deg`,
-            '--mx-go-op': g.gold ? 0.07 : 0.06
-          }}
-        >
-          GO!
-        </span>
-      ))}
+          <View style={styles.conceptRow}>
+            <View style={[styles.iconBadge, { borderColor: GOLD_SOFT, borderWidth: 1.5 }]}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={GOLD_START} strokeWidth={2.5}>
+                <Path d="M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" opacity={0.4} />
+                <Circle cx={9} cy={9} r={2} fill={GOLD_START} />
+                <Path d="M9 9 L15 15" stroke={GOLD_START} strokeWidth={2} strokeLinecap="round" />
+                <Circle cx={15} cy={15} r={2} fill={GOLD_START} />
+              </Svg>
+            </View>
+            <View style={styles.conceptMeta}>
+              <Text style={[styles.conceptTitle, { color: GOLD_END }]}>1. MAP TRACKER</Text>
+              <Text style={styles.conceptDesc}>Spot mutant vegetables invading your actual local streets in real time.</Text>
+            </View>
+          </View>
 
-      <div className="mx-split-chassis" style={styles.dashboardSplitLayout}>
+          <View style={styles.conceptRow}>
+            <View style={[styles.iconBadge, { borderColor: 'rgba(52, 224, 161, 0.15)', borderWidth: 1.5 }]}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={MINT} strokeWidth={2.5}>
+                <Circle cx={12} cy={12} r={9} opacity={0.2} />
+                <Circle cx={12} cy={12} r={5} strokeDasharray="3 2" />
+                <Circle cx={12} cy={12} r={2} fill={MINT} />
+              </Svg>
+            </View>
+            <View style={styles.conceptMeta}>
+              <Text style={[styles.conceptTitle, { color: MINT }]}>2. RUN TO CATCH</Text>
+              <Text style={styles.conceptDesc}>You must physically sprint within 15 meters of the veggie to unlock the Catch button!</Text>
+            </View>
+          </View>
 
-        {/* ── LEFT BOX: LIVE MULTIPLAYER HUD SQUAD STATUS READOUT ── */}
-        <motion.div
-          initial={{ opacity: 0, x: -35 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.55, ease: 'easeOut' }}
-          className="mx-pane-half mx-card-surface"
-          style={styles.tutorialPanelCard}
-        >
-          <div style={styles.hudHeaderRow}>
-            <span style={styles.hudLabel}>LIVE LOBBY WAITING ROOM:</span>
-            <span style={{ ...styles.hudActivePulse, color: MINT }}>● FINDING PLAYERS</span>
-          </div>
+          <View style={styles.conceptRow}>
+            <View style={[styles.iconBadge, { borderColor: 'rgba(255, 126, 187, 0.15)', borderWidth: 1.5 }]}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={LIGHT_PINK} strokeWidth={2.5}>
+                <Circle cx={12} cy={12} r={8} />
+                <Path d="M12 2v4 M12 18v4 M2 12h4 M18 12h4" opacity={0.5} />
+                <Path d="M8 8 L16 16" strokeLinecap="round" />
+              </Svg>
+            </View>
+            <View style={styles.conceptMeta}>
+              <Text style={[styles.conceptTitle, { color: LIGHT_PINK }]}>3. AR CAMERA HUNT</Text>
+              <Text style={styles.conceptDesc}>Spot them hiding behind real trees and slap that Catch button before anyone else!</Text>
+            </View>
+          </View>
 
-          <div style={styles.hudGlitchBox}>
-            <Sparkle size={12} color={GOLD_START} style={styles.decorSparkleLeft} />
-            <h3 style={styles.hudStatusHeading}>{currentSquadState.headline}</h3>
-            <p style={styles.hudStatusSubText}>{currentSquadState.note}</p>
-            <Sparkle size={10} color={GOLD_END} style={styles.decorSparkleRight} />
-          </div>
-
-          {/* CAPTURE ZONE -> RUN TO CATCH: rewritten to match the actual
-              shipped mechanic (tap-to-catch on lock, not "disc flicking",
-              which isn't what CaptureThrow.jsx/GameCanvas.jsx implement).
-              Radius kept at 15m to match server.js's real
-              CATCH_RADIUS_METERS — see file header note if you want the
-              tighter chase to be real, not just copy. */}
-          <div style={styles.conceptRow}>
-            <div style={{ ...styles.iconBadge, border: `1.5px solid ${GOLD_SOFT}` }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={GOLD_START} strokeWidth="2.5">
-                <path d="M3 3h18v18H3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" opacity="0.4" />
-                <circle cx="9" cy="9" r="2" fill={GOLD_START} />
-                <path d="M9 9 L15 15" stroke={GOLD_START} strokeWidth="2" strokeLinecap="round" />
-                <circle cx="15" cy="15" r="2" fill={GOLD_START} />
-              </svg>
-            </div>
-            <div style={styles.conceptMeta}>
-              <span style={{ ...styles.conceptTitle, color: GOLD_END }}>1. MAP TRACKER</span>
-              <span style={styles.conceptDesc}>Spot mutant vegetables invading your actual local streets in real time.</span>
-            </div>
-          </div>
-
-          <div style={styles.conceptRow}>
-            <div style={{ ...styles.iconBadge, border: `1.5px solid rgba(52, 224, 161, 0.15)` }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={MINT} strokeWidth="2.5">
-                <circle cx="12" cy="12" r="9" opacity="0.2" />
-                <circle cx="12" cy="12" r="5" strokeDasharray="3 2" />
-                <circle cx="12" cy="12" r="2" fill={MINT} />
-              </svg>
-            </div>
-            <div style={styles.conceptMeta}>
-              <span style={{ ...styles.conceptTitle, color: MINT }}>2. RUN TO CATCH</span>
-              <span style={styles.conceptDesc}>You must physically sprint within 15 meters of the veggie to unlock the Catch button!</span>
-            </div>
-          </div>
-
-          <div style={styles.conceptRow}>
-            <div style={{ ...styles.iconBadge, border: `1.5px solid rgba(255, 126, 187, 0.15)` }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={LIGHT_PINK} strokeWidth="2.5">
-                <circle cx="12" cy="12" r="8" />
-                <path d="M12 2v4 M12 18v4 M2 12h4 M18 12h4" opacity="0.5" />
-                <path d="M8 8 L16 16" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div style={styles.conceptMeta}>
-              <span style={{ ...styles.conceptTitle, color: LIGHT_PINK }}>3. AR CAMERA HUNT</span>
-              <span style={styles.conceptDesc}>Spot them hiding behind real trees and slap that Catch button before anyone else!</span>
-            </div>
-          </div>
-
-          {/* Shake-to-sync control */}
-          <div style={styles.hudDividerLine} />
-          <button
-            type="button"
-            onClick={shakeState === 'listening' ? stopShakeListening : startShakeListening}
-            className={`mx-shake-btn ${shakeState === 'listening' ? 'listening' : ''}`}
-            style={{
-              ...styles.shakeButton,
-              borderColor: shakeState === 'synced' ? MINT : shakeState === 'denied' || shakeState === 'unsupported' ? LIGHT_PINK : GOLD_SOFT,
-              color: shakeState === 'synced' ? MINT : shakeState === 'denied' || shakeState === 'unsupported' ? LIGHT_PINK : GOLD_END
-            }}
+          <View style={styles.hudDividerLine} />
+          <TouchableOpacity
+            onPress={shakeState === 'listening' ? stopShakeListening : startShakeListening}
+            activeOpacity={0.8}
+            style={[
+              styles.shakeButton,
+              {
+                borderColor: shakeState === 'synced' ? MINT : shakeState === 'denied' || shakeState === 'unsupported' ? LIGHT_PINK : GOLD_SOFT,
+              },
+            ]}
           >
-            🤝 SHAKE TO SYNC SQUAD
-          </button>
-          <div style={styles.shakeStatusLine}>// {shakeStatusText}</div>
-
-          <div style={styles.hudFooterLog}>// MAX PLAYERS IN ROOM: 6 · CO-OP MODE REQUIRES AT LEAST 2 CHASERS TO START.</div>
-        </motion.div>
-
-        {/* ── RIGHT BOX: UNIFIED ACCESS FIELDS CONTROL DECK W/ ANIMATED WORDMARK ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.12, ease: 'easeOut' }}
-          className="mx-pane-half mx-card-surface"
-          style={styles.lobbyCardChassis}
-        >
-          <div style={styles.statusRowBar}>
-            <div style={styles.statusIndicator}>● LOBBY WAITING ROOM</div>
-            <div style={styles.latencyIndicator}>⚡ PING: <span style={{ color: MINT }}>{ping}ms</span></div>
-          </div>
-
-          <div style={styles.headerTitleBlock}>
-            <motion.h1
-              initial={{ opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-              style={styles.mainLogoText}
+            <Text
+              style={{
+                color: shakeState === 'synced' ? MINT : shakeState === 'denied' || shakeState === 'unsupported' ? LIGHT_PINK : GOLD_END,
+                fontWeight: '700',
+                fontSize: 11,
+                letterSpacing: 0.5,
+              }}
             >
-              <span className="mx-brand-word" style={styles.brandWordmark}>MANIFIX AI</span>
-              <span className="mx-veggie-word" style={styles.veggieText}>Veggie</span>
+              🤝 SHAKE TO SYNC SQUAD
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.shakeStatusLine}>// {shakeStatusText}</Text>
+
+          <Text style={styles.hudFooterLog}>// MAX PLAYERS IN ROOM: 6 · CO-OP MODE REQUIRES AT LEAST 2 CHASERS TO START.</Text>
+        </View>
+
+        {/* ── ACCESS FIELDS CONTROL DECK ── */}
+        <View style={styles.lobbyCardChassis}>
+          <View style={styles.statusRowBar}>
+            <Text style={styles.statusIndicator}>● LOBBY WAITING ROOM</Text>
+            <Text style={styles.latencyIndicator}>⚡ PING: <Text style={{ color: MINT }}>{ping}ms</Text></Text>
+          </View>
+
+          <View style={styles.headerTitleBlock}>
+            <View style={styles.mainLogoText}>
+              <Text style={styles.brandWordmark}>MANIFIX AI</Text>
+              <Text style={styles.veggieText}>Veggie</Text>
               <AnimatedGo />
-            </motion.h1>
-            <p style={styles.subSubtitlePrompt}>ROOM LOBBY — GET READY TO CHASE</p>
-          </div>
+            </View>
+            <Text style={styles.subSubtitlePrompt}>ROOM LOBBY — GET READY TO CHASE</Text>
+          </View>
 
-          <div style={styles.globalTickerRow}>
-            <div style={styles.tickerDataBlock}>
-              <span style={styles.tickerLabel}>VEGGIES CAUGHT WORLDWIDE TODAY</span>
-              <span style={styles.tickerValue}>
+          <View style={styles.globalTickerRow}>
+            <View style={styles.tickerDataBlock}>
+              <Text style={styles.tickerLabel}>VEGGIES CAUGHT WORLDWIDE TODAY</Text>
+              <Text style={styles.tickerValue}>
                 {typeof globalScans === 'number' ? globalScans.toLocaleString() : lobbiesToday.toLocaleString()}+ CAUGHT
-              </span>
-            </div>
-          </div>
+              </Text>
+            </View>
+          </View>
 
-          {error && <p style={styles.errorText}>⚠ {error}</p>}
+          <Fade visible={!!error} style={{ marginBottom: 14 }}>
+            <Text style={styles.errorText}>⚠ {error}</Text>
+          </Fade>
 
-          <form onSubmit={handleFormSubmit} style={styles.accessFormContainer}>
-            <div style={styles.inputFieldWrapper}>
-              <label style={styles.fieldLabelLabel}>CHASER CALLSIGN (TAG)</label>
-              <input
-                type="text"
+          <View style={styles.accessFormContainer}>
+            <View style={styles.inputFieldWrapper}>
+              <Text style={styles.fieldLabelLabel}>CHASER CALLSIGN (TAG)</Text>
+              <TextInput
                 placeholder="ENTER YOUR NICKNAME / TAG..."
+                placeholderTextColor="#3d4352"
                 value={playerName}
                 onFocus={() => setFocusField('name')}
                 onBlur={() => setFocusField(null)}
-                onChange={(e) => setPlayerName(e.target.value)}
+                onChangeText={setPlayerName}
                 maxLength={20}
-                required
-                style={{
-                  ...styles.premiumInputBox,
-                  borderColor: focusField === 'name' ? GOLD_START : 'rgba(255,255,255,0.05)',
-                  boxShadow: focusField === 'name' ? `0 0 15px ${GOLD_SOFT}` : 'none'
-                }}
+                style={[
+                  styles.premiumInputBox,
+                  { borderColor: focusField === 'name' ? GOLD_START : 'rgba(255,255,255,0.08)' },
+                ]}
               />
-              {roastLine && (
-                <motion.div
-                  key={roastLine}
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={styles.roastLine}
-                >
-                  {roastLine}
-                </motion.div>
-              )}
-            </div>
+              <Fade visible={!!roastLine}>
+                <Text style={styles.roastLine}>{roastLine}</Text>
+              </Fade>
+            </View>
 
-            <div style={styles.inputFieldWrapper}>
-              <div style={styles.fieldHeaderLabelRow}>
-                <label style={styles.fieldLabelLabel}>ENTER ROOM CODE</label>
-                <button type="button" onClick={handleQuickMatch} disabled={connecting} style={styles.quickMatchBtn}>
-                  ⚡ QUICK MATCH
-                </button>
-              </div>
-              <input
-                type="text"
+            <View style={styles.inputFieldWrapper}>
+              <View style={styles.fieldHeaderLabelRow}>
+                <Text style={styles.fieldLabelLabel}>ENTER ROOM CODE</Text>
+                <TouchableOpacity onPress={handleQuickMatch} disabled={connecting}>
+                  <Text style={styles.quickMatchBtn}>⚡ QUICK MATCH</Text>
+                </TouchableOpacity>
+              </View>
+              <TextInput
                 placeholder="TYPE ROOM CODE OR HIT QUICK MATCH..."
+                placeholderTextColor="#3d4352"
                 value={roomCode}
                 onFocus={() => setFocusField('room')}
                 onBlur={() => setFocusField(null)}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                onChangeText={(t) => setRoomCode(t.toUpperCase())}
                 maxLength={12}
-                required
-                style={{
-                  ...styles.premiumInputBox,
-                  borderColor: focusField === 'room' ? GOLD_START : 'rgba(255,255,255,0.05)',
-                  boxShadow: focusField === 'room' ? `0 0 15px ${GOLD_SOFT}` : 'none'
-                }}
+                autoCapitalize="characters"
+                style={[
+                  styles.premiumInputBox,
+                  { borderColor: focusField === 'room' ? GOLD_START : 'rgba(255,255,255,0.08)' },
+                ]}
               />
-            </div>
+            </View>
 
-            {/* Swipe-to-deploy replaces the plain submit button */}
-            <div style={styles.swipeWrapper}>
+            <View style={styles.swipeWrapper}>
               <SwipeDeploy canSubmit={canSubmit} connecting={connecting} error={error} onConfirm={handleSubmit} />
-            </div>
-          </form>
+            </View>
+          </View>
 
-          {/* FIX: was static, unclickable text ("you authorize secure
-              geographical tracking matrix data transfers"). This screen
-              is the app's real first screen with no auth/legal gate
-              ahead of it, so this is currently the ONLY reachable path
-              to Privacy/Terms in the live app. Now opens the real
-              modals instead of just claiming consent was given. */}
-          <p style={styles.footNotice}>
+          {/* Load-bearing for Play Store compliance — see file header. */}
+          <Text style={styles.footNotice}>
             By continuing, you agree to Veggie Go's{' '}
-            <button type="button" onClick={() => setShowTerms(true)} style={styles.footLinkBtn}>
-              Terms
-            </button>{' '}
+            <Text onPress={() => setShowTerms(true)} style={styles.footLinkBtn}>Terms</Text>{' '}
             and{' '}
-            <button type="button" onClick={() => setShowPrivacy(true)} style={styles.footLinkBtn}>
-              Privacy Policy
-            </button>, including location and camera use for live gameplay.
-          </p>
-        </motion.div>
-
-      </div>
+            <Text onPress={() => setShowPrivacy(true)} style={styles.footLinkBtn}>Privacy Policy</Text>,
+            {' '}including location and camera use for live gameplay.
+          </Text>
+        </View>
+      </View>
 
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
       {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
-    </div>
+    </View>
   );
 }
 
-const styles = {
-  lobbyShell: {
-    position: 'fixed', inset: 0, background: BG_BLACK, display: 'flex', alignItems: 'center',
-    justifyContent: 'center', padding: '24px', boxSizing: 'border-box', overflowY: 'auto', userSelect: 'none'
-  },
-  vectorScanGrid: {
-    position: 'absolute', inset: 0, zIndex: 1,
-    backgroundImage: 'linear-gradient(rgba(202,162,74,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(202,162,74,0.012) 1px, transparent 1px)',
-    backgroundSize: '34px 34px', animation: 'mxGridSweep 16s linear infinite',
-    maskImage: 'radial-gradient(circle at 50% 50%, black 0%, transparent 85%)',
-    WebkitMaskImage: 'radial-gradient(circle at 50% 50%, black 0%, transparent 85%)'
-  },
-  spark: { position: 'absolute', bottom: '-20px', borderRadius: '50%', zIndex: 2, pointerEvents: 'none' },
+const { width: SCREEN_W } = Dimensions.get('window');
+const isNarrow = SCREEN_W < 700;
 
-  dashboardSplitLayout: {
-    position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'row', gap: '24px',
-    justifyContent: 'center', alignItems: 'stretch', width: '100%', maxWidth: '840px'
+const styles = StyleSheet.create({
+  lobbyShell: { flex: 1, backgroundColor: BG_BLACK },
+  scrollArea: {
+    flex: 1,
+    padding: 16,
+    paddingTop: Platform.OS === 'ios' ? 54 : 32,
+    flexDirection: isNarrow ? 'column' : 'row',
+    gap: 16,
   },
+
+  spark: { position: 'absolute', bottom: -20 },
+  bgDecor: { position: 'absolute' },
+  bgGoText: { position: 'absolute', fontWeight: '800' },
 
   tutorialPanelCard: {
-    flex: '1 1 340px', background: 'rgba(6, 8, 14, 0.72)', border: '1px solid rgba(255,255,255,0.04)',
-    borderRadius: '24px', padding: '28px', boxSizing: 'border-box', display: 'flex',
-    flexDirection: 'column', gap: '12px', boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
-    backdropFilter: 'blur(12px)', textAlign: 'left', fontFamily: "'Space Grotesk', sans-serif"
+    flex: 1,
+    backgroundColor: 'rgba(10, 13, 20, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 24,
+    padding: 22,
+    gap: 12,
   },
-  hudHeaderRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    fontSize: '9px', fontFamily: "'JetBrains Mono', monospace", color: '#444', fontWeight: 'bold'
-  },
-  hudLabel: { fontSize: '9px', fontFamily: "'JetBrains Mono', monospace", color: '#666', fontWeight: 'bold', letterSpacing: '0.5px' },
-  hudActivePulse: { fontWeight: 'bold', display: 'inline-block' },
+  hudHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  hudLabel: { fontSize: 9, color: '#666', fontWeight: '700', letterSpacing: 0.5 },
+  hudActivePulse: { fontWeight: '700', fontSize: 9 },
   hudGlitchBox: {
-    position: 'relative', background: 'rgba(202,162,74,0.02)', border: `1px dashed ${GOLD_SOFT}`,
-    borderRadius: '16px', padding: '16px 20px', boxSizing: 'border-box'
+    position: 'relative',
+    backgroundColor: 'rgba(202,162,74,0.04)',
+    borderWidth: 1,
+    borderColor: GOLD_SOFT,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    padding: 16,
   },
-  hudStatusHeading: { fontSize: '20px', fontWeight: '900', color: GOLD_END, margin: 0, letterSpacing: '0.5px' },
-  hudStatusSubText: { fontSize: '9px', fontWeight: '700', color: MUTED, margin: '4px 0 0 0', letterSpacing: '0.5px' },
-  decorSparkleLeft: { position: 'absolute', top: '10px', left: '12px', animation: 'mxTwinkle 3s infinite ease-in-out' },
-  decorSparkleRight: { position: 'absolute', bottom: '10px', right: '12px', animation: 'mxTwinkle 3.5s infinite ease-in-out' },
+  hudStatusHeading: { fontSize: 20, fontWeight: '900', color: GOLD_END, letterSpacing: 0.5 },
+  hudStatusSubText: { fontSize: 9, fontWeight: '700', color: MUTED, marginTop: 4, letterSpacing: 0.5 },
+  decorSparkleLeft: { position: 'absolute', top: 10, left: 12 },
+  decorSparkleRight: { position: 'absolute', bottom: 10, right: 12 },
 
   conceptRow: {
-    display: 'flex', gap: '14px', alignItems: 'center', margin: '4px 0', background: 'rgba(255,255,255,0.01)',
-    padding: '10px 14px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.02)'
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    padding: 10,
+    borderRadius: 14,
   },
-  iconBadge: {
-    width: '42px', height: '40px', minWidth: '42px', borderRadius: '12px', background: 'rgba(0,0,0,0.45)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box'
-  },
-  conceptMeta: { display: 'flex', flexDirection: 'column', gap: '1px' },
-  conceptTitle: { fontSize: '11px', fontWeight: '900', fontFamily: 'monospace', letterSpacing: '0.5px' },
-  conceptDesc: { fontSize: '10px', color: '#9199a6', fontFamily: 'sans-serif', lineHeight: '1.4' },
+  iconBadge: { width: 42, height: 40, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  conceptMeta: { flex: 1, gap: 1 },
+  conceptTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  conceptDesc: { fontSize: 10, color: '#9199a6', lineHeight: 14 },
 
-  hudDividerLine: { height: '1px', background: 'rgba(255,255,255,0.03)', margin: '2px 0' },
-  hudFooterLog: { fontSize: '9px', fontFamily: "'JetBrains Mono', monospace", color: '#2d313d', fontWeight: 'bold', lineHeight: '1.4' },
+  hudDividerLine: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)' },
+  hudFooterLog: { fontSize: 9, color: '#2d313d', fontWeight: '700', lineHeight: 13 },
 
   shakeButton: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-    background: 'rgba(0,0,0,0.35)', border: '1.5px solid', borderRadius: '12px',
-    padding: '10px 14px', fontFamily: "'Space Grotesk', sans-serif", fontSize: '11px',
-    fontWeight: '700', letterSpacing: '0.5px', cursor: 'pointer', transition: 'all 0.2s ease'
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 10,
   },
-  shakeStatusLine: {
-    fontSize: '9px', fontFamily: "'JetBrains Mono', monospace", color: '#555c6b',
-    fontWeight: 'bold', letterSpacing: '0.3px', textAlign: 'center'
-  },
+  shakeStatusLine: { fontSize: 9, color: '#555c6b', fontWeight: '700', textAlign: 'center' },
 
   lobbyCardChassis: {
-    flex: '1 1 380px', background: 'rgba(7, 9, 15, 0.96)', border: `1.5px solid ${GOLD_SOFT}`,
-    borderRadius: '24px', padding: '28px', boxSizing: 'border-box', boxShadow: '0 25px 50px rgba(0,0,0,0.85)',
-    fontFamily: "'Inter', sans-serif"
+    flex: 1,
+    backgroundColor: 'rgba(9, 12, 19, 0.97)',
+    borderWidth: 1.5,
+    borderColor: GOLD_SOFT,
+    borderRadius: 24,
+    padding: 22,
   },
   statusRowBar: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px',
-    borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px', fontFamily: "'Space Grotesk', sans-serif"
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingBottom: 12,
   },
-  statusIndicator: { fontSize: '9px', fontWeight: '600', color: GOLD_START, letterSpacing: '0.5px' },
-  latencyIndicator: { fontSize: '9px', fontWeight: '600', color: '#444', letterSpacing: '0.5px' },
+  statusIndicator: { fontSize: 9, fontWeight: '700', color: GOLD_START, letterSpacing: 0.5 },
+  latencyIndicator: { fontSize: 9, fontWeight: '700', color: '#666', letterSpacing: 0.5 },
 
-  headerTitleBlock: {
-    textAlign: 'center', marginBottom: '26px', paddingTop: '4px', position: 'relative',
-    backgroundImage: 'radial-gradient(ellipse 220px 90px at 50% 30%, rgba(202,162,74,0.14), transparent 70%)'
-  },
-  mainLogoText: {
-    display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'center',
-    gap: '10px', margin: 0, fontFamily: "'Space Grotesk', sans-serif"
-  },
-  brandWordmark: {
-    fontSize: '22px', fontWeight: '700', letterSpacing: '1px', color: INK, opacity: 0.55
-  },
-  veggieText: {
-    fontSize: '28px', fontWeight: '700', letterSpacing: '0.5px',
-    backgroundImage: GOLD_GRADIENT, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent'
-  },
-  goWrap: { display: 'inline-flex', gap: '1px' },
-  goLetter: {
-    display: 'inline-block', fontSize: '32px', fontWeight: '800', color: MINT,
-    textShadow: '0 0 18px rgba(52,224,161,0.65), 0 0 4px rgba(52,224,161,0.9)'
-  },
-  subSubtitlePrompt: {
-    fontSize: '9px', fontWeight: '700', color: '#3d4352', fontFamily: "'Space Grotesk', sans-serif",
-    margin: '10px 0 0 0', letterSpacing: '1.5px'
-  },
+  headerTitleBlock: { alignItems: 'center', marginBottom: 24 },
+  mainLogoText: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'center', gap: 8 },
+  brandWordmark: { fontSize: 18, fontWeight: '700', letterSpacing: 1, color: INK, opacity: 0.55 },
+  veggieText: { fontSize: 26, fontWeight: '700', letterSpacing: 0.5, color: GOLD_END },
+  goWrap: { flexDirection: 'row', gap: 1 },
+  goLetter: { fontSize: 28, fontWeight: '800', color: MINT },
+  subSubtitlePrompt: { fontSize: 9, fontWeight: '700', color: '#3d4352', marginTop: 10, letterSpacing: 1.5 },
 
   globalTickerRow: {
-    display: 'flex', gap: '12px', marginBottom: '22px', background: 'rgba(255,255,255,0.01)',
-    border: '1px solid rgba(255,255,255,0.02)', borderRadius: '12px', padding: '12px'
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 22,
   },
-  tickerDataBlock: { flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'center' },
-  tickerLabel: { fontSize: '8px', fontWeight: '600', color: '#3d4352', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '0.5px' },
-  tickerValue: { fontSize: '13px', fontWeight: '600', color: INK, fontFamily: "'Space Grotesk', sans-serif" },
+  tickerDataBlock: { alignItems: 'center', gap: 4 },
+  tickerLabel: { fontSize: 8, fontWeight: '600', color: '#3d4352', letterSpacing: 0.5 },
+  tickerValue: { fontSize: 13, fontWeight: '600', color: INK },
 
-  accessFormContainer: { display: 'flex', flexDirection: 'column', gap: '18px' },
-  inputFieldWrapper: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  fieldHeaderLabelRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  fieldLabelLabel: {
-    fontSize: '9px', fontWeight: '600', fontFamily: "'Space Grotesk', sans-serif",
-    letterSpacing: '0.5px', transition: 'color 0.2s ease', color: '#8aa1be'
-  },
-  quickMatchBtn: {
-    background: 'none', border: 'none', color: GOLD_START, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: '9px', fontWeight: '600', cursor: 'pointer', padding: 0, outline: 'none'
-  },
+  accessFormContainer: { gap: 18 },
+  inputFieldWrapper: { gap: 6 },
+  fieldHeaderLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  fieldLabelLabel: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5, color: '#8aa1be' },
+  quickMatchBtn: { color: GOLD_START, fontSize: 9, fontWeight: '600' },
   premiumInputBox: {
-    width: '100%', background: 'rgba(3, 4, 6, 0.7)', border: '1px solid rgba(255,255,255,0.04)',
-    borderRadius: '12px', padding: '14px', boxSizing: 'border-box', color: INK,
-    fontSize: '13px', fontFamily: "'JetBrains Mono', monospace", outline: 'none', transition: 'all 0.2s ease'
+    backgroundColor: 'rgba(3, 4, 6, 0.85)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    color: INK,
+    fontSize: 13,
+    fontFamily: FONT_MONO,
   },
-  roastLine: {
-    fontSize: '10px', fontFamily: "'JetBrains Mono', monospace", color: LIGHT_PINK,
-    fontWeight: 'bold', letterSpacing: '0.2px', paddingLeft: '2px'
-  },
+  roastLine: { fontSize: 10, color: LIGHT_PINK, fontWeight: '700', paddingLeft: 2 },
 
-  swipeWrapper: { display: 'flex', justifyContent: 'center' },
+  swipeWrapper: { alignItems: 'center' },
   swipeTrack: {
-    position: 'relative', width: '100%', maxWidth: '300px', height: '58px', borderRadius: '29px',
-    border: '1.5px solid', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-    padding: '3px', boxSizing: 'border-box', overflow: 'hidden',
-    transition: 'opacity 0.2s ease, border-color 0.2s ease'
+    width: '100%',
+    maxWidth: 300,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    padding: 3,
+    overflow: 'hidden',
   },
-  swipeGlow: {
-    position: 'absolute', inset: 0, background: `linear-gradient(90deg, transparent, ${GOLD_SOFT})`,
-    pointerEvents: 'none'
-  },
+  swipeGlow: { ...StyleSheet.absoluteFillObject, backgroundColor: GOLD_SOFT },
   swipeLabel: {
-    position: 'absolute', width: '100%', textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px', color: GOLD_END, pointerEvents: 'none'
+    position: 'absolute',
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: GOLD_END,
   },
   swipeThumb: {
-    width: '52px', height: '52px', borderRadius: '50%', background: GOLD_GRADIENT,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px',
-    boxShadow: '0 4px 14px rgba(0,0,0,0.5)', zIndex: 2, touchAction: 'none'
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: GOLD_START,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  footNotice: { fontSize: '9px', color: '#333845', textAlign: 'center', lineHeight: '1.4', margin: '24px 0 0 0' },
-  footLinkBtn: {
-    background: 'none', border: 'none', padding: 0, margin: 0,
-    color: '#6b7280', textDecoration: 'underline', fontWeight: 600,
-    fontSize: '9px', fontFamily: 'inherit', cursor: 'pointer', display: 'inline'
-  },
+  footNotice: { fontSize: 9, color: '#333845', textAlign: 'center', lineHeight: 14, marginTop: 24 },
+  footLinkBtn: { color: '#8a93a6', textDecorationLine: 'underline', fontWeight: '600', fontSize: 9 },
   errorText: {
-    fontSize: '12px', background: 'rgba(255,77,77,0.08)', border: '1px solid #ff4d5a', color: '#ff4d5a',
-    padding: '10px', borderRadius: '8px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold',
-    marginBottom: '14px', textAlign: 'center'
-  }
-};
+    fontSize: 12,
+    backgroundColor: 'rgba(255,77,77,0.1)',
+    borderWidth: 1,
+    borderColor: '#ff4d5a',
+    color: '#ff4d5a',
+    padding: 10,
+    borderRadius: 8,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+});
