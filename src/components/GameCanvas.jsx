@@ -1,6 +1,55 @@
 // src/components/GameCanvas.jsx
 //
-// THIS REVISION — camera-blocked-behind-AR-prompt fix + CaptureThrow
+// THIS REVISION — round/points/glitch state made server-authoritative
+// (verified against the real server.js, gameClient.js, tickClient.js):
+//
+//   PROBLEM 1: This component ran its OWN independent round counter and
+//   timer (`matchRound`, a local `setInterval` counting `secondsLeft`
+//   down to 0, `advanceRound()`), and even called `onExit()` itself once
+//   it locally counted up to round 3 — completely separate from
+//   server.js, which is actually authoritative: it emits `round-start`
+//   { round, pointValue, veggie }, `round-win` {...}, and `round-timeout`
+//   { round } per round, and only the true final `round-end` (handled by
+//   App.jsx via tickClient.js) means the match is over. This component
+//   never listened for `round-start` or `round-win` at all. The local
+//   timer could drift from the server's real pacing — server.js pauses
+//   INTER_ROUND_PAUSE_MS (4s) between rounds and ends a stage early on
+//   capture, neither of which the old local timer knew about — so this
+//   component could advance its own "round" or even exit the arena out
+//   of step with what the server was actually doing.
+//   FIX: `matchRound` and `currentRoundPoints` are now only ever set from
+//   the server's real `round-start` payload. This component no longer
+//   decides on its own when a round or the match ends — the local
+//   `secondsLeft` timer is now purely a cosmetic countdown estimate
+//   (`stageDeadline`), recomputed off the server-anchored round-start
+//   time, that never itself triggers a round change or an exit.
+//
+//   PROBLEM 2 (worse — a real scoring-display bug): this component
+//   treated round 3 as permanently "glitched" and worth a fabricated
+//   `GLITCH_ROUND_POINTS = 1000`, flashing "SECURED! +1000 PTS" the
+//   instant a capture succeeded. But server.js's own comment states
+//   "Glitch pulse is VISUAL ONLY — does not affect point values" —
+//   round 3 always pays exactly 600 (see ROUND_POINT_VALUES), and the
+//   real glitch-pulse is a periodic ~6s visual-only window
+//   (GLITCH_CYCLE_MS / GLITCH_DURATION_MS) that can land on ANY round,
+//   not just the last one. The real `veggieCaught` popup a moment later
+//   already showed the correct server-reported point value, so the
+//   player would see two different point totals flash for the same
+//   catch: +1000 instantly, then +600 seconds later. This component
+//   never listened for the real `glitch-pulse` socket event at all.
+//   FIX: `isGlitched` is now set only from the server's real
+//   `glitch-pulse` { active } broadcast. `currentRoundPoints` always
+//   comes from the server's `round-start` payload, so the instant flash
+//   and the later popup can never disagree again. The glitch banner copy
+//   no longer claims a point-value change, since there isn't one.
+//
+// Everything else in this file — the AR/WebXR session handling, camera
+// passthrough, capture-throw wiring, evasion AI, occlusion, projections,
+// leaderboard widget, styles — is UNCHANGED from the prior revision
+// (camera-blocked-behind-AR-prompt fix + CaptureThrow touch-swallowing
+// fix), documented in that revision's own header below.
+//
+// PRIOR REVISION — camera-blocked-behind-AR-prompt fix + CaptureThrow
 // touch-layer swallowing taps fix:
 //
 //   1. FIXED: the "REAL AR AVAILABLE / START AR HUNT / SKIP" prompt (and
@@ -38,72 +87,19 @@
 //      (was 150) as a belt-and-suspenders guarantee that they paint above
 //      CaptureThrow's own zIndex-150 HUD layer regardless of DOM order.
 //
-// PRIOR REVISION — vacuum-lock catch flash + camera.far correction +
-// CollectionBook removed + unused Leaderboard import removed:
-//
-//   1. "SECURED!" flash tied to real `vacuumLock` state (fixes the
-//      earlier `captureStatus` ReferenceError — that identifier never
-//      existed anywhere in this component). `vacuumLock` is set the
-//      instant `capture-result` confirms a hit and cleared after
-//      VACUUM_WINDOW_MS, so it's a clean, real signal to key the flash
-//      off. Uses `currentRoundPoints` (the same value already shown in
-//      the TIER HUD tag) instead of a hardcoded 300/1000, so the number
-//      on the flash can't drift from the number on the HUD. This is
-//      deliberately a *quick* flash layered under the fuller SECURED
-//      popup (`popups` state, driven by the separate `veggieCaught`
-//      broadcast) — that one still owns the real per-catch point value,
-//      species card, and share button; this one just gives instant
-//      feedback in sync with the vortex-suction animation while that
-//      broadcast is still in flight.
-//   2. `camera.far` restored to 150 (was briefly 100, before that a
-//      proposed 30) via the normal <Canvas> `camera` prop. Real outdoor
-//      spawns are placed out to the full AR_TRIGGER_DISTANCE_METERS
-//      (120m) when in true WebXR AR mode, since xrActive world
-//      positions use real GPS-derived distances rather than the
-//      1.6–11 scene-depth remap the camera-overlay (non-AR) mode uses
-//      — anything under ~120 would start clipping distant real targets.
-//   3. CollectionBook removed entirely: import, `recordCatch` call,
-//      `collectionOpen` state, the "📖 COLLECTION" button, and the
-//      `<CollectionBook>` render are all gone.
-//   4. Unused `Leaderboard` import removed. It was never actually
-//      rendered anywhere in this file — the top-right ranking widget
-//      is its own inline JSX below, built straight off `rankedPlayers`
-//      / styled with `leaderboardWidget` etc. Dropping the dead import
-//      doesn't change any rendered output or behavior.
-//
 // NOT applied, and why:
 //   - A per-frame `useFrame` that sets `camera.far = 150` and re-runs
 //     `camera.updateProjectionMatrix()` every frame, plus a full
 //     `scene.traverse()` forcing `frustumCulled = true` on every mesh
-//     every frame. `far` is a constant here, so it only needs to be set
-//     once via the `camera` prop (done above) — recomputing the
-//     projection matrix 60x/sec for a value that never changes is pure
-//     waste. And `frustumCulled` already defaults to `true` for
-//     three.js meshes, so that traversal was flipping something that
-//     was never off — it would cost more per-frame CPU (a full scene
-//     walk) than it could ever save on the GPU. On a battery-and-heat
-//     sensitive mobile AR scene, this "optimization" would net negative.
+//     every frame — `far` is a constant set once via the `camera` prop,
+//     and `frustumCulled` already defaults to `true`, so both would cost
+//     more than they could ever save on a battery/heat-sensitive mobile
+//     AR scene.
 //   - A `window.addEventListener('onVeggieARUpdate', ...)` bridge for a
-//     native `VeggieGoARPlugin`/ARCore event. Nothing in this codebase
-//     (here or anywhere referenced) ever dispatches that event, and the
-//     established native-vs-web split is the `isNative` prop, which
-//     routes Capacitor straight to `xrState = 'unsupported'` (camera-
-//     overlay fallback) rather than a native ARCore bridge — so this
-//     would be a dead listener for an event that will never fire. Worse,
-//     if something ever did fire it, writing `anchors` straight into
-//     `targetNodesRef.current` would race against the existing
-//     `useEffect` that syncs `targetNodesRef.current = targetNodes`
-//     on every real target recompute, and native anchor data wouldn't
-//     match the node shape (`id`, `position`, `floorY`, `species`,
-//     `teamColor`, `distance`, `isGolden`, `runSeed`) that
-//     `ARDepthOcclusion` and the render loop actually expect — so it
-//     wasn't wired in.
-//
-// Everything else — the vortex-suction catch animation and WebGL perf
-// flags from the prior revision, real WebXR depth-sensing occlusion,
-// ground anchoring, evasion AI hookup, glitch mode, inline leaderboard,
-// popups, blind-attack, idle-stand wiring, the native-WebView AR gating
-// — is UNCHANGED.
+//     native `VeggieGoARPlugin`/ARCore event that nothing in this
+//     codebase ever dispatches — `isNative` already routes Capacitor to
+//     `xrState = 'unsupported'` (camera-overlay fallback), so this would
+//     be a dead listener for an event that will never fire.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
@@ -137,9 +133,10 @@ const TIMER_SECONDS_BY_MODE = { indoor: 45, outdoor: 60 };
 
 const LOCK_RADIUS_PX = 80;
 
+// Display-only — server.js is authoritative on the real round count and
+// per-round point value (ROUND_POINT_VALUES, TOTAL_ROUNDS). This
+// constant only feeds the "ROUND: X/3" HUD label.
 const TOTAL_ROUNDS = 3;
-const ROUND_POINT_TIERS = { 1: 100, 2: 300, 3: 600 };
-const GLITCH_ROUND_POINTS = 1000;
 const VACUUM_WINDOW_MS = 1200;
 
 const CAPTURE_RESULT_TIMEOUT_MS = 3500;
@@ -677,10 +674,6 @@ export default function GameCanvas({
   // one of these is showing, CaptureThrow's touch-capture layer must
   // stay disabled, or it silently swallows taps meant for the prompt's
   // own buttons (START AR HUNT / SKIP / TRY AGAIN / ENABLE MOTION ACCESS).
-  // Without this, cameraState reaches 'ready' before the player has
-  // dismissed the AR prompt, so CaptureThrow's full-screen gesture
-  // catcher was fully armed the entire time those buttons were visible,
-  // swallowing every tap before it reached them.
   const blockingOverlayActive =
     cameraState === 'denied' ||
     xrState === 'idle' ||
@@ -691,9 +684,15 @@ export default function GameCanvas({
   const timerBaseSeconds = TIMER_SECONDS_BY_MODE[initialTimingMode] ?? FALLBACK_SESSION_SECONDS;
   const [secondsLeft, setSecondsLeft] = useState(timerBaseSeconds);
 
+  // Round/points/glitch are server-authoritative — see file header.
+  // matchRound and currentRoundPoints are only ever set from the real
+  // 'round-start' payload; isGlitched is only ever set from the real
+  // 'glitch-pulse' payload. stageDeadline anchors the *display-only*
+  // countdown to when the current round actually started server-side.
   const [matchRound, setMatchRound] = useState(1);
+  const [currentRoundPoints, setCurrentRoundPoints] = useState(100);
   const [isGlitched, setIsGlitched] = useState(false);
-  const [scoreSubmitted, setScoreSubmitted] = useState(false);
+  const [stageDeadline, setStageDeadline] = useState(null);
 
   const [vacuumLock, setVacuumLock] = useState(null);
   const timerFrozenRef = useRef(false);
@@ -761,10 +760,6 @@ export default function GameCanvas({
   }, [isMobileCapable, isNative]);
 
   // ---- start an immersive-ar session ----
-  // 'local-floor' stays in optionalFeatures (not requiredFeatures) — a
-  // device supporting immersive-ar + hit-test but not local-floor
-  // tracking specifically would otherwise have the ENTIRE session
-  // request thrown away, not just that feature.
   const startXRSession = useCallback(async () => {
     if (!navigator.xr) return;
     setXrState('requesting');
@@ -808,53 +803,6 @@ export default function GameCanvas({
     arOriginRef.current = { lat: selfPosition.lat, lng: selfPosition.lng };
   }, [xrActive, internalArGroundY, selfPosition]);
 
-  const currentRoundPoints = isGlitched ? GLITCH_ROUND_POINTS : (ROUND_POINT_TIERS[matchRound] ?? ROUND_POINT_TIERS[1]);
-
-  const submitRoundScore = useCallback(() => {
-    if (scoreSubmitted) return;
-    setScoreSubmitted(true);
-  }, [scoreSubmitted]);
-
-  const advanceRound = useCallback(() => {
-    setMatchRound((prevRound) => {
-      if (prevRound >= TOTAL_ROUNDS) {
-        submitRoundScore();
-        setTimeout(() => onExit?.(), 400);
-        return prevRound;
-      }
-      const nextRound = prevRound + 1;
-      setSecondsLeft(timerBaseSeconds);
-      setVacuumLock(null);
-      timerFrozenRef.current = false;
-      lockedSinceRef.current.clear();
-      setJumpScaredIds(new Set());
-      return nextRound;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submitRoundScore, timerBaseSeconds, onExit]);
-
-  useEffect(() => {
-    if (matchRound === TOTAL_ROUNDS) {
-      setIsGlitched(true);
-    }
-  }, [matchRound]);
-
-  useEffect(() => {
-    setSecondsLeft(timerBaseSeconds);
-    const intervalId = setInterval(() => {
-      if (timerFrozenRef.current) return;
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          advanceRound();
-          return timerBaseSeconds;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timerBaseSeconds]);
-
   useEffect(() => {
     if (!isMobileCapable) return undefined;
     if (xrActive) return undefined;
@@ -896,6 +844,21 @@ export default function GameCanvas({
     return () => window.removeEventListener('deviceorientation', handleOrientation, true);
   }, [isMobileCapable, motionPermission, xrActive]);
 
+  // Display-only countdown — recomputes remaining seconds from the
+  // server-anchored `stageDeadline` every second. This NEVER advances
+  // the round or exits the arena on its own; the real round transition
+  // arrives only via the 'round-start' socket listener below. Before the
+  // first 'round-start' has arrived (stageDeadline still null), it just
+  // leaves secondsLeft at its initial full value rather than counting
+  // down from nothing.
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (timerFrozenRef.current || stageDeadline == null) return;
+      setSecondsLeft(Math.max(0, Math.ceil((stageDeadline - Date.now()) / 1000)));
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [stageDeadline]);
+
   useEffect(() => {
     if (!isMobileCapable) return undefined;
     if (!window.socket) return undefined;
@@ -924,8 +887,10 @@ export default function GameCanvas({
       setTimeout(() => {
         setPopups((prev) => prev.filter((p) => p.id !== newPopup.id));
       }, 3000);
-
-      advanceRound();
+      // No local round-advance call here — the next round (or the true
+      // match end) is driven entirely by the server's own 'round-start'
+      // (below) or App.jsx's separate 'round-end' handling via
+      // tickClient.js. This component never decides that on its own.
     };
 
     const handleCaptureResult = (data) => {
@@ -981,21 +946,48 @@ export default function GameCanvas({
       }
     };
 
-    const handleRoundTimeout = (data) => {
-      if (data?.roomCode && roomCode && data.roomCode !== roomCode) return;
-      advanceRound();
+    // Server-authoritative round transition — see file header. Only
+    // source of truth for matchRound / currentRoundPoints / the display
+    // countdown's anchor point.
+    const handleRoundStart = (data) => {
+      if (!data) return;
+      setMatchRound(data.round || 1);
+      setCurrentRoundPoints(data.pointValue ?? 100);
+      setStageDeadline(Date.now() + timerBaseSeconds * 1000);
+      setVacuumLock(null);
+      timerFrozenRef.current = false;
+      lockedSinceRef.current.clear();
+      setJumpScaredIds(new Set());
+      setCaughtIds(new Set());
     };
+
+    // A round ended with nobody catching it — just release any stuck
+    // local UI lock state. The next round's real numbers arrive via
+    // 'round-start' above once the server's INTER_ROUND_PAUSE_MS elapses.
+    const handleRoundTimeoutEvt = () => {
+      timerFrozenRef.current = false;
+      setVacuumLock(null);
+    };
+
+    // Real glitch-pulse from the server — periodic ~6s visual-only
+    // window that can land on any round and never changes point values
+    // (server.js: "Glitch pulse is VISUAL ONLY — does not affect point
+    // values"). See file header for what this replaces.
+    const handleGlitchPulse = (data) => setIsGlitched(!!data?.active);
 
     socket.on('veggieCaught', handleCaughtBroadcast);
     socket.on('capture-result', handleCaptureResult);
-    socket.on('round-timeout', handleRoundTimeout);
+    socket.on('round-timeout', handleRoundTimeoutEvt);
+    socket.on('round-start', handleRoundStart);
+    socket.on('glitch-pulse', handleGlitchPulse);
     return () => {
       socket.off('veggieCaught', handleCaughtBroadcast);
       socket.off('capture-result', handleCaptureResult);
-      socket.off('round-timeout', handleRoundTimeout);
+      socket.off('round-timeout', handleRoundTimeoutEvt);
+      socket.off('round-start', handleRoundStart);
+      socket.off('glitch-pulse', handleGlitchPulse);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobileCapable, roomCode, advanceRound]);
+  }, [isMobileCapable, timerBaseSeconds]);
 
   const rawTargetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
@@ -1297,14 +1289,6 @@ export default function GameCanvas({
       )}
       {!xrActive && <div style={styles.videoScrim} />}
 
-      {/* FIXED: was rendering on the opaque `cameraErrorOverlay` style,
-          which painted a solid #0d111a block over the live camera feed
-          and hid it completely even though it was running underneath.
-          Now uses `arPromptOverlay` — same layout, translucent blurred
-          background — so the camera passthrough stays visible behind
-          the AR opt-in prompt. Never shown at all inside the Capacitor
-          app shell, since isNative forces xrState straight to
-          'unsupported'. */}
       {xrState === 'idle' && (
         <div style={styles.arPromptOverlay}>
           <h3>REAL AR AVAILABLE</h3>
@@ -1323,17 +1307,12 @@ export default function GameCanvas({
         </div>
       )}
 
-      {/* FIXED: same overlay swap as above — camera feed stays visible
-          while the AR session spins up instead of cutting to black. */}
       {xrState === 'requesting' && (
         <div style={styles.arPromptOverlay}>
           <h3>STARTING AR…</h3>
         </div>
       )}
 
-      {/* FIXED: same overlay swap — the basic camera is still running
-          here (xrActive is false while denied), so it should stay
-          visible behind the retry/fallback choice. */}
       {xrState === 'denied' && (
         <div style={styles.arPromptOverlay}>
           <h3>AR SESSION FAILED TO START</h3>
@@ -1363,9 +1342,6 @@ export default function GameCanvas({
         />
       )}
 
-      {/* FIXED: same overlay swap — camera is live here too
-          (!xrActive), so the motion-permission prompt should sit over
-          it translucently rather than blacking it out. */}
       {!xrActive && motionPermission === 'pending' && (
         <div style={styles.arPromptOverlay}>
           <h3>ENABLE AR SENSORS</h3>
@@ -1451,13 +1427,10 @@ export default function GameCanvas({
       </Canvas>
 
       {/* Quick "SECURED!" flash tied to the real vacuumLock state — fires
-          the instant capture-result confirms a hit (in sync with the
-          vortex-suction animation above), ahead of the fuller SECURED
-          popup below (which waits on the separate veggieCaught broadcast
-          and carries the server's actual point value + share button).
-          Uses currentRoundPoints (the same number shown in the TIER HUD
-          tag) rather than a hardcoded guess, so it can't drift out of
-          sync with what's actually on screen. */}
+          the instant capture-result confirms a hit. Uses currentRoundPoints,
+          which now only ever comes from the server's real 'round-start'
+          payload, so this can never disagree with the later 'veggieCaught'
+          popup's server-reported point value again. */}
       <AnimatePresence>
         {vacuumLock && (
           <motion.div
@@ -1529,7 +1502,7 @@ export default function GameCanvas({
       {isGlitched && (
         <div style={styles.glitchBanner}>
           <span style={{ animation: 'glitchTextFlicker 2.4s infinite' }}>
-            ⚠️ AREA OVERLOAD — TARGET VALUE EXPLODED TO {GLITCH_ROUND_POINTS} PTS ⚠️
+            ⚠️ GLITCH SURGE — TARGETS MOVING ERRATICALLY ⚠️
           </span>
         </div>
       )}
@@ -1669,22 +1642,8 @@ const styles = {
   videoScrim: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,6,10,0.2) 0%, rgba(4,6,10,0.5) 100%)', zIndex: 1 },
   threeLayer: { position: 'absolute', inset: 0, zIndex: 20, background: 'transparent', pointerEvents: 'none' },
 
-  // Used ONLY for cameraState === 'denied' — the one case where there's
-  // genuinely no camera feed running behind the overlay, so opaque is
-  // correct here (nothing to hide, nothing to show through). zIndex
-  // bumped to 400 (was 150) so it's unambiguously above CaptureThrow's
-  // own HUD layer (zIndex 150), regardless of DOM paint order.
   cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
 
-  // Translucent variant for AR opt-in / permission prompts (xrState
-  // 'idle' | 'requesting' | 'denied', motionPermission 'pending') where
-  // the live camera feed IS running underneath and should stay visible —
-  // frosted-glass look instead of solid black. zIndex bumped to 400
-  // (was 150) so it's unambiguously above CaptureThrow's own HUD layer
-  // (zIndex 150), regardless of DOM paint order. The real interactivity
-  // fix is `blockingOverlayActive` disabling CaptureThrow's touch layer
-  // entirely while any of these prompts is up — this zIndex bump is just
-  // a belt-and-suspenders guarantee on top of that.
   arPromptOverlay: { position: 'absolute', inset: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(13, 17, 26, 0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
 
   vacuumFlashLabel: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '36px', fontWeight: '900', fontFamily: "'Orbitron', sans-serif", color: '#39ff88', textShadow: '0 0 20px rgba(57,255,136,0.8), 0 4px 10px rgba(0,0,0,0.9)', zIndex: 200, pointerEvents: 'none' },
