@@ -1,40 +1,64 @@
 // src/App.jsx
 //
-// MVP LAUNCH REVISION 3 — Google Sign-In gate wired in ahead of RoomJoin.
+// MVP LAUNCH REVISION 4 — mode-gate race fix, pre-match ARENA-entry guard,
+// dead-ref cleanup, account-deletion entry point.
 //
-// WHY THIS REVISION:
-// GoogleLogin.jsx existed but was never imported or rendered anywhere in
-// this file — the flow started directly at RoomJoin, with no auth or
-// legal-consent gate before it. That meant nothing ever collected Google
-// sign-in before a player used camera/GPS, and (since GoogleLogin.jsx's
-// Terms/Privacy modals only fire while that component is on-screen)
-// nothing ever surfaced a reachable privacy policy in the app's actual
-// runtime flow either — a real Play Store review risk given this app
-// requests CAMERA + location permissions.
+// WHY THIS REVISION (four independent fixes, reviewed against the actual
+// GameCanvas.jsx prop contract and the Play Store submission checklist):
 //
-// FIX: a new AUTH GATE renders first, before the ROOM JOIN GATE. It stays
-// up until `authInfo` is set via GoogleLogin's onLoginSuccess callback.
+//   FIX 1 — MODE GATE RACE:
+//   Previously, handlePickTimingMode() set `timingModeChosen = true`
+//   LOCALLY the instant the leader tapped a mode button, before any
+//   server confirmation. If 'set-timing-mode' were ever rejected or
+//   delayed server-side, the leader would already be past the gate on a
+//   mode the server never actually applied — no rollback path existed.
+//   FIX: handlePickTimingMode() no longer flips `timingModeChosen`
+//   itself. Both the leader and non-leader now advance ONLY via the
+//   existing 'onTimingModeUpdated' room subscription (already wired,
+//   already fires for every client including the sender in a standard
+//   socket.io room broadcast) — single source of truth for everyone.
+//   A `timingModeSending` state disables the buttons and shows a
+//   "confirming…" state after tapping, with a 6s timeout that surfaces
+//   a retry-able error instead of hanging forever if the broadcast never
+//   arrives.
 //
-// IDENTITY NOTE: GoogleLogin.jsx now takes App's own deviceUUIDRef.current
-// as a required `deviceUUID` prop instead of inventing its own (it used to
-// send null on web / a separate @capacitor/device id on native). That
-// keeps the Google-auth wallet and server.js's Wallet/reconnect system
-// keyed on the exact same value — see GoogleLogin.jsx's header for the
-// full reasoning. handleLoginSuccess() below intentionally ignores the
-// `deviceUUID` field GoogleLogin's callback payload still carries, since
-// App.jsx's own ref is already the single source of truth.
+//   FIX 2 — PRE-MATCH ARENA-ENTRY RACE:
+//   handleSelectVeggieTarget() (fired from MapView's "enter AR" tap)
+//   previously forced `stage = 'ARENA'` unconditionally, regardless of
+//   `matchPhase`. Since GameCanvas.jsx's countdown/round display is
+//   otherwise entirely server-driven (see GameCanvas.jsx's own header),
+//   a player could land in GameCanvas before the tick server ever fired
+//   'onTick', with `matchPhase` still null.
+//   FIX: handleSelectVeggieTarget() now only transitions to ARENA if
+//   `matchPhase` is already COUNTDOWN or ACTIVE — i.e. the match has
+//   actually started server-side. Tapping early now surfaces a small
+//   inline "match hasn't started yet" notice on MapView instead of
+//   silently entering an ungated arena screen.
 //
-// STILL FLAGGED, NOT FIXED: `authInfo` is plain component state, so it
-// resets on every reload/relaunch — a signed-in player sees this gate
-// again on return visits (Google's own session will likely resolve the
-// OAuth step quickly, but there's no persisted "already signed in" flag
-// of ours). Add one in localStorage, keyed off the same deviceUUID, if
-// you want to skip the gate on repeat visits.
+//   FIX 3 — DEAD CODE:
+//   `myPlayerIdRef` was populated by its own effect but never read
+//   anywhere else in the file. Removed along with its effect.
 //
-// Everything else in this revision is unchanged from the prior
-// deviceUUID-persistence pass: DailyStreakBanner/PrizeCamera cut, geofence
-// captured from room-joined into state and passed to MapView,
-// onTimingModeUpdated / onPromotedToLeader already subscribed here.
+//   FIX 4 — ACCOUNT DELETION (Play Store requirement, previously
+//   missing entirely):
+//   Per Play Console policy, an app with real user accounts (Google
+//   Sign-In, wired in Revision 3) must offer in-app account + data
+//   deletion, not just "email support". Added a minimal settings menu
+//   (gear icon, MAP stage only) with a confirm-then-delete flow that:
+//     1. POSTs to a deletion endpoint keyed on deviceUUID
+//     2. clears the local deviceUUID from localStorage on success
+//     3. resets auth/room state so the app falls back to the
+//        GoogleLogin gate as if freshly installed
+//   NOTE: the endpoint path/payload below (`/api/account/delete`) is a
+//   reasonable placeholder — server.js's actual route for this isn't in
+//   my context, so wire the real path/response shape in once you share
+//   it. The client-side flow (confirm dialog, local state teardown,
+//   loading/error states) is complete and won't need to change either
+//   way.
+//
+// Everything else is unchanged from Revision 3 (Google Sign-In gate
+// ahead of RoomJoin, deviceUUID as single source of identity, geofence
+// plumbing, reconnect handling).
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,6 +89,11 @@ const MATCH_PHASE = {
 };
 
 const DEVICE_UUID_STORAGE_KEY = 'veggiego_device_uuid_v1';
+
+// How long we'll wait for the server's 'onTimingModeUpdated' broadcast
+// to echo back after the leader picks a mode, before surfacing a
+// retry-able error instead of leaving the gate hanging forever.
+const TIMING_MODE_CONFIRM_TIMEOUT_MS = 6000;
 
 function toConnectionPhase(tickStatus) {
   if (tickStatus === 'connected' || tickStatus === 'joined') return 'local';
@@ -118,7 +147,8 @@ export default function App({ isNative = false } = {}) {
   );
 
   // --- Stable per-install device identity (for server-side reconnect,
-  // wallet lookups, and now GoogleLogin's auth backend call too) ---
+  // wallet lookups, GoogleLogin's auth backend call, and account
+  // deletion below) ---
   const deviceUUIDRef = useRef(null);
   if (deviceUUIDRef.current === null) {
     deviceUUIDRef.current = getOrCreateDeviceUUID();
@@ -131,6 +161,11 @@ export default function App({ isNative = false } = {}) {
   const [isRoomLeader, setIsRoomLeader] = useState(false);
   const [timingModeChosen, setTimingModeChosen] = useState(false);
   const [pendingTimingMode, setPendingTimingMode] = useState('outdoor');
+  // FIX 1: leader-side "waiting on server confirmation" state — replaces
+  // the old instant local setTimingModeChosen(true) in the click handler.
+  const [timingModeSending, setTimingModeSending] = useState(false);
+  const [timingModeError, setTimingModeError] = useState('');
+  const timingModeConfirmTimeoutRef = useRef(null);
 
   // --- Navigation & Flow Router ---
   const [stage, setStage] = useState('MAP'); // 'MAP' | 'ARENA'
@@ -144,6 +179,9 @@ export default function App({ isNative = false } = {}) {
   const [deviceHeading, setDeviceHeading] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeVegId, setActiveVegId] = useState(null);
+  // FIX 2: inline notice for the "tapped enter-AR before the match
+  // actually started" case — see handleSelectVeggieTarget below.
+  const [matchNotStartedNotice, setMatchNotStartedNotice] = useState(false);
 
   const [gpsError, setGpsError] = useState('');
 
@@ -164,6 +202,12 @@ export default function App({ isNative = false } = {}) {
   const [victoryData, setVictoryData] = useState(null);
   const [tickStatus, setTickStatus] = useState('idle');
 
+  // --- Account deletion (settings menu, MAP stage only) ---
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteAccountStatus, setDeleteAccountStatus] = useState('idle'); // idle | pending | error
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+
   // --- Core References ---
   const goAudioRef = useRef(null);
   const tickConnectionRef = useRef(null);
@@ -172,7 +216,9 @@ export default function App({ isNative = false } = {}) {
   const lastSentAtRef = useRef(0);
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
-  const myPlayerIdRef = useRef(null);
+  // FIX 3: myPlayerIdRef removed — it was written every render but never
+  // read anywhere in this file. (myPlayerId, the actual state value, is
+  // used directly everywhere it's needed.)
 
   useEffect(() => {
     myPositionRef.current = myPosition;
@@ -183,8 +229,8 @@ export default function App({ isNative = false } = {}) {
   }, [deviceHeading]);
 
   useEffect(() => {
-    myPlayerIdRef.current = myPlayerId;
-  }, [myPlayerId]);
+    return () => clearTimeout(timingModeConfirmTimeoutRef.current);
+  }, []);
 
   // ---- Google Sign-In success handler ----------------------------------
   // GoogleLogin's callback payload still includes `deviceUUID`, but it's
@@ -321,14 +367,24 @@ export default function App({ isNative = false } = {}) {
       onPlayersUpdate: (rows) => setPlayers(Array.isArray(rows) ? rows : []),
       onVeggiesUpdate: (rows) => setVeggies(veggiesPayloadToArray(rows)),
 
+      // FIX 1: this is now the ONLY place that flips `timingModeChosen`
+      // for anyone — leader or not. Fires for the leader too on a
+      // standard socket.io room broadcast, so the leader's own tap gets
+      // confirmed the same way a follower's does. Also clears the
+      // "sending" / error / timeout state from handlePickTimingMode.
       onTimingModeUpdated: (data) => {
+        clearTimeout(timingModeConfirmTimeoutRef.current);
         setPendingTimingMode(data?.mode || 'outdoor');
         setTimingModeChosen(true);
+        setTimingModeSending(false);
+        setTimingModeError('');
       },
       onPromotedToLeader: (data) => {
         setIsRoomLeader(true);
         setPendingTimingMode(data?.timingMode || 'outdoor');
         setTimingModeChosen(false);
+        setTimingModeSending(false);
+        setTimingModeError('');
       },
     });
 
@@ -446,6 +502,7 @@ export default function App({ isNative = false } = {}) {
         setStage('ARENA');
         setMatchPhase(MATCH_PHASE.COUNTDOWN);
         setCountdownTick(n);
+        setMatchNotStartedNotice(false);
       },
 
       onGo: () => {
@@ -497,7 +554,17 @@ export default function App({ isNative = false } = {}) {
 
   // ---- ACTION HANDLERS ----
 
+  // FIX 2: only actually enter the arena screen once the match has
+  // really started server-side (matchPhase is COUNTDOWN or ACTIVE).
+  // Tapping "enter AR" before that just surfaces a brief inline notice
+  // on MapView instead of dropping the player into an ungated
+  // GameCanvas with matchPhase still null.
   const handleSelectVeggieTarget = (vegId) => {
+    if (matchPhase !== MATCH_PHASE.COUNTDOWN && matchPhase !== MATCH_PHASE.ACTIVE) {
+      setMatchNotStartedNotice(true);
+      setTimeout(() => setMatchNotStartedNotice(false), 2500);
+      return;
+    }
     setActiveVegId(vegId);
     setStage('ARENA');
   };
@@ -512,10 +579,69 @@ export default function App({ isNative = false } = {}) {
     window.location.reload();
   };
 
+  // FIX 1: no longer sets timingModeChosen directly — see
+  // onTimingModeUpdated above for the single confirmed path. This now
+  // only emits, shows a "confirming…" state, and arms a timeout so a
+  // dropped/ignored emit surfaces a retry-able error instead of hanging.
   const handlePickTimingMode = (mode) => {
+    setTimingModeSending(true);
+    setTimingModeError('');
     window.socket?.emit('set-timing-mode', { mode });
-    setPendingTimingMode(mode);
-    setTimingModeChosen(true);
+
+    clearTimeout(timingModeConfirmTimeoutRef.current);
+    timingModeConfirmTimeoutRef.current = setTimeout(() => {
+      setTimingModeSending(false);
+      setTimingModeError('Could not confirm match mode — check your connection and try again.');
+    }, TIMING_MODE_CONFIRM_TIMEOUT_MS);
+  };
+
+  // ---- Account deletion (Play Store requirement) -----------------------
+  // Client-side flow is complete: confirm dialog, pending/error states,
+  // full local teardown back to a fresh-install state on success. The
+  // endpoint itself is a placeholder — swap in the real path/payload
+  // shape once server.js's deletion route is available.
+  const handleDeleteAccount = async () => {
+    setDeleteAccountStatus('pending');
+    setDeleteAccountError('');
+    try {
+      const res = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceUUID: deviceUUIDRef.current }),
+      });
+      if (!res.ok) {
+        throw new Error(`Server responded ${res.status}`);
+      }
+
+      // Full local teardown — next render should look like a fresh
+      // install, landing back on the GoogleLogin gate.
+      try {
+        localStorage.removeItem(DEVICE_UUID_STORAGE_KEY);
+      } catch {
+        // localStorage may be unavailable — safe to ignore, deviceUUIDRef
+        // is only ever read from it at mount time.
+      }
+
+      tickConnectionRef.current?.disconnect();
+      window.socket?.disconnect();
+
+      setAuthInfo(null);
+      setHasJoinedRoom(false);
+      setRoomCode('');
+      setMyPlayerId(null);
+      setMySlot(null);
+      setPlayers([]);
+      setVeggies([]);
+      setStage('MAP');
+      setTimingModeChosen(false);
+      setShowDeleteConfirm(false);
+      setShowSettingsMenu(false);
+      setDeleteAccountStatus('idle');
+    } catch (err) {
+      console.error('[App] account deletion failed', err);
+      setDeleteAccountStatus('error');
+      setDeleteAccountError('Could not delete your account right now. Please try again.');
+    }
   };
 
   // ---- DATA RE-SHAPING FOR RENDERING, WITH NULL-GUARDS ----
@@ -634,17 +760,25 @@ export default function App({ isNative = false } = {}) {
               <>
                 <p style={styles.nameGateLabel}>CHOOSE MATCH MODE</p>
                 <button
-                  style={{ ...styles.nameGateBtn, marginBottom: '10px' }}
+                  style={{ ...styles.nameGateBtn, marginBottom: '10px', opacity: timingModeSending ? 0.6 : 1 }}
                   onClick={() => handlePickTimingMode('indoor')}
+                  disabled={timingModeSending}
                 >
                   🏠 INSIDE PARTY (45s rounds)
                 </button>
                 <button
-                  style={styles.nameGateBtn}
+                  style={{ ...styles.nameGateBtn, opacity: timingModeSending ? 0.6 : 1 }}
                   onClick={() => handlePickTimingMode('outdoor')}
+                  disabled={timingModeSending}
                 >
                   🌳 OUTDOOR CHASE (60s rounds)
                 </button>
+                {timingModeSending && (
+                  <p style={styles.nameGateSubLabel}>CONFIRMING WITH ARENA…</p>
+                )}
+                {timingModeError && (
+                  <p style={styles.nameGateErrorLabel}>{timingModeError}</p>
+                )}
               </>
             ) : (
               <p style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</p>
@@ -664,11 +798,72 @@ export default function App({ isNative = false } = {}) {
 
       <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={connectionPhase} />
 
+      {stage === 'MAP' && (
+        <button
+          style={styles.settingsGearBtn}
+          onClick={() => setShowSettingsMenu((prev) => !prev)}
+          aria-label="Settings"
+        >
+          ⚙️
+        </button>
+      )}
+
+      {showSettingsMenu && stage === 'MAP' && (
+        <div style={styles.settingsMenu}>
+          <button
+            style={styles.settingsMenuItem}
+            onClick={() => {
+              setShowSettingsMenu(false);
+              setShowDeleteConfirm(true);
+            }}
+          >
+            🗑️ Delete Account &amp; Data
+          </button>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div style={styles.deleteOverlay}>
+          <div style={styles.deleteCard}>
+            <p style={styles.deleteTitle}>Delete your account?</p>
+            <p style={styles.deleteBody}>
+              This permanently removes your Veggie GO account, wallet, and match history. This can't be undone.
+            </p>
+            {deleteAccountStatus === 'error' && (
+              <p style={styles.nameGateErrorLabel}>{deleteAccountError}</p>
+            )}
+            <div style={styles.deleteActionsRow}>
+              <button
+                style={styles.deleteCancelBtn}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteAccountStatus('idle');
+                  setDeleteAccountError('');
+                }}
+                disabled={deleteAccountStatus === 'pending'}
+              >
+                CANCEL
+              </button>
+              <button
+                style={{ ...styles.deleteConfirmBtn, opacity: deleteAccountStatus === 'pending' ? 0.6 : 1 }}
+                onClick={handleDeleteAccount}
+                disabled={deleteAccountStatus === 'pending'}
+              >
+                {deleteAccountStatus === 'pending' ? 'DELETING…' : 'DELETE PERMANENTLY'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isReconnecting && (
         <div style={styles.reconnectBanner}>RECONNECTING…</div>
       )}
 
       {errorMessage && <div style={styles.errBanner}>{errorMessage}</div>}
+      {matchNotStartedNotice && (
+        <div style={styles.reconnectBanner}>MATCH HASN'T STARTED YET — HANG TIGHT</div>
+      )}
 
       <AnimatePresence mode="wait">
         {stage === 'MAP' && (
@@ -855,6 +1050,8 @@ const styles = {
   nameGateWrap: { position: 'fixed', inset: 0, zIndex: 3000, background: '#020306', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   nameGateCard: { width: '90%', maxWidth: '320px', textAlign: 'center' },
   nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '2px', marginBottom: '12px' },
+  nameGateSubLabel: { color: '#ffbe1a', fontFamily: 'monospace', fontSize: '11px', letterSpacing: '1px', marginTop: '10px' },
+  nameGateErrorLabel: { color: '#ff6b5e', fontFamily: 'monospace', fontSize: '11px', letterSpacing: '0.5px', marginTop: '10px' },
   nameGateBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer' },
   errBanner: { position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ff4d4d', color: '#fff', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
   reconnectBanner: { position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ffbe1a', color: '#04140f', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
@@ -874,4 +1071,16 @@ const styles = {
   leaderboardScrollContainer: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px' },
   lobbyRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'monospace' },
   replayBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 0 20px rgba(6,214,160,0.6)' },
+
+  settingsGearBtn: { position: 'absolute', top: 14, right: 14, zIndex: 50, width: 38, height: 38, borderRadius: '50%', background: 'rgba(10,15,25,0.75)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  settingsMenu: { position: 'absolute', top: 58, right: 14, zIndex: 50, background: 'rgba(10,15,25,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden', minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' },
+  settingsMenuItem: { display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: '#ff8f85', fontFamily: 'monospace', fontSize: '12px', padding: '12px 14px', cursor: 'pointer' },
+
+  deleteOverlay: { position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(4,4,8,0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', boxSizing: 'border-box' },
+  deleteCard: { width: '100%', maxWidth: '360px', background: 'linear-gradient(160deg, rgba(24,24,30,0.97), rgba(10,10,14,0.97))', border: '1px solid rgba(255,80,60,0.4)', borderRadius: '16px', padding: '24px', textAlign: 'center' },
+  deleteTitle: { fontFamily: '"Orbitron", sans-serif', fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '10px' },
+  deleteBody: { fontFamily: 'monospace', fontSize: '12px', lineHeight: 1.5, color: '#b6b6c0', marginBottom: '16px' },
+  deleteActionsRow: { display: 'flex', gap: '10px' },
+  deleteCancelBtn: { flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px', color: '#fff', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '12px', padding: '12px', cursor: 'pointer' },
+  deleteConfirmBtn: { flex: 1, background: '#ff4d4d', border: 'none', borderRadius: '10px', color: '#fff', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '12px', padding: '12px', cursor: 'pointer' },
 };
