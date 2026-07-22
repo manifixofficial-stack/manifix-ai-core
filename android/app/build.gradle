@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.manifixai.veggiego"
+    namespace "com.manifix.veggiego"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.manifixai.veggiego"
+        applicationId "com.manifix.veggiego"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
