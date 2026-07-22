@@ -1,13 +1,15 @@
-package com.manifix.veggimon;
+package com.manifixai.veggiego;
 
 import android.os.Bundle;
+
 import com.getcapacitor.BridgeActivity;
-import com.manifix.veggimon.VeggieGoARPlugin; // 1. Import your new vegetable AR plugin
+import com.manifixai.veggiego.VeggieGoARPlugin;
 
 public class MainActivity extends BridgeActivity {
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(VeggieGoARPlugin.class); // 2. Register the plugin here
+        registerPlugin(VeggieGoARPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
