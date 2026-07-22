@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/ionic-team/capacitor/main/cli/config-schema.json",
-  "appId": "com.manifixai.veggiego",
+  "appId": "com.manifix.veggiego",
   "appName": "Veggie Go",
   "webDir": "dist",
   "bundledWebRuntime": false,
