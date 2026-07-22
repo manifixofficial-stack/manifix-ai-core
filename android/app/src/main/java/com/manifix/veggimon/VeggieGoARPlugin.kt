@@ -1,4 +1,4 @@
-package com.manifixai.veggiego;
+package com.manifix.veggiego;
 
 import android.os.Bundle;
 
