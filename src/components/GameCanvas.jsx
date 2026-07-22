@@ -1,113 +1,93 @@
-// src/components/GameCanvas.jsx
+// src/components/GameCanvas.native.jsx
 //
-// THIS REVISION — round/points/glitch state made server-authoritative
-// (verified against the real server.js, gameClient.js, tickClient.js):
+// REACT NATIVE PORT of GameCanvas.jsx (was: web/Capacitor build using
+// WebXR + <video> + framer-motion + DOM overlays).
 //
-//   PROBLEM 1: This component ran its OWN independent round counter and
-//   timer (`matchRound`, a local `setInterval` counting `secondsLeft`
-//   down to 0, `advanceRound()`), and even called `onExit()` itself once
-//   it locally counted up to round 3 — completely separate from
-//   server.js, which is actually authoritative: it emits `round-start`
-//   { round, pointValue, veggie }, `round-win` {...}, and `round-timeout`
-//   { round } per round, and only the true final `round-end` (handled by
-//   App.jsx via tickClient.js) means the match is over. This component
-//   never listened for `round-start` or `round-win` at all. The local
-//   timer could drift from the server's real pacing — server.js pauses
-//   INTER_ROUND_PAUSE_MS (4s) between rounds and ends a stage early on
-//   capture, neither of which the old local timer knew about — so this
-//   component could advance its own "round" or even exit the arena out
-//   of step with what the server was actually doing.
-//   FIX: `matchRound` and `currentRoundPoints` are now only ever set from
-//   the server's real `round-start` payload. This component no longer
-//   decides on its own when a round or the match ends — the local
-//   `secondsLeft` timer is now purely a cosmetic countdown estimate
-//   (`stageDeadline`), recomputed off the server-anchored round-start
-//   time, that never itself triggers a round change or an exit.
+// ============================================================================
+// THE ONE THING THIS PORT DELIBERATELY DOES NOT DO: real WebXR-style AR
+// ============================================================================
+// The web version had two tiers:
+//   1. "Real AR" (xrState === 'active'): WebXR immersive-ar session,
+//      ground-anchored via hit-test (ARGroundAnchor), depth occlusion
+//      (ARDepthOcclusion using frame.getDepthInformation).
+//   2. "Basic camera" fallback (xrState === 'unsupported' or user skipped):
+//      plain camera feed behind a heading/GPS-projected 3D scene, no ground
+//      anchor, no occlusion.
 //
-//   PROBLEM 2 (worse — a real scoring-display bug): this component
-//   treated round 3 as permanently "glitched" and worth a fabricated
-//   `GLITCH_ROUND_POINTS = 1000`, flashing "SECURED! +1000 PTS" the
-//   instant a capture succeeded. But server.js's own comment states
-//   "Glitch pulse is VISUAL ONLY — does not affect point values" —
-//   round 3 always pays exactly 600 (see ROUND_POINT_VALUES), and the
-//   real glitch-pulse is a periodic ~6s visual-only window
-//   (GLITCH_CYCLE_MS / GLITCH_DURATION_MS) that can land on ANY round,
-//   not just the last one. The real `veggieCaught` popup a moment later
-//   already showed the correct server-reported point value, so the
-//   player would see two different point totals flash for the same
-//   catch: +1000 instantly, then +600 seconds later. This component
-//   never listened for the real `glitch-pulse` socket event at all.
-//   FIX: `isGlitched` is now set only from the server's real
-//   `glitch-pulse` { active } broadcast. `currentRoundPoints` always
-//   comes from the server's `round-start` payload, so the instant flash
-//   and the later popup can never disagree again. The glitch banner copy
-//   no longer claims a point-value change, since there isn't one.
+// React Native has NO WebXR. There is no drop-in equivalent to
+// navigator.xr.requestSession('immersive-ar') in RN's JS layer — real
+// ground-anchored AR here requires a native bridge (ViroReact's ARScene,
+// or a custom ARKit/ARCore module) which is a genuinely separate,
+// native-code-touching project, not a JS port. Given this game's own
+// design doc already treats basic-camera as a fully playable fallback
+// mode (it's what ships on any device/browser without WebXR support),
+// this port ships ONLY that tier for now. Tier 1 is left as a clearly
+// marked extension point below (`// AR_HOOK:`) for whenever you want to
+// take on the ViroReact/native-module work as its own phase.
 //
-// Everything else in this file — the AR/WebXR session handling, camera
-// passthrough, capture-throw wiring, evasion AI, occlusion, projections,
-// leaderboard widget, styles — is UNCHANGED from the prior revision
-// (camera-blocked-behind-AR-prompt fix + CaptureThrow touch-swallowing
-// fix), documented in that revision's own header below.
+// Concretely dropped vs the web file: XRSessionBridge, ARGroundAnchor,
+// ARDepthOcclusion, all `xrActive`/`xrSession` state, the AR opt-in
+// prompt screens (REAL AR AVAILABLE / STARTING AR / AR SESSION FAILED).
+// Kept: everything about the basic-camera tier, which is now the only
+// tier, so there's no more mode-switch logic cluttering the render.
 //
-// PRIOR REVISION — camera-blocked-behind-AR-prompt fix + CaptureThrow
-// touch-layer swallowing taps fix:
+// ============================================================================
+// Library swaps made for RN
+// ============================================================================
+//   <video> camera feed          -> react-native-vision-camera <Camera>
+//   three.js Canvas (web)        -> @react-three/fiber/native (expo-gl)
+//   @react-three/drei Environment-> dropped (native drei env presets need
+//                                   HDR asset loading not worth it here);
+//                                   replaced with three plain lights, same
+//                                   visual weight as the old hemisphere+dir+
+//                                   ambient rig minus the reflection map.
+//   framer-motion popups         -> Animated (RN core) — same timing/feel,
+//                                   just spring/timing configs instead of
+//                                   variants.
+//   DOM overlays (div/button)    -> View / Text / TouchableOpacity
+//   backdropFilter blur          -> DROPPED (not supported in RN styles).
+//                                   The AR-prompt frosted-glass look doesn't
+//                                   apply anyway since the AR-prompt screens
+//                                   are gone; camera-denied overlay is now a
+//                                   plain solid overlay same as web's
+//                                   cameraErrorOverlay.
+//   window.socket                -> `socket` prop, passed down from
+//                                   App.jsx's existing socket singleton.
+//                                   (window doesn't meaningfully exist in RN;
+//                                   a prop is cleaner than a global anyway.)
+//   DeviceOrientationEvent       -> expo-sensors DeviceMotion, for the
+//                                   camera-pitch rig only (deviceHeading
+//                                   itself is still passed in as a prop,
+//                                   same contract as the web version —
+//                                   App.jsx already owns that compass logic).
+//   navigator.share/clipboard    -> RN's Share API.
+//   Capacitor Haptics            -> unchanged; that's CaptureThrow's
+//                                   concern, not this file's — CaptureThrow
+//                                   needs its own RN port (out of scope
+//                                   here), this file just forwards props
+//                                   to it identically.
 //
-//   1. FIXED: the "REAL AR AVAILABLE / START AR HUNT / SKIP" prompt (and
-//      its siblings — STARTING AR…, AR SESSION FAILED, ENABLE AR SENSORS)
-//      were rendering on a fully OPAQUE `cameraErrorOverlay` style
-//      (background: '#0d111a', zIndex: 150), which sat directly on top
-//      of the live <video> feed (zIndex: 0) and the three.js canvas
-//      (zIndex: 20) and hid them completely — even though the camera
-//      stream was actually running behind it the whole time. That style
-//      is only correct for genuine "nothing to show" states (camera
-//      permission actually rejected).
-//      Fix: added a new `arPromptOverlay` style — same layout, but a
-//      translucent `rgba(13,17,26,0.55)` background with a blur, so the
-//      live camera passthrough is visible (frosted-glass look) behind
-//      these prompts instead of a dead black screen. Swapped it into the
-//      xrState 'idle' / 'requesting' / 'denied' blocks and the
-//      motionPermission 'pending' block. `cameraErrorOverlay` (opaque)
-//      is now used ONLY for `cameraState === 'denied'`, the one case
-//      where there's genuinely no camera feed behind it to show.
-//   2. FIXED: once the camera was visible behind the AR prompt, the
-//      START AR HUNT / SKIP / TRY AGAIN / ENABLE MOTION ACCESS buttons
-//      stopped responding to taps entirely. Root cause: CaptureThrow's
-//      full-screen touch-capture layer was only ever disabled while
-//      `cameraState !== 'ready'` — but by the time any of these prompts
-//      show, the camera-start effect has usually already resolved to
-//      'ready', so CaptureThrow's gesture catcher was fully armed and
-//      sitting on top of (later in paint order than) the prompt buttons,
-//      silently swallowing every tap before it reached them.
-//      Fix: added a single `blockingOverlayActive` flag covering every
-//      full-screen gating prompt (AR opt-in, AR requesting/denied,
-//      camera denied, motion-permission pending) and folded it into
-//      CaptureThrow's `disabled` prop, so its touch layer stays fully
-//      inert (pointerEvents: 'none') while any of those screens is up.
-//      Also bumped `arPromptOverlay` / `cameraErrorOverlay` to zIndex 400
-//      (was 150) as a belt-and-suspenders guarantee that they paint above
-//      CaptureThrow's own zIndex-150 HUD layer regardless of DOM order.
-//
-// NOT applied, and why:
-//   - A per-frame `useFrame` that sets `camera.far = 150` and re-runs
-//     `camera.updateProjectionMatrix()` every frame, plus a full
-//     `scene.traverse()` forcing `frustumCulled = true` on every mesh
-//     every frame — `far` is a constant set once via the `camera` prop,
-//     and `frustumCulled` already defaults to `true`, so both would cost
-//     more than they could ever save on a battery/heat-sensitive mobile
-//     AR scene.
-//   - A `window.addEventListener('onVeggieARUpdate', ...)` bridge for a
-//     native `VeggieGoARPlugin`/ARCore event that nothing in this
-//     codebase ever dispatches — `isNative` already routes Capacitor to
-//     `xrState = 'unsupported'` (camera-overlay fallback), so this would
-//     be a dead listener for an event that will never fire.
+// Everything else — round/points/glitch state machine, evasion-frame
+// processing, lock-ring geometry, capture-target projection math — is
+// unchanged logic, just re-hosted on RN components.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+  Animated,
+  Share,
+  Platform,
+} from 'react-native';
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
+import { DeviceMotion } from 'expo-sensors';
 import * as THREE from 'three';
-import CaptureThrow from './CaptureThrow';
-import Veggie3DModel from '../components/veggies/VeggieModel';
+import CaptureThrow from './CaptureThrow.native';
+import Veggie3DModel from '../components/veggies/VeggieModel.native';
 import {
   AR_TRIGGER_DISTANCE_METERS,
   CATCH_TRIGGER_DISTANCE_METERS,
@@ -121,7 +101,6 @@ import { useVeggieEvasion } from '../hooks/useVeggieEvasion';
 
 const EARTH_RADIUS_M = 6371000;
 const FOV_ANGLE_DEG = 60;
-const CATCH_ME_TAUNT_DISTANCE_M = 8;
 
 const MIN_SCENE_DEPTH = 1.6;
 const MAX_SCENE_DEPTH = 11;
@@ -134,55 +113,34 @@ const TIMER_SECONDS_BY_MODE = { indoor: 45, outdoor: 60 };
 const LOCK_RADIUS_PX = 80;
 
 // Display-only — server.js is authoritative on the real round count and
-// per-round point value (ROUND_POINT_VALUES, TOTAL_ROUNDS). This
-// constant only feeds the "ROUND: X/3" HUD label.
+// per-round point value. This constant only feeds the "ROUND: X/3" HUD label.
 const TOTAL_ROUNDS = 3;
 const VACUUM_WINDOW_MS = 1200;
-
 const CAPTURE_RESULT_TIMEOUT_MS = 3500;
 
 const RUN_AMPLITUDE = 1.8;
 const RUN_SPEED = 2;
 const JUMP_SCARE_DELAY_MS = 4500;
 const JUMP_SCARE_DURATION_MS = 900;
-
 const GLITCH_SPEED_MULTIPLIER = 3.0;
-
 const RETICLE_SNAPSHOT_INTERVAL_MS = 100;
-
 const KNOWN_VEGGIE_SPECIES = ['tomato', 'broccoli', 'golden', 'banana', 'grapes', 'strawberry'];
-
-const LEADERBOARD_TOP_GAP_PX = 10;
-
 const BLIND_ATTACK_DURATION_MS = 1400;
 const BLIND_ATTACK_COOLDOWN_MS = 3000;
 const REAL_MISS_LABELS = ['TOO FAR', 'NOT AIMED', 'NEAR MISS', 'BREAKOUT'];
 
-const AR_GROUND_SYNC_INTERVAL_MS = 200;
-
-const OCCLUSION_DEPTH_MARGIN_M = 0.15;
-const OCCLUSION_SYNC_INTERVAL_MS = 150;
-
-// Vortex-suction tuning for the cartoon catch animation (see
-// AnimatedVeggieTarget's useFrame). Higher = snappier collapse.
 const VORTEX_SPIN_Y_RAD_PER_SEC = 15;
 const VORTEX_SPIN_X_RAD_PER_SEC = 8;
 const VORTEX_POSITION_LERP_SPEED = 6;
 const VORTEX_SCALE_LERP_SPEED = 5;
-
-function detectMobileCapable() {
-  if (typeof window === 'undefined') return true;
-  const hasTouch = 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
-  const hasOrientation = typeof DeviceOrientationEvent !== 'undefined';
-  return hasTouch && hasOrientation;
-}
 
 const toRad = (deg) => (deg * Math.PI) / 180;
 const toDeg = (rad) => (rad * 180) / Math.PI;
 
 function distanceMeters(lat1, lng1, lat2, lng2) {
   if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return Infinity;
-  const dLat = toRad(lat2 - lat1); const dLng = toRad(lng2 - lng1);
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
@@ -196,14 +154,6 @@ function bearingDegrees(lat1, lng1, lat2, lng2) {
 function metersToSceneDepth(meters) {
   const raw = meters / METERS_TO_SCENE_DIVISOR;
   return Math.min(MAX_SCENE_DEPTH, Math.max(MIN_SCENE_DEPTH, raw));
-}
-
-function gpsToLocalMeters(lat0, lng0, lat, lng) {
-  const dLat = toRad(lat - lat0);
-  const dLng = toRad(lng - lng0);
-  const north = dLat * EARTH_RADIUS_M;
-  const east = dLng * EARTH_RADIUS_M * Math.cos(toRad(lat0));
-  return { east, north };
 }
 
 const APPROX_MODEL_HALF_WIDTH_SCENE_UNITS = 0.42;
@@ -230,27 +180,21 @@ function projectToScreen(position, screenW, screenH, fovDeg, halfWidthUnits = AP
   return { x: screenX, y: screenY, radius };
 }
 
-function projectWorldToScreenXR(worldVec3, camera, screenW, screenH, halfWidthUnits = APPROX_MODEL_HALF_WIDTH_SCENE_UNITS) {
-  const p = worldVec3.clone().project(camera);
-  if (p.z > 1 || p.z < -1) return null;
-
-  const screenX = (p.x * 0.5 + 0.5) * screenW;
-  const screenY = (1 - (p.y * 0.5 + 0.5)) * screenH;
-
-  const dist = Math.max(0.05, camera.position.distanceTo(worldVec3));
-  const vFovRad = toRad(camera.fov || FOV_ANGLE_DEG);
-  const focalLengthPx = (screenH / 2) / Math.tan(vFovRad / 2);
-  const radius = Math.max(MIN_SCREEN_HIT_RADIUS_PX, (halfWidthUnits / dist) * focalLengthPx);
-
-  return { x: screenX, y: screenY, radius };
-}
-
 function chaseModeForSpecies(species) {
   if (Object.prototype.hasOwnProperty.call(PERSONALITY_CHASE_OVERRIDE, species)) {
     return PERSONALITY_CHASE_OVERRIDE[species];
   }
   const tier = RARITY_BY_SPECIES[species];
   return tier === 'rare' || tier === 'ultra_rare';
+}
+
+function seedFromId(id) {
+  let h = 0;
+  const str = String(id);
+  for (let i = 0; i < str.length; i++) {
+    h = (h * 31 + str.charCodeAt(i)) | 0;
+  }
+  return (Math.abs(h) % 1000) / 1000 * Math.PI * 2;
 }
 
 function CameraPitchRig({ pitchDeg }) {
@@ -261,169 +205,9 @@ function CameraPitchRig({ pitchDeg }) {
   return null;
 }
 
-function XRSessionBridge({ session, referenceSpaceType = 'local-floor', onEnded }) {
-  const { gl } = useThree();
-  useEffect(() => {
-    if (!session) return undefined;
-    let cancelled = false;
-
-    gl.xr.enabled = true;
-    try {
-      gl.xr.setReferenceSpaceType(referenceSpaceType);
-    } catch (err) {
-      console.warn('[GameCanvas] setReferenceSpaceType failed, falling back to local', err);
-      gl.xr.setReferenceSpaceType('local');
-    }
-
-    gl.xr.setSession(session).catch((err) => {
-      if (!cancelled) console.error('[GameCanvas] gl.xr.setSession failed', err);
-    });
-
-    const handleEnd = () => onEnded?.();
-    session.addEventListener('end', handleEnd);
-
-    return () => {
-      cancelled = true;
-      session.removeEventListener('end', handleEnd);
-      gl.xr.enabled = false;
-    };
-  }, [session, gl, referenceSpaceType, onEnded]);
-
-  return null;
-}
-
-function ARGroundAnchor({ session, onGroundY }) {
-  const { gl } = useThree();
-  const hitTestSourceRef = useRef(null);
-  const lastSyncRef = useRef(0);
-  const gotFirstHitRef = useRef(false);
-
-  useEffect(() => {
-    if (!session) return undefined;
-    let cancelled = false;
-
-    session.requestReferenceSpace('viewer').then((viewerSpace) => {
-      if (cancelled) return;
-      session.requestHitTestSource({ space: viewerSpace }).then((source) => {
-        if (!cancelled) hitTestSourceRef.current = source;
-      }).catch((err) => {
-        console.warn('[GameCanvas] requestHitTestSource failed — device may not support hit-test.', err);
-      });
-    }).catch((err) => {
-      console.warn('[GameCanvas] requestReferenceSpace(viewer) failed', err);
-    });
-
-    return () => {
-      cancelled = true;
-      hitTestSourceRef.current = null;
-      gotFirstHitRef.current = false;
-    };
-  }, [session]);
-
-  useFrame((_, __, frame) => {
-    if (!frame || !hitTestSourceRef.current) return;
-    const refSpace = gl.xr.getReferenceSpace();
-    if (!refSpace) return;
-
-    const results = frame.getHitTestResults(hitTestSourceRef.current);
-    if (results.length === 0) return;
-
-    const pose = results[0].getPose(refSpace);
-    if (!pose) return;
-
-    const now = performance.now();
-    if (!gotFirstHitRef.current || now - lastSyncRef.current > AR_GROUND_SYNC_INTERVAL_MS) {
-      gotFirstHitRef.current = true;
-      lastSyncRef.current = now;
-      onGroundY(pose.transform.position.y);
-    }
-  });
-
-  return null;
-}
-
-function ARDepthOcclusion({ session, targetNodesRef, liveVeggieRef, onOcclusionUpdate, onDepthSupportChange }) {
-  const { gl, camera } = useThree();
-  const lastSyncRef = useRef(0);
-  const depthSupportedRef = useRef(null);
-  const scratchVec = useRef(new THREE.Vector3());
-
-  useEffect(() => {
-    depthSupportedRef.current = null;
-  }, [session]);
-
-  useFrame((_, __, frame) => {
-    if (!frame || typeof frame.getDepthInformation !== 'function') {
-      if (depthSupportedRef.current !== false) {
-        depthSupportedRef.current = false;
-        onDepthSupportChange(false);
-      }
-      return;
-    }
-
-    const refSpace = gl.xr.getReferenceSpace();
-    if (!refSpace) return;
-    const pose = frame.getViewerPose(refSpace);
-    if (!pose || pose.views.length === 0) return;
-
-    const view = pose.views[0];
-    let depthInfo;
-    try {
-      depthInfo = frame.getDepthInformation(view);
-    } catch (err) {
-      if (depthSupportedRef.current !== false) {
-        depthSupportedRef.current = false;
-        onDepthSupportChange(false);
-      }
-      return;
-    }
-    if (!depthInfo) return;
-
-    if (depthSupportedRef.current !== true) {
-      depthSupportedRef.current = true;
-      onDepthSupportChange(true);
-    }
-
-    const now = performance.now();
-    if (now - lastSyncRef.current < OCCLUSION_SYNC_INTERVAL_MS) return;
-    lastSyncRef.current = now;
-
-    const nodes = targetNodesRef.current;
-    const live = liveVeggieRef.current;
-    const nextOcclusion = {};
-
-    for (const node of nodes) {
-      const l = live[node.id];
-      const wx = l?.x ?? node.position[0];
-      const wy = l?.worldY ?? node.position[1];
-      const wz = l?.z ?? node.position[2];
-
-      scratchVec.current.set(wx, wy, wz);
-      const projected = scratchVec.current.clone().project(camera);
-      if (projected.z > 1 || projected.z < -1) continue;
-
-      const nx = projected.x * 0.5 + 0.5;
-      const ny = 1 - (projected.y * 0.5 + 0.5);
-      if (nx < 0 || nx > 1 || ny < 0 || ny > 1) continue;
-
-      let realDepthM;
-      try {
-        realDepthM = depthInfo.getDepthInMeters(nx, ny);
-      } catch {
-        continue;
-      }
-      if (!realDepthM || !Number.isFinite(realDepthM) || realDepthM <= 0) continue;
-
-      const veggieDistM = camera.position.distanceTo(scratchVec.current);
-      nextOcclusion[node.id] = realDepthM < veggieDistM - OCCLUSION_DEPTH_MARGIN_M;
-    }
-
-    onOcclusionUpdate(nextOcclusion);
-  });
-
-  return null;
-}
-
+// AR_HOOK: this is where a ViroReact ARScene / native ARCore-ARKit ground
+// anchor would slot in for Phase 2 "real AR" — see file header. For now
+// floorY always comes from CAMERA_EYE_HEIGHT_METERS, no ground truth.
 function GroundShadow({ position, distanceMeters: distM }) {
   const [gx, gy, gz] = position;
   const proximity = Math.max(0, Math.min(1, 1 - distM / AR_TRIGGER_DISTANCE_METERS));
@@ -437,15 +221,6 @@ function GroundShadow({ position, distanceMeters: distM }) {
   );
 }
 
-function seedFromId(id) {
-  let h = 0;
-  const str = String(id);
-  for (let i = 0; i < str.length; i++) {
-    h = (h * 31 + str.charCodeAt(i)) | 0;
-  }
-  return (Math.abs(h) % 1000) / 1000 * Math.PI * 2;
-}
-
 function AnimatedVeggieTarget({
   node,
   processEvasionFrame,
@@ -455,20 +230,13 @@ function AnimatedVeggieTarget({
   jumpScared,
   isVacuuming,
   isCaught,
-  isOccluded,
   pendingCatchAttemptsRef,
   onLiveUpdate,
   onLocalCatch,
-  xrActive,
-  screenW,
-  screenH,
 }) {
   const groupRef = useRef();
   const posRef = useRef({ x: node.position[0], z: node.position[2] });
   const seededRef = useRef(false);
-  const worldVecRef = useRef(new THREE.Vector3());
-
-  const { camera } = useThree();
 
   useEffect(() => {
     if (!seededRef.current) {
@@ -484,10 +252,6 @@ function AnimatedVeggieTarget({
   const [isIdleStanding, setIsIdleStanding] = useState(false);
 
   useFrame((_, delta) => {
-    // Cartoon vortex-suction catch beat: rather than freezing the model
-    // in place for the whole VACUUM_WINDOW_MS, spin it up and lerp it
-    // straight toward the camera lens (world origin) while collapsing
-    // its scale to zero, like it's being sucked into the phone.
     if (isVacuuming) {
       if (groupRef.current) {
         groupRef.current.rotation.y += delta * VORTEX_SPIN_Y_RAD_PER_SEC;
@@ -543,27 +307,17 @@ function AnimatedVeggieTarget({
     const nowIdle = result.state === 'idle_stand';
     setIsIdleStanding((prev) => (prev === nowIdle ? prev : nowIdle));
 
-    let screenProjection = null;
-    if (xrActive && groupRef.current) {
-      worldVecRef.current.set(posRef.current.x, result.worldY, posRef.current.z);
-      groupRef.current.getWorldPosition(worldVecRef.current);
-      screenProjection = projectWorldToScreenXR(worldVecRef.current, camera, screenW, screenH, result.fleaRadius);
-    }
-
     onLiveUpdate(node.id, {
       x: posRef.current.x,
       z: posRef.current.z,
       worldY: result.worldY,
       fleaRadius: result.fleaRadius,
       state: result.state,
-      screenX: screenProjection?.x,
-      screenY: screenProjection?.y,
-      screenRadius: screenProjection?.radius,
     });
   });
 
   return (
-    <group ref={groupRef} visible={!isOccluded}>
+    <group ref={groupRef}>
       <GroundShadow position={[0, 0, 0]} distanceMeters={node.distance} />
       <Veggie3DModel
         veggieId={node.id}
@@ -588,24 +342,92 @@ function AnimatedVeggieTarget({
   );
 }
 
+// ---- popup components using RN Animated (replaces framer-motion) ----
+
+function ScorePopup({ popup, onDone }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(anim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start(onDone);
+  }, []);
+
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [30, -100] });
+  const scale = anim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.7, 1.05, 1] });
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `I just secured a ${popup.speciesName} and scored ${popup.text}! 🥕📸`,
+      });
+    } catch {
+      // user dismissed the share sheet — no action needed
+    }
+  };
+
+  return (
+    <Animated.View
+      pointerEvents="box-none"
+      style={[styles.scoreBurstWrapper, { opacity: anim, transform: [{ translateY }, { scale }] }]}
+    >
+      <Text style={styles.securedFlashTag}>SECURED! 💥</Text>
+      {popup.isPerfect && <Text style={styles.perfectTag}>PERFECT!</Text>}
+      <Text style={styles.bigScoreLabel}>{popup.text}</Text>
+      <Text style={styles.speciesTextCard}>{popup.speciesName}</Text>
+      <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+        <Text style={styles.shareBtnText}>📤 SHARE</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+function MissPopup({ miss, onDone }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(700),
+      Animated.timing(anim, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start(onDone);
+  }, []);
+  return (
+    <Animated.View pointerEvents="none" style={[styles.missBurstWrapper, { opacity: anim }]}>
+      <Text style={styles.missLabel}>{miss.text}</Text>
+    </Animated.View>
+  );
+}
+
+function VacuumFlash({ points }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(anim, { toValue: 1, useNativeDriver: true }).start();
+  }, []);
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [50, -100] });
+  return (
+    <Animated.View pointerEvents="none" style={[styles.vacuumFlashLabel, { opacity: anim, transform: [{ translateY }] }]}>
+      <Text style={styles.vacuumFlashText}>🎉 SECURED! +{points} PTS</Text>
+    </Animated.View>
+  );
+}
+
 export default function GameCanvas({
-  connectionStatus = 'idle', roomCode = '', playerId = null, mySlot = 'oggy-blue',
-  selfPosition = null, deviceHeading = 0, players = {}, veggies = {}, matchPhase = null,
+  connectionStatus = 'idle',
+  roomCode = '',
+  playerId = null,
+  mySlot = 'oggy-blue',
+  selfPosition = null,
+  deviceHeading = 0,
+  players = {},
+  veggies = {},
+  matchPhase = null,
   initialTimingMode = null,
   targetVegId = null,
-  arGroundY: arGroundYProp = null,
-  arAnchors = {},
-  arOcclusion = {},
-  isNative = false,
-  onExit
+  socket = null,
+  onExit,
 }) {
-  const [isMobileCapable] = useState(detectMobileCapable);
-
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const [cameraState, setCameraState] = useState('initializing');
-
-  const [windowDims, setWindowDims] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const [windowDims, setWindowDims] = useState(() => Dimensions.get('window'));
   const [popups, setPopups] = useState([]);
   const [missPopups, setMissPopups] = useState([]);
   const [caughtIds, setCaughtIds] = useState(() => new Set());
@@ -615,80 +437,48 @@ export default function GameCanvas({
   const [blindAttack, setBlindAttack] = useState(null);
   const blindCooldownRef = useRef(new Map());
 
-  const topBarRef = useRef(null);
-  const [leaderboardTop, setLeaderboardTop] = useState(96);
+  const [topBarHeight, setTopBarHeight] = useState(96);
 
-  // ---- WebXR AR session state ----
-  // 'checking' | 'unsupported' | 'idle' | 'requesting' | 'active' | 'denied'
-  const [xrState, setXrState] = useState('checking');
-  const [xrSession, setXrSession] = useState(null);
-  const [internalArGroundY, setInternalArGroundY] = useState(null);
-  const arOriginRef = useRef(null);
-
-  const [internalArOcclusion, setInternalArOcclusion] = useState({});
-  const [depthOcclusionSupported, setDepthOcclusionSupported] = useState(null);
-  const targetNodesRef = useRef([]);
-
-  const effectiveOcclusion = useMemo(
-    () => ({ ...internalArOcclusion, ...arOcclusion }),
-    [internalArOcclusion, arOcclusion]
-  );
-
-  const handleOcclusionUpdate = useCallback((next) => {
-    setInternalArOcclusion(next);
-  }, []);
-
-  const xrActive = xrState === 'active' && !!xrSession;
-  const effectiveGroundY = arGroundYProp != null ? arGroundYProp : internalArGroundY;
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const cameraDevice = useCameraDevice('back');
+  const [cameraState, setCameraState] = useState('initializing');
 
   useEffect(() => {
-    const node = topBarRef.current;
-    if (!node || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const h = entry.contentRect?.height ?? node.offsetHeight;
-        setLeaderboardTop(Math.ceil(h + LEADERBOARD_TOP_GAP_PX));
-      }
-    });
-    observer.observe(node);
-    setLeaderboardTop(Math.ceil(node.offsetHeight + LEADERBOARD_TOP_GAP_PX));
-    return () => observer.disconnect();
-  }, []);
-
-  const [motionPermission, setMotionPermission] = useState(() => {
-    const needsPrompt = typeof DeviceOrientationEvent !== 'undefined'
-      && typeof DeviceOrientationEvent.requestPermission === 'function';
-    return needsPrompt ? 'pending' : 'granted';
-  });
-
-  const requestMotionPermission = useCallback(async () => {
-    try {
-      const result = await DeviceOrientationEvent.requestPermission();
-      setMotionPermission(result === 'granted' ? 'granted' : 'denied');
-    } catch {
-      setMotionPermission('denied');
+    if (hasPermission == null) return;
+    if (hasPermission) {
+      setCameraState('ready');
+    } else {
+      requestPermission().then((granted) => {
+        setCameraState(granted ? 'ready' : 'denied');
+      });
     }
+  }, [hasPermission]);
+
+  useEffect(() => {
+    const sub = Dimensions.addEventListener('change', ({ window }) => setWindowDims(window));
+    return () => sub?.remove?.();
   }, []);
 
-  // Any full-screen gating prompt currently on top of the game — while
-  // one of these is showing, CaptureThrow's touch-capture layer must
-  // stay disabled, or it silently swallows taps meant for the prompt's
-  // own buttons (START AR HUNT / SKIP / TRY AGAIN / ENABLE MOTION ACCESS).
-  const blockingOverlayActive =
-    cameraState === 'denied' ||
-    xrState === 'idle' ||
-    xrState === 'requesting' ||
-    xrState === 'denied' ||
-    (!xrActive && motionPermission === 'pending');
+  // Device pitch for the camera-pitch rig — RN equivalent of the web
+  // version's `deviceorientation` listener. deviceHeading (compass) is
+  // still owned by the parent (App.jsx), same contract as before.
+  useEffect(() => {
+    let sub;
+    DeviceMotion.setUpdateInterval(100);
+    sub = DeviceMotion.addListener(({ rotation }) => {
+      if (!rotation) return;
+      const tiltDeg = toDeg(rotation.beta ?? 0);
+      setDevicePitch(Math.max(-MAX_PITCH_DEG, Math.min(MAX_PITCH_DEG, tiltDeg)));
+    });
+    return () => sub?.remove?.();
+  }, []);
 
   const timerBaseSeconds = TIMER_SECONDS_BY_MODE[initialTimingMode] ?? FALLBACK_SESSION_SECONDS;
   const [secondsLeft, setSecondsLeft] = useState(timerBaseSeconds);
 
-  // Round/points/glitch are server-authoritative — see file header.
-  // matchRound and currentRoundPoints are only ever set from the real
-  // 'round-start' payload; isGlitched is only ever set from the real
-  // 'glitch-pulse' payload. stageDeadline anchors the *display-only*
-  // countdown to when the current round actually started server-side.
+  // Round/points/glitch are server-authoritative — only ever set from the
+  // real 'round-start' / 'glitch-pulse' socket payloads. stageDeadline
+  // anchors the display-only countdown to the server's real round start.
   const [matchRound, setMatchRound] = useState(1);
   const [currentRoundPoints, setCurrentRoundPoints] = useState(100);
   const [isGlitched, setIsGlitched] = useState(false);
@@ -700,7 +490,6 @@ export default function GameCanvas({
 
   const lockedSinceRef = useRef(new Map());
   const [jumpScaredIds, setJumpScaredIds] = useState(() => new Set());
-
   const [glitchTargetId, setGlitchTargetId] = useState(null);
 
   const { processEvasionFrame, clearVeggieState } = useVeggieEvasion();
@@ -719,138 +508,11 @@ export default function GameCanvas({
     return () => clearInterval(intervalId);
   }, []);
 
-  useEffect(() => {
-    const handleResize = () => setWindowDims({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    return () => clearTimeout(attemptTimeoutRef.current);
-  }, []);
-
-  // ---- detect WebXR immersive-ar support on mount ----
-  // Capacitor's Android WebView doesn't implement real WebXR sessions —
-  // skip straight to 'unsupported' there so the AR-gate button, which
-  // could never actually work inside the app shell, is never shown in
-  // the first place.
-  useEffect(() => {
-    if (!isMobileCapable) return undefined;
-
-    if (isNative) {
-      setXrState('unsupported');
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    if (!navigator.xr || typeof navigator.xr.isSessionSupported !== 'function') {
-      setXrState('unsupported');
-      return undefined;
-    }
-
-    navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-      if (cancelled) return;
-      setXrState(supported ? 'idle' : 'unsupported');
-    }).catch(() => {
-      if (!cancelled) setXrState('unsupported');
-    });
-
-    return () => { cancelled = true; };
-  }, [isMobileCapable, isNative]);
-
-  // ---- start an immersive-ar session ----
-  const startXRSession = useCallback(async () => {
-    if (!navigator.xr) return;
-    setXrState('requesting');
-    try {
-      const overlayRoot = document.getElementById('veggie-ar-dom-overlay');
-      const session = await navigator.xr.requestSession('immersive-ar', {
-        requiredFeatures: ['hit-test'],
-        optionalFeatures: overlayRoot
-          ? ['dom-overlay', 'depth-sensing', 'local-floor']
-          : ['depth-sensing', 'local-floor'],
-        depthSensing: {
-          usagePreference: ['cpu-optimized'],
-          dataFormatPreference: ['luminance-alpha', 'float32'],
-        },
-        ...(overlayRoot ? { domOverlay: { root: overlayRoot } } : {}),
-      });
-      setXrSession(session);
-      setXrState('active');
-    } catch (err) {
-      console.warn('[GameCanvas] immersive-ar session request failed/denied', err);
-      setXrState('denied');
-    }
-  }, []);
-
-  const handleXRSessionEnded = useCallback(() => {
-    setXrSession(null);
-    setXrState('idle');
-    setInternalArGroundY(null);
-    arOriginRef.current = null;
-  }, []);
-
-  const handleGroundY = useCallback((y) => {
-    setInternalArGroundY(y);
-  }, []);
-
-  useEffect(() => {
-    if (!xrActive) return;
-    if (arOriginRef.current) return;
-    if (internalArGroundY == null) return;
-    if (!selfPosition) return;
-    arOriginRef.current = { lat: selfPosition.lat, lng: selfPosition.lng };
-  }, [xrActive, internalArGroundY, selfPosition]);
-
-  useEffect(() => {
-    if (!isMobileCapable) return undefined;
-    if (xrActive) return undefined;
-    if (xrState === 'requesting') return undefined;
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-          setCameraState('ready');
-        }
-      } catch { setCameraState('denied'); }
-    }
-    startCamera();
-    return () => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
-  }, [isMobileCapable, xrActive, xrState]);
-
-  useEffect(() => {
-    if (!xrActive) return;
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }, [xrActive]);
-
-  useEffect(() => {
-    if (!isMobileCapable) return undefined;
-    if (xrActive) return undefined;
-    if (motionPermission !== 'granted') return undefined;
-    function handleOrientation(e) {
-      if (e.beta == null) return;
-      const tilt = e.beta - 90;
-      setDevicePitch(Math.max(-MAX_PITCH_DEG, Math.min(MAX_PITCH_DEG, tilt)));
-    }
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    return () => window.removeEventListener('deviceorientation', handleOrientation, true);
-  }, [isMobileCapable, motionPermission, xrActive]);
+  useEffect(() => () => clearTimeout(attemptTimeoutRef.current), []);
 
   // Display-only countdown — recomputes remaining seconds from the
-  // server-anchored `stageDeadline` every second. This NEVER advances
-  // the round or exits the arena on its own; the real round transition
-  // arrives only via the 'round-start' socket listener below. Before the
-  // first 'round-start' has arrived (stageDeadline still null), it just
-  // leaves secondsLeft at its initial full value rather than counting
-  // down from nothing.
+  // server-anchored stageDeadline every second. Never advances the round
+  // or exits the arena on its own.
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (timerFrozenRef.current || stageDeadline == null) return;
@@ -860,21 +522,13 @@ export default function GameCanvas({
   }, [stageDeadline]);
 
   useEffect(() => {
-    if (!isMobileCapable) return undefined;
-    if (!window.socket) return undefined;
-    const socket = window.socket;
+    if (!socket) return undefined;
 
     const handleCaughtBroadcast = (data) => {
       if (!data) return;
-
       if (data.vegId) {
-        setCaughtIds((prev) => {
-          const next = new Set(prev);
-          next.add(data.vegId);
-          return next;
-        });
+        setCaughtIds((prev) => new Set(prev).add(data.vegId));
       }
-
       if (data.playerId !== socket.id) return;
 
       const newPopup = {
@@ -884,18 +538,13 @@ export default function GameCanvas({
         isPerfect: data.quality === 'perfect',
       };
       setPopups((prev) => [...prev, newPopup]);
-      setTimeout(() => {
-        setPopups((prev) => prev.filter((p) => p.id !== newPopup.id));
-      }, 3000);
-      // No local round-advance call here — the next round (or the true
-      // match end) is driven entirely by the server's own 'round-start'
-      // (below) or App.jsx's separate 'round-end' handling via
-      // tickClient.js. This component never decides that on its own.
+      // Next round / true match end is driven entirely by the server's
+      // own 'round-start' below (or App.jsx's 'round-end' handling) —
+      // this component never decides that on its own.
     };
 
     const handleCaptureResult = (data) => {
       if (!data) return;
-
       clearTimeout(attemptTimeoutRef.current);
 
       const label = data.success ? null : (data.label || 'MISSED');
@@ -919,7 +568,7 @@ export default function GameCanvas({
         if (resolution.vegId) {
           setVacuumLock({ targetId: resolution.vegId, expiresAt: Date.now() + VACUUM_WINDOW_MS });
         }
-        window.setTimeout(() => {
+        setTimeout(() => {
           timerFrozenRef.current = false;
           setVacuumLock((prev) => (prev?.targetId === resolution.vegId ? null : prev));
         }, VACUUM_WINDOW_MS);
@@ -927,9 +576,6 @@ export default function GameCanvas({
         timerFrozenRef.current = false;
         const newMiss = { id: resolution.id, text: label };
         setMissPopups((prev) => [...prev, newMiss]);
-        setTimeout(() => {
-          setMissPopups((prev) => prev.filter((p) => p.id !== newMiss.id));
-        }, 1400);
 
         const vegId = resolution.vegId;
         if (vegId && REAL_MISS_LABELS.includes(label)) {
@@ -938,7 +584,7 @@ export default function GameCanvas({
           if (now >= nextEligible) {
             blindCooldownRef.current.set(vegId, now + BLIND_ATTACK_COOLDOWN_MS);
             setBlindAttack({ id: vegId, startedAt: now });
-            window.setTimeout(() => {
+            setTimeout(() => {
               setBlindAttack((prev) => (prev?.id === vegId && prev.startedAt === now ? null : prev));
             }, BLIND_ATTACK_DURATION_MS);
           }
@@ -946,9 +592,6 @@ export default function GameCanvas({
       }
     };
 
-    // Server-authoritative round transition — see file header. Only
-    // source of truth for matchRound / currentRoundPoints / the display
-    // countdown's anchor point.
     const handleRoundStart = (data) => {
       if (!data) return;
       setMatchRound(data.round || 1);
@@ -961,18 +604,14 @@ export default function GameCanvas({
       setCaughtIds(new Set());
     };
 
-    // A round ended with nobody catching it — just release any stuck
-    // local UI lock state. The next round's real numbers arrive via
-    // 'round-start' above once the server's INTER_ROUND_PAUSE_MS elapses.
     const handleRoundTimeoutEvt = () => {
       timerFrozenRef.current = false;
       setVacuumLock(null);
     };
 
-    // Real glitch-pulse from the server — periodic ~6s visual-only
-    // window that can land on any round and never changes point values
-    // (server.js: "Glitch pulse is VISUAL ONLY — does not affect point
-    // values"). See file header for what this replaces.
+    // Real glitch-pulse from the server — periodic visual-only window,
+    // never changes point values. currentRoundPoints always comes from
+    // round-start, so this can't disagree with it.
     const handleGlitchPulse = (data) => setIsGlitched(!!data?.active);
 
     socket.on('veggieCaught', handleCaughtBroadcast);
@@ -987,8 +626,10 @@ export default function GameCanvas({
       socket.off('round-start', handleRoundStart);
       socket.off('glitch-pulse', handleGlitchPulse);
     };
-  }, [isMobileCapable, timerBaseSeconds]);
+  }, [socket, timerBaseSeconds]);
 
+  // Basic-camera-tier target projection: bearing + heading only, no
+  // ground anchor (see AR_HOOK note above and file header).
   const rawTargetNodes = useMemo(() => {
     if (!selfPosition || !veggies || typeof veggies !== 'object') return [];
     const projectedList = [];
@@ -998,26 +639,15 @@ export default function GameCanvas({
       const dist = distanceMeters(selfPosition.lat, selfPosition.lng, node.lat, node.lng);
       if (dist > AR_TRIGGER_DISTANCE_METERS) return;
 
-      const resolvedFloorY = arAnchors?.[id]?.y ?? (effectiveGroundY != null ? effectiveGroundY : -CAMERA_EYE_HEIGHT_METERS);
+      const resolvedFloorY = -CAMERA_EYE_HEIGHT_METERS;
 
-      let worldX;
-      let worldZ;
-
-      if (xrActive && arOriginRef.current) {
-        const { east, north } = gpsToLocalMeters(
-          arOriginRef.current.lat, arOriginRef.current.lng, node.lat, node.lng
-        );
-        worldX = east;
-        worldZ = -north;
-      } else {
-        const bearing = bearingDegrees(selfPosition.lat, selfPosition.lng, node.lat, node.lng);
-        const relAngle = ((bearing - deviceHeading + 540) % 360) - 180;
-        if (Math.abs(relAngle) > FOV_ANGLE_DEG / 2) return;
-        const relAngleRad = toRad(relAngle);
-        const sceneDepth = metersToSceneDepth(dist);
-        worldX = Math.sin(relAngleRad) * sceneDepth;
-        worldZ = -Math.cos(relAngleRad) * sceneDepth;
-      }
+      const bearing = bearingDegrees(selfPosition.lat, selfPosition.lng, node.lat, node.lng);
+      const relAngle = ((bearing - deviceHeading + 540) % 360) - 180;
+      if (Math.abs(relAngle) > FOV_ANGLE_DEG / 2) return;
+      const relAngleRad = toRad(relAngle);
+      const sceneDepth = metersToSceneDepth(dist);
+      const worldX = Math.sin(relAngleRad) * sceneDepth;
+      const worldZ = -Math.cos(relAngleRad) * sceneDepth;
 
       projectedList.push({
         id,
@@ -1033,16 +663,12 @@ export default function GameCanvas({
 
     return projectedList;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [veggies, selfPosition, deviceHeading, effectiveGroundY, arAnchors, xrActive]);
+  }, [veggies, selfPosition, deviceHeading]);
 
   const targetNodes = useMemo(() => {
     if (!targetVegId) return rawTargetNodes;
     return rawTargetNodes.filter((n) => n.id === targetVegId);
   }, [rawTargetNodes, targetVegId]);
-
-  useEffect(() => {
-    targetNodesRef.current = targetNodes;
-  }, [targetNodes]);
 
   useEffect(() => {
     if (targetNodes.length === 0) {
@@ -1055,27 +681,13 @@ export default function GameCanvas({
 
   const captureTargets = useMemo(() => {
     return targetNodes
-      .filter((node) => !effectiveOcclusion[node.id])
       .map((node) => {
         const live = liveVeggieSnapshot[node.id];
-
-        if (xrActive) {
-          if (!live || live.screenX == null || live.screenY == null) return null;
-          return {
-            id: node.id,
-            species: node.species,
-            distance: node.distance,
-            x: live.screenX,
-            y: live.screenY,
-            radius: live.screenRadius || MIN_SCREEN_HIT_RADIUS_PX,
-          };
-        }
-
         const x = live ? live.x : node.position[0];
         const z = live ? live.z : node.position[2];
         const worldY = live ? live.worldY : node.position[1];
         const fleaRadius = live?.fleaRadius;
-        const projected = projectToScreen([x, worldY, z], windowDims.w, windowDims.h, FOV_ANGLE_DEG, fleaRadius);
+        const projected = projectToScreen([x, worldY, z], windowDims.width, windowDims.height, FOV_ANGLE_DEG, fleaRadius);
         if (!projected) return null;
         return {
           id: node.id,
@@ -1087,21 +699,20 @@ export default function GameCanvas({
         };
       })
       .filter(Boolean);
-  }, [targetNodes, liveVeggieSnapshot, windowDims, effectiveOcclusion, xrActive]);
+  }, [targetNodes, liveVeggieSnapshot, windowDims]);
 
   const lockRings = useMemo(() => {
-    const cx = windowDims.w / 2;
-    const cy = windowDims.h / 2;
+    const cx = windowDims.width / 2;
+    const cy = windowDims.height / 2;
     return captureTargets.map((t) => {
       const dx = t.x - cx;
       const dy = t.y - cy;
       const distToCenter = Math.sqrt(dx * dx + dy * dy);
       const inRealRange = t.distance <= CATCH_TRIGGER_DISTANCE_METERS;
       const locked = distToCenter <= LOCK_RADIUS_PX && inRealRange;
-      const fill = Math.max(0, Math.min(1, 1 - distToCenter / (LOCK_RADIUS_PX * 3)));
       const vacuuming = vacuumLock?.targetId === t.id;
       const jumpScared = jumpScaredIds.has(t.id);
-      return { ...t, locked, inRealRange, fill, vacuuming, jumpScared };
+      return { ...t, locked, inRealRange, vacuuming, jumpScared };
     });
   }, [captureTargets, windowDims, vacuumLock, jumpScaredIds]);
 
@@ -1111,9 +722,7 @@ export default function GameCanvas({
       const stillLockedIds = new Set(lockRings.filter((r) => r.locked && !r.vacuuming).map((r) => r.id));
 
       for (const id of stillLockedIds) {
-        if (!lockedSinceRef.current.has(id)) {
-          lockedSinceRef.current.set(id, now);
-        }
+        if (!lockedSinceRef.current.has(id)) lockedSinceRef.current.set(id, now);
       }
       for (const id of Array.from(lockedSinceRef.current.keys())) {
         if (!stillLockedIds.has(id)) lockedSinceRef.current.delete(id);
@@ -1122,14 +731,9 @@ export default function GameCanvas({
       stillLockedIds.forEach((id) => {
         const lockedSince = lockedSinceRef.current.get(id);
         if (lockedSince != null && now - lockedSince >= JUMP_SCARE_DELAY_MS) {
-          setJumpScaredIds((prev) => {
-            if (prev.has(id)) return prev;
-            const next = new Set(prev);
-            next.add(id);
-            return next;
-          });
+          setJumpScaredIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
           lockedSinceRef.current.set(id, now);
-          window.setTimeout(() => {
+          setTimeout(() => {
             setJumpScaredIds((prev) => {
               if (!prev.has(id)) return prev;
               const next = new Set(prev);
@@ -1145,12 +749,7 @@ export default function GameCanvas({
 
   const handleCaptureAttempt = useCallback((id, quality) => {
     const targetNode = targetNodes.find((n) => n.id === id);
-    if (targetNode && targetNode.distance > CATCH_TRIGGER_DISTANCE_METERS) {
-      return;
-    }
-    if (effectiveOcclusion[id]) {
-      return;
-    }
+    if (targetNode && targetNode.distance > CATCH_TRIGGER_DISTANCE_METERS) return;
 
     timerFrozenRef.current = true;
     lockedSinceRef.current.delete(id);
@@ -1162,15 +761,14 @@ export default function GameCanvas({
     });
 
     clearTimeout(attemptTimeoutRef.current);
-    attemptTimeoutRef.current = window.setTimeout(() => {
+    attemptTimeoutRef.current = setTimeout(() => {
       timerFrozenRef.current = false;
     }, CAPTURE_RESULT_TIMEOUT_MS);
 
-    window.socket?.emit('capture-attempt', { vegId: id, quality });
-  }, [targetNodes, effectiveOcclusion]);
+    socket?.emit('capture-attempt', { vegId: id, quality });
+  }, [targetNodes, socket]);
 
   const timerColor = secondsLeft <= 10 ? '#ff3f34' : secondsLeft <= 20 ? '#ffbe1a' : '#39ff88';
-
   const myScore = players?.[mySlot]?.score ?? 0;
   const myMode = players?.[mySlot]?.mode;
 
@@ -1184,524 +782,258 @@ export default function GameCanvas({
       .sort((a, b) => b.score - a.score);
   }, [players, mySlot]);
 
-  const visibleTargetCount = useMemo(
-    () => targetNodes.filter((n) => !effectiveOcclusion[n.id]).length,
-    [targetNodes, effectiveOcclusion]
-  );
+  const visibleTargetCount = targetNodes.length;
 
-  if (!isMobileCapable) {
+  // No isMobileCapable desktop-block screen — RN only ever runs on a
+  // real device, that check was web-only and had no RN equivalent need.
+
+  if (!cameraDevice) {
     return (
-      <div style={styles.desktopBlockWrap}>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600&display=swap');
-        `}</style>
-        <div style={styles.desktopBlockIcon}>📵</div>
-        <h2 style={styles.desktopBlockTitle}>MOBILE DEVICE REQUIRED</h2>
-        <p style={styles.desktopBlockBody}>
-          This is an AR game — it needs your phone's rear camera, compass, and GPS
-          to place vegetables in the real world around you. None of that exists on
-          a desktop or laptop browser.
-        </p>
-        <p style={styles.desktopBlockSub}>
-          Open this page on your phone (Chrome or Safari) instead — no app install needed.
-        </p>
-        {onExit && (
-          <button onClick={onExit} style={styles.fleeBtn}>GO BACK</button>
-        )}
-      </div>
+      <View style={styles.cameraErrorOverlay}>
+        <Text style={styles.errorTitle}>NO CAMERA FOUND</Text>
+      </View>
     );
   }
 
   return (
-    <div id="veggie-ar-dom-overlay" style={{ ...styles.viewport, ...(isGlitched ? styles.viewportShaking : {}) }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap');
-
-        @keyframes popupTextAnimation {
-          0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
-          15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-          30% { transform: translate(-50%, -50%) scale(1); }
-          80% { opacity: 1; }
-          100% { opacity: 0; transform: translate(-50%, -70%) scale(1); }
-        }
-        @keyframes missTextAnimation {
-          0% { opacity: 0; transform: translate(-50%, -30%) scale(0.8); }
-          20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-          75% { opacity: 1; }
-          100% { opacity: 0; transform: translate(-50%, -60%) scale(0.95); }
-        }
-        @keyframes securedFlash {
-          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(-4deg); }
-          25% { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(2deg); }
-          40% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-          85% { opacity: 1; }
-          100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) rotate(0deg); }
-        }
-        @keyframes timerPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.12); }
-        }
-        @keyframes mePulse {
-          0%, 100% { box-shadow: 0 0 0 rgba(255,140,0,0.0); background: rgba(255,140,0,0.14); }
-          50% { box-shadow: 0 0 14px rgba(255,140,0,0.55); background: rgba(255,140,0,0.24); }
-        }
-        @keyframes glitchPanic {
-          0%, 100% { transform: translate(0, 0); }
-          10% { transform: translate(-2px, 1px); }
-          20% { transform: translate(2px, -1px); }
-          30% { transform: translate(-1px, 2px); }
-          40% { transform: translate(1px, -2px); }
-          50% { transform: translate(-2px, -1px); }
-          60% { transform: translate(2px, 1px); }
-          70% { transform: translate(-1px, -2px); }
-          80% { transform: translate(1px, 2px); }
-          90% { transform: translate(-2px, 0); }
-        }
-        @keyframes glitchBannerDrop {
-          0% { transform: translateY(-100%); opacity: 0; }
-          100% { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes glitchTextFlicker {
-          0%, 100% { opacity: 1; }
-          45% { opacity: 1; }
-          47% { opacity: 0.3; }
-          49% { opacity: 1; }
-          72% { opacity: 1; }
-          74% { opacity: 0.2; }
-          76% { opacity: 1; }
-        }
-        @keyframes maxSuctionPulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.55; transform: scale(1.08); }
-        }
-        @keyframes blindAttackPulse {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-      `}</style>
-
-      {!xrActive && (
-        cameraState === 'denied' ? (
-          <div style={styles.cameraErrorOverlay}><h3>CAMERA ACCESS REJECTED</h3></div>
-        ) : (
-          <video ref={videoRef} autoPlay playsInline muted style={styles.videoBackdrop} />
-        )
+    <View style={styles.viewport}>
+      {cameraState === 'denied' ? (
+        <View style={styles.cameraErrorOverlay}>
+          <Text style={styles.errorTitle}>CAMERA ACCESS REJECTED</Text>
+        </View>
+      ) : (
+        <Camera style={StyleSheet.absoluteFill} device={cameraDevice} isActive={true} />
       )}
-      {!xrActive && <div style={styles.videoScrim} />}
+      <View style={styles.videoScrim} pointerEvents="none" />
 
-      {xrState === 'idle' && (
-        <div style={styles.arPromptOverlay}>
-          <h3>REAL AR AVAILABLE</h3>
-          <p style={{ marginBottom: 16, maxWidth: 280 }}>
-            Your device supports real ground-locked AR — vegetables will stand on the actual floor and hide behind real objects.
-          </p>
-          <button style={styles.fleeBtn} onClick={startXRSession}>
-            🌱 START AR HUNT
-          </button>
-          <button
-            style={{ ...styles.fleeBtn, marginTop: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)' }}
-            onClick={() => setXrState('unsupported')}
-          >
-            SKIP — USE BASIC CAMERA
-          </button>
-        </div>
+      {blindAttack && <View style={styles.blindAttackOverlay} pointerEvents="none" />}
+
+      {myMode === 'indoor' && (
+        <View style={styles.alignmentBarWrap} pointerEvents="none">
+          <View style={styles.alignmentBar} />
+          <Text style={styles.alignmentBarLabel}>ALIGN DEVICE TO CENTER LINE</Text>
+        </View>
       )}
 
-      {xrState === 'requesting' && (
-        <div style={styles.arPromptOverlay}>
-          <h3>STARTING AR…</h3>
-        </div>
-      )}
+      <View style={styles.threeLayer} pointerEvents="none">
+        <Canvas
+          camera={{ position: [0, 0, 0], fov: FOV_ANGLE_DEG, near: 0.1, far: 150 }}
+          gl={{ alpha: true }}
+        >
+          <CameraPitchRig pitchDeg={devicePitch} />
+          <hemisphereLight args={['#ffffff', '#4a4a4a', 0.5]} />
+          <directionalLight position={[3, 6, 4]} intensity={1.8} />
+          <ambientLight intensity={0.45} />
 
-      {xrState === 'denied' && (
-        <div style={styles.arPromptOverlay}>
-          <h3>AR SESSION FAILED TO START</h3>
-          <p style={{ marginBottom: 16, maxWidth: 280 }}>
-            Your device declined the AR session — this can happen if a required
-            AR feature isn't supported, or if Google Play Services for AR needs
-            updating. Falling back to basic camera mode still works fine.
-          </p>
-          <button style={styles.fleeBtn} onClick={startXRSession}>
-            TRY AGAIN
-          </button>
-          <button
-            style={{ ...styles.fleeBtn, marginTop: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)' }}
-            onClick={() => setXrState('unsupported')}
-          >
-            USE BASIC CAMERA INSTEAD
-          </button>
-        </div>
-      )}
+          {targetNodes.map((node) => {
+            const isThisGlitchTarget = isGlitched && node.id === glitchTargetId;
+            return (
+              <AnimatedVeggieTarget
+                key={node.id}
+                node={node}
+                processEvasionFrame={processEvasionFrame}
+                clearVeggieState={clearVeggieState}
+                deviceHeadingDeg={deviceHeading}
+                isThisGlitchTarget={isThisGlitchTarget}
+                jumpScared={jumpScaredIds.has(node.id)}
+                isVacuuming={vacuumLock?.targetId === node.id}
+                isCaught={caughtIds.has(node.id)}
+                pendingCatchAttemptsRef={pendingCatchAttemptsRef}
+                onLiveUpdate={handleLiveUpdate}
+                onLocalCatch={(id) => {
+                  setCaughtIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(id);
+                    return next;
+                  });
+                  clearVeggieState(id);
+                  delete liveVeggieRef.current[id];
+                }}
+              />
+            );
+          })}
+        </Canvas>
+      </View>
 
-      {blindAttack && (
-        <div
-          style={{
-            ...styles.blindAttackOverlay,
-            animation: 'blindAttackPulse 0.3s ease-out',
-          }}
-        />
-      )}
+      {vacuumLock && <VacuumFlash points={currentRoundPoints} />}
 
-      {!xrActive && motionPermission === 'pending' && (
-        <div style={styles.arPromptOverlay}>
-          <h3>ENABLE AR SENSORS</h3>
-          <p style={{ marginBottom: 16, maxWidth: 280 }}>
-            Tap below to allow compass &amp; motion access — needed to lock veggies to their real-world positions.
-          </p>
-          <button style={styles.fleeBtn} onClick={requestMotionPermission}>
-            ENABLE MOTION ACCESS
-          </button>
-        </div>
-      )}
-
-      {!xrActive && myMode === 'indoor' && (
-        <div style={styles.alignmentBarWrap}>
-          <div style={styles.alignmentBar} />
-          <div style={styles.alignmentBarLabel}>ALIGN DEVICE TO CENTER LINE</div>
-        </div>
-      )}
-
-      <Canvas
-        style={styles.threeLayer}
-        dpr={[1, Math.min(window.devicePixelRatio || 1, 2)]}
-        camera={{ position: [0, 0, 0], fov: FOV_ANGLE_DEG, near: 0.1, far: 150 }}
-        gl={{
-          alpha: true,
-          powerPreference: 'high-performance',
-          failIfMajorPerformanceCaveat: false,
-          outputColorSpace: THREE.SRGBColorSpace,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.15,
-        }}
-      >
-        {xrActive && <XRSessionBridge session={xrSession} onEnded={handleXRSessionEnded} />}
-        {xrActive && <ARGroundAnchor session={xrSession} onGroundY={handleGroundY} />}
-        {xrActive && (
-          <ARDepthOcclusion
-            session={xrSession}
-            targetNodesRef={targetNodesRef}
-            liveVeggieRef={liveVeggieRef}
-            onOcclusionUpdate={handleOcclusionUpdate}
-            onDepthSupportChange={setDepthOcclusionSupported}
-          />
-        )}
-        {!xrActive && <CameraPitchRig pitchDeg={devicePitch} />}
-
-        <Environment preset="apartment" background={false} />
-        <hemisphereLight skyColor="#ffffff" groundColor="#4a4a4a" intensity={0.5} />
-        <directionalLight position={[3, 6, 4]} intensity={1.8} />
-        <ambientLight intensity={0.45} />
-
-        {targetNodes.map((node) => {
-          const isThisGlitchTarget = isGlitched && node.id === glitchTargetId;
-          const isThisOccluded = !!effectiveOcclusion[node.id];
-          return (
-            <AnimatedVeggieTarget
-              key={node.id}
-              node={node}
-              processEvasionFrame={processEvasionFrame}
-              clearVeggieState={clearVeggieState}
-              deviceHeadingDeg={deviceHeading}
-              isThisGlitchTarget={isThisGlitchTarget}
-              jumpScared={jumpScaredIds.has(node.id)}
-              isVacuuming={vacuumLock?.targetId === node.id}
-              isCaught={caughtIds.has(node.id)}
-              isOccluded={isThisOccluded}
-              pendingCatchAttemptsRef={pendingCatchAttemptsRef}
-              onLiveUpdate={handleLiveUpdate}
-              xrActive={xrActive}
-              screenW={windowDims.w}
-              screenH={windowDims.h}
-              onLocalCatch={(id) => {
-                setCaughtIds((prev) => {
-                  const next = new Set(prev);
-                  next.delete(id);
-                  return next;
-                });
-                clearVeggieState(id);
-                delete liveVeggieRef.current[id];
-              }}
-            />
-          );
-        })}
-      </Canvas>
-
-      {/* Quick "SECURED!" flash tied to the real vacuumLock state — fires
-          the instant capture-result confirms a hit. Uses currentRoundPoints,
-          which now only ever comes from the server's real 'round-start'
-          payload, so this can never disagree with the later 'veggieCaught'
-          popup's server-reported point value again. */}
-      <AnimatePresence>
-        {vacuumLock && (
-          <motion.div
-            key={vacuumLock.targetId}
-            initial={{ opacity: 0, scale: 0.3, y: 50 }}
-            animate={{ opacity: 1, scale: [1.3, 1], y: -100 }}
-            exit={{ opacity: 0, y: -200 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            style={styles.vacuumFlashLabel}
-          >
-            🎉 SECURED! +{currentRoundPoints} PTS
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div style={styles.lockLayer}>
+      <View style={styles.lockLayer} pointerEvents="none">
         {lockRings.map((ring) => {
           const color = ring.vacuuming ? '#ffbe1a' : ring.locked ? '#39ff6e' : '#ff3b3b';
           const size = ring.radius * 2.6;
-          const distLabel = `${ring.species.toUpperCase()} ${(ring.distance).toFixed(1)}m`;
-          return (
-            <div
-              key={`bracket-${ring.id}`}
-              style={{
-                ...styles.bracketWrap,
-                left: ring.x,
-                top: ring.y,
-                width: size,
-                height: size,
-                ...(ring.jumpScared ? { animation: 'timerPulse 0.15s ease-in-out infinite' } : {}),
-              }}
-            >
-              <div style={{ ...styles.bracketCorner, ...styles.bracketTL, borderColor: color }} />
-              <div style={{ ...styles.bracketCorner, ...styles.bracketTR, borderColor: color }} />
-              <div style={{ ...styles.bracketCorner, ...styles.bracketBL, borderColor: color }} />
-              <div style={{ ...styles.bracketCorner, ...styles.bracketBR, borderColor: color }} />
+          const distLabel = `${ring.species.toUpperCase()} ${ring.distance.toFixed(1)}m`;
+          const label = ring.vacuuming
+            ? 'MAX SUCTION'
+            : ring.locked
+              ? `LOCKED ON! · ${distLabel}`
+              : !ring.inRealRange
+                ? `MOVE CLOSER! · ${distLabel}`
+                : distLabel;
+          const labelColor = ring.vacuuming ? '#ffbe1a' : ring.locked ? '#39ff6e' : '#ff8f85';
 
-              {ring.vacuuming ? (
-                <div style={{ ...styles.bracketLabel, color: '#ffbe1a', animation: 'maxSuctionPulse 0.35s ease-in-out infinite' }}>
-                  MAX SUCTION
-                </div>
-              ) : ring.locked ? (
-                <div style={{ ...styles.bracketLabel, color: '#39ff6e' }}>
-                  LOCKED ON! · {distLabel}
-                </div>
-              ) : !ring.inRealRange ? (
-                <div style={{ ...styles.bracketLabel, color: '#ff8f85' }}>
-                  MOVE CLOSER! · {distLabel}
-                </div>
-              ) : (
-                <div style={{ ...styles.bracketLabel, color: '#ff8f85' }}>
-                  {distLabel}
-                </div>
-              )}
-            </div>
+          return (
+            <View
+              key={`bracket-${ring.id}`}
+              style={[styles.bracketWrap, { left: ring.x - size / 2, top: ring.y - size / 2, width: size, height: size }]}
+            >
+              <View style={[styles.bracketCorner, styles.bracketTL, { borderColor: color }]} />
+              <View style={[styles.bracketCorner, styles.bracketTR, { borderColor: color }]} />
+              <View style={[styles.bracketCorner, styles.bracketBL, { borderColor: color }]} />
+              <View style={[styles.bracketCorner, styles.bracketBR, { borderColor: color }]} />
+              <Text style={[styles.bracketLabel, { color: labelColor }]}>{label}</Text>
+            </View>
           );
         })}
-      </div>
+      </View>
 
       <CaptureThrow
         targets={captureTargets}
         onAttempt={handleCaptureAttempt}
         captureResolutions={captureResolutions}
-        disabled={blockingOverlayActive || (!xrActive && cameraState !== 'ready')}
-        screenW={windowDims.w}
-        screenH={windowDims.h}
+        disabled={cameraState !== 'ready'}
+        screenW={windowDims.width}
+        screenH={windowDims.height}
       />
 
       {isGlitched && (
-        <div style={styles.glitchBanner}>
-          <span style={{ animation: 'glitchTextFlicker 2.4s infinite' }}>
-            ⚠️ GLITCH SURGE — TARGETS MOVING ERRATICALLY ⚠️
-          </span>
-        </div>
+        <View style={styles.glitchBanner} pointerEvents="none">
+          <Text style={styles.glitchBannerText}>⚠️ GLITCH SURGE — TARGETS MOVING ERRATICALLY ⚠️</Text>
+        </View>
       )}
 
-      <div ref={topBarRef} style={styles.topBar}>
-        <div style={styles.topBarHeader}>
-          <span style={styles.scanDot} />
-          HUNTING FOR TARGETS
-        </div>
-        <div style={styles.telemetryRow}>
-          <div style={styles.ptsTag}>
-            <span style={styles.ptsNumber}>{myScore.toLocaleString()}</span> PTS
-          </div>
-          <div style={styles.telemetryTag}>
-            ARENA: <span style={{ color: '#00e5e5' }}>{roomCode || 'LOCAL'}</span>
-          </div>
-          <div style={styles.telemetryTag}>
-            ROUND: <span style={{ color: '#c084fc' }}>{matchRound}/{TOTAL_ROUNDS}</span>
-          </div>
-          <div style={{ ...styles.telemetryTag, ...(isGlitched ? { borderColor: 'rgba(255,190,26,0.7)' } : {}) }}>
-            TIER: <span style={{ color: isGlitched ? '#ffbe1a' : '#39ff88' }}>{currentRoundPoints} PTS</span>
-          </div>
-          <div style={styles.telemetryTag}>
-            COMPASS: <span style={{ color: '#39ff88' }}>{Math.round(deviceHeading)}°</span>
-          </div>
-          <div
-            style={{
-              ...styles.telemetryTag,
-              animation: secondsLeft <= 10 ? 'timerPulse 0.6s ease-in-out infinite' : 'none',
-            }}
-          >
-            TIME: <span style={{ color: timerColor, fontWeight: 900 }}>{vacuumLock ? '⏸' : secondsLeft}s</span>
-          </div>
-          <div style={styles.telemetryTag}>
-            LOCKS: <span style={{ color: '#ffbe1a' }}>{visibleTargetCount} IN SIGHT</span>
-          </div>
+      <View
+        style={styles.topBar}
+        pointerEvents="none"
+        onLayout={(e) => setTopBarHeight(e.nativeEvent.layout.height + 10)}
+      >
+        <View style={styles.topBarHeader}>
+          <View style={styles.scanDot} />
+          <Text style={styles.topBarHeaderText}>HUNTING FOR TARGETS</Text>
+        </View>
+        <View style={styles.telemetryRow}>
+          <View style={styles.ptsTag}><Text style={styles.ptsNumber}>{myScore.toLocaleString()}</Text><Text style={styles.ptsTagText}> PTS</Text></View>
+          <View style={styles.telemetryTag}><Text style={styles.telemetryTagText}>ARENA: <Text style={{ color: '#00e5e5' }}>{roomCode || 'LOCAL'}</Text></Text></View>
+          <View style={styles.telemetryTag}><Text style={styles.telemetryTagText}>ROUND: <Text style={{ color: '#c084fc' }}>{matchRound}/{TOTAL_ROUNDS}</Text></Text></View>
+          <View style={[styles.telemetryTag, isGlitched && { borderColor: 'rgba(255,190,26,0.7)' }]}>
+            <Text style={styles.telemetryTagText}>TIER: <Text style={{ color: isGlitched ? '#ffbe1a' : '#39ff88' }}>{currentRoundPoints} PTS</Text></Text>
+          </View>
+          <View style={styles.telemetryTag}><Text style={styles.telemetryTagText}>COMPASS: <Text style={{ color: '#39ff88' }}>{Math.round(deviceHeading)}°</Text></Text></View>
+          <View style={styles.telemetryTag}>
+            <Text style={styles.telemetryTagText}>TIME: <Text style={{ color: timerColor, fontWeight: '900' }}>{vacuumLock ? '⏸' : secondsLeft}s</Text></Text>
+          </View>
+          <View style={styles.telemetryTag}><Text style={styles.telemetryTagText}>LOCKS: <Text style={{ color: '#ffbe1a' }}>{visibleTargetCount} IN SIGHT</Text></Text></View>
           {myMode && (
-            <div style={styles.telemetryTag}>
-              {myMode === 'gps' ? '🛰 OUTDOOR GPS' : '📶 INDOOR SENSOR'}
-            </div>
+            <View style={styles.telemetryTag}>
+              <Text style={styles.telemetryTagText}>{myMode === 'gps' ? '🛰 OUTDOOR GPS' : '📶 INDOOR SENSOR'}</Text>
+            </View>
           )}
-          {xrActive && effectiveGroundY != null && (
-            <div style={{ ...styles.telemetryTag, borderColor: 'rgba(57,255,136,0.5)' }}>
-              🟢 AR ANCHORED
-            </div>
-          )}
-          {xrActive && (
-            <div style={{ ...styles.telemetryTag, borderColor: 'rgba(60,214,255,0.5)' }}>
-              📡 REAL AR
-            </div>
-          )}
-          {xrActive && depthOcclusionSupported === true && (
-            <div style={{ ...styles.telemetryTag, borderColor: 'rgba(255,190,26,0.5)' }}>
-              🌫️ REAL OCCLUSION
-            </div>
-          )}
-        </div>
-      </div>
+        </View>
+      </View>
 
       {rankedPlayers.length > 0 && (
-        <div style={{ ...styles.leaderboardWidget, top: leaderboardTop }}>
-          <div style={styles.leaderboardTitle}>LEADERBOARD</div>
+        <View style={[styles.leaderboardWidget, { top: topBarHeight }]} pointerEvents="none">
+          <Text style={styles.leaderboardTitle}>LEADERBOARD</Text>
           {rankedPlayers.slice(0, 4).map((p, idx) => (
-            <div
-              key={p.slot}
-              style={{
-                ...styles.leaderboardRow,
-                ...(p.slot === mySlot ? styles.leaderboardRowMe : {}),
-              }}
-            >
-              <span style={styles.leaderboardRank}>
-                {idx === 0 ? '👑' : `#${idx + 1}`}
-              </span>
-              <span style={styles.leaderboardName}>
+            <View key={p.slot} style={[styles.leaderboardRow, p.slot === mySlot && styles.leaderboardRowMe]}>
+              <Text style={styles.leaderboardRank}>{idx === 0 ? '👑' : `#${idx + 1}`}</Text>
+              <Text style={styles.leaderboardName} numberOfLines={1}>
                 {p.name}
-                {idx === 0 && <span style={styles.crownLabel}> CROWN MASTER</span>}
-                {p.slot === mySlot && <span style={styles.youLabel}> (You)</span>}
-              </span>
-              <span style={styles.leaderboardScore}>{p.score.toLocaleString()}</span>
-            </div>
+                {idx === 0 && <Text style={styles.crownLabel}> CROWN MASTER</Text>}
+                {p.slot === mySlot && <Text style={styles.youLabel}> (You)</Text>}
+              </Text>
+              <Text style={styles.leaderboardScore}>{p.score.toLocaleString()}</Text>
+            </View>
           ))}
-        </div>
+        </View>
       )}
 
       {popups.map((popup) => (
-        <div key={popup.id} style={styles.scoreBurstWrapper}>
-          <div style={styles.securedFlashTag}>SECURED! 💥</div>
-          {popup.isPerfect && <div style={styles.perfectTag}>PERFECT!</div>}
-          <h1 style={styles.bigScoreLabel}>{popup.text}</h1>
-          <h2 style={styles.speciesTextCard}>{popup.speciesName}</h2>
-          <button
-            style={styles.shareBtn}
-            onClick={async () => {
-              const shareText = `I just secured a ${popup.speciesName} and scored ${popup.text}! 🥕📸`;
-              const shareUrl = window.location.origin;
-              if (navigator.share) {
-                try {
-                  await navigator.share({ text: shareText, url: shareUrl });
-                } catch {
-                  // user cancelled the share sheet — no action needed
-                }
-              } else if (navigator.clipboard) {
-                try {
-                  await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
-                  alert('Copied! Paste it anywhere to share your catch.');
-                } catch {
-                  // clipboard write blocked — silently ignore, button just won't do anything
-                }
-              }
-            }}
-          >
-            📤 SHARE
-          </button>
-        </div>
+        <ScorePopup
+          key={popup.id}
+          popup={popup}
+          onDone={() => setPopups((prev) => prev.filter((p) => p.id !== popup.id))}
+        />
       ))}
 
       {missPopups.map((miss) => (
-        <div key={miss.id} style={styles.missBurstWrapper}>
-          <h1 style={styles.missLabel}>{miss.text}</h1>
-        </div>
+        <MissPopup
+          key={miss.id}
+          miss={miss}
+          onDone={() => setMissPopups((prev) => prev.filter((p) => p.id !== miss.id))}
+        />
       ))}
 
-      <div style={styles.controlDeck}>
-        <button onClick={onExit} style={styles.fleeBtn}>← RADAR</button>
-      </div>
-    </div>
+      <View style={styles.controlDeck}>
+        <TouchableOpacity onPress={onExit} style={styles.fleeBtn}>
+          <Text style={styles.fleeBtnText}>← RADAR</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
-const FONT_HEADER = "'Orbitron', 'Rajdhani', monospace";
-const FONT_BODY = "'Rajdhani', 'Orbitron', monospace";
+const styles = StyleSheet.create({
+  viewport: { ...StyleSheet.absoluteFillObject, backgroundColor: '#04060a' },
+  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,6,10,0.35)' },
+  threeLayer: { ...StyleSheet.absoluteFillObject },
 
-const styles = {
-  viewport: { position: 'absolute', inset: 0, zIndex: 10, background: '#04060a', display: 'flex', flexDirection: 'column', overflow: 'hidden', overflowX: 'hidden', userSelect: 'none', fontFamily: FONT_BODY, maxWidth: '100vw' },
-  viewportShaking: { animation: 'glitchPanic 0.25s linear infinite' },
-  videoBackdrop: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 },
-  videoScrim: { position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,6,10,0.2) 0%, rgba(4,6,10,0.5) 100%)', zIndex: 1 },
-  threeLayer: { position: 'absolute', inset: 0, zIndex: 20, background: 'transparent', pointerEvents: 'none' },
+  cameraErrorOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0d111a', padding: 30 },
+  errorTitle: { color: '#ff4d4d', fontWeight: '900', fontSize: 16, textAlign: 'center' },
 
-  cameraErrorOverlay: { position: 'absolute', inset: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0d111a', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+  vacuumFlashLabel: { position: 'absolute', top: '45%', left: 0, right: 0, alignItems: 'center', zIndex: 200 },
+  vacuumFlashText: { fontSize: 30, fontWeight: '900', color: '#39ff88', textAlign: 'center' },
 
-  arPromptOverlay: { position: 'absolute', inset: 0, zIndex: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(13, 17, 26, 0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', color: '#ff4d4d', padding: '30px', textAlign: 'center' },
+  blindAttackOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,40,10,0.6)' },
 
-  vacuumFlashLabel: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '36px', fontWeight: '900', fontFamily: "'Orbitron', sans-serif", color: '#39ff88', textShadow: '0 0 20px rgba(57,255,136,0.8), 0 4px 10px rgba(0,0,0,0.9)', zIndex: 200, pointerEvents: 'none' },
+  alignmentBarWrap: { position: 'absolute', top: '50%', left: 0, right: 0, alignItems: 'center' },
+  alignmentBar: { width: '86%', height: 2, backgroundColor: 'rgba(255,255,255,0.75)' },
+  alignmentBarLabel: { marginTop: 6, color: 'rgba(255,255,255,0.85)', fontSize: 10, letterSpacing: 1.5 },
 
-  desktopBlockWrap: { position: 'absolute', inset: 0, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(ellipse at 50% 30%, #101826 0%, #04060a 70%)', color: '#fff', padding: '40px 24px', textAlign: 'center', fontFamily: FONT_BODY },
-  desktopBlockIcon: { fontSize: 48, marginBottom: 18, filter: 'drop-shadow(0 0 12px rgba(255,63,52,0.5))' },
-  desktopBlockTitle: { fontFamily: FONT_HEADER, fontSize: 20, fontWeight: 900, letterSpacing: '2px', color: '#ffbe1a', margin: '0 0 14px 0', textShadow: '0 0 14px rgba(255,190,26,0.4)' },
-  desktopBlockBody: { fontSize: 15, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', maxWidth: 400, margin: '0 0 10px 0' },
-  desktopBlockSub: { fontSize: 13, lineHeight: 1.5, color: 'rgba(255,255,255,0.55)', maxWidth: 380, margin: '0 0 26px 0' },
+  glitchBanner: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: '#c21f1f', paddingVertical: 9, paddingHorizontal: 10, zIndex: 60 },
+  glitchBannerText: { color: '#fff', fontWeight: '800', fontSize: 12, textAlign: 'center', letterSpacing: 1 },
 
-  blindAttackOverlay: {
-    position: 'absolute', inset: 0, zIndex: 140,
-    background: 'radial-gradient(ellipse at center, rgba(120,180,40,0.35) 0%, rgba(20,40,10,0.85) 75%)',
-    backdropFilter: 'blur(6px)',
-    pointerEvents: 'none',
-  },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(6,10,18,0.85)', padding: 12, zIndex: 30 },
+  topBarHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  topBarHeaderText: { color: '#ffbe1a', fontWeight: '700', fontSize: 11, letterSpacing: 1.5, marginLeft: 6 },
+  scanDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#ffbe1a' },
+  telemetryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  telemetryTag: { backgroundColor: 'rgba(10,16,30,0.85)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 12 },
+  telemetryTagText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+  ptsTag: { flexDirection: 'row', backgroundColor: 'rgba(10,16,30,0.85)', borderWidth: 1, borderColor: 'rgba(255,190,26,0.4)', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 12 },
+  ptsNumber: { color: '#ffe066', fontWeight: '900', fontSize: 13 },
+  ptsTagText: { color: '#ffbe1a', fontWeight: '700', fontSize: 11 },
 
-  alignmentBarWrap: { position: 'absolute', top: '50%', left: 0, right: 0, zIndex: 22, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none' },
-  alignmentBar: { width: '86%', height: 2, background: 'rgba(255,255,255,0.75)', boxShadow: '0 0 10px rgba(255,255,255,0.6)' },
-  alignmentBarLabel: { marginTop: 6, color: 'rgba(255,255,255,0.85)', fontFamily: FONT_HEADER, fontSize: 10, letterSpacing: '1.5px', textShadow: '0 0 6px rgba(0,0,0,0.8)' },
+  leaderboardWidget: { position: 'absolute', right: 14, width: 210, backgroundColor: 'rgba(8,12,22,0.92)', borderWidth: 1.5, borderColor: '#ffbe1a', borderRadius: 10, padding: 10, zIndex: 30 },
+  leaderboardTitle: { color: '#ffbe1a', fontWeight: '800', fontSize: 11, letterSpacing: 2, marginBottom: 8, textAlign: 'center' },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 6, padding: 6, marginBottom: 5, backgroundColor: 'rgba(255,255,255,0.04)' },
+  leaderboardRowMe: { borderWidth: 1, borderColor: 'rgba(255,140,0,0.45)' },
+  leaderboardRank: { fontSize: 13, width: 20, textAlign: 'center' },
+  leaderboardName: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
+  crownLabel: { color: '#ffbe1a', fontSize: 9, fontWeight: '800' },
+  youLabel: { color: '#ff9d3f', fontSize: 10, fontWeight: '700' },
+  leaderboardScore: { color: '#39ff88', fontWeight: '800', fontSize: 12 },
 
-  glitchBanner: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60, background: 'linear-gradient(90deg, #8a0000, #ff2b2b, #8a0000)', color: '#fff', fontFamily: FONT_HEADER, fontWeight: 800, fontSize: 12, letterSpacing: '1px', textAlign: 'center', padding: '9px 10px', boxShadow: '0 4px 18px rgba(255,0,0,0.5)', animation: 'glitchBannerDrop 0.4s ease-out', pointerEvents: 'none' },
-
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, background: 'linear-gradient(180deg, rgba(6,10,18,0.92) 0%, rgba(6,10,18,0.55) 100%)', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '10px 16px 12px', pointerEvents: 'none', boxSizing: 'border-box', maxWidth: '100%' },
-  topBarHeader: { display: 'flex', alignItems: 'center', gap: '6px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '10px', textShadow: '0 0 8px rgba(255,190,26,0.4)' },
-  scanDot: { width: 7, height: 7, borderRadius: '50%', background: '#ffbe1a', boxShadow: '0 0 8px 2px rgba(255,190,26,0.8)', animation: 'timerPulse 1.4s ease-in-out infinite' },
-  telemetryRow: { display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', rowGap: '8px' },
-  telemetryTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', padding: '7px 14px', color: '#fff', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', whiteSpace: 'nowrap' },
-  ptsTag: { background: 'rgba(10, 16, 30, 0.85)', border: '1px solid rgba(255,190,26,0.4)', borderRadius: '7px', padding: '7px 14px', color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 700, letterSpacing: '0.5px', boxShadow: '0 0 12px rgba(255,190,26,0.18)', whiteSpace: 'nowrap' },
-  ptsNumber: { color: '#ffe066', fontWeight: 900, fontSize: '13px' },
-
-  leaderboardWidget: { position: 'absolute', right: 14, zIndex: 30, width: 210, maxWidth: 'calc(100vw - 28px)', background: 'rgba(8,12,22,0.92)', border: '1.5px solid #ffbe1a', borderRadius: '10px', padding: '10px 10px 8px', boxShadow: '0 0 16px rgba(255,190,26,0.2)', pointerEvents: 'none', transition: 'top 0.15s ease-out' },
-  leaderboardTitle: { color: '#ffbe1a', fontFamily: FONT_HEADER, fontSize: '11px', fontWeight: 800, letterSpacing: '2px', marginBottom: '8px', textAlign: 'center' },
-  leaderboardRow: { display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '6px', padding: '6px 7px', marginBottom: '5px', background: 'rgba(255,255,255,0.04)' },
-  leaderboardRowMe: { animation: 'mePulse 1.8s ease-in-out infinite', border: '1px solid rgba(255,140,0,0.45)' },
-  leaderboardRank: { fontSize: '13px', width: '20px', textAlign: 'center' },
-  leaderboardName: { flex: 1, color: '#fff', fontFamily: FONT_BODY, fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  crownLabel: { color: '#ffbe1a', fontSize: '9px', fontWeight: 800, letterSpacing: '0.5px' },
-  youLabel: { color: '#ff9d3f', fontSize: '10px', fontWeight: 700 },
-  leaderboardScore: { color: '#39ff88', fontFamily: FONT_HEADER, fontSize: '12px', fontWeight: 800 },
-
-  lockLayer: { position: 'absolute', inset: 0, zIndex: 25, pointerEvents: 'none' },
-  bracketWrap: { position: 'absolute', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
-  bracketCorner: { position: 'absolute', width: '26%', height: '26%', borderStyle: 'solid', borderWidth: 0 },
-  bracketTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 4 },
-  bracketTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 4 },
-  bracketBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 4 },
-  bracketBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 4 },
-  bracketLabel: { position: 'absolute', bottom: -18, fontFamily: FONT_HEADER, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.5px', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(0,0,0,0.8)' },
+  lockLayer: { ...StyleSheet.absoluteFillObject, zIndex: 25 },
+  bracketWrap: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  bracketCorner: { position: 'absolute', width: '26%', height: '26%', borderColor: '#fff' },
+  bracketTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 },
+  bracketTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 },
+  bracketBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
+  bracketBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
+  bracketLabel: { position: 'absolute', bottom: -18, fontSize: 8.5, fontWeight: '800', letterSpacing: 0.5 },
 
   controlDeck: { position: 'absolute', top: 14, left: 14, zIndex: 50 },
-  fleeBtn: { background: 'rgba(255,63,52,0.92)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '999px', color: '#fff', fontFamily: FONT_HEADER, fontWeight: 800, fontSize: '11px', letterSpacing: '0.5px', padding: '9px 16px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(255,63,52,0.4)' },
-  scoreBurstWrapper: { position: 'fixed', top: '25%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1000, pointerEvents: 'none', animation: 'popupTextAnimation 3s ease-out forwards' },
-  securedFlashTag: { fontSize: '20px', fontWeight: '900', color: '#ffbe1a', fontFamily: FONT_HEADER, letterSpacing: '2px', textShadow: '2px 2px 0px #000, 0 0 16px rgba(255,190,26,0.8)', marginBottom: '4px', animation: 'securedFlash 0.9s ease-out' },
-  perfectTag: { fontSize: '16px', fontWeight: '900', color: '#3cd6ff', fontFamily: FONT_HEADER, letterSpacing: '2px', textShadow: '2px 2px 0px #000, 0 0 12px rgba(60,214,255,0.7)', marginBottom: '2px' },
-  bigScoreLabel: { fontSize: '72px', fontWeight: '900', color: '#ffbe1a', fontFamily: FONT_HEADER, margin: 0, textShadow: '4px 4px 0px #000, 0 0 30px rgba(255,190,26,0.6)', letterSpacing: '2px' },
-  speciesTextCard: { fontSize: '32px', fontWeight: '800', color: '#fff', fontFamily: FONT_HEADER, margin: '4px 0 0 0', textShadow: '3px 3px 0px #000', letterSpacing: '1px' },
-  shareBtn: { marginTop: 14, pointerEvents: 'auto', background: 'rgba(255,255,255,0.12)', border: '2px solid #ffbe1a', color: '#ffbe1a', fontFamily: FONT_HEADER, fontWeight: 'bold', fontSize: 12, padding: '8px 18px', borderRadius: 20, cursor: 'pointer', backdropFilter: 'blur(4px)' },
-  missBurstWrapper: { position: 'fixed', top: '38%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 999, pointerEvents: 'none', animation: 'missTextAnimation 1.2s ease-out forwards' },
-  missLabel: { fontSize: '30px', fontWeight: '800', color: '#ff6b5e', fontFamily: FONT_HEADER, margin: 0, textShadow: '2px 2px 0px #000, 0 0 14px rgba(255,80,60,0.5)', letterSpacing: '1.5px' },
-};
+  fleeBtn: { backgroundColor: 'rgba(255,63,52,0.92)', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 16 },
+  fleeBtnText: { color: '#fff', fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
+
+  scoreBurstWrapper: { position: 'absolute', top: '20%', left: 0, right: 0, alignItems: 'center', zIndex: 1000 },
+  securedFlashTag: { fontSize: 20, fontWeight: '900', color: '#ffbe1a', letterSpacing: 2, marginBottom: 4 },
+  perfectTag: { fontSize: 16, fontWeight: '900', color: '#3cd6ff', letterSpacing: 2, marginBottom: 2 },
+  bigScoreLabel: { fontSize: 60, fontWeight: '900', color: '#ffbe1a', letterSpacing: 2 },
+  speciesTextCard: { fontSize: 28, fontWeight: '800', color: '#fff', letterSpacing: 1, marginTop: 4 },
+  shareBtn: { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 2, borderColor: '#ffbe1a', paddingVertical: 8, paddingHorizontal: 18, borderRadius: 20 },
+  shareBtnText: { color: '#ffbe1a', fontWeight: 'bold', fontSize: 12 },
+
+  missBurstWrapper: { position: 'absolute', top: '35%', left: 0, right: 0, alignItems: 'center', zIndex: 999 },
+  missLabel: { fontSize: 28, fontWeight: '800', color: '#ff6b5e', letterSpacing: 1.5 },
+});
