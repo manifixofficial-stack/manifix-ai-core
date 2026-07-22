@@ -3,23 +3,12 @@
 // ====================================================================
 // ✅ CACHE RESET: bump this string on every deploy that changes cached
 // core assets, so old clients drop stale files immediately.
-const CACHE_VERSION = 'manifix-veggie-v6';
+const CACHE_VERSION = 'manifix-veggie-v7';
 const CORE_ASSETS = ['/', '/index.html'];
 
 // --------------------------------------------------------------------
 // INSTALL
 // --------------------------------------------------------------------
-// FIX: previously, if the network was flaky/returned a 503 during
-// cache.addAll(), the whole install step REJECTED — which means the
-// service worker never activated at all, and the browser silently kept
-// running whatever OLD service worker + OLD cached JS/HTML it already
-// had (potentially forever, since a failed install never gets retried
-// until the browser decides to check again). That's what was causing
-// stale/mismatched JS to be served with dead button handlers.
-// Now a failed pre-cache is caught and logged instead of aborting
-// install — the SW still activates, it just starts with an empty (or
-// partially-empty) cache, which the network-first navigation handler
-// below will fill in on the very next successful page load anyway.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
@@ -39,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => Promise.all(
       keys
         .filter((key) => key !== CACHE_VERSION)
-        .map((key) => caches.delete(key)) // destroy old-version cache entries immediately
+        .map((key) => caches.delete(key))
     ))
   );
   self.clients.claim();
@@ -48,19 +37,18 @@ self.addEventListener('activate', (event) => {
 // --------------------------------------------------------------------
 // FETCH
 // --------------------------------------------------------------------
-// FIX: page navigations (the actual HTML document — e.g. loading
-// "/" or "/?room=12344") are now NETWORK-FIRST instead of cache-first.
-// This is the core fix for "buttons do nothing": previously, if ANY
-// cached copy of "/" existed, it was served instantly even when a
-// newer deploy was live — so you could be looking at old HTML/JS
-// referencing stale bundle hashes while the actual server had already
-// moved on, causing event handlers to silently fail to attach or point
-// at code that no longer matches what's rendered.
-//
-// Non-navigation requests (JS/CSS/image assets, API calls) KEEP the
-// original cache-first / stale-while-revalidate behavior — that part
-// was never the problem and cache-first is exactly what you want for
-// versioned static assets.
+// FIX (this revision): "Response body is already used" race condition.
+// response.clone() MUST happen synchronously, the instant the response
+// object is received — never inside a nested .then() that depends on
+// another async operation (like caches.open()) resolving first. If
+// clone() is deferred behind any await/async gap, whoever the original
+// response was returned to (the browser navigating, or a page fetch())
+// may already start reading/consuming the body before the deferred
+// clone() call runs — and clone() throws once the body stream has
+// started. Both handlers below now clone immediately on arrival, store
+// the clone in a local const, and only reference that const inside any
+// later async .then() chain — the original `response` is returned
+// untouched and is never raced against its own clone.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -76,15 +64,20 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then((response) => {
           if (response && response.status === 200) {
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, response.clone()));
+            // Clone RIGHT NOW, before any async work (caches.open) has
+            // a chance to let the original response's body start being
+            // read elsewhere. This is the actual fix for the race.
+            const responseToCache = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => {
+              cache.put(event.request, responseToCache).catch((err) => {
+                console.warn('[sw] failed to cache navigation response', event.request.url, err);
+              });
+            });
           }
           return response;
         })
         .catch((err) => {
           console.warn('[sw] navigation fetch failed for', event.request.url, err);
-          // Offline / server unreachable — fall back to whatever
-          // cached shell we have so the SPA can still boot and read
-          // ?room=... client-side, instead of a dead-end error page.
           return caches.match('/index.html').then((shell) => {
             return shell || new Response(
               'Network error and no cached copy available.',
@@ -101,14 +94,23 @@ self.addEventListener('fetch', (event) => {
   }
 
   // ---- Everything else (scripts, styles, images, API calls):
-  // cache-first, stale-while-revalidate — UNCHANGED from before. ----
+  // cache-first, stale-while-revalidate. ----
   event.respondWith(
     caches.open(CACHE_VERSION).then(async (cache) => {
       const cached = await cache.match(event.request);
       const networkFetch = fetch(event.request)
         .then((response) => {
           if (response && response.status === 200) {
-            cache.put(event.request, response.clone());
+            // Same rule as above: clone immediately on arrival, before
+            // anything else touches the body. `cache` is already
+            // resolved here so this was less likely to race in
+            // practice, but keeping the pattern identical everywhere
+            // removes the class of bug entirely rather than relying on
+            // timing being "usually fine."
+            const responseToCache = response.clone();
+            cache.put(event.request, responseToCache).catch((err) => {
+              console.warn('[sw] failed to cache asset', event.request.url, err);
+            });
           }
           return response;
         })
