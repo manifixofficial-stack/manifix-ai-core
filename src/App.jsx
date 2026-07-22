@@ -1,77 +1,115 @@
-// src/App.jsx
+// src/App.native.jsx
 //
-// MVP LAUNCH REVISION 4 — mode-gate race fix, pre-match ARENA-entry guard,
-// dead-ref cleanup, account-deletion entry point.
+// REACT NATIVE PORT of App.jsx (was: web build using framer-motion,
+// navigator.geolocation, localStorage, window.socket, DOM elements).
 //
-// WHY THIS REVISION (four independent fixes, reviewed against the actual
-// GameCanvas.jsx prop contract and the Play Store submission checklist):
+// Mirrors App.jsx's state machine and all four of Revision 4's fixes
+// (mode-gate race fix, pre-match ARENA-entry guard, dead-ref cleanup,
+// account-deletion entry point) 1:1 — the state machine itself is
+// platform-agnostic. Only the platform-touching pieces below are swapped.
 //
-//   FIX 1 — MODE GATE RACE:
-//   Previously, handlePickTimingMode() set `timingModeChosen = true`
-//   LOCALLY the instant the leader tapped a mode button, before any
-//   server confirmation. If 'set-timing-mode' were ever rejected or
-//   delayed server-side, the leader would already be past the gate on a
-//   mode the server never actually applied — no rollback path existed.
-//   FIX: handlePickTimingMode() no longer flips `timingModeChosen`
-//   itself. Both the leader and non-leader now advance ONLY via the
-//   existing 'onTimingModeUpdated' room subscription (already wired,
-//   already fires for every client including the sender in a standard
-//   socket.io room broadcast) — single source of truth for everyone.
-//   A `timingModeSending` state disables the buttons and shows a
-//   "confirming…" state after tapping, with a 6s timeout that surfaces
-//   a retry-able error instead of hanging forever if the broadcast never
-//   arrives.
+// ============================================================================
+// Library swaps made for RN (mirrors GameCanvas.native.jsx's swap table)
+// ============================================================================
+//   navigator.geolocation         -> expo-location (Location.*)
+//   localStorage                  -> @react-native-async-storage/async-storage
+//                                    NOTE: AsyncStorage is ASYNC, unlike
+//                                    localStorage. The web version could
+//                                    synchronously seed deviceUUIDRef.current
+//                                    on first render; this version can't, so
+//                                    there's a new `bootPhase` gate below that
+//                                    renders a spinner until the stored (or
+//                                    freshly generated) deviceUUID resolves.
+//                                    This is a real, unavoidable behavioral
+//                                    difference from the web file, not an
+//                                    oversight.
+//   window.socket                 -> getSocket() from gameClient.js (already
+//                                    exported there for exactly this reason —
+//                                    see gameClient.js's header on the RN
+//                                    `window` crash fix). GameCanvas.native.jsx
+//                                    also takes socket as an explicit prop,
+//                                    so getSocket() is passed straight through.
+//   window.location.search        -> Linking.getInitialURL(), parsed for a
+//                                    `?room=` query param via a small manual
+//                                    regex parser rather than URL/
+//                                    URLSearchParams, since neither is
+//                                    guaranteed present in RN's JS engine
+//                                    (Hermes) across all supported versions.
+//                                    Also listens for Linking's 'url' event,
+//                                    for a deep link opened while already
+//                                    running (RN equivalent of clicking a
+//                                    shared room link).
+//   window.history.replaceState   -> DROPPED. No RN equivalent — there's no
+//                                    address bar. Sharing a room code is
+//                                    RoomJoin.native's / MapView.native's
+//                                    concern (RN's Share API), not this
+//                                    file's.
+//   window.addEventListener       -> AppState 'change' listener, for the
+//     ('focus', ...)                 motion-permission-readiness recheck.
+//   deviceorientation(absolute)   -> expo-sensors Magnetometer, raw x/y
+//                                    atan2 heading (no tilt compensation —
+//                                    same fidelity tradeoff the web version
+//                                    made with its own webkitCompassHeading/
+//                                    alpha fallback chain). Sign/offset may
+//                                    need on-device calibration; flagged
+//                                    inline below rather than assumed correct.
+//   <audio> + .play()             -> expo-av Audio.Sound, loaded once on
+//                                    mount and replayed on 'go'.
+//   framer-motion (motion/
+//     AnimatePresence)             -> RN Animated for the few overlays that
+//                                    benefit from it (countdown tick, GO
+//                                    burst, victory card — mirrors the
+//                                    Animated usage GameCanvas.native.jsx
+//                                    already established for its own
+//                                    popups). The mode-gate, settings menu,
+//                                    and delete-confirm screens are plain
+//                                    conditional Views — they didn't carry
+//                                    meaningful motion on web either beyond
+//                                    a fade.
+//   DOM elements (div/button)     -> View / Text / TouchableOpacity /
+//                                    ActivityIndicator, StyleSheet.
 //
-//   FIX 2 — PRE-MATCH ARENA-ENTRY RACE:
-//   handleSelectVeggieTarget() (fired from MapView's "enter AR" tap)
-//   previously forced `stage = 'ARENA'` unconditionally, regardless of
-//   `matchPhase`. Since GameCanvas.jsx's countdown/round display is
-//   otherwise entirely server-driven (see GameCanvas.jsx's own header),
-//   a player could land in GameCanvas before the tick server ever fired
-//   'onTick', with `matchPhase` still null.
-//   FIX: handleSelectVeggieTarget() now only transitions to ARENA if
-//   `matchPhase` is already COUNTDOWN or ACTIVE — i.e. the match has
-//   actually started server-side. Tapping early now surfaces a small
-//   inline "match hasn't started yet" notice on MapView instead of
-//   silently entering an ungated arena screen.
+// Assumed to exist as .native.jsx siblings (resolved automatically by
+// Metro's platform-extension resolution under the same import paths used
+// here — same pattern as CaptureThrow.native.jsx / VeggieModel.native.jsx
+// in GameCanvas.native.jsx): GoogleLogin, RoomJoin, MapView, Scoreboard,
+// ConnectionStatus. None of those are ported in this file — out of scope
+// here, same as CaptureThrow's RN port was called out as out-of-scope in
+// GameCanvas.native.jsx.
 //
-//   FIX 3 — DEAD CODE:
-//   `myPlayerIdRef` was populated by its own effect but never read
-//   anywhere else in the file. Removed along with its effect.
-//
-//   FIX 4 — ACCOUNT DELETION (Play Store requirement, previously
-//   missing entirely):
-//   Per Play Console policy, an app with real user accounts (Google
-//   Sign-In, wired in Revision 3) must offer in-app account + data
-//   deletion, not just "email support". Added a minimal settings menu
-//   (gear icon, MAP stage only) with a confirm-then-delete flow that:
-//     1. POSTs to a deletion endpoint keyed on deviceUUID
-//     2. clears the local deviceUUID from localStorage on success
-//     3. resets auth/room state so the app falls back to the
-//        GoogleLogin gate as if freshly installed
-//   NOTE: the endpoint path/payload below (`/api/account/delete`) is a
-//   reasonable placeholder — server.js's actual route for this isn't in
-//   my context, so wire the real path/response shape in once you share
-//   it. The client-side flow (confirm dialog, local state teardown,
-//   loading/error states) is complete and won't need to change either
-//   way.
-//
-// Everything else is unchanged from Revision 3 (Google Sign-In gate
-// ahead of RoomJoin, deviceUUID as single source of identity, geofence
-// plumbing, reconnect handling).
+// Unchanged from the web version, because it's genuinely cross-platform
+// logic: joinRoom/subscribeToRoom's payload shapes, the mode-gate race
+// fix (advance only via 'onTimingModeUpdated', never locally), the
+// pre-match ARENA-entry guard (matchPhase must be COUNTDOWN/ACTIVE before
+// entering GameCanvas), connectTickServer() itself (per tickClient.js's
+// own header, it never touches `window` and needs no RN changes).
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Animated,
+  Linking,
+  AppState,
+  Platform,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
+import { Magnetometer } from 'expo-sensors';
+import { Audio } from 'expo-av';
+
 import ConnectionStatus from './components/ConnectionStatus';
 import RoomJoin from './components/RoomJoin';
 import GoogleLogin from './components/GoogleLogin';
 import MapView from './components/MapView';
-import GameCanvas from './components/GameCanvas';
+import GameCanvas from './components/GameCanvas.native';
 import Scoreboard from './components/Scoreboard';
-import { joinRoom, subscribeToRoom } from './lib/gameClient';
+import { joinRoom, subscribeToRoom, getSocket } from './lib/gameClient';
 import { POSITION_SYNC_THROTTLE_MS, RARITY_BY_SPECIES } from './config/gameConfig';
 import { connectTickServer } from './lib/tickClient';
-import { hasMotionPermissionCached } from './lib/motionPermission';
 
 const SLOT_COLORS = {
   SLOT_01: '#3a86ff',
@@ -89,11 +127,15 @@ const MATCH_PHASE = {
 };
 
 const DEVICE_UUID_STORAGE_KEY = 'veggiego_device_uuid_v1';
-
-// How long we'll wait for the server's 'onTimingModeUpdated' broadcast
-// to echo back after the leader picks a mode, before surfacing a
-// retry-able error instead of leaving the gate hanging forever.
 const TIMING_MODE_CONFIRM_TIMEOUT_MS = 6000;
+
+// Duplicated from gameClient.js's private SERVER_URL rather than
+// imported, since that constant isn't exported. Keep these in sync
+// manually, or export SERVER_URL from gameClient.js to remove the drift
+// risk entirely.
+const ACCOUNT_API_BASE = 'https://manifix-ai-core.onrender.com';
+
+const monoFont = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' });
 
 function toConnectionPhase(tickStatus) {
   if (tickStatus === 'connected' || tickStatus === 'joined') return 'local';
@@ -107,52 +149,52 @@ function veggiesPayloadToArray(payload) {
   return [];
 }
 
-// Stable per-install identity, independent of socket.id (which changes on
-// every reconnect). server.js's reconnect-grace-window, wallet lookups,
-// and leaderboard upserts are all keyed on this value — it must survive
-// a dropped socket, an app background/foreground cycle, and (ideally) an
-// app restart, which socket.id cannot do by design. GoogleLogin.jsx now
-// also uses this exact value (passed down as a prop) for its own auth
-// backend call, so the Google-auth wallet and the in-game wallet never
-// diverge into two separate records.
-function getOrCreateDeviceUUID() {
+function randomUUIDFallback() {
+  return `duid-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+// Manual regex parse instead of `new URL(url).searchParams.get('room')` —
+// URL/URLSearchParams aren't guaranteed present across RN/Hermes versions.
+// Expects deep links shaped like veggiego://join?room=ABCD or
+// https://veggiego.app/join?room=ABCD.
+function parseRoomCodeFromUrl(url) {
+  if (!url) return '';
+  const match = url.match(/[?&]room=([^&]+)/i);
+  return match ? decodeURIComponent(match[1]).trim().toUpperCase() : '';
+}
+
+// Stable per-install identity, independent of socket.id. See gameClient.js's
+// header for what server.js keys off this. AsyncStorage is async, so this
+// is awaited from an effect rather than seeded synchronously into a ref
+// the way the web version's getOrCreateDeviceUUID() could.
+async function getOrCreateDeviceUUID() {
   try {
-    const existing = localStorage.getItem(DEVICE_UUID_STORAGE_KEY);
+    const existing = await AsyncStorage.getItem(DEVICE_UUID_STORAGE_KEY);
     if (existing) return existing;
 
-    const fresh =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `duid-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-
-    localStorage.setItem(DEVICE_UUID_STORAGE_KEY, fresh);
+    const fresh = randomUUIDFallback();
+    await AsyncStorage.setItem(DEVICE_UUID_STORAGE_KEY, fresh);
     return fresh;
   } catch (err) {
-    // localStorage can throw in rare locked-down webview configurations.
-    // Fall back to an in-memory-only UUID rather than crashing the join
-    // flow — reconnect support degrades (won't survive an app restart)
-    // but the match itself still works normally.
-    console.warn('[App] localStorage unavailable, deviceUUID will not persist across restarts:', err?.message);
-    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `duid-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    // AsyncStorage can throw in rare locked-down configurations. Fall back
+    // to an in-memory-only UUID rather than crashing the join flow —
+    // reconnect support degrades (won't survive an app restart) but the
+    // match itself still works normally.
+    console.warn('[App.native] AsyncStorage unavailable, deviceUUID will not persist across restarts:', err?.message);
+    return randomUUIDFallback();
   }
 }
 
-export default function App({ isNative = false } = {}) {
+export default function App() {
+  // --- Boot gate: resolves deviceUUID from AsyncStorage before anything
+  // else can render. See header note on why this differs from the web
+  // version's synchronous ref seed. ---
+  const [bootPhase, setBootPhase] = useState('loading'); // 'loading' | 'ready'
+  const [deviceUUID, setDeviceUUID] = useState(null);
+
   // --- Room Join Gate ---
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
-  const initialRoomCodeRef = useRef(
-    (new URLSearchParams(window.location.search).get('room') || '').trim().toUpperCase()
-  );
-
-  // --- Stable per-install device identity (for server-side reconnect,
-  // wallet lookups, GoogleLogin's auth backend call, and account
-  // deletion below) ---
-  const deviceUUIDRef = useRef(null);
-  if (deviceUUIDRef.current === null) {
-    deviceUUIDRef.current = getOrCreateDeviceUUID();
-  }
+  const [initialRoomCode, setInitialRoomCode] = useState('');
 
   // --- Auth gate (Google Sign-In) — must resolve before RoomJoin -------
   const [authInfo, setAuthInfo] = useState(null); // { player, wallet } | null
@@ -161,8 +203,6 @@ export default function App({ isNative = false } = {}) {
   const [isRoomLeader, setIsRoomLeader] = useState(false);
   const [timingModeChosen, setTimingModeChosen] = useState(false);
   const [pendingTimingMode, setPendingTimingMode] = useState('outdoor');
-  // FIX 1: leader-side "waiting on server confirmation" state — replaces
-  // the old instant local setTimingModeChosen(true) in the click handler.
   const [timingModeSending, setTimingModeSending] = useState(false);
   const [timingModeError, setTimingModeError] = useState('');
   const timingModeConfirmTimeoutRef = useRef(null);
@@ -179,21 +219,15 @@ export default function App({ isNative = false } = {}) {
   const [deviceHeading, setDeviceHeading] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeVegId, setActiveVegId] = useState(null);
-  // FIX 2: inline notice for the "tapped enter-AR before the match
-  // actually started" case — see handleSelectVeggieTarget below.
   const [matchNotStartedNotice, setMatchNotStartedNotice] = useState(false);
 
   const [gpsError, setGpsError] = useState('');
 
   // --- Server-authoritative geofence (radar circle) ---
-  const [geofence, setGeofence] = useState(null); // { lat, lng, radiusMeters }
+  const [geofence, setGeofence] = useState(null);
 
-  // --- Reconnect UX: lets MapView/ConnectionStatus show "reconnecting…"
-  // instead of the player just seeing themselves vanish and reappear. ---
+  // --- Reconnect UX ---
   const [isReconnecting, setIsReconnecting] = useState(false);
-
-  // --- Motion permission (iOS compass gate) ---
-  const [motionPermissionReady, setMotionPermissionReady] = useState(false);
 
   // --- Dynamic Match State Parameters ---
   const [matchPhase, setMatchPhase] = useState(null);
@@ -205,20 +239,24 @@ export default function App({ isNative = false } = {}) {
   // --- Account deletion (settings menu, MAP stage only) ---
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteAccountStatus, setDeleteAccountStatus] = useState('idle'); // idle | pending | error
+  const [deleteAccountStatus, setDeleteAccountStatus] = useState('idle');
   const [deleteAccountError, setDeleteAccountError] = useState('');
 
   // --- Core References ---
-  const goAudioRef = useRef(null);
+  const goSoundRef = useRef(null);
   const tickConnectionRef = useRef(null);
-  const gpsWatchIdRef = useRef(null);
+  const gpsSubscriptionRef = useRef(null);
+  const magnetometerSubRef = useRef(null);
   const lastSentPositionRef = useRef(null);
   const lastSentAtRef = useRef(0);
   const myPositionRef = useRef(null);
   const deviceHeadingRef = useRef(0);
-  // FIX 3: myPlayerIdRef removed — it was written every render but never
-  // read anywhere in this file. (myPlayerId, the actual state value, is
-  // used directly everywhere it's needed.)
+
+  // Animated values for the few overlays that carry motion (mirrors
+  // framer-motion's role on web — see header).
+  const countdownAnim = useRef(new Animated.Value(0)).current;
+  const goBurstAnim = useRef(new Animated.Value(0)).current;
+  const victoryAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     myPositionRef.current = myPosition;
@@ -232,23 +270,59 @@ export default function App({ isNative = false } = {}) {
     return () => clearTimeout(timingModeConfirmTimeoutRef.current);
   }, []);
 
+  // ---- Boot: resolve deviceUUID + initial deep-link room code ----------
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const uuid = await getOrCreateDeviceUUID();
+      const initialUrl = await Linking.getInitialURL().catch(() => null);
+      if (!isMounted) return;
+      setDeviceUUID(uuid);
+      setInitialRoomCode(parseRoomCodeFromUrl(initialUrl));
+      setBootPhase('ready');
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Deep link opened while the app is already running (RN equivalent of
+  // clicking a shared room link mid-session). Only matters pre-join.
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      if (hasJoinedRoom) return;
+      const code = parseRoomCodeFromUrl(url);
+      if (code) setInitialRoomCode(code);
+    });
+    return () => sub.remove();
+  }, [hasJoinedRoom]);
+
+  // ---- Load the 'go' sound cue once on mount ----------------------------
+  useEffect(() => {
+    let sound;
+    (async () => {
+      try {
+        // Adjust this path to wherever go.mp3 actually lives in the RN
+        // project's asset tree — this mirrors public/sounds/go.mp3 on web.
+        const { sound: loaded } = await Audio.Sound.createAsync(require('../assets/sounds/go.mp3'));
+        sound = loaded;
+        goSoundRef.current = loaded;
+      } catch (err) {
+        console.warn('[App.native] failed to load go sound:', err?.message);
+      }
+    })();
+    return () => {
+      sound?.unloadAsync();
+    };
+  }, []);
+
   // ---- Google Sign-In success handler ----------------------------------
-  // GoogleLogin's callback payload still includes `deviceUUID`, but it's
-  // intentionally unused here: App.jsx's own deviceUUIDRef.current is the
-  // single source of truth for identity (and is what was passed INTO
-  // GoogleLogin in the first place — see the render call below).
   const handleLoginSuccess = ({ player, wallet }) => {
     setAuthInfo({ player, wallet });
   };
 
   // ---- Room join, triggered by RoomJoin's onJoin({ room, name }) -------
   const handleJoinRoom = async ({ room, name }) => {
-    if (!navigator.geolocation) {
-      setErrorMessage('This device does not support location services.');
-      setGpsError('This device has no GPS sensor available.');
-      return;
-    }
-
     setErrorMessage('');
     setTickStatus('connecting');
     setMyName(name);
@@ -256,82 +330,70 @@ export default function App({ isNative = false } = {}) {
     const targetRoom = room.trim().toUpperCase();
     setRoomCode(targetRoom);
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude, accuracy } = pos.coords;
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      setErrorMessage('Location permission is required to join this arena.');
+      setGpsError('Location permission denied — enable it in device settings.');
+      setTickStatus('failed');
+      return;
+    }
 
-          const joined = await joinRoom(targetRoom, latitude, longitude, name, deviceUUIDRef.current);
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const { latitude, longitude, accuracy } = pos.coords;
 
-          if (joined && joined.success === false) {
-            if (joined.code === 'INSUFFICIENT_TICKETS') {
-              setErrorMessage(joined.message || 'You need at least one ticket to join a match.');
-            } else {
-              setErrorMessage(joined.message || 'Could not join that arena. Try a different code.');
-            }
-            setTickStatus('failed');
-            return;
-          }
+      const joined = await joinRoom(targetRoom, latitude, longitude, name, deviceUUID);
 
-          if (joined?.playerId) {
-            setMyPlayerId(joined.playerId);
-          }
-
-          setIsRoomLeader(!!joined?.isLeader);
-          setPendingTimingMode(joined?.timingMode || 'outdoor');
-          setMyPosition({ lat: latitude, lng: longitude, accuracy });
-          setGpsError('');
-          setIsReconnecting(false);
-
-          if (joined?.geofence) {
-            setGeofence({
-              lat: joined.geofence.lat,
-              lng: joined.geofence.lng,
-              radiusMeters: joined.geofence.radiusMeters,
-            });
-          }
-
-          if (joined?.slotId) {
-            setMySlot(joined.slotId);
-            setHasJoinedRoom(true);
-          } else {
-            setErrorMessage('All slots in this arena are full right now.');
-            setTickStatus('failed');
-            return;
-          }
-
-          // A reconnected player already has match progress — skip the
-          // mode-gate screen entirely, since the match (and its timing
-          // mode) is already underway server-side.
-          if (joined?.reconnected) {
-            setTimingModeChosen(true);
-          }
-
-          const shareableUrl = `${window.location.origin}${window.location.pathname}?room=${targetRoom}`;
-          window.history.replaceState({ path: shareableUrl }, '', shareableUrl);
-
-          setTickStatus('joined');
-        } catch (err) {
-          console.error('[App] join failed', err);
-          setErrorMessage('Could not reach the game server. Check your connection and try again.');
-          setTickStatus('failed');
+      if (joined && joined.success === false) {
+        if (joined.code === 'INSUFFICIENT_TICKETS') {
+          setErrorMessage(joined.message || 'You need at least one ticket to join a match.');
+        } else {
+          setErrorMessage(joined.message || 'Could not join that arena. Try a different code.');
         }
-      },
-      () => {
-        setErrorMessage('Location permission is required to join this arena.');
-        setGpsError('Location permission denied — enable it in site settings.');
         setTickStatus('failed');
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-    );
+        return;
+      }
+
+      if (joined?.playerId) {
+        setMyPlayerId(joined.playerId);
+      }
+
+      setIsRoomLeader(!!joined?.isLeader);
+      setPendingTimingMode(joined?.timingMode || 'outdoor');
+      setMyPosition({ lat: latitude, lng: longitude, accuracy });
+      setGpsError('');
+      setIsReconnecting(false);
+
+      if (joined?.geofence) {
+        setGeofence({
+          lat: joined.geofence.lat,
+          lng: joined.geofence.lng,
+          radiusMeters: joined.geofence.radiusMeters,
+        });
+      }
+
+      if (joined?.slotId) {
+        setMySlot(joined.slotId);
+        setHasJoinedRoom(true);
+      } else {
+        setErrorMessage('All slots in this arena are full right now.');
+        setTickStatus('failed');
+        return;
+      }
+
+      if (joined?.reconnected) {
+        setTimingModeChosen(true);
+      }
+
+      setTickStatus('joined');
+    } catch (err) {
+      console.error('[App.native] join failed', err);
+      setErrorMessage('Could not reach the game server. Check your connection and try again.');
+      setTickStatus('failed');
+    }
   };
 
-  // ---- Silent rejoin attempt, used to actually exercise the reconnect
-  // path when the socket drops mid-match (see the 'disconnect'/'connect'
-  // handling below). Distinct from handleJoinRoom(): no location prompt,
-  // no gate transitions, just re-emits join-room with the same
-  // deviceUUID + room code so server.js's reconnect branch can find and
-  // restore the existing player entry. ----
+  // ---- Silent rejoin attempt on socket reconnect -----------------------
   const attemptSilentRejoin = async () => {
     if (!roomCode || !myPositionRef.current) return;
     setIsReconnecting(true);
@@ -341,11 +403,9 @@ export default function App({ isNative = false } = {}) {
         myPositionRef.current.lat,
         myPositionRef.current.lng,
         myName,
-        deviceUUIDRef.current
+        deviceUUID
       );
       if (joined && joined.success === false) {
-        // Grace window likely expired server-side, or the match ended.
-        // Surface it rather than silently failing forever.
         setErrorMessage(joined.message || 'Could not reconnect to the match.');
         setIsReconnecting(false);
         return;
@@ -353,9 +413,9 @@ export default function App({ isNative = false } = {}) {
       if (joined?.playerId) setMyPlayerId(joined.playerId);
       setIsReconnecting(false);
     } catch (err) {
-      console.error('[App] silent rejoin failed', err);
+      console.error('[App.native] silent rejoin failed', err);
       // Leave isReconnecting true — the socket's own 'reconnect' event
-      // (wired in tickClient.js) will trigger another attempt.
+      // (wired below) will trigger another attempt.
     }
   };
 
@@ -367,11 +427,8 @@ export default function App({ isNative = false } = {}) {
       onPlayersUpdate: (rows) => setPlayers(Array.isArray(rows) ? rows : []),
       onVeggiesUpdate: (rows) => setVeggies(veggiesPayloadToArray(rows)),
 
-      // FIX 1: this is now the ONLY place that flips `timingModeChosen`
-      // for anyone — leader or not. Fires for the leader too on a
-      // standard socket.io room broadcast, so the leader's own tap gets
-      // confirmed the same way a follower's does. Also clears the
-      // "sending" / error / timeout state from handlePickTimingMode.
+      // Mode-gate race fix, unchanged from web: this is the ONLY place
+      // that flips timingModeChosen, for leader or not.
       onTimingModeUpdated: (data) => {
         clearTimeout(timingModeConfirmTimeoutRef.current);
         setPendingTimingMode(data?.mode || 'outdoor');
@@ -391,63 +448,65 @@ export default function App({ isNative = false } = {}) {
     return unsubscribe;
   }, [roomCode]);
 
-  // ---- Continuous Geolocation GPS Watcher Loop -------------------------
+  // ---- Continuous GPS Watcher Loop (expo-location) ----------------------
   useEffect(() => {
-    if (!myPlayerId || !navigator.geolocation) return undefined;
+    if (!myPlayerId) return undefined;
 
-    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const now = Date.now();
-        const last = lastSentPositionRef.current;
-        const elapsed = now - lastSentAtRef.current;
+    let cancelled = false;
 
-        setMyPosition({ lat: latitude, lng: longitude, accuracy });
-        setGpsError('');
+    (async () => {
+      const sub = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 1 },
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          const now = Date.now();
+          const last = lastSentPositionRef.current;
+          const elapsed = now - lastSentAtRef.current;
 
-        if (elapsed < POSITION_SYNC_THROTTLE_MS) return;
-        if (last && last.lat === latitude && last.lng === longitude) return;
+          setMyPosition({ lat: latitude, lng: longitude, accuracy });
+          setGpsError('');
 
-        lastSentPositionRef.current = { lat: latitude, lng: longitude };
-        lastSentAtRef.current = now;
+          if (elapsed < POSITION_SYNC_THROTTLE_MS) return;
+          if (last && last.lat === latitude && last.lng === longitude) return;
 
-        if (window.socket && window.socket.connected) {
-          window.socket.emit('update-location', {
-            lat: latitude,
-            lng: longitude,
-            accuracy: typeof accuracy === 'number' ? accuracy : undefined,
-            heading: deviceHeadingRef.current,
-          });
+          lastSentPositionRef.current = { lat: latitude, lng: longitude };
+          lastSentAtRef.current = now;
+
+          const sock = getSocket();
+          if (sock && sock.connected) {
+            sock.emit('update-location', {
+              lat: latitude,
+              lng: longitude,
+              accuracy: typeof accuracy === 'number' ? accuracy : undefined,
+              heading: deviceHeadingRef.current,
+            });
+          }
         }
-      },
-      (err) => {
-        console.error('[App] geolocation watch error', err);
-        setGpsError(
-          err && err.code === 1
-            ? 'Location permission denied — enable it in site settings.'
-            : 'GPS signal unavailable. Move outdoors or check location services.'
-        );
-      },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
-    );
+      );
+      if (cancelled) {
+        sub.remove();
+      } else {
+        gpsSubscriptionRef.current = sub;
+      }
+    })().catch((err) => {
+      console.error('[App.native] geolocation watch error', err);
+      setGpsError('GPS signal unavailable. Move outdoors or check location services.');
+    });
 
     return () => {
-      if (gpsWatchIdRef.current !== null) navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      cancelled = true;
+      gpsSubscriptionRef.current?.remove?.();
+      gpsSubscriptionRef.current = null;
     };
   }, [myPlayerId]);
 
   // ---- Socket-level disconnect/reconnect awareness ----------------------
-  // socket.io already auto-reconnects the transport (see gameClient.js's
-  // reconnection: true config), but a raw transport reconnect does NOT by
-  // itself restore this player's seat in server.js's room state — that
-  // only happens via a fresh 'join-room' emit carrying the same
-  // deviceUUID, which the server's reconnect branch matches against.
-  // Without this effect, the socket could reconnect successfully while
-  // the player remains permanently absent from the room they were
-  // actually still trying to play in.
+  // Same reasoning as web: socket.io auto-reconnects the transport, but
+  // that alone doesn't restore this player's seat in server.js's room
+  // state — that needs a fresh 'join-room' emit with the same deviceUUID.
   useEffect(() => {
     if (!myPlayerId) return undefined;
-    const socket = window.socket;
+    const socket = getSocket();
     if (!socket) return undefined;
 
     const handleDisconnect = () => setIsReconnecting(true);
@@ -462,36 +521,30 @@ export default function App({ isNative = false } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myPlayerId, roomCode]);
 
-  // ---- Motion permission tracking ---------------------------------------
+  // ---- Magnetometer-based heading (RN equivalent of deviceorientation) --
+  // Raw x/y atan2 — no tilt compensation. Sign/offset conventions vary by
+  // device; verify against a known bearing on real hardware before
+  // shipping and adjust the formula below if it reads backwards or
+  // rotated. This is a real gap flagged deliberately, not an oversight.
   useEffect(() => {
-    const check = () => setMotionPermissionReady(hasMotionPermissionCached());
-    check();
-    window.addEventListener('focus', check);
-    return () => window.removeEventListener('focus', check);
+    let mounted = true;
+    Magnetometer.isAvailableAsync().then((available) => {
+      if (!available || !mounted) return;
+      Magnetometer.setUpdateInterval(150);
+      magnetometerSubRef.current = Magnetometer.addListener(({ x, y }) => {
+        let heading = Math.atan2(y, x) * (180 / Math.PI);
+        heading = (heading + 360) % 360;
+        setDeviceHeading(heading);
+      });
+    });
+    return () => {
+      mounted = false;
+      magnetometerSubRef.current?.remove?.();
+      magnetometerSubRef.current = null;
+    };
   }, []);
 
-  // ---- Hardware Compass Absolute Heading Listeners ---------------------
-  useEffect(() => {
-    if (!motionPermissionReady) return undefined;
-
-    const handleOrientation = (evt) => {
-      const heading =
-        evt.webkitCompassHeading !== undefined
-          ? evt.webkitCompassHeading
-          : evt.alpha != null
-          ? 360 - evt.alpha
-          : null;
-      if (heading != null) setDeviceHeading(heading);
-    };
-    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    window.addEventListener('deviceorientation', handleOrientation, true);
-    return () => {
-      window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
-      window.removeEventListener('deviceorientation', handleOrientation, true);
-    };
-  }, [motionPermissionReady]);
-
-  // ---- Socket.io Tick Game Server Coordination Loop --------------------
+  // ---- Socket.io Tick Game Server Coordination Loop (unchanged logic) --
   useEffect(() => {
     if (!roomCode || !myPlayerId) return undefined;
 
@@ -503,14 +556,19 @@ export default function App({ isNative = false } = {}) {
         setMatchPhase(MATCH_PHASE.COUNTDOWN);
         setCountdownTick(n);
         setMatchNotStartedNotice(false);
+        countdownAnim.setValue(0);
+        Animated.timing(countdownAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
       },
 
       onGo: () => {
         setStage('ARENA');
         setMatchPhase(MATCH_PHASE.ACTIVE);
         setShowGoBurst(true);
-        goAudioRef.current?.play().catch(() => {});
-        setTimeout(() => setShowGoBurst(false), 650);
+        goSoundRef.current?.replayAsync().catch(() => {});
+        goBurstAnim.setValue(0);
+        Animated.timing(goBurstAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start(() => {
+          setTimeout(() => setShowGoBurst(false), 300);
+        });
       },
 
       onRoundEnd: (results) => {
@@ -533,6 +591,8 @@ export default function App({ isNative = false } = {}) {
         });
 
         setMatchPhase(MATCH_PHASE.ENDED);
+        victoryAnim.setValue(0);
+        Animated.timing(victoryAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
       },
 
       onCountdownCancelled: (data) => {
@@ -554,11 +614,7 @@ export default function App({ isNative = false } = {}) {
 
   // ---- ACTION HANDLERS ----
 
-  // FIX 2: only actually enter the arena screen once the match has
-  // really started server-side (matchPhase is COUNTDOWN or ACTIVE).
-  // Tapping "enter AR" before that just surfaces a brief inline notice
-  // on MapView instead of dropping the player into an ungated
-  // GameCanvas with matchPhase still null.
+  // Pre-match ARENA-entry guard, unchanged logic from web.
   const handleSelectVeggieTarget = (vegId) => {
     if (matchPhase !== MATCH_PHASE.COUNTDOWN && matchPhase !== MATCH_PHASE.ACTIVE) {
       setMatchNotStartedNotice(true);
@@ -574,19 +630,23 @@ export default function App({ isNative = false } = {}) {
     setStage('MAP');
   };
 
+  // NOTE: web's handleInstantReplay() does window.location.reload(), which
+  // has no RN equivalent (no page to reload). This resets the same state a
+  // fresh reload would have cleared instead, dropping back to the MAP
+  // stage rather than fully restarting the app. If a harder reset is ever
+  // needed, that's a native-module concern (e.g. expo-updates' reloadAsync),
+  // out of scope here.
   const handleInstantReplay = () => {
     setVictoryData(null);
-    window.location.reload();
+    setMatchPhase(null);
+    setStage('MAP');
+    setActiveVegId(null);
   };
 
-  // FIX 1: no longer sets timingModeChosen directly — see
-  // onTimingModeUpdated above for the single confirmed path. This now
-  // only emits, shows a "confirming…" state, and arms a timeout so a
-  // dropped/ignored emit surfaces a retry-able error instead of hanging.
   const handlePickTimingMode = (mode) => {
     setTimingModeSending(true);
     setTimingModeError('');
-    window.socket?.emit('set-timing-mode', { mode });
+    getSocket()?.emit('set-timing-mode', { mode });
 
     clearTimeout(timingModeConfirmTimeoutRef.current);
     timingModeConfirmTimeoutRef.current = setTimeout(() => {
@@ -595,35 +655,28 @@ export default function App({ isNative = false } = {}) {
     }, TIMING_MODE_CONFIRM_TIMEOUT_MS);
   };
 
-  // ---- Account deletion (Play Store requirement) -----------------------
-  // Client-side flow is complete: confirm dialog, pending/error states,
-  // full local teardown back to a fresh-install state on success. The
-  // endpoint itself is a placeholder — swap in the real path/payload
-  // shape once server.js's deletion route is available.
+  // ---- Account deletion (Play Store / App Store requirement) -----------
   const handleDeleteAccount = async () => {
     setDeleteAccountStatus('pending');
     setDeleteAccountError('');
     try {
-      const res = await fetch('/api/account/delete', {
+      const res = await fetch(`${ACCOUNT_API_BASE}/api/account/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceUUID: deviceUUIDRef.current }),
+        body: JSON.stringify({ deviceUUID }),
       });
       if (!res.ok) {
         throw new Error(`Server responded ${res.status}`);
       }
 
-      // Full local teardown — next render should look like a fresh
-      // install, landing back on the GoogleLogin gate.
       try {
-        localStorage.removeItem(DEVICE_UUID_STORAGE_KEY);
+        await AsyncStorage.removeItem(DEVICE_UUID_STORAGE_KEY);
       } catch {
-        // localStorage may be unavailable — safe to ignore, deviceUUIDRef
-        // is only ever read from it at mount time.
+        // Safe to ignore — deviceUUID is only read from storage at boot.
       }
 
       tickConnectionRef.current?.disconnect();
-      window.socket?.disconnect();
+      getSocket()?.disconnect();
 
       setAuthInfo(null);
       setHasJoinedRoom(false);
@@ -637,14 +690,21 @@ export default function App({ isNative = false } = {}) {
       setShowDeleteConfirm(false);
       setShowSettingsMenu(false);
       setDeleteAccountStatus('idle');
+      // NOTE: deviceUUID state itself is intentionally left as-is here,
+      // matching the web version's same latent behavior — its
+      // deviceUUIDRef isn't reset on deletion either, only localStorage
+      // is cleared. A genuinely fresh UUID won't be generated until the
+      // app is fully restarted on either platform. Not fixed here to keep
+      // this port a faithful match rather than silently changing
+      // unrelated behavior.
     } catch (err) {
-      console.error('[App] account deletion failed', err);
+      console.error('[App.native] account deletion failed', err);
       setDeleteAccountStatus('error');
       setDeleteAccountError('Could not delete your account right now. Please try again.');
     }
   };
 
-  // ---- DATA RE-SHAPING FOR RENDERING, WITH NULL-GUARDS ----
+  // ---- DATA RE-SHAPING FOR RENDERING, WITH NULL-GUARDS (unchanged) ------
 
   const myColor = mySlot ? SLOT_COLORS[mySlot] : '#00d2d3';
 
@@ -726,13 +786,18 @@ export default function App({ isNative = false } = {}) {
 
   const connectionPhase = isReconnecting ? 'reconnecting' : toConnectionPhase(tickStatus);
 
-  // ---- AUTH GATE (Google Sign-In) — must clear before room join or any
-  // gameplay screen renders. Also the earliest point in the app where
-  // GoogleLogin's Terms/Privacy modal buttons are reachable, which is
-  // what makes the privacy policy actually surfaced in the app's runtime
-  // flow (see file header). ----
+  // ---- BOOT GATE ----
+  if (bootPhase !== 'ready') {
+    return (
+      <View style={styles.bootWrap}>
+        <ActivityIndicator size="large" color="#06d6a0" />
+      </View>
+    );
+  }
+
+  // ---- AUTH GATE (Google Sign-In) ----
   if (!authInfo) {
-    return <GoogleLogin onLoginSuccess={handleLoginSuccess} deviceUUID={deviceUUIDRef.current} />;
+    return <GoogleLogin onLoginSuccess={handleLoginSuccess} deviceUUID={deviceUUID} />;
   }
 
   // ---- ROOM JOIN GATE ----
@@ -742,7 +807,7 @@ export default function App({ isNative = false } = {}) {
         onJoin={handleJoinRoom}
         error={errorMessage}
         connecting={tickStatus === 'connecting'}
-        initialRoomCode={initialRoomCodeRef.current}
+        initialRoomCode={initialRoomCode}
       />
     );
   }
@@ -750,337 +815,290 @@ export default function App({ isNative = false } = {}) {
   // ---- MODE GATE SCREEN ----
   if (!timingModeChosen) {
     return (
-      <div
-        className="app-container"
-        style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
-      >
-        <div style={styles.nameGateWrap}>
-          <div style={styles.nameGateCard}>
+      <View style={styles.appContainer}>
+        <View style={styles.nameGateWrap}>
+          <View style={styles.nameGateCard}>
             {isRoomLeader ? (
               <>
-                <p style={styles.nameGateLabel}>CHOOSE MATCH MODE</p>
-                <button
-                  style={{ ...styles.nameGateBtn, marginBottom: '10px', opacity: timingModeSending ? 0.6 : 1 }}
-                  onClick={() => handlePickTimingMode('indoor')}
+                <Text style={styles.nameGateLabel}>CHOOSE MATCH MODE</Text>
+                <TouchableOpacity
+                  style={[styles.nameGateBtn, { marginBottom: 10, opacity: timingModeSending ? 0.6 : 1 }]}
+                  onPress={() => handlePickTimingMode('indoor')}
                   disabled={timingModeSending}
                 >
-                  🏠 INSIDE PARTY (45s rounds)
-                </button>
-                <button
-                  style={{ ...styles.nameGateBtn, opacity: timingModeSending ? 0.6 : 1 }}
-                  onClick={() => handlePickTimingMode('outdoor')}
+                  <Text style={styles.nameGateBtnText}>🏠 INSIDE PARTY (45s rounds)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.nameGateBtn, { opacity: timingModeSending ? 0.6 : 1 }]}
+                  onPress={() => handlePickTimingMode('outdoor')}
                   disabled={timingModeSending}
                 >
-                  🌳 OUTDOOR CHASE (60s rounds)
-                </button>
-                {timingModeSending && (
-                  <p style={styles.nameGateSubLabel}>CONFIRMING WITH ARENA…</p>
-                )}
-                {timingModeError && (
-                  <p style={styles.nameGateErrorLabel}>{timingModeError}</p>
-                )}
+                  <Text style={styles.nameGateBtnText}>🌳 OUTDOOR CHASE (60s rounds)</Text>
+                </TouchableOpacity>
+                {timingModeSending && <Text style={styles.nameGateSubLabel}>CONFIRMING WITH ARENA…</Text>}
+                {!!timingModeError && <Text style={styles.nameGateErrorLabel}>{timingModeError}</Text>}
               </>
             ) : (
-              <p style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</p>
+              <Text style={styles.nameGateLabel}>WAITING FOR HOST TO CHOOSE MODE…</Text>
             )}
-          </div>
-        </div>
-      </div>
+          </View>
+        </View>
+      </View>
     );
   }
 
   return (
-    <div
-      className="app-container"
-      style={{ position: 'relative', width: '100vw', height: '100vh', background: '#020306', overflow: 'hidden' }}
-    >
-      <audio ref={goAudioRef} src="/sounds/go.mp3" preload="auto" />
-
+    <View style={styles.appContainer}>
       <ConnectionStatus roomCode={roomCode || 'SCANNING'} phase={connectionPhase} />
 
       {stage === 'MAP' && (
-        <button
+        <TouchableOpacity
           style={styles.settingsGearBtn}
-          onClick={() => setShowSettingsMenu((prev) => !prev)}
-          aria-label="Settings"
+          onPress={() => setShowSettingsMenu((prev) => !prev)}
+          accessibilityLabel="Settings"
         >
-          ⚙️
-        </button>
+          <Text style={{ fontSize: 16 }}>⚙️</Text>
+        </TouchableOpacity>
       )}
 
       {showSettingsMenu && stage === 'MAP' && (
-        <div style={styles.settingsMenu}>
-          <button
+        <View style={styles.settingsMenu}>
+          <TouchableOpacity
             style={styles.settingsMenuItem}
-            onClick={() => {
+            onPress={() => {
               setShowSettingsMenu(false);
               setShowDeleteConfirm(true);
             }}
           >
-            🗑️ Delete Account &amp; Data
-          </button>
-        </div>
+            <Text style={styles.settingsMenuItemText}>🗑️ Delete Account &amp; Data</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {showDeleteConfirm && (
-        <div style={styles.deleteOverlay}>
-          <div style={styles.deleteCard}>
-            <p style={styles.deleteTitle}>Delete your account?</p>
-            <p style={styles.deleteBody}>
+        <View style={styles.deleteOverlay}>
+          <View style={styles.deleteCard}>
+            <Text style={styles.deleteTitle}>Delete your account?</Text>
+            <Text style={styles.deleteBody}>
               This permanently removes your Veggie GO account, wallet, and match history. This can't be undone.
-            </p>
-            {deleteAccountStatus === 'error' && (
-              <p style={styles.nameGateErrorLabel}>{deleteAccountError}</p>
-            )}
-            <div style={styles.deleteActionsRow}>
-              <button
+            </Text>
+            {deleteAccountStatus === 'error' && <Text style={styles.nameGateErrorLabel}>{deleteAccountError}</Text>}
+            <View style={styles.deleteActionsRow}>
+              <TouchableOpacity
                 style={styles.deleteCancelBtn}
-                onClick={() => {
+                onPress={() => {
                   setShowDeleteConfirm(false);
                   setDeleteAccountStatus('idle');
                   setDeleteAccountError('');
                 }}
                 disabled={deleteAccountStatus === 'pending'}
               >
-                CANCEL
-              </button>
-              <button
-                style={{ ...styles.deleteConfirmBtn, opacity: deleteAccountStatus === 'pending' ? 0.6 : 1 }}
-                onClick={handleDeleteAccount}
+                <Text style={styles.deleteCancelBtnText}>CANCEL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteConfirmBtn, { opacity: deleteAccountStatus === 'pending' ? 0.6 : 1 }]}
+                onPress={handleDeleteAccount}
                 disabled={deleteAccountStatus === 'pending'}
               >
-                {deleteAccountStatus === 'pending' ? 'DELETING…' : 'DELETE PERMANENTLY'}
-              </button>
-            </div>
-          </div>
-        </div>
+                <Text style={styles.deleteConfirmBtnText}>
+                  {deleteAccountStatus === 'pending' ? 'DELETING…' : 'DELETE PERMANENTLY'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       )}
 
       {isReconnecting && (
-        <div style={styles.reconnectBanner}>RECONNECTING…</div>
+        <View style={styles.reconnectBanner}>
+          <Text style={styles.bannerText}>RECONNECTING…</Text>
+        </View>
       )}
 
-      {errorMessage && <div style={styles.errBanner}>{errorMessage}</div>}
+      {!!errorMessage && (
+        <View style={styles.errBanner}>
+          <Text style={styles.bannerTextWhite}>{errorMessage}</Text>
+        </View>
+      )}
       {matchNotStartedNotice && (
-        <div style={styles.reconnectBanner}>MATCH HASN'T STARTED YET — HANG TIGHT</div>
+        <View style={styles.reconnectBanner}>
+          <Text style={styles.bannerText}>MATCH HASN'T STARTED YET — HANG TIGHT</Text>
+        </View>
       )}
 
-      <AnimatePresence mode="wait">
-        {stage === 'MAP' && (
-          <motion.div
-            key="map-stage"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ width: '100%', height: '100%' }}
-          >
-            <MapView
+      {stage === 'MAP' && (
+        <View style={{ flex: 1 }}>
+          <MapView
+            roomCode={roomCode}
+            playerId={myPlayerId}
+            mySlot={mySlot}
+            myPos={myPosition}
+            geofence={geofence}
+            gpsError={gpsError}
+            onEnterAR={handleSelectVeggieTarget}
+            onExit={handleReturnToRadar}
+          />
+          <View style={styles.sidebarWidget} pointerEvents="none">
+            <Scoreboard players={playersMap} mySlot={mySlot || 'SLOT_01'} leaderboard={leaderboard} />
+          </View>
+        </View>
+      )}
+
+      {stage === 'ARENA' && (
+        <View style={styles.arenaWrapper}>
+          <View style={styles.arenaHeader}>
+            <Text style={styles.headerTxt}>
+              ARENA MATRIX IDENT: <Text style={{ color: '#00d2d3' }}>{roomCode}</Text> {'  |  '}
+              PILOT INTERFACE SLOT: <Text style={{ color: myColor }}>{(myDisplayName || '').toUpperCase()}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.arenaGrid}>
+            <GameCanvas
               roomCode={roomCode}
               playerId={myPlayerId}
               mySlot={mySlot}
-              myPos={myPosition}
-              geofence={geofence}
-              gpsError={gpsError}
-              onEnterAR={handleSelectVeggieTarget}
+              targetVegId={activeVegId}
+              initialTimingMode={pendingTimingMode}
+              selfPosition={selfPosition}
+              deviceHeading={deviceHeading}
+              players={playersBySlot}
+              veggies={veggiesById}
+              matchPhase={matchPhase}
+              socket={getSocket()}
               onExit={handleReturnToRadar}
             />
-            <div style={styles.sidebarWidget}>
-              <Scoreboard players={playersMap} mySlot={mySlot || 'SLOT_01'} leaderboard={leaderboard} />
-            </div>
-          </motion.div>
-        )}
+          </View>
+        </View>
+      )}
 
-        {stage === 'ARENA' && (
-          <motion.div
-            key="ar-stage"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            style={{ width: '100%', height: '100%' }}
+      {matchPhase === MATCH_PHASE.COUNTDOWN && (
+        <Animated.View style={[styles.countdownShield, { opacity: countdownAnim }]}>
+          <Animated.Text
+            style={[
+              styles.tickLabel,
+              {
+                transform: [
+                  {
+                    scale: countdownAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }),
+                  },
+                ],
+              },
+            ]}
           >
-            <div style={styles.arenaWrapper}>
-              <div style={styles.arenaHeader}>
-                <p style={styles.headerTxt}>
-                  ARENA MATRIX IDENT: <span style={{ color: '#00d2d3' }}>{roomCode}</span> &nbsp;|&nbsp;
-                  PILOT INTERFACE SLOT: <span style={{ color: myColor }}>{myDisplayName?.toUpperCase()}</span>
-                </p>
-              </div>
+            {countdownTick}
+          </Animated.Text>
+        </Animated.View>
+      )}
 
-              <div style={styles.arenaGrid}>
-                <GameCanvas
-                  roomCode={roomCode}
-                  playerId={myPlayerId}
-                  mySlot={mySlot}
-                  targetVegId={activeVegId}
-                  initialTimingMode={pendingTimingMode}
-                  selfPosition={selfPosition}
-                  deviceHeading={deviceHeading}
-                  players={playersBySlot}
-                  veggies={veggiesById}
-                  matchPhase={matchPhase}
-                  isNative={isNative}
-                  onExit={handleReturnToRadar}
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {matchPhase === MATCH_PHASE.COUNTDOWN && (
-          <motion.div
-            key="countdown-shield"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            style={styles.countdownShield}
+      {showGoBurst && (
+        <Animated.View style={[styles.goPanelWrap, { opacity: goBurstAnim }]} pointerEvents="none">
+          <Animated.Text
+            style={[
+              styles.goText,
+              { transform: [{ scale: goBurstAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.4] }) }] },
+            ]}
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={countdownTick}
-                initial={{ scale: 0.2, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.6, opacity: 0 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                style={styles.tickLabel}
-              >
-                {countdownTick}
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            GO!
+          </Animated.Text>
+        </Animated.View>
+      )}
 
-      <AnimatePresence>
-        {showGoBurst && (
-          <motion.div
-            key="go-panel"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={styles.goPanelWrap}
+      {matchPhase === MATCH_PHASE.ENDED && victoryData && (
+        <Animated.View style={[styles.victoryShield, { opacity: victoryAnim }]}>
+          <Animated.View
+            style={[
+              styles.victoryCard,
+              {
+                borderColor: victoryData.winnerColor || '#00d2d3',
+                transform: [
+                  { translateY: victoryAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
+                  { scale: victoryAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) },
+                ],
+              },
+            ]}
           >
-            <motion.div
-              initial={{ scale: 0, opacity: 0.9 }}
-              animate={{ scale: 6, opacity: 0 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-              style={styles.emeraldWave}
-            />
-            <motion.span
-              initial={{ scale: 0.3, opacity: 0 }}
-              animate={{ scale: 1.4, opacity: 1 }}
-              exit={{ scale: 2, opacity: 0 }}
-              transition={{ duration: 0.35, ease: 'backOut' }}
-              style={styles.goText}
-            >
-              GO!
-            </motion.span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <Text style={{ fontSize: 56, marginBottom: 8, textAlign: 'center' }}>👑</Text>
+            <Text style={styles.roundCompleteTxt}>ROUND MATRIX COMPLETED</Text>
+            <Text style={[styles.winnerName, { color: victoryData.winnerColor || '#00d2d3' }]}>
+              {(victoryData.winnerName || 'EXPLORER_1').toUpperCase()}
+            </Text>
 
-      <AnimatePresence>
-        {matchPhase === MATCH_PHASE.ENDED && victoryData && (
-          <motion.div
-            key="victory-shield"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            style={styles.victoryShield}
-          >
-            <motion.div
-              initial={{ y: 40, opacity: 0, scale: 0.95 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
-              style={{
-                ...styles.victoryCard,
-                border: `1px solid ${victoryData.winnerColor || '#00d2d3'}`,
-                boxShadow: `0 0 40px ${victoryData.winnerColor || '#00d2d3'}55`,
-              }}
-            >
-              <div style={{ fontSize: '56px', marginBottom: '8px' }}>👑</div>
-              <p style={styles.roundCompleteTxt}>ROUND MATRIX COMPLETED</p>
-              <div
-                style={{
-                  fontFamily: '"Fredoka", sans-serif',
-                  fontSize: '28px',
-                  fontWeight: 700,
-                  color: victoryData.winnerColor || '#00d2d3',
-                  marginBottom: '20px',
-                }}
-              >
-                {(victoryData.winnerName || 'EXPLORER_1').toUpperCase()}
-              </div>
+            {Array.isArray(victoryData.results) && (
+              <View style={styles.leaderboardScrollContainer}>
+                {victoryData.results.map((r, idx) => (
+                  <View key={`${r?.name || 'PILOT'}-${idx}`} style={styles.lobbyRow}>
+                    <Text style={[styles.lobbyRowText, idx === 0 && styles.lobbyRowTextWinner]}>
+                      {idx + 1}. {(r?.name || 'PILOT').toUpperCase()}
+                    </Text>
+                    <Text style={[styles.lobbyRowScore, idx === 0 && styles.lobbyRowTextWinner]}>{r?.score ?? 0} pts</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
-              {Array.isArray(victoryData.results) && (
-                <div style={styles.leaderboardScrollContainer}>
-                  {victoryData.results.map((r, idx) => (
-                    <div
-                      key={`${r?.name || 'PILOT'}-${idx}`}
-                      style={{
-                        ...styles.lobbyRow,
-                        color: idx === 0 ? '#fff' : '#b6b6c0',
-                        fontWeight: idx === 0 ? 700 : 400,
-                      }}
-                    >
-                      <span>
-                        {idx + 1}. {(r?.name || 'PILOT').toUpperCase()}
-                      </span>
-                      <span style={{ fontFamily: 'monospace' }}>{r?.score ?? 0} pts</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <motion.button whileTap={{ scale: 0.96 }} onClick={handleInstantReplay} style={styles.replayBtn}>
-                INSTANT REPLAY
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            <TouchableOpacity onPress={handleInstantReplay} style={styles.replayBtn}>
+              <Text style={styles.replayBtnText}>INSTANT REPLAY</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      )}
+    </View>
   );
 }
 
-const styles = {
-  nameGateWrap: { position: 'fixed', inset: 0, zIndex: 3000, background: '#020306', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  nameGateCard: { width: '90%', maxWidth: '320px', textAlign: 'center' },
-  nameGateLabel: { color: '#8a8a93', fontFamily: 'monospace', fontSize: '12px', letterSpacing: '2px', marginBottom: '12px' },
-  nameGateSubLabel: { color: '#ffbe1a', fontFamily: 'monospace', fontSize: '11px', letterSpacing: '1px', marginTop: '10px' },
-  nameGateErrorLabel: { color: '#ff6b5e', fontFamily: 'monospace', fontSize: '11px', letterSpacing: '0.5px', marginTop: '10px' },
-  nameGateBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer' },
-  errBanner: { position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ff4d4d', color: '#fff', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
-  reconnectBanner: { position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 1100, background: '#ffbe1a', color: '#04140f', padding: '6px 14px', borderRadius: '6px', fontFamily: 'monospace', fontSize: '11px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' },
-  arenaWrapper: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#05070a' },
-  arenaHeader: { padding: '12px 20px', background: 'rgba(10,15,25,0.6)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  headerTxt: { fontSize: '12px', color: '#8a8a93', fontFamily: 'monospace', fontWeight: 'bold', margin: 0 },
-  arenaGrid: { flex: 1, position: 'relative' },
-  sidebarWidget: { position: 'absolute', top: 80, right: 15, zIndex: 40, width: '220px', pointerEvents: 'none' },
-  countdownShield: { position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(4, 4, 8, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  tickLabel: { fontFamily: '"Orbitron", sans-serif', fontSize: '120px', fontWeight: '900', color: '#ffc83b', textShadow: '0 0 25px #ffc83c' },
-  goPanelWrap: { position: 'fixed', inset: 0, zIndex: 2005, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' },
-  emeraldWave: { position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(6,214,160,0.9) 0%, rgba(6,214,160,0) 70%)' },
-  goText: { fontFamily: '"Orbitron", sans-serif', fontSize: '96px', fontWeight: 900, color: '#06d6a0', textShadow: '0 0 30px rgba(6,214,160,0.9), 0 0 70px rgba(6,214,160,0.6)' },
-  victoryShield: { position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(4, 4, 8, 0.88)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', boxSizing: 'border-box' },
-  victoryCard: { width: '100%', maxWidth: '380px', borderRadius: '20px', background: 'linear-gradient(160deg, rgba(24,24,30,0.95), rgba(10,10,14,0.95))', padding: '28px 24px', textAlign: 'center' },
-  roundCompleteTxt: { fontFamily: '"Orbitron", sans-serif', fontSize: '13px', letterSpacing: '2px', color: '#8a8a93', marginBottom: '4px' },
-  leaderboardScrollContainer: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px', background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px' },
-  lobbyRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'monospace' },
-  replayBtn: { width: '100%', background: 'linear-gradient(180deg, #06d6a0, #05b989)', color: '#04140f', border: 'none', borderRadius: '10px', padding: '14px', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 0 20px rgba(6,214,160,0.6)' },
+const styles = StyleSheet.create({
+  bootWrap: { flex: 1, backgroundColor: '#020306', alignItems: 'center', justifyContent: 'center' },
+  appContainer: { flex: 1, backgroundColor: '#020306' },
 
-  settingsGearBtn: { position: 'absolute', top: 14, right: 14, zIndex: 50, width: 38, height: 38, borderRadius: '50%', background: 'rgba(10,15,25,0.75)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  settingsMenu: { position: 'absolute', top: 58, right: 14, zIndex: 50, background: 'rgba(10,15,25,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden', minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' },
-  settingsMenuItem: { display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: '#ff8f85', fontFamily: 'monospace', fontSize: '12px', padding: '12px 14px', cursor: 'pointer' },
+  nameGateWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  nameGateCard: { width: '100%', maxWidth: 320, alignItems: 'center' },
+  nameGateLabel: { color: '#8a8a93', fontFamily: monoFont, fontSize: 12, letterSpacing: 2, marginBottom: 12, textAlign: 'center' },
+  nameGateSubLabel: { color: '#ffbe1a', fontFamily: monoFont, fontSize: 11, letterSpacing: 1, marginTop: 10, textAlign: 'center' },
+  nameGateErrorLabel: { color: '#ff6b5e', fontFamily: monoFont, fontSize: 11, marginTop: 10, textAlign: 'center' },
+  nameGateBtn: { width: '100%', backgroundColor: '#06d6a0', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  nameGateBtnText: { color: '#04140f', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
 
-  deleteOverlay: { position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(4,4,8,0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', boxSizing: 'border-box' },
-  deleteCard: { width: '100%', maxWidth: '360px', background: 'linear-gradient(160deg, rgba(24,24,30,0.97), rgba(10,10,14,0.97))', border: '1px solid rgba(255,80,60,0.4)', borderRadius: '16px', padding: '24px', textAlign: 'center' },
-  deleteTitle: { fontFamily: '"Orbitron", sans-serif', fontSize: '15px', fontWeight: 700, color: '#fff', marginBottom: '10px' },
-  deleteBody: { fontFamily: 'monospace', fontSize: '12px', lineHeight: 1.5, color: '#b6b6c0', marginBottom: '16px' },
-  deleteActionsRow: { display: 'flex', gap: '10px' },
-  deleteCancelBtn: { flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px', color: '#fff', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '12px', padding: '12px', cursor: 'pointer' },
-  deleteConfirmBtn: { flex: 1, background: '#ff4d4d', border: 'none', borderRadius: '10px', color: '#fff', fontFamily: '"Orbitron", sans-serif', fontWeight: 700, fontSize: '12px', padding: '12px', cursor: 'pointer' },
-};
+  errBanner: { position: 'absolute', top: 80, alignSelf: 'center', zIndex: 1100, backgroundColor: '#ff4d4d', paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6 },
+  reconnectBanner: { position: 'absolute', top: 40, alignSelf: 'center', zIndex: 1100, backgroundColor: '#ffbe1a', paddingVertical: 6, paddingHorizontal: 14, borderRadius: 6 },
+  bannerText: { color: '#04140f', fontFamily: monoFont, fontSize: 11, fontWeight: '700' },
+  bannerTextWhite: { color: '#fff', fontFamily: monoFont, fontSize: 11, fontWeight: '700' },
+
+  arenaWrapper: { flex: 1, backgroundColor: '#05070a' },
+  arenaHeader: { padding: 12, backgroundColor: 'rgba(10,15,25,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
+  headerTxt: { fontSize: 12, color: '#8a8a93', fontFamily: monoFont, fontWeight: '700' },
+  arenaGrid: { flex: 1 },
+  sidebarWidget: { position: 'absolute', top: 80, right: 15, width: 220, zIndex: 40 },
+
+  countdownShield: { ...StyleSheet.absoluteFillObject, zIndex: 2000, backgroundColor: 'rgba(4,4,8,0.75)', alignItems: 'center', justifyContent: 'center' },
+  tickLabel: { fontSize: 120, fontWeight: '900', color: '#ffc83b' },
+  goPanelWrap: { ...StyleSheet.absoluteFillObject, zIndex: 2005, alignItems: 'center', justifyContent: 'center' },
+  goText: { fontSize: 96, fontWeight: '900', color: '#06d6a0' },
+
+  victoryShield: { ...StyleSheet.absoluteFillObject, zIndex: 2200, backgroundColor: 'rgba(4,4,8,0.88)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  victoryCard: { width: '100%', maxWidth: 380, borderRadius: 20, borderWidth: 1, backgroundColor: '#141418', padding: 28, alignItems: 'center' },
+  roundCompleteTxt: { fontFamily: monoFont, fontSize: 13, letterSpacing: 2, color: '#8a8a93', marginBottom: 4 },
+  winnerName: { fontSize: 28, fontWeight: '700', marginBottom: 20 },
+  leaderboardScrollContainer: { width: '100%', backgroundColor: 'rgba(0,0,0,0.3)', padding: 10, borderRadius: 8, marginBottom: 24 },
+  lobbyRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  lobbyRowText: { fontFamily: monoFont, fontSize: 13, color: '#b6b6c0' },
+  lobbyRowScore: { fontFamily: monoFont, fontSize: 13, color: '#b6b6c0' },
+  lobbyRowTextWinner: { color: '#fff', fontWeight: '700' },
+  replayBtn: { width: '100%', backgroundColor: '#06d6a0', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  replayBtnText: { color: '#04140f', fontWeight: '700', fontSize: 14, letterSpacing: 1 },
+
+  settingsGearBtn: { position: 'absolute', top: 14, right: 14, zIndex: 50, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(10,15,25,0.75)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  settingsMenu: { position: 'absolute', top: 58, right: 14, zIndex: 50, backgroundColor: 'rgba(10,15,25,0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 10, minWidth: 200, overflow: 'hidden' },
+  settingsMenuItem: { padding: 14 },
+  settingsMenuItemText: { color: '#ff8f85', fontFamily: monoFont, fontSize: 12 },
+
+  deleteOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 3000, backgroundColor: 'rgba(4,4,8,0.85)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  deleteCard: { width: '100%', maxWidth: 360, backgroundColor: '#181820', borderWidth: 1, borderColor: 'rgba(255,80,60,0.4)', borderRadius: 16, padding: 24 },
+  deleteTitle: { fontWeight: '700', fontSize: 15, color: '#fff', marginBottom: 10, textAlign: 'center' },
+  deleteBody: { fontFamily: monoFont, fontSize: 12, lineHeight: 18, color: '#b6b6c0', marginBottom: 16, textAlign: 'center' },
+  deleteActionsRow: { flexDirection: 'row', gap: 10 },
+  deleteCancelBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  deleteCancelBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  deleteConfirmBtn: { flex: 1, backgroundColor: '#ff4d4d', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  deleteConfirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+});
