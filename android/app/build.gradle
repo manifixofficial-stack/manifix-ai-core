@@ -17,6 +17,17 @@ react {
     cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
     bundleCommand = "export:embed"
 
+    // autolinkLibrariesWithApp() handles @reactvision/react-viro's native
+    // Android modules automatically (Viro's Expo config plugin registers
+    // it for autolinking) — this is why the manual
+    // `implementation project(':react_viro')` style block that used to
+    // live in the dependencies{} section below has been REMOVED. Those
+    // manual project() references point at Gradle subprojects
+    // (gvr_common, arcore_client, react_viro, viro_renderer) that only
+    // exist if you followed ViroReact's OLD pre-npm-package manual
+    // install docs — mixing that with autolinking is what caused repeated
+    // build breakage. Autolinking supersedes it entirely for the
+    // @reactvision/react-viro npm package you have installed.
     autolinkLibrariesWithApp()
 }
 
@@ -88,18 +99,17 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // ==========================================================================
-    // https://viro-community.readme.io/docs/installation-instructions#2-in-your-androidappbuildgradle-add-the-following-lines-to-the-dependencies-section
-    implementation project(':gvr_common')
-    implementation project(':arcore_client')
-    implementation project(path: ':react_viro')
-    implementation project(path: ':viro_renderer')
+    // ViroReact's native Android dependencies (media3 exoplayer, protobuf)
+    // are still needed explicitly — these are NOT part of react-native
+    // autolinking, they're extra libs Viro's runtime requires. The
+    // `implementation project(':react_viro')`-style subproject references
+    // are gone (see react{} block comment above) — only these plain
+    // Maven artifact dependencies remain.
     implementation 'androidx.media3:media3-exoplayer:1.1.1'
     implementation 'androidx.media3:media3-exoplayer-dash:1.1.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.1.1'
     implementation 'androidx.media3:media3-exoplayer-smoothstreaming:1.1.1'
     implementation 'com.google.protobuf.nano:protobuf-javanano:3.1.0'
-    // ==========================================================================
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
