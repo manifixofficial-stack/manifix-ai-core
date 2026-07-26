@@ -1,52 +1,45 @@
 // server.js
 //
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
-// MERGED VERSION — full game engine + routes/ + models/ wiring.
 //
 // ==========================================================================
-// ⚠️ IMPORTANT — READ BEFORE DEPLOYING
+// THIS REVISION: Ticket/wallet gate REMOVED from join-room and beginMatch
 // ==========================================================================
-// This file was merged WITHOUT seeing the actual contents of:
-//   - models/Player.js
-//   - models/Feedback.js
-//   - routes/auth.js
-//   - routes/billing.js
-//   - routes/feedback.js
-//
-// Assumptions made (marked inline with "// ASSUMPTION:"):
-//   1. routes/auth.js, routes/billing.js, routes/feedback.js each do
-//      `module.exports = router;` (a standard Express Router) and are
-//      mountable directly with app.use('/api/...', require('./routes/x')).
-//   2. models/Player.js and models/Feedback.js are NOT used by the
-//      Socket.io game loop below — the game loop keeps players as plain
-//      in-memory objects inside `rooms[roomCode].players` (this is how
-//      the original game-engine file worked; Player.js is likely only
-//      used by routes/auth.js for persistent accounts, which is untouched
-//      here since I don't have that file).
-//   3. routes/billing.js may ALREADY implement wallet balance +
-//      Razorpay payment verification. To avoid duplicating/conflicting
-//      logic, the REST payment endpoints from the old inline version
-//      are LEFT OUT of this file — mount them from routes/billing.js
-//      instead. The Socket.io ticket-SPEND logic (spendTicket, used when
-//      a match actually starts) is KEPT here because it's tightly coupled
-//      to the live match loop, not a REST call.
-//
-// You MUST verify routes/billing.js exposes what the game needs:
-//   - GET  /api/billing/wallet/:deviceUUID   (or similar) for HUD balance
-//   - POST /api/billing/verify-payment       (or similar) for Razorpay
-// If it doesn't, tell me and I'll add the missing inline routes back.
+//   - Launch decision: ship free (no billing wall) for initial Play Store
+//     launch, add real monetization via Google Play Billing Library in a
+//     later release once the core game is confirmed fun/stable. Direct
+//     Razorpay-style in-app purchase of virtual tickets isn't Play Store
+//     policy-compliant anyway — this removal also sidesteps that problem
+//     for now rather than leaving a half-working gate in place.
+//   - This also incidentally removes the recurring
+//     "Wallet validation failed: player_id: Path `player_id` is required"
+//     error that was firing on every single join-room call — the Wallet
+//     model requires player_id but getOrCreateWallet() never set it. That
+//     bug is moot now since the wallet check path isn't called during
+//     join/match-start anymore. getOrCreateWallet/spendTicket/totalTickets
+//     and the Wallet model itself are left in place, unused, in case
+//     billing is added back later — GET /api/wallet/:deviceUUID also still
+//     works if you want to keep showing a ticket count in the UI.
 //
 // ==========================================================================
-// GAME LOGIC BELOW IS UNCHANGED FROM YOUR WORKING GAME-ENGINE VERSION:
+// PRIOR REVISION: Diagnostic logging added to join-room, set-timing-mode,
+// and maybeAutoStart
 // ==========================================================================
-//   - 2 to 6 players/room, exactly 3 rounds, winner-take-round scoring
-//     (100/300/600 = 1000 total).
-//   - Reconnect grace window (RECONNECT_GRACE_MS) keeps a mid-match
-//     disconnect's slot + score alive so they can rejoin.
-//   - Ticket gating on join (checked, not spent) + spend on match start.
-//   - Room-wide indoor/outdoor timing mode set by the lobby leader.
-//   - GPS + indoor (compass) dual capture modes, anti-cheat speed clamp.
+//
 // ==========================================================================
+// PRIOR REVISION: Google Sign-In verification route added
+// ==========================================================================
+//   (see full history in previous revisions of this file)
+//
+// ==========================================================================
+// MATCH STRUCTURE: WINNER-TAKE-ROUND (100/300/600, 3 rounds)
+// ==========================================================================
+//   - 2 to 6 players per room (MIN_PLAYERS_TO_START = 1, so solo works too).
+//   - Exactly 3 rounds. Each round spawns exactly ONE veggie. First valid
+//     capture wins the WHOLE round's point value — no partial credit.
+//   - Round point values: 100 / 300 / 600 = 1000 total.
+//   - Timeout with no capture = nobody scores that round, points lost.
+//   - Glitch pulse is VISUAL ONLY — does not affect point values.
 
 const express = require('express');
 const http = require('http');
@@ -54,25 +47,12 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const Razorpay = require('razorpay');
+const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
-// ==========================================
-// 📦 MODELS
-// ==========================================
 const Leaderboard = require('./models/Leaderboard');
 const Wallet = require('./models/Wallet');
-const Room = require('./models/Room'); // ASSUMPTION: not used by live game loop (in-memory rooms below); kept imported in case routes/auth or routes/billing reference persisted room records.
-const Player = require('./models/Player'); // ASSUMPTION: used by routes/auth.js for persistent player accounts, not by the live match loop.
-const Feedback = require('./models/Feedback'); // ASSUMPTION: used by routes/feedback.js.
-
-// ==========================================
-// 🧭 ROUTES
-// ==========================================
-const authRoutes = require('./routes/auth');
-const billingRoutes = require('./routes/billing');
-const feedbackRoutes = require('./routes/feedback');
+const Player = require('./models/Player');
 
 const app = express();
 const server = http.createServer(app);
@@ -84,7 +64,6 @@ const ALLOWED_ORIGIN_PATTERNS = [
   new RegExp(`^https:\\/\\/www\\.${CLIENT_ORIGIN.replace(/^https:\/\//, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
   /^https:\/\/[a-z0-9-]+\.vercel\.app$/i,
   /^http:\/\/localhost:(3000|5000)$/,
-  // --- Mobile / Capacitor support ---
   /^capacitor:\/\/localhost$/,
   /^http:\/\/localhost$/,
 ];
@@ -117,23 +96,12 @@ const io = new Server(server, {
   pingInterval: 10000,
 });
 
-// ==========================================
-// 🧭 MOUNT ROUTES
-// ==========================================
-app.use('/api/auth', authRoutes);
-app.use('/api/billing', billingRoutes);
-app.use('/api/feedback', feedbackRoutes);
-
 app.get('/', (req, res) => {
   res.status(200).send('<h1>🚀 ManifiX AI Hybrid GPS/Indoor Game Server Node is Active!</h1><p>3-round winner-take-round mode operational.</p>');
 });
 
 app.get('/ping', (req, res) => {
   res.status(200).send('ManifiX AI Game Engine is Awake!');
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'HEALTHY_CCU_ONLINE', mongoReady, razorpayReady, activeRooms: Object.keys(rooms).length });
 });
 
 // ==========================================
@@ -143,7 +111,7 @@ const mongoURI = process.env.MONGODB_URI;
 let mongoReady = false;
 
 if (!mongoURI) {
-  console.log('⚠️ MONGODB_URI missing. High-scores and tickets won\'t be saved.');
+  console.log('⚠️ MONGODB_URI missing. High-scores, tickets, and accounts won\'t be saved.');
 } else {
   mongoose.connect(mongoURI)
     .then(() => {
@@ -154,22 +122,18 @@ if (!mongoURI) {
 }
 
 // ==========================================
-// 💳 RAZORPAY — used only for the in-match ticket spend check below.
-// REST payment verification now lives in routes/billing.js.
+// 🔐 GOOGLE SIGN-IN VERIFICATION
 // ==========================================
-let razorpayReady = false;
-let razorpayInstance = null;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || null;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
-if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-  razorpayInstance = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-  });
-  razorpayReady = true;
-} else {
-  console.log('⚠️ RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET missing. Billing endpoint disabled.');
+if (!GOOGLE_CLIENT_ID) {
+  console.log('⚠️ GOOGLE_CLIENT_ID missing. /api/auth/google will reject all requests until it is set.');
 }
 
+// getOrCreateWallet/totalTickets/spendTicket are kept for later use (e.g.
+// GET /api/wallet/:deviceUUID still works), but are no longer called from
+// join-room or beginMatch — see revision note at top of file.
 async function getOrCreateWallet(deviceUUID) {
   let wallet = await Wallet.findOne({ deviceUUID });
   if (!wallet) {
@@ -196,10 +160,6 @@ async function spendTicket(deviceUUID) {
   return true;
 }
 
-// ==========================================
-// 🏆 LEADERBOARD REST ROUTES (game-specific, kept inline —
-// not duplicated in routes/ since they read live match data shape)
-// ==========================================
 app.get('/api/leaderboard', async (req, res) => {
   if (!mongoReady) return res.status(200).json([]);
   try {
@@ -222,9 +182,6 @@ app.get('/api/leaderboard-top', async (req, res) => {
   }
 });
 
-// 🎟️ Wallet balance — kept here ONLY as a fallback in case routes/billing.js
-// does not already expose an equivalent endpoint. If it does, delete this
-// block and use that instead to avoid two sources of truth.
 app.get('/api/wallet/:deviceUUID', async (req, res) => {
   if (!mongoReady) return res.status(200).json({ free_tickets: 3, premium_passes: 0 });
   try {
@@ -236,21 +193,67 @@ app.get('/api/wallet/:deviceUUID', async (req, res) => {
   }
 });
 
-const billingLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  message: { success: false, message: 'TOO MANY REQUESTS — SLOW DOWN' },
+app.post('/api/auth/google', async (req, res) => {
+  const { credentialToken, deviceUUID, deviceOS } = req.body || {};
+
+  if (!credentialToken || !deviceUUID) {
+    return res.status(400).json({ success: false, message: 'Missing credentialToken or deviceUUID' });
+  }
+
+  if (!googleClient) {
+    return res.status(503).json({ success: false, message: 'GOOGLE SIGN-IN NOT CONFIGURED' });
+  }
+
+  if (!mongoReady) {
+    return res.status(503).json({ success: false, message: 'ACCOUNTS UNAVAILABLE — DATABASE NOT CONNECTED' });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credentialToken,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.sub) {
+      return res.status(401).json({ success: false, message: 'Invalid Google token payload' });
+    }
+
+    let player = await Player.findOne({ googleId: payload.sub });
+    if (!player) {
+      player = await new Player({
+        googleId: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        deviceUUID,
+        deviceOS,
+      }).save();
+    } else {
+      player.deviceUUID = deviceUUID;
+      player.deviceOS = deviceOS;
+      player.lastLoginAt = new Date();
+      await player.save();
+    }
+
+    const wallet = (await getOrCreateWallet(deviceUUID)).balances;
+
+    res.status(200).json({
+      success: true,
+      player: { id: player._id, name: player.name, email: player.email },
+      wallet,
+    });
+  } catch (err) {
+    console.error('[auth/google] verification failed', err.message);
+    res.status(401).json({ success: false, message: 'Invalid Google token' });
+  }
 });
-// ASSUMPTION: routes/billing.js applies its own rate limiting internally.
-// billingLimiter above is kept in scope in case routes/billing.js imports
-// and reuses it — otherwise it's unused and safe to remove.
 
 const PORT = process.env.PORT || 5000;
 const TICK_MS = 1000;
 const COUNTDOWN_TICK_MS = 1000;
 
 const TOTAL_ROUNDS = 3;
-const ROUND_POINT_VALUES = [100, 300, 600]; // sums to 1000
+const ROUND_POINT_VALUES = [100, 300, 600];
 
 const STAGE_DURATION_INDOOR_MS = 45 * 1000;
 const STAGE_DURATION_OUTDOOR_MS = 60 * 1000;
@@ -264,10 +267,10 @@ const INTER_ROUND_PAUSE_MS = 4 * 1000;
 const GLITCH_CYCLE_MS = 45000;
 const GLITCH_DURATION_MS = 6000;
 
-const ROOM_RADIUS_METERS = 300;
+const ROOM_RADIUS_METERS = 6;
 const VEG_PANIC_RADIUS_M = 40;
 const VEG_FLEE_SPEED_MPS = 1.4;
-const CATCH_RADIUS_METERS = 15;
+const CATCH_RADIUS_METERS = 20;
 const LOCATION_STALE_MS = 15000;
 
 const GPS_MODE_ACCURACY_THRESHOLD_M = 25;
@@ -281,12 +284,11 @@ const ROOM_CREATE_LIMIT = 5;
 const ROOM_CREATE_WINDOW_MS = 60000;
 const DEVICE_UUID_MAX_LEN = 100;
 
-const MIN_PLAYERS_TO_START = 2;
+const MIN_PLAYERS_TO_START = 1;
 const MAX_PLAYERS_PER_ROOM = 6;
 
-// How long a mid-match disconnect keeps a player's slot + score reserved
-// before they're removed for good.
 const RECONNECT_GRACE_MS = 45 * 1000;
+const ROOM_POST_MATCH_CLEANUP_MS = 5 * 60 * 1000;
 
 let rooms = {};
 const roomCreateLog = new Map();
@@ -438,6 +440,7 @@ function makeRoom(originLat, originLng) {
     nextStageAt: null,
     glitchCycleStart: Date.now(),
     glitchActive: false,
+    postMatchCleanupTimer: null,
   };
 }
 
@@ -466,12 +469,12 @@ function leaveCurrentRoom(socket, roomCode) {
   socket.leave(roomCode);
   if (Object.keys(room.players).length === 0) {
     if (room.countdownTimer) clearInterval(room.countdownTimer);
+    if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
     Object.values(room.disconnectTimers).forEach((t) => clearTimeout(t));
     delete rooms[roomCode];
   }
 }
 
-// Removes a player for good once their reconnect grace window has expired.
 function finalizePlayerRemoval(roomCode, playerKey) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -491,15 +494,13 @@ function finalizePlayerRemoval(roomCode, playerKey) {
   }
 
   if (Object.keys(room.players).length === 0) {
+    if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
     delete rooms[roomCode];
   } else {
     io.to(roomCode).emit('player-left', { playerId: playerKey, name: player.name });
   }
 }
 
-// Disconnect router: mid-match drops from a device we can identify get a
-// grace window (see RECONNECT_GRACE_MS); everything else uses the original
-// immediate-removal path.
 function handleDisconnect(socket, roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -528,7 +529,9 @@ function maybeAutoStart(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
   const activePlayers = Object.keys(room.players).length;
+  console.log(`[maybeAutoStart] room=${roomCode} activePlayers=${activePlayers} modeChosen=${room.modeChosen} matchStarted=${room.matchStarted}`);
   if (!room.matchStarted && room.modeChosen && activePlayers >= MIN_PLAYERS_TO_START) {
+    console.log(`[maybeAutoStart] STARTING COUNTDOWN for room=${roomCode}`);
     startCountdown(roomCode);
   }
 }
@@ -565,27 +568,15 @@ function cancelCountdown(roomCode, reason) {
   io.to(roomCode).emit('match-countdown-cancelled', { reason: reason || 'player-left' });
 }
 
-// Spends one ticket per player (deviceUUID-based) before the first round
-// spawns. Best-effort — a Mongo hiccup or a legacy client with no
-// deviceUUID never blocks the match from starting.
 async function beginMatch(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
   room.matchActive = true;
 
-  if (mongoReady) {
-    await Promise.all(
-      Object.values(room.players)
-        .filter((p) => p.deviceUUID)
-        .map((p) =>
-          spendTicket(p.deviceUUID).catch((err) => {
-            console.error('[beginMatch] ticket spend failed for', p.deviceUUID, err.message);
-          })
-        )
-    );
-  }
+  // Ticket spend removed — see revision note at top of file (free launch,
+  // no billing wall for now).
 
-  if (!rooms[roomCode]) return; // room could've emptied out during the await
+  if (!rooms[roomCode]) return;
   startStage(roomCode, room, 1);
 }
 
@@ -650,7 +641,14 @@ function advanceMatch(roomCode, room) {
 
   io.to(roomCode).emit('round-end', ranked);
   Object.values(room.disconnectTimers).forEach((t) => clearTimeout(t));
-  delete rooms[roomCode];
+  room.disconnectTimers = {};
+
+  if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
+  room.postMatchCleanupTimer = setTimeout(() => {
+    if (rooms[roomCode] === room) {
+      delete rooms[roomCode];
+    }
+  }, ROOM_POST_MATCH_CLEANUP_MS);
 }
 
 function getPlayerMode(p, now) {
@@ -771,8 +769,6 @@ setInterval(() => {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  // join-room — async (wallet check), handles reconnect-into-active-match,
-  // auto-assigns a slot for genuinely new joiners.
   socket.on('join-room', async (data) => {
     const roomCode = sanitizeRoomCode(data && data.room);
     if (!roomCode) return socket.emit('room-error', { message: 'Invalid Room Code Input' });
@@ -784,7 +780,6 @@ io.on('connection', (socket) => {
       currentRoom = null;
     }
 
-    // ---- RECONNECT PATH ----
     if (deviceUUID && rooms[roomCode]) {
       const room = rooms[roomCode];
       const reconnectEntry = Object.entries(room.players).find(
@@ -820,7 +815,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // ---- NORMAL JOIN PATH ----
     if (!rooms[roomCode]) {
       if (!canCreateRoom(socket.id)) {
         return socket.emit('room-error', { message: 'Too many rooms created too quickly.' });
@@ -833,7 +827,7 @@ io.on('connection', (socket) => {
 
     const room = rooms[roomCode];
 
-    if (room.matchActive || room.matchEnded) {
+    if (room.matchActive) {
       return socket.emit('room-error', { message: 'Match already in progress — only players from this match can rejoin.' });
     }
 
@@ -846,22 +840,8 @@ io.on('connection', (socket) => {
       return socket.emit('room-error', { message: 'This room session circle is full! (max 6 players)' });
     }
 
-    // 🎟️ Ticket gate — needs at least one ticket on hand to enter the
-    // lobby. The ticket is SPENT at match start (beginMatch), not here.
-    if (deviceUUID && mongoReady) {
-      try {
-        const wallet = await getOrCreateWallet(deviceUUID);
-        if (totalTickets(wallet) <= 0) {
-          return socket.emit('room-error', {
-            code: 'INSUFFICIENT_TICKETS',
-            message: 'You need at least one ticket to join a match. Visit the store to grab more.',
-          });
-        }
-      } catch (err) {
-        console.error('[join-room] wallet check failed', err.message);
-        // Fail open — a transient DB issue shouldn't block play.
-      }
-    }
+    // Ticket/wallet gate removed — see revision note at top of file
+    // (free launch, no billing wall for now).
 
     room.takenCharacters[openSlot] = true;
     room.players[socket.id] = {
@@ -881,6 +861,7 @@ io.on('connection', (socket) => {
 
     currentRoom = roomCode;
     socket.join(roomCode);
+    console.log(`[join-room] socket=${socket.id} joined room=${roomCode} isLeader=${room.leaderId === socket.id} matchStarted=${room.matchStarted} matchActive=${room.matchActive} matchEnded=${room.matchEnded}`);
     socket.emit('room-joined', {
       room: roomCode,
       slotId: openSlot,
@@ -897,22 +878,66 @@ io.on('connection', (socket) => {
   });
 
   socket.on('set-timing-mode', (data) => {
-    if (!currentRoom || !rooms[currentRoom]) return;
+    console.log(`[set-timing-mode] received from socket=${socket.id} data=`, data);
+    if (!currentRoom || !rooms[currentRoom]) {
+      console.log(`[set-timing-mode] REJECTED — no currentRoom or room missing. currentRoom=${currentRoom}`);
+      return;
+    }
     const room = rooms[currentRoom];
 
     if (room.leaderId !== socket.id) {
+      console.log(`[set-timing-mode] REJECTED — not leader. leaderId=${room.leaderId} socket.id=${socket.id}`);
       return socket.emit('room-error', { message: 'Only the room leader can set the match mode.' });
     }
     if (room.matchStarted) {
+      console.log(`[set-timing-mode] REJECTED — matchStarted already true for room=${currentRoom}`);
       return socket.emit('room-error', { message: 'Mode is locked — match already starting.' });
     }
 
     const mode = data && data.mode === 'indoor' ? 'indoor' : 'outdoor';
     room.timingMode = mode;
     room.modeChosen = true;
+    console.log(`[set-timing-mode] ACCEPTED — room=${currentRoom} mode=${mode}`);
     io.to(currentRoom).emit('timing-mode-updated', { mode });
 
     maybeAutoStart(currentRoom);
+  });
+
+  socket.on('request-rematch', () => {
+    if (!currentRoom || !rooms[currentRoom]) {
+      return socket.emit('room-error', { message: 'This room no longer exists — start a new match instead.' });
+    }
+    const room = rooms[currentRoom];
+
+    if (!room.matchEnded) {
+      return;
+    }
+
+    if (room.postMatchCleanupTimer) {
+      clearTimeout(room.postMatchCleanupTimer);
+      room.postMatchCleanupTimer = null;
+    }
+
+    Object.values(room.players).forEach((p) => {
+      p.score = 0;
+      p.disconnected = false;
+    });
+
+    room.stage = 0;
+    room.stageVeggie = null;
+    room.stageStartTime = null;
+    room.stageResolved = false;
+    room.nextStageAt = null;
+    room.matchStarted = false;
+    room.matchActive = false;
+    room.matchEnded = false;
+
+    io.to(currentRoom).emit('rematch-starting', { requestedBy: socket.id });
+
+    const activePlayers = Object.keys(room.players).length;
+    if (activePlayers >= MIN_PLAYERS_TO_START) {
+      startCountdown(currentRoom);
+    }
   });
 
   socket.on('update-location', (data) => {
@@ -1005,5 +1030,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — routes mounted (auth/billing/feedback), 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, ticket-gated billing, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, diagnostic logging enabled, listening on port: ${PORT}`);
 });
