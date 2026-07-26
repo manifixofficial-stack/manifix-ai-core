@@ -1,4 +1,4 @@
-package com.manifixai.veggiego
+package com.veggiego.geospatial
 
 import android.util.Log
 import com.facebook.react.bridge.*
