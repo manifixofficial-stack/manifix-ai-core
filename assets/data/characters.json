@@ -1,0 +1,90 @@
+{
+  "tomato": {
+    "id": "tomato",
+    "displayName": "Tomato",
+    "category": "vegetable",
+    "modelPath": "assets/models/vegetables/tomato.glb",
+    "iconPath": "assets/icons/tomato_icon.png",
+    "rarityTier": "common",
+    "spawnWeight": 35,
+    "basePoints": 100,
+    "chaseOverride": null,
+    "teamColorDefault": "red"
+  },
+  "broccoli": {
+    "id": "broccoli",
+    "displayName": "Broccoli",
+    "category": "vegetable",
+    "modelPath": "assets/models/vegetables/broccoli.glb",
+    "iconPath": "assets/icons/broccoli_icon.png",
+    "rarityTier": "common",
+    "spawnWeight": 30,
+    "basePoints": 100,
+    "chaseOverride": null,
+    "teamColorDefault": "green"
+  },
+  "carrot": {
+    "id": "carrot",
+    "displayName": "Carrot",
+    "category": "vegetable",
+    "modelPath": "assets/models/vegetables/carrot.glb",
+    "iconPath": "assets/icons/carrot_icon.png",
+    "rarityTier": "common",
+    "spawnWeight": 30,
+    "basePoints": 100,
+    "chaseOverride": null,
+    "teamColorDefault": "orange"
+  },
+  "strawberry": {
+    "id": "strawberry",
+    "displayName": "Strawberry",
+    "category": "fruit",
+    "modelPath": "assets/models/fruits/strawberry.glb",
+    "iconPath": "assets/icons/strawberry_icon.png",
+    "rarityTier": "rare",
+    "spawnWeight": 12,
+    "basePoints": 300,
+    "chaseOverride": true,
+    "teamColorDefault": "red"
+  },
+  "banana": {
+    "id": "banana",
+    "displayName": "Banana",
+    "category": "fruit",
+    "modelPath": "assets/models/fruits/banana.glb",
+    "iconPath": "assets/icons/banana_icon.png",
+    "rarityTier": "rare",
+    "spawnWeight": 10,
+    "basePoints": 300,
+    "chaseOverride": true,
+    "teamColorDefault": "yellow"
+  },
+  "grapes": {
+    "id": "grapes",
+    "displayName": "Grapes",
+    "category": "fruit",
+    "modelPath": "assets/models/fruits/grapes.glb",
+    "iconPath": "assets/icons/grapes_icon.png",
+    "rarityTier": "rare",
+    "spawnWeight": 10,
+    "basePoints": 300,
+    "chaseOverride": true,
+    "teamColorDefault": "purple"
+  },
+  "golden": {
+    "id": "golden",
+    "displayName": "Golden Veggie",
+    "category": "special",
+    "modelPath": "assets/models/fruits/golden.glb",
+    "iconPath": "assets/icons/golden_icon.png",
+    "rarityTier": "ultra_rare",
+    "spawnWeight": 3,
+    "basePoints": 600,
+    "chaseOverride": true,
+    "teamColorDefault": "gold"
+  },
+  "_notes": {
+    "carrot_code_wiring_required": "Adding carrot here is NOT enough to make it spawn/render. Three code-side changes still needed: (1) add 'carrot' to KNOWN_VEGGIE_SPECIES in GameCanvas.native.jsx, (2) add a carrot entry to RARITY_BY_SPECIES in gameConfig.js, (3) add carrot: require('../../assets/models/vegetables/carrot.glb') to VEGGIE_MODELS and the matching icon to VEGGIE_ICONS in assetMap.js. Say the word and I'll generate those exact edits.",
+    "basePoints_source_of_truth": "Real per-round points (100/300/600) come from server.js's round-start event at runtime — basePoints here is a display/reference default only."
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "physics": {
+    "evasionFrameIntervalMs": 66,
+    "runAmplitude": 1.8,
+    "runSpeed": 2,
+    "glitchSpeedMultiplier": 3.0,
+    "vortexSpinYRadPerSec": 15,
+    "vortexSpinXRadPerSec": 8,
+    "vortexPositionLerpSpeed": 6,
+    "vortexScaleLerpSpeed": 5
+  },
+  "gps": {
+    "watchIntervalMs": 3000,
+    "arTriggerDistanceMeters": 120,
+    "catchTriggerDistanceMeters": 20,
+    "spawnRadiusMeters": 150,
+    "foregroundOnly": true
+  },
+  "ar": {
+    "cameraEyeHeightMeters": 1.5,
+    "fovAngleDeg": 60,
+    "modelBaseScale": 1.0,
+    "glitchTargetScaleMultiplier": 1.6,
+    "minSceneDepth": 1.6,
+    "maxSceneDepth": 11,
+    "lockRadiusPx": 80,
+    "jumpScareDelayMs": 4500,
+    "jumpScareDurationMs": 900
+  },
+  "match": {
+    "totalRounds": 3,
+    "roundPointTiers": [100, 300, 600],
+    "timerSecondsByMode": {
+      "indoor": 45,
+      "outdoor": 60
+    },
+    "fallbackSessionSeconds": 55,
+    "vacuumWindowMs": 1200,
+    "captureResultTimeoutMs": 3500,
+    "blindAttackDurationMs": 1400,
+    "blindAttackCooldownMs": 3000
+  },
+  "lobby": {
+    "minPlayers": 2,
+    "maxPlayers": 6,
+    "reconnectGraceWindowMs": 30000
+  },
+  "wallet": {
+    "provider_web": "razorpay",
+    "provider_android": "google_play_billing",
+    "note": "BillingGate.jsx must branch on window.Capacitor?.isNativePlatform?.() — Razorpay is Play-Store-illegal for in-app currency on Android, fine on web. Cut entirely for MVP per the Day-1 checklist."
+  },
+  "_notes": {
+    "authoritative_source": "These are FALLBACK/DEFAULT values for local dev and offline testing only. server.js is the real source of truth at runtime once connected — never let client code trust these over a live socket payload (round points, timers, etc. all come from round-start)."
+  }
+}

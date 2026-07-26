@@ -1,75 +1,111 @@
 // src/lib/motionPermission.js
 //
-// iOS Safari (13+) requires an explicit, user-gesture-triggered permission
-// request before 'deviceorientation'/'deviceorientationabsolute' events
-// will fire at all — DeviceOrientationEvent.requestPermission() must be
-// called from inside a tap handler, and the user must accept a system
-// prompt. Without this, the listeners in App.jsx (compass heading) and
-// GameCanvas.jsx (CameraPitchRig device pitch) attach successfully, never
-// error, and simply never receive events — deviceHeading and devicePitch
-// silently stay stuck at 0 forever on iPhone, with no visible sign
-// anything is wrong.
+// REACT NATIVE PORT of motionPermission.js (web build gated on Safari's
+// DeviceOrientationEvent.requestPermission()).
 //
-// Android Chrome and desktop browsers don't implement requestPermission()
-// at all (the API doesn't exist on those platforms), so this feature-
-// detects it and no-ops safely everywhere else — this is the ONE place
-// that gate should live, called once, riding on a tap the user already
-// has to make (e.g. entering AR mode), rather than sprinkled into every
-// listener site.
+// ============================================================================
+// Library / API swaps made for RN
+// ============================================================================
+//   DeviceOrientationEvent.requestPermission()  -> expo-sensors'
+//                                                   DeviceMotion.requestPermissionsAsync().
+//                                                   This is RN's equivalent
+//                                                   gate: iOS 13+ still
+//                                                   requires an explicit,
+//                                                   user-gesture-triggered
+//                                                   permission prompt before
+//                                                   motion/orientation data
+//                                                   will flow, same as on
+//                                                   web Safari — just a
+//                                                   different API surface
+//                                                   because there's no
+//                                                   DeviceOrientationEvent
+//                                                   global in RN.
+//   typeof DeviceOrientationEvent !== 'undefined'
+//     feature-detect                            -> Platform.OS === 'ios'
+//                                                   check instead. RN has
+//                                                   no DeviceOrientationEvent
+//                                                   global to feature-detect
+//                                                   against on any platform,
+//                                                   so we branch on OS
+//                                                   directly. Android/RN
+//                                                   never gates this behind
+//                                                   a runtime prompt, so it
+//                                                   still no-ops safely
+//                                                   there.
+//   sessionStorage.setItem/getItem               -> DROPPED to a plain
+//                                                    module-scoped variable.
+//                                                    RN has no sessionStorage,
+//                                                    and a JS module-level
+//                                                    variable already gives
+//                                                    us the same "persists
+//                                                    for this app-session,
+//                                                    gone on next cold
+//                                                    start" behavior with
+//                                                    no extra dependency.
+//                                                    (If you want it to
+//                                                    survive an app kill,
+//                                                    swap this for
+//                                                    @react-native-async-storage/
+//                                                    async-storage — not
+//                                                    done here since the
+//                                                    original was
+//                                                    sessionStorage, not
+//                                                    localStorage, i.e.
+//                                                    explicitly NOT meant
+//                                                    to survive a relaunch.)
+//
+// NEW DEPENDENCY: expo-sensors (DeviceMotion). If your project doesn't
+// have it yet: `npx expo install expo-sensors`.
+//
+// Unchanged logic: same call contract (call from inside a tap handler,
+// not a mount-time useEffect), same return semantics (true = safe to
+// rely on orientation/motion data, false = user declined), same
+// "no-op true on platforms that don't gate this" behavior for Android.
 
-const PERMISSION_GRANTED_KEY = 'motionPermissionGranted';
+import { Platform } from 'react-native';
+import { DeviceMotion } from 'expo-sensors';
 
-// True only on platforms that actually gate orientation events behind a
-// runtime permission prompt (iOS 13+ Safari). Everywhere else this is
-// undefined/not a function, so requesting isn't necessary at all.
+// Module-scoped stand-in for the web version's sessionStorage flag —
+// lives only as long as this JS context does (i.e. resets on app cold
+// start, same "this session only" lifetime sessionStorage had).
+let cachedGranted = false;
+
+// True only on the platform that actually gates motion/orientation
+// events behind a runtime permission prompt (iOS). Android's
+// DeviceMotion just works without asking, so nothing to request there.
 export function needsMotionPermission() {
-  return (
-    typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function'
-  );
+  return Platform.OS === 'ios';
 }
 
-// Call this from inside a tap/click handler — NOT from a useEffect on
+// Call this from inside a tap/press handler — NOT from a useEffect on
 // mount, or iOS will silently ignore the request since it wasn't
-// triggered by a direct user gesture.
+// triggered by a direct user gesture (same rule as the web version).
 //
-// Resolves true if orientation events are safe to rely on (permission
-// granted, or platform doesn't require it), false if the user declined.
+// Resolves true if motion/orientation events are safe to rely on
+// (permission granted, or platform doesn't require it), false if the
+// user declined.
 export async function requestMotionPermission() {
   if (!needsMotionPermission()) {
-    // Android / desktop: nothing to ask for, events just work.
+    // Android: nothing to ask for, events just work.
     return true;
   }
 
-  // Already asked and granted earlier this session — iOS does persist
-  // the grant per page load, but re-calling requestPermission() is safe
-  // and cheap, so we still call through rather than trusting a cache
-  // that could be stale across a hard navigation.
   try {
-    const result = await DeviceOrientationEvent.requestPermission();
-    const granted = result === 'granted';
+    const { status } = await DeviceMotion.requestPermissionsAsync();
+    const granted = status === 'granted';
     if (granted) {
-      try {
-        sessionStorage.setItem(PERMISSION_GRANTED_KEY, '1');
-      } catch {
-        // sessionStorage can throw in some locked-down webviews — not
-        // fatal, just means we won't short-circuit on a future call.
-      }
+      cachedGranted = true;
     }
     return granted;
   } catch (err) {
-    console.error('[motionPermission] requestPermission() threw:', err?.message || err);
+    console.error('[motionPermission] requestPermissionsAsync() threw:', err?.message || err);
     return false;
   }
 }
 
 // Optional fast-path check for UI that wants to know up front whether to
-// bother showing a "enable compass" prompt at all this session.
+// bother showing an "enable compass" prompt at all this session.
 export function hasMotionPermissionCached() {
   if (!needsMotionPermission()) return true;
-  try {
-    return sessionStorage.getItem(PERMISSION_GRANTED_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return cachedGranted;
 }

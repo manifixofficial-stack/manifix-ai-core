@@ -1,125 +1,191 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-
 // src/components/ConnectionStatus.jsx — The Veggie GO Radar Network Badge
-//
-// Pure controlled component: it only reads the `phase` prop from App.jsx.
-// Now that the game runs fully offline (no Supabase, no tick server), the
-// badge has a dedicated 'local' phase instead of ever claiming a real
-// network connection — same visual language (glass panel, Orbitron
-// badge type, framer-motion pulses), just honest copy about what's
-// actually happening: everything is running on-device.
-//
-// phase is one of: 'idle' | 'local' | 'disconnected'
-//   idle          — no room joined yet
-//   local         — room joined, playing fully offline/on-device
-//   disconnected  — reserved for a future real backend; unused today but
-//                    kept so re-adding a server later doesn't need a
-//                    ConnectionStatus rewrite
+// React Native rewrite: replaces framer-motion (web-only, cannot run in RN)
+// with RN's built-in Animated API. Same phase logic and visuals preserved.
+
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Animated, StyleSheet } from 'react-native';
+
+// normalizePhase(): buckets every real tickStatus value into one of five
+// badge states, so nothing new App.js starts sending later silently
+// falls back to idle again without at least degrading sensibly.
+function normalizePhase(raw) {
+  switch (raw) {
+    case 'connecting':
+      return 'connecting';
+    case 'joined':
+    case 'connected':
+      return 'connected';
+    case 'disconnected':
+      return 'disconnected';
+    case 'failed':
+    case 'error':
+      return 'error';
+    case 'idle':
+    default:
+      return 'idle';
+  }
+}
+
+const PHASE_CONFIG = {
+  idle: {
+    label: 'SATELLITE SCANNING AREA…',
+    sublabel: null,
+    color: '#FFC93C',
+    pulse: 'blink',
+  },
+  connecting: {
+    label: 'LINKING TO ARENA SERVER…',
+    sublabel: null,
+    color: '#FFC93C',
+    pulse: 'blink',
+  },
+  connected: {
+    label: (roomCode) => `📡 LIVE — ARENA ${roomCode || 'SCANNING'}`,
+    sublabel: 'Connected · Multiplayer sync active',
+    color: '#39ff88',
+    pulse: 'glow',
+  },
+  disconnected: {
+    label: 'CONNECTION LOST — RECONNECTING…',
+    sublabel: null,
+    color: '#ff3333',
+    pulse: 'blink',
+  },
+  error: {
+    label: 'CONNECTION FAILED — CHECK NETWORK',
+    sublabel: null,
+    color: '#ff3333',
+    pulse: 'blink',
+  },
+};
+
+// phase is whatever App.js's tickStatus currently is — normalized below
+// rather than requiring App.js to already speak this component's vocabulary.
 function ConnectionStatus({ roomCode, phase }) {
-  const PHASE_CONFIG = {
-    idle: {
-      label: 'SATELLITE SCANNING AREA…',
-      sublabel: null,
-      color: '#FFC93C', // amber
-      pulse: 'blink',
-    },
-    local: {
-      label: `📡 LOCAL PLAY ACTIVE${roomCode ? ` — ARENA ${roomCode}` : ''}`,
-      sublabel: 'Running on-device · No network needed',
-      color: '#39ff88', // neon green
-      pulse: 'glow',
-    },
-    disconnected: {
-      label: 'NETWORK CRASHED — RECONNECTING…',
-      sublabel: null,
-      color: '#ff3333', // red
-      pulse: 'blink',
-    },
-  };
+  const bucket = normalizePhase(phase);
+  const config = PHASE_CONFIG[bucket];
+  const label = typeof config.label === 'function' ? config.label(roomCode) : config.label;
+  const { sublabel, color, pulse } = config;
 
-  const { label, sublabel, color, pulse } = PHASE_CONFIG[phase] || PHASE_CONFIG.idle;
+  // Entrance animation (replaces framer-motion's initial/animate fade+slide)
+  const entranceAnim = useRef(new Animated.Value(0)).current;
+  // Pulse animation (replaces framer-motion's infinite dot animation)
+  const pulseAnim = useRef(new Animated.Value(0)).current;
 
-  const dotAnimation =
+  useEffect(() => {
+    entranceAnim.setValue(0);
+    Animated.timing(entranceAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [bucket]);
+
+  useEffect(() => {
+    pulseAnim.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: pulse === 'blink' ? 800 : 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: pulse === 'blink' ? 800 : 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const dotOpacity =
     pulse === 'blink'
-      ? { opacity: [0.2, 1, 0.2] }
-      : { boxShadow: [`0 0 6px ${color}`, `0 0 14px ${color}`, `0 0 6px ${color}`] };
+      ? pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] })
+      : 1;
+  const dotScale =
+    pulse === 'glow'
+      ? pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.25] })
+      : 1;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      style={{
-        position: 'absolute',
-        top: '12px',
-        left: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: sublabel ? '7px 14px' : '6px 12px',
-        background: 'rgba(18, 16, 12, 0.72)',
-        border: `2px solid ${phase === 'local' ? color : 'rgba(255, 215, 0, 0.35)'}`,
-        borderRadius: '999px',
-        backdropFilter: 'blur(10px)',
-        boxShadow:
-          phase === 'disconnected'
-            ? '0 0 15px rgba(255, 51, 51, 0.3)'
-            : phase === 'local'
-            ? `0 0 12px ${color}55`
-            : '0 0 10px rgba(255, 201, 60, 0.2)',
-        fontSize: '11px',
-        fontWeight: 900,
-        letterSpacing: '1px',
-        fontFamily: "'Orbitron', sans-serif",
-        zIndex: 999,
-        pointerEvents: 'none',
-        maxWidth: '90vw',
-        boxSizing: 'border-box',
-      }}
+    <Animated.View
+      style={[
+        styles.badge,
+        {
+          borderColor: bucket === 'connected' ? color : 'rgba(255, 215, 0, 0.35)',
+          opacity: entranceAnim,
+          transform: [
+            {
+              translateY: entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }),
+            },
+          ],
+        },
+      ]}
     >
-      <motion.span
-        animate={dotAnimation}
-        transition={{ duration: pulse === 'blink' ? 0.8 : 1.5, repeat: Infinity, ease: 'easeInOut' }}
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: color,
-          boxShadow: `0 0 10px ${color}`,
-          display: 'inline-block',
-          flexShrink: 0,
-        }}
+      <Animated.View
+        style={[
+          styles.dot,
+          {
+            backgroundColor: color,
+            opacity: dotOpacity,
+            transform: [{ scale: dotScale }],
+          },
+        ]}
       />
-      <span style={{ display: 'flex', flexDirection: 'column', gap: sublabel ? '2px' : 0, overflow: 'hidden' }}>
-        <span
-          style={{
-            color,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            textShadow: phase === 'local' ? `0 0 4px ${color}44` : 'none',
-          }}
-        >
+      <View style={styles.textCol}>
+        <Text style={[styles.label, { color }]} numberOfLines={1}>
           {label}
-        </span>
+        </Text>
         {sublabel && (
-          <span
-            style={{
-              color: '#F5F0E8',
-              opacity: 0.7,
-              fontSize: '9px',
-              fontWeight: 500,
-              letterSpacing: '0.5px',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <Text style={styles.sublabel} numberOfLines={1}>
             {sublabel}
-          </span>
+          </Text>
         )}
-      </span>
-    </motion.div>
+      </View>
+    </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(18, 16, 12, 0.85)',
+    borderWidth: 2,
+    borderRadius: 999,
+    zIndex: 999,
+    maxWidth: '90%',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  textCol: {
+    flexDirection: 'column',
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  sublabel: {
+    color: '#F5F0E8',
+    opacity: 0.7,
+    fontSize: 9,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+});
 
 export default ConnectionStatus;

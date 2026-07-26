@@ -1,21 +1,146 @@
 // ====================================================================
-// 🛸 GoogleLogin.jsx - CYBERPUNK AUTHENTICATION LAYER (MongoDB backend)
-// ====================================================================
-import React, { useState, useEffect } from 'react';
+// GoogleLogin.jsx — Veggie Go sign-in
+// Backend: MongoDB via /api/auth/google (server.js on Render, reads/writes
+// hot state through Redis Cloud)
+//
+// THIS REVISION — FedCM enabled on the web path:
+//
+//   Was: use_fedcm: false — explicitly opting OUT of Google's newer
+//   FedCM-based flow and staying on the legacy cookie-based One Tap
+//   status check. That legacy path is exactly what's been throwing
+//   "Access blocked: invalid_client / no registered origin" — Google is
+//   tightening enforcement around it, and third-party-cookie blocking in
+//   Chrome/Safari/Firefox breaks the old status-check endpoint outright.
+//
+//   Now: use_fedcm: true — switches to the browser-native Credential
+//   Management flow, which doesn't depend on third-party cookies and is
+//   the path Google actually wants new integrations on. This does NOT
+//   fix an origin that's missing from Cloud Console — if the frontend's
+//   real domain isn't in "Authorized JavaScript origins" for this exact
+//   client ID (a9f6vnrul1gue0f5dl6uh668n4oh6kc0), you'll still get
+//   invalid_client regardless of this flag. Confirm that origin is
+//   registered before assuming this flag alone closes it out.
+//
+// ---------------------------------------------------------------------
+// PRIOR REVISION — single deviceUUID identity, shared with App.jsx:
+//
+//   PROBLEM: this file previously invented its OWN device identity for
+//   the /api/auth/google call — null on web, or @capacitor/device's
+//   Device.getId() on native — which is a DIFFERENT value from the
+//   deviceUUID App.jsx already generates and persists in localStorage
+//   (veggiego_device_uuid_v1). That second value is what server.js's
+//   Wallet/reconnect-grace/leaderboard system is actually keyed on for
+//   join-room, ticket spend, and wallet balance. Two different device
+//   identities feeding two different backends meant a player's Google
+//   sign-in wallet (from /api/auth/google) and their in-game wallet
+//   (from server.js) could silently diverge into two separate records.
+//
+//   FIX: GoogleLogin no longer generates or looks up its own device id.
+//   It now requires a `deviceUUID` prop — the SAME value App.jsx already
+//   holds in deviceUUIDRef.current — and sends that to the backend on
+//   both the web and native sign-in paths. One identity, one wallet.
+//   The @capacitor/device import/lookup that used to run inside
+//   runNativeSignIn() has been removed entirely; it's no longer needed.
+//
+// WHY THE REST OF THIS FILE LOOKS THE WAY IT DOES (unchanged from prior
+// revision): branches on Capacitor.isNativePlatform():
+//   - NATIVE (Android app)  -> native Google Sign-In via a Capacitor plugin
+//   - WEB (browser/manifixai.com) -> Google Identity Services (GIS) One
+//     Tap, PLUS a visible renderButton() fallback in case One Tap is
+//     silently skipped (a known native-WebView failure mode — One Tap is
+//     built for real browser tabs and no-ops with no error inside a
+//     wrapped WebView, which is why the native branch exists at all).
+//
+// Legal links (unchanged from the revision before this one): Terms/
+// Privacy open PrivacyModal.jsx/TermsModal.jsx in-place rather than
+// navigating via <a href>, since a packaged Capacitor app's WebView
+// origin isn't manifixai.com and a path-based link would 404 inside it.
+//
+// ---------------------------------------------------------------------
+// ONE-TIME SETUP REQUIRED FOR THE NATIVE PATH (unchanged, do this before
+// the native branch will work):
+//
+// 1. npm install @codetrix-studio/capacitor-google-auth
+//    npx cap sync android
+//
+// 2. In Google Cloud Console (same project as your existing OAuth client):
+//    a. Create a SECOND OAuth client of type "Android", using your release
+//       keystore's SHA-1 fingerprint (get it with:
+//       keytool -list -v -keystore veggiego-release.keystore -alias veggiego)
+//       — and ALSO create a debug one from your debug keystore's SHA-1 so
+//       local testing works before you have a signed release build.
+//    b. Your EXISTING web client ID (GOOGLE_CLIENT_ID below) becomes the
+//       "Server Client ID" / serverClientId — this is what lets the native
+//       plugin return an idToken your Node backend can verify. Keep using it.
+//
+// 3. android/app/src/main/res/values/strings.xml — add:
+//    <string name="server_client_id">YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</string>
+//
+// 4. capacitor.config.json — add:
+//    "plugins": {
+//      "GoogleAuth": {
+//        "scopes": ["profile", "email"],
+//        "serverClientId": "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
+//        "forceCodeForRefreshToken": true
+//      }
+//    }
+//
+// Until steps 1-4 are done, the native branch below will throw on import —
+// it's wrapped in try/catch so the web path still works in the meantime.
+//
+// ---------------------------------------------------------------------
+// ⚠️ STILL FLAGGED, NOT FIXED — needs a follow-up if you want it:
+//
+// `authInfo` on the App.jsx side (see that file) is plain component
+// state — it resets on every reload/relaunch, so a returning player sees
+// this screen again every time, even though Google's own session may
+// resolve the OAuth step near-instantly. There's no persisted "already
+// signed in" flag of ours. If you want to skip straight past this screen
+// on return visits, that needs a token/flag written to localStorage
+// (keyed off the same deviceUUID) and checked before App.jsx even renders
+// the gate. Not done here — flagging so it isn't mistaken for finished.
+//
+// ⚠️ ALSO STILL OPEN: "Access blocked: invalid_client / no registered
+// origin" reported against this client ID (a9f6vnrul1gue0f5dl6uh668n4oh6kc0).
+// The use_fedcm flip above is a real fix for the cookie-dependent legacy
+// path, but it will NOT resolve a client ID that's missing the frontend's
+// actual origin under "Authorized JavaScript origins" in Cloud Console.
+// Confirm Veggie Go's real deployed frontend URL is registered there for
+// THIS client ID before assuming this revision closes the error out.
+// ---------------------------------------------------------------------
+
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Device } from '@capacitor/device';
+import PrivacyModal from './PrivacyModal';
+import TermsModal from './TermsModal';
 
-const BG_BLACK = '#030305';
-const NEON_GOLD = '#ffbe1a';
-const MATRIX_GREEN = '#39ff88';
-const ERROR_PINK = '#ff3b94';
-const DECK_MUTED = '#4c5364';
+const BG = '#F7F5EF';
+const INK = '#1A1F1B';
+const MUTED = '#6B7280';
+const GREEN = '#1B5E3F';
+const GREEN_DARK = '#153F2B';
+const GOLD = '#D98F27';
+const ERROR = '#B3261E';
+const BORDER = '#E4E0D6';
 
-// 🔧 CONFIG — replace these two with your real values
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-const AUTH_ENDPOINT = 'https://your-backend.onrender.com/api/auth/google';
+// 🔧 CONFIG — replace with your real values
+// This is your WEB client ID. It doubles as "serverClientId" for the
+// native Android sign-in flow (see setup notes above) — do not swap it
+// out for the Android client ID, native sign-in needs the web one here.
+const GOOGLE_CLIENT_ID = '90180381725-jjrbi2uvlfq8ouk6fvmlgbho2k8qjdha.apps.googleusercontent.com';
+const AUTH_ENDPOINT = 'https://manifix-ai-core.onrender.com/api/auth/google';
 
-// Inline Google "G" logo — no external image request needed
+const STATUS = {
+  idle: { text: 'Sign in to start collecting.', tone: 'muted' },
+  connecting: { text: 'Connecting to Google…', tone: 'muted' },
+  verifying: { text: 'Verifying your account…', tone: 'muted' },
+  success: { text: "You're in. Loading Veggie Go…", tone: 'success' },
+  sdkError: { text: "Couldn't reach Google. Check your connection and try again.", tone: 'error' },
+  authError: { text: "Sign-in didn't go through. Try again.", tone: 'error' },
+  serverError: { text: "Our server didn't respond. Try again in a moment.", tone: 'error' },
+  cancelled: { text: 'Sign-in cancelled.', tone: 'muted' },
+};
+
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 48 48">
     <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-8 20-20 0-1.3-.2-2.7-.4-4z"/>
@@ -25,161 +150,297 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export default function GoogleLogin({ onLoginSuccess }) {
-  const [authStatus, setAuthStatus] = useState('CONSOLE // STANDBY FOR AUTH DIRECTIVE...');
+const VineAccent = () => (
+  <svg style={styles.vine} width="420" height="420" viewBox="0 0 420 420" fill="none" aria-hidden="true">
+    <path
+      d="M40 380 C 90 330, 60 260, 120 230 C 180 200, 190 140, 150 90 C 120 55, 140 20, 190 10"
+      stroke={GREEN} strokeOpacity="0.16" strokeWidth="2.5" strokeLinecap="round"
+    />
+    <circle cx="150" cy="90" r="5" fill={GOLD} fillOpacity="0.35" />
+    <circle cx="120" cy="230" r="4" fill={GREEN} fillOpacity="0.22" />
+  </svg>
+);
+
+// deviceUUID: REQUIRED — pass App.jsx's deviceUUIDRef.current so this
+// component's auth identity and the in-game Wallet/reconnect identity in
+// server.js are the same value. See file header for why that matters.
+export default function GoogleLogin({ onLoginSuccess, deviceUUID }) {
+  const [statusKey, setStatusKey] = useState('idle');
   const [isProcessing, setIsProcessing] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [isNative, setIsNative] = useState(false);
+  const buttonHostRef = useRef(null);
 
-  // Load the real Google Identity Services SDK once on mount
+  // Local modal visibility state — opens PrivacyModal/TermsModal in place
+  // instead of navigating the WebView, so this works identically on web
+  // and inside the native Capacitor app shell.
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+
+  // Fonts
   useEffect(() => {
+    if (document.getElementById('veggiego-fonts')) return;
+    const link = document.createElement('link');
+    link.id = 'veggiego-fonts';
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap';
+    document.head.appendChild(link);
+  }, []);
+
+  // Detect platform once, on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor?.isNativePlatform?.()) {
+          setIsNative(true);
+          // Native plugin needs no external <script> tag — it's ready
+          // as soon as the JS module resolves.
+          setSdkReady(true);
+          return;
+        }
+      } catch (e) {
+        // @capacitor/core not present — definitely a plain web build.
+      }
+      setIsNative(false);
+      loadWebSdk();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- WEB PATH: Google Identity Services -----------------------------
+  const loadWebSdk = () => {
     if (document.getElementById('google-login-sdk')) {
       setSdkReady(!!window.google);
       return;
     }
     const script = document.createElement('script');
     script.id = 'google-login-sdk';
-    script.src = 'https://accounts.google.com/gsi/client'; // ✅ correct SDK URL
+    script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
     script.onload = () => setSdkReady(true);
-    script.onerror = () => setAuthStatus('🚨 SDK LOAD FAILURE: COULD NOT REACH GOOGLE IDENTITY SERVICES');
+    script.onerror = () => setStatusKey('sdkError');
     document.head.appendChild(script);
-  }, []);
+  };
 
-  const handleExecuteGoogleAuth = async () => {
-    if (isProcessing) return;
-    setIsProcessing(true);
-    setAuthStatus('🔮 DECRYPTING SECURE HANDSHAKE KEY WITH GOOGLE NETWORK...');
-
+  const sendCredentialToBackend = async (credentialToken, deviceOS) => {
+    setStatusKey('verifying');
     try {
-      if (!sdkReady || !window.google) {
-        setAuthStatus('🚨 SDK NOT READY: GOOGLE IDENTITY NETWORK UNREACHABLE. RETRY.');
-        setIsProcessing(false);
-        return;
-      }
-
-      // Native device identifier (used for multi-device tracking in Mongo, if you want it)
-      let deviceUUID = null;
-      try {
-        const hardwareInfo = await Device.getId();
-        deviceUUID = hardwareInfo.uuid ?? hardwareInfo.identifier ?? null;
-      } catch {
-        // Device plugin not available (e.g. running in a plain browser) — safe to ignore
-      }
-
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response) => {
-          setAuthStatus('📡 TOKEN ACQUIRED. VERIFYING WITH BACKEND...');
-
-          try {
-            // Backend verifies response.credential (a JWT) with Google,
-            // then upserts the user into MongoDB and returns your app's own session/user data.
-            const backendResponse = await fetch(AUTH_ENDPOINT, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                credentialToken: response.credential,
-                deviceUUID,
-                deviceOS: 'ANDROID',
-              }),
-            });
-
-            if (!backendResponse.ok) {
-              throw new Error(`Backend responded with ${backendResponse.status}`);
-            }
-
-            const data = await backendResponse.json();
-
-            if (data.success) {
-              setAuthStatus('✅ ACCESS GRANTED! INITIALIZING DECK INTERFACE...');
-              setTimeout(() => {
-                onLoginSuccess({
-                  player: data.player,
-                  wallet: data.wallet,
-                  deviceUUID,
-                });
-              }, 1000);
-            } else {
-              setAuthStatus(`🚨 ACCESS DENIED: ${(data.message || 'UNKNOWN ERROR').toUpperCase()}`);
-              setIsProcessing(false);
-            }
-          } catch (err) {
-            setAuthStatus('🚨 CRITICAL BREACH: BACKEND CONNECTION FAILURE');
-            setIsProcessing(false);
-          }
-        },
+      const backendResponse = await fetch(AUTH_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialToken, deviceUUID, deviceOS }),
       });
 
-      window.google.accounts.id.prompt();
+      if (!backendResponse.ok) {
+        throw new Error(`Backend responded with ${backendResponse.status}`);
+      }
+
+      const data = await backendResponse.json();
+
+      if (data.success) {
+        setStatusKey('success');
+        setTimeout(() => {
+          onLoginSuccess({ player: data.player, wallet: data.wallet, deviceUUID });
+        }, 700);
+      } else {
+        setStatusKey('authError');
+        setIsProcessing(false);
+      }
     } catch (err) {
-      setAuthStatus('🚨 HARDWARE ERROR: DEVICE ID CORRUPT OR LOCKED');
+      setStatusKey('serverError');
       setIsProcessing(false);
     }
   };
 
+  const runWebSignIn = () => {
+    if (!window.google) {
+      setStatusKey('sdkError');
+      setIsProcessing(false);
+      return;
+    }
+
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      use_fedcm_for_prompt: true, // was: use_fedcm: false — see header note
+      callback: (response) => sendCredentialToBackend(response.credential, 'WEB'),
+    });
+
+    // Try One Tap first, but don't trust it silently — if it's not
+    // displayed or gets dismissed/skipped, fall back to a real button
+    // the user can click. This is the gap your original code had: no
+    // fallback meant a silent skip left the user stuck on "Connecting…".
+    window.google.accounts.id.prompt((notification) => {
+      const skipped =
+        notification.isNotDisplayed?.() || notification.isSkippedMoment?.();
+      if (skipped && buttonHostRef.current) {
+        window.google.accounts.id.renderButton(buttonHostRef.current, {
+          theme: 'outline',
+          size: 'large',
+          width: 280,
+          text: 'continue_with',
+        });
+        setStatusKey('idle');
+        setIsProcessing(false);
+      }
+    });
+  };
+
+  // ---- NATIVE PATH: Capacitor Google Auth plugin -----------------------
+  const runNativeSignIn = async () => {
+    try {
+      const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+
+      // Safe to call repeatedly; plugin no-ops if already initialized.
+      await GoogleAuth.initialize({
+        clientId: GOOGLE_CLIENT_ID, // serverClientId, see setup notes above
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      });
+
+      const user = await GoogleAuth.signIn();
+      // user.authentication.idToken is the JWT your backend verifies —
+      // same shape/verification path as the web credential.
+      const idToken = user?.authentication?.idToken;
+      if (!idToken) {
+        setStatusKey('authError');
+        setIsProcessing(false);
+        return;
+      }
+
+      // deviceUUID now comes from the `deviceUUID` prop (App.jsx's own
+      // persisted identity) — no separate @capacitor/device lookup here
+      // anymore, so this can't diverge from the in-game wallet identity.
+      await sendCredentialToBackend(idToken, 'ANDROID');
+    } catch (err) {
+      // err.code === '12501' from the plugin typically means the user
+      // cancelled the native sign-in sheet — treat that as a soft cancel,
+      // not a hard error, so we don't scare them with "Sign-in didn't go
+      // through" for something they did on purpose.
+      if (String(err?.code) === '12501' || String(err?.message || '').toLowerCase().includes('cancel')) {
+        setStatusKey('cancelled');
+      } else {
+        setStatusKey('authError');
+      }
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSignInPress = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    setStatusKey('connecting');
+
+    if (isNative) {
+      await runNativeSignIn();
+    } else {
+      if (!sdkReady || !window.google) {
+        setStatusKey('sdkError');
+        setIsProcessing(false);
+        return;
+      }
+      runWebSignIn();
+    }
+  };
+
+  const status = STATUS[statusKey];
+  const statusColor =
+    status.tone === 'error' ? ERROR : status.tone === 'success' ? GREEN : MUTED;
+
   return (
-    <div style={styles.authWrapperLayer}>
-      <div style={styles.laserScanline} />
-      <div style={styles.gridMatrixBackdrop} />
+    <div style={styles.page}>
+      <VineAccent />
 
       <motion.div
-        style={styles.terminalCardFrame}
-        initial={{ opacity: 0, scale: 0.92, y: 25 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+        style={styles.card}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
       >
-        <div style={styles.holoCoreScanner}>
-          <div style={styles.pulsingRingNode} />
-          <span style={styles.coreGlyph}>🛰️</span>
+        <div style={styles.brandRow}>
+          <div style={styles.badge}>VG</div>
+          <div>
+            <h1 style={styles.wordmark}>Veggie Go</h1>
+            <p style={styles.publisher}>by ManifiX AI</p>
+          </div>
         </div>
 
-        <h1 style={styles.brandTitleText}>VEGGE GO // <span style={styles.greenNeonSpan}>AUTH</span></h1>
-        <p style={styles.brandSubtitle}>MANIFIX AI STUDIO DIGITAL ID TERMINAL</p>
-
-        <div style={{
-          ...styles.terminalConsoleLogBox,
-          borderColor: authStatus.includes('🚨') ? ERROR_PINK : authStatus.includes('✅') ? MATRIX_GREEN : NEON_GOLD,
-          color: authStatus.includes('🚨') ? ERROR_PINK : authStatus.includes('✅') ? MATRIX_GREEN : '#a0a5c0'
-        }}>
-          <span style={{ color: MATRIX_GREEN }}>{'> '}</span>{authStatus}
-        </div>
+        <p style={styles.lead}>Welcome back</p>
+        <p style={styles.sub}>Sign in with Google to sync your collection and matches.</p>
 
         <button
-          onClick={handleExecuteGoogleAuth}
+          onClick={handleSignInPress}
           disabled={isProcessing || !sdkReady}
           style={{
-            ...styles.googleTriggerBtn,
-            background: isProcessing ? '#111' : 'linear-gradient(135deg, #ffffff, #e0e0e0)',
-            color: '#000000',
-            boxShadow: isProcessing ? 'none' : '0 0 25px rgba(255, 255, 255, 0.25)',
+            ...styles.googleButton,
             opacity: sdkReady ? 1 : 0.6,
+            cursor: isProcessing || !sdkReady ? 'default' : 'pointer',
           }}
         >
           <GoogleIcon />
-          {isProcessing ? '🤖 COMMUNICATING G-NET...' : sdkReady ? 'CONTINUE WITH GOOGLE' : 'LOADING G-NET...'}
+          <span>{isProcessing ? 'Signing in…' : sdkReady ? 'Continue with Google' : 'Loading…'}</span>
         </button>
 
-        <div style={styles.complianceLogFooter}>
-          CORE COMPLIANCE SECURED: Google Identity Services & End-To-End Encrypted Handshakes
-        </div>
+        {/* Fallback mount point for web renderButton() if One Tap is skipped */}
+        <div ref={buttonHostRef} style={{ marginTop: '10px', display: 'flex', justifyContent: 'center' }} />
+
+        <p style={{ ...styles.status, color: statusColor }} role="status">
+          {status.text}
+        </p>
+
+        <p style={styles.legal}>
+          By continuing, you agree to Veggie Go's{' '}
+          <button type="button" onClick={() => setShowTerms(true)} style={styles.legalLinkBtn}>
+            Terms
+          </button>{' '}
+          and{' '}
+          <button type="button" onClick={() => setShowPrivacy(true)} style={styles.legalLinkBtn}>
+            Privacy Policy
+          </button>.
+        </p>
       </motion.div>
+
+      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 }
 
 const styles = {
-  authWrapperLayer: { position: 'fixed', inset: 0, zIndex: 700, backgroundColor: BG_BLACK, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  laserScanline: { position: 'absolute', top: 0, left: 0, width: '100%', height: '3px', background: 'linear-gradient(90deg, transparent, #39ff88, transparent)', opacity: 0.4, pointerEvents: 'none', zIndex: 710, animation: 'laserScan 4s linear infinite' },
-  gridMatrixBackdrop: { position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255, 190, 26, 0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 190, 26, 0.01) 1px, transparent 1px)', backgroundSize: '30px 30px', pointerEvents: 'none', zIndex: 705 },
-  terminalCardFrame: { position: 'relative', background: 'rgba(6, 7, 15, 0.94)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: `2px solid ${NEON_GOLD}`, borderRadius: '24px', padding: '40px 22px', width: '90%', maxWidth: '380px', boxSizing: 'border-box', textAlign: 'center', boxShadow: '0 0 45px rgba(255, 190, 26, 0.15)', zIndex: 720 },
-  holoCoreScanner: { position: 'relative', width: '80px', height: '80px', margin: '0 auto 20px auto', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  pulsingRingNode: { position: 'absolute', inset: 0, border: `2px dashed ${MATRIX_GREEN}`, borderRadius: '50%', animation: 'spin 16s linear infinite' },
-  coreGlyph: { fontSize: '28px', zIndex: 2 },
-  brandTitleText: { fontFamily: "'Orbitron', sans-serif", color: '#ffffff', fontSize: '22px', fontWeight: 900, letterSpacing: '1.5px', marginBottom: '4px' },
-  greenNeonSpan: { color: MATRIX_GREEN, textShadow: '0 0 12px rgba(57, 255, 136, 0.5)' },
-  brandSubtitle: { fontFamily: "'Orbitron', sans-serif", color: DECK_MUTED, fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', marginBottom: '24px' },
-  terminalConsoleLogBox: { fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', background: '#000000', border: '1px solid', padding: '14px', borderRadius: '10px', marginBottom: '25px', lineHeight: '1.4', textAlign: 'left', fontWeight: 'bold', minHeight: '48px', boxSizing: 'border-box' },
-  googleTriggerBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', width: '100%', fontFamily: "'Orbitron', sans-serif", fontSize: '12px', fontWeight: 900, letterSpacing: '1px', padding: '16px', border: 'none', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s ease' },
-  complianceLogFooter: { fontFamily: "'Orbitron', sans-serif", fontSize: '8px', color: DECK_MUTED, fontWeight: 'bold', marginTop: '25px', letterSpacing: '0.2px', opacity: 0.7 }
+  page: {
+    position: 'fixed', inset: 0, zIndex: 700, background: BG,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', fontFamily: "'Inter', -apple-system, sans-serif",
+  },
+  vine: { position: 'absolute', left: '-60px', bottom: '-40px', pointerEvents: 'none' },
+  card: {
+    position: 'relative', background: '#FFFFFF', border: `1px solid ${BORDER}`,
+    borderRadius: '20px', padding: '40px 36px', width: '90%', maxWidth: '380px',
+    boxSizing: 'border-box', boxShadow: '0 20px 60px rgba(27, 94, 63, 0.08)',
+  },
+  brandRow: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' },
+  badge: {
+    width: '40px', height: '40px', borderRadius: '10px', background: GREEN, color: '#FFFFFF',
+    fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: '15px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  wordmark: { fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: '19px', color: INK, margin: 0, lineHeight: 1.2 },
+  publisher: { fontSize: '12px', color: MUTED, margin: 0, marginTop: '2px' },
+  lead: { fontFamily: "'Fraunces', serif", fontSize: '24px', fontWeight: 500, color: INK, margin: '0 0 6px 0' },
+  sub: { fontSize: '14px', color: MUTED, margin: '0 0 28px 0', lineHeight: 1.5 },
+  googleButton: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%',
+    background: '#FFFFFF', color: INK, fontFamily: "'Inter', sans-serif", fontSize: '14px', fontWeight: 600,
+    padding: '13px', border: `1px solid ${BORDER}`, borderRadius: '10px',
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+  },
+  status: { fontSize: '13px', textAlign: 'center', margin: '18px 0 0 0', minHeight: '18px' },
+  legal: { fontSize: '11px', color: MUTED, textAlign: 'center', lineHeight: 1.6, margin: '20px 0 0 0' },
+  legalLinkBtn: {
+    background: 'none', border: 'none', padding: 0, margin: 0,
+    color: GREEN_DARK, textDecoration: 'underline', fontWeight: 500,
+    fontFamily: "'Inter', sans-serif", fontSize: '11px', cursor: 'pointer',
+    display: 'inline',
+  },
 };

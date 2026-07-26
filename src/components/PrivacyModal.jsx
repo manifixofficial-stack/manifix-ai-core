@@ -322,7 +322,7 @@ export default function Privacy() {
           fontFamily: G.mono, fontSize: "9px", color: G.green,
           letterSpacing: "0.18em", marginBottom: "22px",
         }}>
-          🔒 LAST UPDATED · JULY 17, 2026
+          🔒 LAST UPDATED · JULY 23, 2026
         </div>
 
         <h1 style={{
@@ -339,7 +339,7 @@ export default function Privacy() {
           maxWidth: "560px", margin: "0 auto 24px",
           lineHeight: 1.7,
         }}>
-          Vegge Go is a mobile &amp; VR AR game developed by Manifix AI Studio. This policy explains
+          Vegge Go is a mobile AR game developed by Manifix AI Studio. This policy explains
           exactly what data we collect when you play — from sign-in to camera-based AR features — and
           how we protect it.
         </p>
@@ -398,7 +398,7 @@ export default function Privacy() {
             <Para>
               This Privacy Policy describes the policies and procedures of <strong style={{ color: "#fff" }}>Manifix AI Studio</strong> on
               the collection, use, and disclosure of your information when you play <strong style={{ color: "#fff" }}>Vegge Go</strong>,
-              our mobile and VR augmented-reality game, and tells you about your privacy rights and how the law protects you.
+              our mobile augmented-reality game, and tells you about your privacy rights and how the law protects you.
             </Para>
             <Para mt={14}>
               We use your Personal Data to provide, secure, and improve the game — including sign-in, anti-cheat protection,
@@ -430,11 +430,11 @@ export default function Privacy() {
                 ["Anti-Cheat System", "The mechanisms we use to detect and prevent cheating, exploitation, or unauthorized modification of the game, including Device UUID logging."],
                 ["Company / Studio", "Manifix AI Studio, Andhra Pradesh, India — the developer and publisher of Vegge Go."],
                 ["Country", "Andhra Pradesh, India"],
-                ["Device", "Any smartphone, headset, tablet, or other hardware used to access and play Vegge Go, including VR/AR-capable devices."],
+                ["Device", "Any smartphone, tablet, or other hardware used to access and play Vegge Go."],
                 ["Device UUID", "A unique identifier assigned to your Device, used to enforce fair play and secure your Account."],
                 ["Personal Data", "Any information that relates to an identified or identifiable individual. We use \"Personal Data\" and \"Personal Information\" interchangeably unless a law uses a specific term."],
-                ["Service", "The Vegge Go mobile and VR game, related AR features, and any associated services accessible from www.manifixai.com."],
-                ["Service Provider", "Any natural or legal person who processes data on behalf of the Studio, such as Google, Google Gemini, and Razorpay."],
+                ["Service", "The Vegge Go mobile game, related AR features, and any associated services accessible from www.manifixai.com."],
+                ["Service Provider", "Any natural or legal person who processes data on behalf of the Studio, such as Google and Razorpay."],
                 ["Usage Data", "Data collected automatically from your use of the Service (e.g., gameplay sessions, in-game events, duration of play)."],
                 ["You", "The individual playing or accessing Vegge Go, or the legal entity on whose behalf such individual is acting."],
               ].map(([label, desc]) => (
@@ -464,6 +464,14 @@ export default function Privacy() {
               "A unique Google Account identifier used to create and secure your Vegge Go Account",
             ]} />
 
+            <SubHead>Location Data</SubHead>
+            <Para>
+              Vegge Go uses your Device's precise (GPS) location while you are actively playing to place you and nearby
+              in-game targets on the map, and to power outdoor gameplay features. Location is only collected in the
+              foreground, while the app is open and in use — we do not track your location in the background or when the
+              app is closed.
+            </Para>
+
             <SubHead>Device UUID &amp; Anti-Cheat Data</SubHead>
             <Para>
               To keep gameplay fair, we log a unique Device UUID (device identifier) each time you play. This is used solely
@@ -479,11 +487,18 @@ export default function Privacy() {
               explicitly choose to capture and share an in-game screenshot or clip.
             </Para>
 
+            <SubHead>Motion &amp; Orientation Data</SubHead>
+            <Para>
+              We use your Device's compass and motion sensors to determine which direction you're facing and to align
+              in-game AR objects with your real-world surroundings. This data is processed on-device and is not
+              transmitted to our servers.
+            </Para>
+
             <SubHead>Usage Data</SubHead>
             <Para>
               Usage Data is collected automatically as you play. It may include your Device&apos;s IP address, device model and
-              operating system, VR/AR headset type (where applicable), in-game progress and achievements, session length,
-              crash and diagnostic logs, and other gameplay analytics.
+              operating system, in-game progress and achievements, session length, crash and diagnostic logs, and other
+              gameplay analytics.
             </Para>
           </section>
 
@@ -500,7 +515,7 @@ export default function Privacy() {
                 ["🔐", "Authenticate you and manage your Account via Google OAuth"],
                 ["🛡️", "Run anti-cheat checks using your Device UUID to keep gameplay fair for all players"],
                 ["📷", "Power camera-based AR features so in-game objects appear in your real environment"],
-                ["🤖", "Power AI-driven in-game features (e.g., dynamic content, hints, chat) using the Google Gemini API"],
+                ["📍", "Use your foreground location to place you and nearby targets on the in-game map"],
                 ["💳", "Process in-game purchases and subscriptions securely via Razorpay"],
                 ["📬", "Contact you about updates, security alerts, or support requests"],
                 ["📊", "Analyze gameplay trends to balance, fix, and improve the game"],
@@ -533,7 +548,6 @@ export default function Privacy() {
             <div style={{ marginTop: "16px" }}>
               {[
                 ["Google (OAuth)", "Used to authenticate your sign-in and identify your Account. Governed by Google's own Privacy Policy."],
-                ["Google Gemini API", "Processes limited gameplay inputs to power AI-driven features such as in-game hints, dynamic content, or chat. We do not send unnecessary Personal Data to this API."],
                 ["Razorpay", "Our third-party payment processor, used to securely handle in-game purchases and subscriptions. We do not store your full payment card details on our servers."],
                 ["Analytics & Crash Reporting Providers", "Help us diagnose crashes and understand gameplay trends, using de-identified or aggregated data where possible."],
                 ["Business Transfers", "In connection with any merger, sale of Studio assets, financing, or acquisition of all or a portion of our business."],
@@ -602,7 +616,7 @@ export default function Privacy() {
             </h2>
             <Para>
               Your information, including Personal Data, is processed at the Studio&apos;s operating offices and by the
-              third-party infrastructure we rely on (including Google Cloud services used for OAuth and the Gemini API, and
+              third-party infrastructure we rely on (including Google Cloud services used for OAuth, and
               Razorpay for payments). This means your information may be transferred to — and maintained on — computers
               located outside of your state, province, country, or other governmental jurisdiction where data protection
               laws may differ.
@@ -625,11 +639,22 @@ export default function Privacy() {
               You have the right to delete or request that we assist in deleting the Personal Data we have collected about
               you, including your Account, Device UUID logs, and purchase history (subject to legal retention requirements).
             </Para>
-            <Para mt={12}>
-              To request deletion, email us at <strong style={{ color: "#fff" }}>manifixofficial@gmail.com</strong> from the
-              address linked to your Vegge Go Account, with the subject line &quot;Data Deletion Request.&quot; We will verify your
-              identity and confirm once your data has been deleted or anonymized.
+
+            <SubHead>In-App Deletion (Fastest)</SubHead>
+            <Para>
+              While signed in, open <strong style={{ color: "#fff" }}>Settings → Delete Account &amp; Data</strong> from the
+              radar screen and confirm. This immediately and permanently removes your Vegge Go account, wallet, and match
+              history, and cannot be undone.
             </Para>
+
+            <SubHead>Web Request (No App Required)</SubHead>
+            <Para>
+              If you've already uninstalled Vegge Go, email us at{" "}
+              <strong style={{ color: "#fff" }}>manifixofficial@gmail.com</strong> from the address linked to your Vegge Go
+              Account, with the subject line &quot;Data Deletion Request.&quot; We will verify your identity and confirm once your
+              data has been deleted or anonymized.
+            </Para>
+
             <InfoCard>
               Please note that we may need to retain certain information — such as anti-cheat logs tied to an active
               investigation or transaction records required for tax purposes — where we have a legal obligation or lawful
@@ -844,7 +869,7 @@ export default function Privacy() {
 
               {[
                 ["Studio",   "Manifix AI Studio"],
-                ["Game",     "Vegge Go (Mobile & VR AR Game)"],
+                ["Game",     "Vegge Go (Mobile AR Game)"],
                 ["Address",  "Visakhapatnam, Andhra Pradesh, India"],
                 ["Email",    "manifixofficial@gmail.com"],
                 ["Website",  "www.manifixai.com"],

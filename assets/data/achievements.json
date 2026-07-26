@@ -1,0 +1,44 @@
+{
+  "achievements": [
+    {
+      "id": "first_catch",
+      "displayName": "First Harvest",
+      "description": "Catch your first veggie.",
+      "trigger": { "type": "catch_count", "threshold": 1 },
+      "iconPath": "assets/ui/icons/characters/tomato_icon.png"
+    },
+    {
+      "id": "catch_golden",
+      "displayName": "Golden Touch",
+      "description": "Catch a Golden Veggie.",
+      "trigger": { "type": "catch_species", "species": "golden" },
+      "iconPath": "assets/ui/icons/characters/golden_icon.png"
+    },
+    {
+      "id": "round_sweep",
+      "displayName": "Round Sweep",
+      "description": "Win all 3 rounds in a single match.",
+      "trigger": { "type": "rounds_won_in_match", "threshold": 3 },
+      "iconPath": null
+    },
+    {
+      "id": "perfect_catch",
+      "displayName": "Perfect Grab",
+      "description": "Land a perfect-quality catch.",
+      "trigger": { "type": "capture_quality", "quality": "perfect" },
+      "iconPath": null
+    },
+    {
+      "id": "comeback_win",
+      "displayName": "Comeback Chef",
+      "description": "Win a match after trailing in score after round 1.",
+      "trigger": { "type": "match_comeback" },
+      "iconPath": null
+    }
+  ],
+  "_notes": {
+    "persistence_warning": "server.js currently identifies players by ephemeral deviceUUID/socket — there is no durable account yet (per the Play Store strategy doc's Phase 3 gating). Achievements can be evaluated PER-MATCH right now (e.g. round_sweep, perfect_catch), but anything meant to persist ACROSS matches/sessions (like a running catch-count total) needs Firebase Auth + a real User record first, or it will reset every reconnect.",
+    "safe_for_mvp_now": ["catch_golden", "round_sweep", "perfect_catch", "comeback_win"],
+    "needs_persistent_accounts": ["first_catch (if meant as lifetime-first, not match-first)"]
+  }
+}

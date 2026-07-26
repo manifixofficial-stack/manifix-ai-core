@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "VeggieGo",
+    "slug": "veggiego",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.manifixai.veggiego",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Veggie Go needs your location to place vegetables in the real world around you.",
+        "NSMotionUsageDescription": "Veggie Go uses motion sensors for the compass and AR view.",
+        "NSCameraUsageDescription": "Veggie Go needs camera access for the AR view.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.manifixai.veggiego",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Veggie Go needs your location to place vegetables in the real world around you."
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Veggie Go needs camera access for the AR view."
+        }
+      ],
+      "expo-asset",
+      "@reactvision/react-viro"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e040f61f-5765-4ebb-88b0-2f2eb2f23832"
+      }
+    }
+  }
+}

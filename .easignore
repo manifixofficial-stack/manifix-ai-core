@@ -1,0 +1,46 @@
+# .easignore
+# Controls what gets uploaded to EAS Build's cloud servers.
+# Similar to .gitignore — smaller upload = faster builds.
+
+node_modules
+.git
+.expo
+.expo-shared
+
+# Build outputs / caches
+android/app/build
+android/build
+android/.gradle
+ios/build
+ios/Pods
+dist
+web-build
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode
+.idea
+*.swp
+
+# Env files — DO NOT upload secrets to the build server unless
+# explicitly needed via EAS Secrets/env config instead
+.env
+.env.local
+.env.*.local
+
+# Misc project clutter not needed for the build
+imports_found.txt
+*.txt
+
+# Backend-only files (server.js and friends run on Render, not needed
+# for the mobile app bundle — remove this section if server.js
+# actually lives in a separate repo/folder already)
+server.js
+models

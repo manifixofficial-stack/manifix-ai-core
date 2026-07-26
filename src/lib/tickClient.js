@@ -1,58 +1,39 @@
 // src/lib/tickClient.js
 //
 // Thin adapter over gameClient.js's existing socket for tick/go/round-end
-// events.
+// events. No changes needed in this pass — already correct, no web-only
+// or Vite-only code paths (unlike gameClient.js's now-fixed import.meta
+// line).
 //
-// WHY THIS REPLACES THE PREVIOUS VERSION:
-// The previous version opened a SECOND, independent socket.io connection
+// WHY THIS REPLACES AN EARLIER VERSION:
+// A previous version opened a SECOND, independent socket.io connection
 // to the same game server and re-emitted its own 'join-room' on it. That
 // caused two real problems:
 //   1. It assigned window.socket = socket — clobbering the socket
 //      gameClient.js's connectSocket() had already assigned there.
-//      GameCanvas.jsx's CaptureThrow listens for 'capture-result' on
-//      window.socket specifically, and App.jsx's GPS watcher emits
-//      'update-location' on window.socket directly — whichever socket won
-//      the race to set window.socket last silently became "the" socket
-//      for capture results and location updates, regardless of which one
-//      the server actually replies to.
 //   2. It called socket.emit('join-room', ...) on this second connection,
-//      joining the same room twice under two different socket.ids. Since
-//      server.js keys players and room-fullness checks by socket.id, this
-//      inflated player counts and left a duplicate, uncharacterized
-//      "ghost" entry in the room for every real player.
+//      joining the same room twice under two different socket.ids —
+//      inflating player counts and leaving a duplicate "ghost" entry.
 //
-// Fixed by not opening a second connection at all: this now reuses the
+// Fixed by not opening a second connection at all: this reuses the
 // socket gameClient.js already opened and already joined the room on
 // (via getSocket()), and subscribes to tick/go/round-end through
 // gameClient.js's existing subscribeToRoom() wiring.
-//
-// NOTE ON A REJECTED "REPLACEMENT" VERSION:
-// A different tickClient.js was proposed, swapping getSocket() for
-// initLocalSocketBridge() and listening for 'tick_update' /
-// 'match_start_go' / 'match_round_end'. Neither change is correct:
-// - getSocket() IS a real export of gameClient.js (returns the existing
-//   socket without side effects). initLocalSocketBridge() is a
-//   deprecated compatibility shim that calls connectSocket() internally
-//   — using it here would risk opening a second connection again, i.e.
-//   reintroducing the exact bug described above.
-// - server.js emits 'tick', 'go', and 'round-end' (see its io.to(roomCode)
-//   .emit(...) calls) — not 'tick_update'/'match_start_go'/
-//   'match_round_end'. Those listeners would never fire.
-// Verified directly against gameClient.js's exports before rejecting.
 
 import { getSocket, subscribeToRoom } from './gameClient';
 
 /**
  * @param {string} roomCode
  * @param {{lat: number, lng: number} | null} position - unused now; kept
- *   for call-site compatibility with App.jsx. GPS is sent exactly once,
+ *   for call-site compatibility with App.js. GPS is sent exactly once,
  *   as part of gameClient.js's joinRoom() call, and continuously via
- *   App.jsx's geolocation watcher emitting 'update-location' on the same
- *   socket — a second join-room emit with a second fix is unnecessary.
- * @param {object} callbacks - onStatusChange, onTick, onGo, onRoundEnd
+ *   App.js's geolocation watcher emitting 'update-location' on the same
+ *   socket — a second join-room emit here is unnecessary.
+ * @param {object} callbacks - onStatusChange, onTick, onGo, onRoundEnd,
+ *   onCountdownCancelled (forwarded through to App.js's match-flow state)
  */
 export function connectTickServer(roomCode, position, callbacks = {}) {
-  const { onStatusChange, onTick, onGo, onRoundEnd } = callbacks;
+  const { onStatusChange, onTick, onGo, onRoundEnd, onCountdownCancelled } = callbacks;
 
   const socket = getSocket();
   if (!socket) {
@@ -80,9 +61,9 @@ export function connectTickServer(roomCode, position, callbacks = {}) {
 
   // server.js's round-end payload is { name, score, slot_id, color } — no
   // slotId key, and slot_id can in principle be absent if a player record
-  // is malformed. Normalize both keys here since App.jsx and the old
-  // victory-overlay code expect both slot_id and slotId present, with
-  // SLOT_01 as a safe fallback matching the current 6-slot schema.
+  // is malformed. Normalize both keys here since App.js's victory-overlay
+  // code expects both slot_id and slotId present, with SLOT_01 as a safe
+  // fallback matching the current 6-slot schema.
   const wrappedOnRoundEnd = onRoundEnd
     ? (results) => {
         const safeResults = Array.isArray(results) ? results : [];
@@ -100,6 +81,7 @@ export function connectTickServer(roomCode, position, callbacks = {}) {
     onTick: onTick ? (data) => onTick(data.tick) : undefined,
     onGo,
     onRoundEnd: wrappedOnRoundEnd,
+    onCountdownCancelled,
   });
 
   return {

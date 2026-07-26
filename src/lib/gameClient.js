@@ -3,74 +3,125 @@
 // Real-Time Multiplayer Game Client — thin wrapper around socket.io-client
 // that talks to the live server.js (Express + Socket.IO GPS game server).
 //
-// WHY THIS REPLACES THE PREVIOUS VERSION:
-// The previous gameClient.js was a "local storage stand-in" — it never
-// opened a network connection at all. joinRoom/claimCharacter/capture
-// calls read and wrote to window.localStorage, and window.socket was a
-// fake object whose .emit() just called those local functions directly.
-// That works fine for one browser tab, but two different phones joining
-// the same room code would each be playing in their own isolated
-// localStorage copy of the room and would NEVER see each other — which
-// defeats the entire point of a real-world GPS multiplayer game.
+// THIS REVISION — added requestRematch():
+//   PROBLEM: server.js has a fully working 'request-rematch' handler
+//   (resets scores/round state, restarts the countdown, emits
+//   'rematch-starting') but nothing on the client ever emitted it.
+//   handleInstantReplay() in App.js only reset local UI state
+//   (stage/matchPhase/victoryData) — it never told the server anything.
+//   After any match ended, the room sat with matchEnded: true and
+//   stageVeggie: null, broadcasting an empty veggies-update forever
+//   until the 5-minute post-match cleanup timer deleted the room. The
+//   client just bounced back to a permanently empty MapView with no
+//   way to start a new match.
+//   FIX: new requestRematch() export below, a thin fire-and-forget
+//   wrapper around `socket.emit('request-rematch')` — same pattern as
+//   attemptCapture()/updateLocation(). App.js's handleInstantReplay now
+//   calls this in addition to resetting local UI state.
 //
-// This version opens one real socket.io connection per browser tab to
-// the live server, and every exported function is a thin promise-based
-// wrapper around emitting the matching server event and waiting for its
+// PRIOR REVISION — fixed the "MapView never advances to GameCanvas" bug:
+//   ROOT CAUSE: connectSocket() only reused the existing socket when
+//   `socket.connected === true`:
+//
+//     if (socket && socket.connected) return socket;
+//     socket = io(SERVER_URL, {...});
+//
+//   App.js's `roomCode` useEffect calls subscribeToRoom() (which calls
+//   connectSocket() and attaches onTick/onGo/onTimingModeUpdated/etc.)
+//   as soon as setRoomCode() runs in handleJoinRoom — BEFORE the
+//   `await Location.requestForegroundPermissionsAsync()` delay. That
+//   created socket A and put every event listener on it.
+//
+//   By the time handleJoinRoom() actually called joinRoom() a beat
+//   later, socket A often hadn't finished its handshake yet
+//   (`socket.connected` still false), so connectSocket() didn't reuse
+//   it — it built a brand-new socket B instead, silently discarding
+//   the reference to A. joinRoom() then joined the room using socket
+//   B, and getSocket() (used by set-timing-mode etc.) also returned B,
+//   so outbound emits worked fine. But the server broadcasts
+//   tick/go/timing-mode-updated/round-end to the room (i.e. to socket
+//   B), and socket B had no listeners on it — those were all still on
+//   the orphaned socket A. Net effect: join + mode-pick appeared to
+//   work, but the client never heard the response events, so
+//   timingModeChosen/matchPhase never updated and the screen never
+//   left MapView for GameCanvas.
+//
+//   FIX: connectSocket() now reuses the existing socket instance as
+//   soon as one exists at all — connected or still connecting — so
+//   only one socket is ever created per app session, and every caller
+//   (subscribeToRoom, joinRoom, getSocket) is guaranteed to be working
+//   with the same instance.
+//
+// PRIOR REVISION — RN env-var fix on top of prior fixes:
+//   SERVER_URL previously read `import.meta.env.VITE_GAME_SERVER_URL` —
+//   Vite-only syntax. Hermes (React Native's JS engine) has no
+//   `import.meta` support at all and throws a SyntaxError on load,
+//   crashing the app before anything else runs. Replaced with Expo's
+//   env convention: process.env.EXPO_PUBLIC_GAME_SERVER_URL (only
+//   EXPO_PUBLIC_-prefixed vars are inlined at build time by Expo).
+//   Falls back to the known Render deployment either way, so this
+//   works out of the box with no .env setup required.
+//
+// PRIOR REVISION — RN crash fix (window guards):
+//   connectSocket()/disconnectSocket() no longer touch `window`
+//   unconditionally. `window` is not guaranteed to exist in RN's JS
+//   runtime. Both read/write sites are guarded with
+//   `typeof window !== 'undefined'`. Native code should use getSocket()
+//   (exported below) rather than relying on window.socket.
+//
+// PRIOR REVISION (reconnect + mode-gate fixes):
+//   1. joinRoom() accepts a 5th `deviceUUID` argument, included in the
+//      'join-room' payload — server.js's reconnect grace window,
+//      wallet/ticket-gating, and leaderboard upserts are all
+//      deviceUUID-keyed.
+//   2. subscribeToRoom() wires onTimingModeUpdated and
+//      onPromotedToLeader, forwarding server.js's 'timing-mode-updated'
+//      and 'promoted-to-leader' broadcasts — previously only the room
+//      leader could ever advance past the mode-gate screen.
+//
+// This version opens one real socket.io connection per client to the
+// live server; every exported function is a thin promise-based wrapper
+// around emitting the matching server event and waiting for its
 // server-emitted response. Event names and payload shapes match
 // server.js exactly:
 //
 //   client emits            server responds with
 //   ------------------      ---------------------------------
 //   join-room          -->  room-joined | room-error
-//   claim-character    -->  slot-confirmed | character-error
+//   claim-character    -->  slot-confirmed | character-error  (DEPRECATED
+//                            — server.js no longer implements this at
+//                            all; slots are auto-assigned inside
+//                            join-room now. Kept only so nothing that
+//                            still imports it crashes at build time.)
 //   update-location     (fire-and-forget, no direct response)
 //   capture-attempt    -->  capture-result (+ broadcast veggieCaught)
+//   request-rematch     (fire-and-forget — server responds by
+//                         broadcasting 'rematch-starting' to the room,
+//                         then the normal 'tick'/'go' countdown flow)
 //
 // Server -> all clients in room (no request needed, just subscribe):
 //   players-update, veggies-update, tick, go, glitch-pulse,
-//   match-countdown-cancelled, round-end
+//   match-countdown-cancelled, round-end, timing-mode-updated,
+//   promoted-to-leader, rematch-starting
 //
-// SLOT_IDS matches CharacterSelect.jsx's SLOT_01..SLOT_06 and server.js's
-// takenCharacters / CHARACTER_COLORS keys exactly.
-//
-// WHAT CHANGED (this revision — hybrid gps/indoor wiring):
-// updateLocation() and makeThrottledLocationWriter() previously only
-// forwarded { lat, lng } to the server. The new hybrid server.js needs
-// `accuracy` (to classify a player as 'gps' vs 'indoor' mode per-update)
-// and `heading` (to validate indoor-mode capture attempts against a
-// vegetable's fixed bearing) — see server.js's getPlayerMode and
-// capture-attempt handler. App.jsx's own GPS watcher was already fixed to
-// send both, but it does so via a direct window.socket.emit(...) call
-// that bypasses this file entirely. MapView.jsx, however, routes its
-// location updates through makeThrottledLocationWriter() -> this file's
-// updateLocation() — so every update sent from the radar screen was
-// silently dropping accuracy/heading before it ever reached the server,
-// even after App.jsx's fix. Both functions now accept and forward an
-// optional { accuracy, heading } alongside lat/lng, matching what
-// server.js's update-location handler already reads.
-//
-// NOTE ON A REJECTED "REPLACEMENT" VERSION:
-// A different gameClient.js was proposed alongside this one, using
-// underscored event names (join_room, update_location, players_update),
-// an ack-callback emit pattern, and a client-side submitRoundScore() that
-// POSTs to /api/leaderboard. None of that matches server.js: its events
-// are hyphenated and broadcast-based (no ack callbacks), it has no
-// app.post('/api/leaderboard') route, and it deliberately never accepts
-// client-reported scores (see endStage()/saveScoreToMongo() — the server
-// computes and persists scores itself). That version was NOT merged in.
+// SLOT_IDS matches server.js's takenCharacters / CHARACTER_COLORS keys
+// exactly.
 
 import { io } from 'socket.io-client';
 
 const SLOT_IDS = ['SLOT_01', 'SLOT_02', 'SLOT_03', 'SLOT_04', 'SLOT_05', 'SLOT_06'];
 
-// Set VITE_GAME_SERVER_URL (or REACT_APP_GAME_SERVER_URL, adjust to your
-// bundler's env prefix) in your frontend's environment. Falls back to the
-// known Render deployment so local dev "just works" without extra setup.
+// Falls back to the known Render deployment so the app "just works"
+// without extra env setup. To override, set EXPO_PUBLIC_GAME_SERVER_URL
+// in a .env file at project root (Expo only inlines EXPO_PUBLIC_-
+// prefixed vars at build time).
+// NOTE: this constant is NOT exported. App.js's account-deletion call
+// currently duplicates this URL locally rather than importing it —
+// consider exporting SERVER_URL from here if that drifts.
 const SERVER_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GAME_SERVER_URL) ||
-  'https://manifix-ai-core.onrender.com';
+  process.env.EXPO_PUBLIC_GAME_SERVER_URL || 'https://manifix-ai-core.onrender.com';
 
-const ACK_TIMEOUT_MS = 8000;
+const ACK_TIMEOUT_MS = 30000;
 
 let socket = null;
 let currentRoomCode = null;
@@ -84,10 +135,18 @@ let lastKnownVeggies = [];
 
 // --- Connection lifecycle ---------------------------------------------
 
-// Call once (e.g. from App.jsx on mount) before joinRoom(). Safe to call
-// multiple times — reuses the existing connection if already open.
+// Call once (e.g. from App.js on mount) before joinRoom(). Safe to call
+// multiple times — reuses the existing connection if one already exists,
+// REGARDLESS of whether its handshake has finished yet. This is the fix
+// for the MapView-never-advances bug: previously this only reused a
+// socket once socket.connected was true, which meant two call sites
+// racing during the join flow (subscribeToRoom() from App.js's roomCode
+// effect, and joinRoom() itself) could each create their OWN socket if
+// the first one hadn't finished connecting yet — splitting event
+// listeners from the connection that actually joined the room. Reusing
+// on mere existence (not connected-ness) guarantees a single instance.
 export function connectSocket() {
-  if (socket && socket.connected) return socket;
+  if (socket) return socket;
 
   socket = io(SERVER_URL, {
     transports: ['polling', 'websocket'],
@@ -97,9 +156,13 @@ export function connectSocket() {
     reconnectionDelayMax: 5000,
   });
 
-  // Exposed for any code (or older components) that still reads
-  // window.socket directly for .on()/.off() subscriptions.
-  window.socket = socket;
+  // Exposed for any code that still reads window.socket directly.
+  // Guarded because `window` doesn't reliably exist in React Native —
+  // native code should use getSocket() / an explicit socket prop
+  // instead (see GameCanvas.jsx, which takes socket as a prop).
+  if (typeof window !== 'undefined') {
+    window.socket = socket;
+  }
 
   // Persistent cache listeners: kept alive for the life of the socket, so
   // fetchPlayers()/fetchVeggies() always have the latest broadcast to hand
@@ -125,7 +188,9 @@ export function disconnectSocket() {
     currentRoomCode = null;
     lastKnownPlayers = [];
     lastKnownVeggies = [];
-    if (window.socket) delete window.socket;
+    if (typeof window !== 'undefined' && window.socket) {
+      delete window.socket;
+    }
   }
 }
 
@@ -134,16 +199,6 @@ export function getSocket() {
 }
 
 // DEPRECATED COMPATIBILITY SHIM — do not build new code against this.
-//
-// initLocalSocketBridge() existed in the old localStorage-based
-// gameClient.js to set up a fake window.socket whose .emit() just called
-// local functions directly (see the file-header note above for why that
-// approach couldn't support real cross-device multiplayer). App.jsx still
-// imports it. Rather than leave the build broken, this now simply opens
-// the real socket.io connection — the same thing connectSocket() does —
-// so existing call sites keep working, but nothing "local" is bridged
-// anymore. Once App.jsx is updated to call connectSocket() directly, this
-// export (and the App.jsx import of it) can be deleted.
 export function initLocalSocketBridge() {
   return connectSocket();
 }
@@ -170,8 +225,7 @@ function emitAndWaitOnce(eventName, payload, successEvent, errorEvent) {
     function onError(data) {
       cleanup();
       // Resolve (not reject) so callers can branch on { success: false,
-      // message } the same way the old localStorage version's callers do,
-      // instead of needing try/catch everywhere.
+      // message } instead of needing try/catch everywhere.
       resolve({ success: false, ...data });
     }
     function cleanup() {
@@ -217,13 +271,14 @@ function waitForFirstBroadcast(eventName, getCached, timeoutMs = ACK_TIMEOUT_MS)
 // --- Room lifecycle ------------------------------------------------------
 
 // roomCode: string. lat/lng: numbers (used only when creating a brand new
-// room, to seed vegetable spawn origin). name: player's typed call sign —
-// forwarded up front so it's available even before claimCharacter().
-export async function joinRoom(roomCode, lat, lng, name) {
+// room, to seed vegetable spawn origin). name: player's typed call sign.
+// deviceUUID: forwarded in the 'join-room' payload — see file header for
+// what server.js keys off it. Passing undefined is safe (server-side
+// null-checks degrade gracefully) but every caller should pass a real,
+// persisted UUID whenever one is available.
+export async function joinRoom(roomCode, lat, lng, name, deviceUUID) {
   connectSocket();
 
-  // Wait for the socket to actually be connected before emitting, since
-  // connectSocket() may have just opened it.
   if (!socket.connected) {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Socket failed to connect')), ACK_TIMEOUT_MS);
@@ -236,32 +291,19 @@ export async function joinRoom(roomCode, lat, lng, name) {
 
   const result = await emitAndWaitOnce(
     'join-room',
-    { room: roomCode, lat, lng, name },
+    { room: roomCode, lat, lng, name, deviceUUID },
     'room-joined',
     'room-error'
   );
 
   if (result && result.room) {
     currentRoomCode = result.room;
-    // server.js identifies players by socket.id (see slot-confirmed's
-    // player_id field, and room.players being keyed by socket.id in
-    // server.js) — attach it here so App.jsx's
-    // setMyPlayerId(joined.playerId) / initLocalSocketBridge(joined.playerId)
-    // have a real value to use instead of undefined.
     result.playerId = socket.id;
   }
 
   return result;
 }
 
-// Mirrors the old fetchTakenCharacters() signature/shape so callers (e.g.
-// CharacterSelect.jsx's initial load) don't need to change: returns an
-// object keyed by slot id, value = taken player's name or false.
-// The live server keeps this pushed via 'players-update' broadcasts
-// (see subscribeToRoom below); this one-shot version derives the same
-// shape from the most recent players-update the socket has seen, for
-// components that want an immediate snapshot on mount before the first
-// broadcast tick arrives.
 export async function fetchTakenCharacters(roomCode) {
   const taken = { SLOT_01: false, SLOT_02: false, SLOT_03: false, SLOT_04: false, SLOT_05: false, SLOT_06: false };
   lastKnownPlayers.forEach((p) => {
@@ -271,25 +313,17 @@ export async function fetchTakenCharacters(roomCode) {
   return taken;
 }
 
-// One-shot snapshot of the room's current player list, in the same array
-// shape server.js broadcasts on 'players-update':
-//   { id, name, slot_id, slotId, latitude, longitude, mode, score }[]
-// Resolves immediately if a broadcast has already been seen; otherwise
-// waits (up to ACK_TIMEOUT_MS) for the next tick, then falls back to an
-// empty array rather than hanging forever.
 export async function fetchPlayers(roomCode) {
   connectSocket();
   return waitForFirstBroadcast('players-update', () => lastKnownPlayers);
 }
 
-// One-shot snapshot of the room's current vegetables, in the same array
-// shape server.js broadcasts on 'veggies-update':
-//   { id, lat, lng, latitude, longitude, bearing, type, veggie_type }[]
 export async function fetchVeggies(roomCode) {
   connectSocket();
   return waitForFirstBroadcast('veggies-update', () => lastKnownVeggies);
 }
 
+// DEPRECATED — server.js no longer implements 'claim-character' at all.
 export async function claimCharacter(roomCode, slotId, name) {
   if (!SLOT_IDS.includes(slotId)) {
     return { success: false, message: 'invalid_slot' };
@@ -298,35 +332,15 @@ export async function claimCharacter(roomCode, slotId, name) {
     return { success: false, message: 'not_connected' };
   }
 
-  const result = await emitAndWaitOnce(
-    'claim-character',
-    { character: slotId, name },
-    'slot-confirmed',
-    'character-error'
+  console.warn(
+    '[gameClient] claimCharacter() is deprecated — server.js auto-assigns slots inside join-room and has no "claim-character" handler. This call will time out.'
   );
 
-  // server.js emits { success: true, slot_id, player_id } on success, or
-  // { message } (no explicit success flag) on 'character-error' — the
-  // emitAndWaitOnce error branch above already spreads { success: false,
-  // ...data }, so failed claims come back as { success: false, message }.
-  // NOTE: this function always RESOLVES, never throws, on a failed claim
-  // — a caller doing `if (!res.success) throw new Error(res.message)`
-  // is not this file. If you're chasing a thrown "Role taken by a
-  // friend!" error, that throw happens somewhere else in the codebase
-  // (search for "auto-claim" — that's not a string used anywhere here).
-  return result;
+  return emitAndWaitOnce('claim-character', { character: slotId, name }, 'slot-confirmed', 'character-error');
 }
 
-// --- Live gameplay ---------------------------------------------------
+// --- Live gameplay -------------------------------------------------------
 
-// FIX (hybrid gps/indoor wiring): now accepts an optional third
-// `extra` object ({ accuracy, heading }) and forwards it alongside
-// lat/lng. server.js's update-location handler already reads both
-// fields (see its isFiniteNumber(data.accuracy)/data.heading checks) —
-// previously this function only ever sent { lat, lng }, so any caller
-// routing through here (MapView.jsx's throttled writer, below) silently
-// never sent accuracy/heading at all, regardless of what App.jsx's own
-// direct-emit GPS watcher was doing.
 export function updateLocation(lat, lng, extra = {}) {
   if (!socket || !socket.connected) return;
   const { accuracy, heading } = extra;
@@ -338,12 +352,6 @@ export function updateLocation(lat, lng, extra = {}) {
   });
 }
 
-// FIX (hybrid gps/indoor wiring): sendIfDue now accepts and forwards an
-// optional third arg ({ accuracy, heading }) through to updateLocation().
-// Existing call sites that only pass (lat, lng) keep working unchanged
-// (extra defaults to {}, so accuracy/heading are simply omitted, same as
-// before this fix) — callers that want hybrid-mode detection to work
-// need to start passing it, see MapView.jsx.
 export function makeThrottledLocationWriter({ minIntervalMs = 3000, minDistanceMeters = 5 } = {}) {
   let lastSentAt = 0;
   let lastSentPos = null;
@@ -374,24 +382,40 @@ export function makeThrottledLocationWriter({ minIntervalMs = 3000, minDistanceM
   };
 }
 
-// Fire-and-forget-from-the-caller's-perspective, but internally waits for
-// the server's 'capture-result' matching this vegId so GameCanvas.jsx's
-// CaptureThrow animation (which listens for 'capture-result' globally via
-// window.socket.on) still resolves the same way it did with the old
-// localStorage bridge.
 export function attemptCapture(vegId, quality) {
   if (!socket || !socket.connected) return;
   socket.emit('capture-attempt', { vegId, quality });
 }
 
-// --- Subscriptions ------------------------------------------------------
+// Requests a rematch in the current room. Fire-and-forget, same pattern
+// as attemptCapture()/updateLocation() — server.js's 'request-rematch'
+// handler responds by broadcasting 'rematch-starting' to the room and,
+// if enough players remain, kicking off the normal tick/go countdown
+// again (both already wired via subscribeToRoom()'s onTick/onGo). No-op
+// if there's no connected socket, matching the other fire-and-forget
+// emitters above.
+export function requestRematch() {
+  if (!socket || !socket.connected) return;
+  socket.emit('request-rematch');
+}
 
-// Replaces the old cross-tab localStorage subscribeToRoom(). The live
-// server already pushes 'players-update' and 'veggies-update' to every
-// socket in the room once per tick (TICK_MS in server.js), so this just
-// wires those straight through, plus keeps lastKnownPlayers current for
-// fetchTakenCharacters()'s snapshot use above.
-export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeggiesUpdate, onTick, onGo, onRoundEnd, onGlitch, onCountdownCancelled } = {}) {
+// --- Subscriptions ---------------------------------------------------------
+
+export function subscribeToRoom(
+  roomCode,
+  {
+    onRoomUpdate,
+    onPlayersUpdate,
+    onVeggiesUpdate,
+    onTick,
+    onGo,
+    onRoundEnd,
+    onGlitch,
+    onCountdownCancelled,
+    onTimingModeUpdated,
+    onPromotedToLeader,
+  } = {}
+) {
   if (!socket) connectSocket();
 
   function handlePlayersUpdate(players) {
@@ -401,12 +425,6 @@ export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeg
 
   function handleVeggiesUpdate(veggies) {
     if (!onVeggiesUpdate) return;
-    // GameCanvas.jsx expects an object keyed by veggie id with
-    // lat/lng/species fields (matching the old normalizeVeggie() shape);
-    // server.js broadcasts an array with lat/lng/type/bearing already
-    // present, so just re-key it here rather than changing every
-    // consumer. `bearing` is passed through untouched — MapView.jsx's
-    // indoor-mode branch reads it directly off each veggie.
     const asObject = {};
     (veggies || []).forEach((v) => {
       asObject[v.id] = { ...v, species: v.type };
@@ -421,10 +439,9 @@ export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeg
   if (onRoundEnd) socket.on('round-end', onRoundEnd);
   if (onGlitch) socket.on('glitch-pulse', onGlitch);
   if (onCountdownCancelled) socket.on('match-countdown-cancelled', onCountdownCancelled);
+  if (onTimingModeUpdated) socket.on('timing-mode-updated', onTimingModeUpdated);
+  if (onPromotedToLeader) socket.on('promoted-to-leader', onPromotedToLeader);
 
-  // room-joined already fired once during joinRoom(); onRoomUpdate here is
-  // for components that mount subscribeToRoom after the join already
-  // happened and want the geofence info re-delivered on reconnect.
   if (onRoomUpdate) {
     socket.on('room-joined', onRoomUpdate);
   }
@@ -437,6 +454,8 @@ export function subscribeToRoom(roomCode, { onRoomUpdate, onPlayersUpdate, onVeg
     if (onRoundEnd) socket.off('round-end', onRoundEnd);
     if (onGlitch) socket.off('glitch-pulse', onGlitch);
     if (onCountdownCancelled) socket.off('match-countdown-cancelled', onCountdownCancelled);
+    if (onTimingModeUpdated) socket.off('timing-mode-updated', onTimingModeUpdated);
+    if (onPromotedToLeader) socket.off('promoted-to-leader', onPromotedToLeader);
     if (onRoomUpdate) socket.off('room-joined', onRoomUpdate);
   };
 }

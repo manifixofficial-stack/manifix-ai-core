@@ -329,7 +329,7 @@ export default function Terms() {
           fontFamily: G.mono, fontSize: "9px", color: G.green,
           letterSpacing: "0.18em", marginBottom: "22px",
         }}>
-          📋 LAST UPDATED · JULY 17, 2026
+          📋 LAST UPDATED · JULY 23, 2026
         </div>
 
         <h1 style={{
@@ -399,15 +399,13 @@ export default function Terms() {
             <SectionLabel num="01" text="Introduction" />
             <H2>Welcome to Vegge Go</H2>
             <Para>
-              Vegge Go is a mobile and VR augmented-reality game developed by Manifix AI Studio. We combine
-              real-world AR exploration, AI-driven in-game features, and a global community of players in one
-              connected experience.
+              Vegge Go is a mobile augmented-reality game developed by Manifix AI Studio. We combine
+              real-world AR exploration with a global community of players in one connected experience.
             </Para>
             <Para mt={14}>
-              These Terms and Conditions govern your access to and use of Vegge Go, including the mobile and
-              VR applications, sign-in via Google OAuth, AR camera features, AI-powered gameplay features, and
-              in-game purchases. By downloading, installing, or playing Vegge Go, you agree to these Terms and
-              all applicable laws.
+              These Terms and Conditions govern your access to and use of Vegge Go, including the mobile
+              application, sign-in via Google OAuth, AR camera features, and in-game purchases. By downloading,
+              installing, or playing Vegge Go, you agree to these Terms and all applicable laws.
             </Para>
             <InfoCard>
               Vegge Go is committed to a secure, trusted environment. We prioritize player privacy, account
@@ -429,9 +427,9 @@ export default function Terms() {
                 ["Affiliate", "An entity that controls, is controlled by, or is under common control with a party, where \"control\" means ownership of 50% or more of the shares or voting securities."],
                 ["Country", "Andhra Pradesh, India"],
                 ["Company / Studio", "Manifix AI Studio, Andhra Pradesh 530008, India. Also referred to as \"We\", \"Us\", or \"Our\"."],
-                ["Device", "Any smartphone, headset, tablet, or other hardware — including VR/AR-capable devices — used to access and play Vegge Go."],
+                ["Device", "Any smartphone, tablet, or other hardware used to access and play Vegge Go."],
                 ["Device UUID", "A unique identifier assigned to your Device, used to enforce fair play and secure your Account."],
-                ["Service", "The Vegge Go mobile and VR game and any associated services accessible from www.manifixai.com."],
+                ["Service", "The Vegge Go mobile game and any associated services accessible from www.manifixai.com."],
                 ["Terms and Conditions", "These Terms and Conditions, including any documents expressly incorporated by reference, forming the entire agreement between You and the Studio regarding the Service."],
                 ["Third-Party Social Media Service", "Any services or content provided by a third party that is displayed, included, or linked to through the Service."],
                 ["Virtual Items", "In-game currency, items, or content purchased or earned within Vegge Go, which have no real-world monetary value and cannot be redeemed for cash."],
@@ -470,9 +468,9 @@ export default function Terms() {
               where applicable, to make in-game purchases.
             </InfoCard>
             <InfoCard>
-              <strong>Play It Safe:</strong> Vegge Go uses your Device&apos;s camera for AR gameplay. Always stay
-              aware of your real-world surroundings — traffic, obstacles, and other people — while playing, and
-              avoid using AR features in unsafe locations.
+              <strong>Play It Safe:</strong> Vegge Go uses your Device&apos;s camera and location for AR gameplay.
+              Always stay aware of your real-world surroundings — traffic, obstacles, and other people — while
+              playing, and avoid using AR features in unsafe locations.
             </InfoCard>
             <Para mt={16}>
               Your access to and use of the Service is also subject to our{" "}
@@ -579,9 +577,9 @@ export default function Terms() {
             </Para>
             <BulletList items={[
               "Damages for loss of profits, loss of data, or other information",
-              "Business interruption, personal injury, or physical injury sustained while playing in AR/VR mode",
+              "Business interruption, personal injury, or physical injury sustained while playing in AR mode",
               "Loss of privacy arising from use of or inability to use the Service",
-              "Damages related to third-party software, hardware, or headsets used with the Service",
+              "Damages related to third-party software or hardware used with the Service",
               "Any other damages arising out of or in connection with any provision of these Terms",
             ]} />
             <Para mt={14}>
@@ -604,7 +602,7 @@ export default function Terms() {
               "All implied warranties of merchantability, fitness for a particular purpose, title, and non-infringement",
               "Warranties that may arise out of course of dealing, performance, or trade practice",
               "Any warranty that the Service will meet your requirements or achieve intended results",
-              "Any warranty that the Service will be compatible or work with any other software, systems, devices, or VR/AR hardware",
+              "Any warranty that the Service will be compatible or work with any other software, systems, or devices",
               "Any warranty that the Service will operate without interruption or be error-free",
               "Any warranty that the Service is free of viruses, malware, trojan horses, worms, or other harmful components",
             ]} />
@@ -739,7 +737,7 @@ export default function Terms() {
 
               {[
                 ["Studio",      "Manifix AI Studio"],
-                ["Game",        "Vegge Go (Mobile & VR AR Game)"],
+                ["Game",        "Vegge Go (Mobile AR Game)"],
                 ["Address",     "Visakhapatnam, Andhra Pradesh, India"],
                 ["Email",       "manifixofficial@gmail.com"],
                 ["Website",     "www.manifixai.com"],

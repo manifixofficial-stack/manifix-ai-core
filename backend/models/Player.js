@@ -1,19 +1,20 @@
+// models/Player.js
+//
+// New model for this revision — durable Google-identity accounts, separate
+// from Wallet (which is keyed on deviceUUID and stays as the ticket/balance
+// store). A Player survives a deviceUUID change (app reinstall, new phone);
+// Wallet does not. googleId is the real identity anchor here.
+
 const mongoose = require('mongoose');
 
-const WalletSchema = new mongoose.Schema({
-  player_id: { type: String, required: true, unique: true, index: true },
-  balances: {
-    free_tickets: { type: Number, default: 3, min: 0 }, // 🎁 3 Welcome Ticket Shards granted automatically
-    premium_passes: { type: Number, default: 0, min: 0 }
-  },
-  transaction_history: [{
-    invoice_id: { type: String, required: true }, // Razorpay Payment Ref Token
-    amount_paid: { type: Number, required: true },
-    currency: { type: String, default: 'INR' },
-    status: { type: String, enum: ['created', 'settled', 'failed'], default: 'created' },
-    timestamp: { type: Date, default: Date.now }
-  }],
-  updated_at: { type: Date, default: Date.now }
+const PlayerSchema = new mongoose.Schema({
+  googleId: { type: String, required: true, unique: true, index: true },
+  email: { type: String },
+  name: { type: String },
+  deviceUUID: { type: String, index: true },
+  deviceOS: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  lastLoginAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('Wallet', WalletSchema);
+module.exports = mongoose.model('Player', PlayerSchema);
