@@ -1,5 +1,5 @@
 package com.manifixai.veggiego
-import com.viromedia.bridge.ReactViroPackage
+import com.manifixai.veggiego.GeospatialPackage
 
 import android.app.Application
 import android.content.res.Configuration
