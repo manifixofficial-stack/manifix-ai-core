@@ -1,4 +1,4 @@
-package com.manifixai.veggiego
+package com.veggiego.geospatial
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
@@ -14,3 +14,8 @@ class GeospatialPackage : ReactPackage {
         return emptyList()
     }
 }
+
+// Register this package in your MainApplication.kt's getPackages() list:
+//
+//   override fun getPackages(): List<ReactPackage> =
+//       PackageList(this).packages.apply { add(GeospatialPackage()) }
