@@ -21,17 +21,8 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Share, ScrollView } from 'react-native';
-import { ViroARSceneNavigator, ViroUtils } from '@reactvision/react-viro';
+import { ViroARSceneNavigator } from '@reactvision/react-viro';
 import GameCanvasARScene from './GameCanvasARScene';
-
-// Real pre-check — runs BEFORE ViroARSceneNavigator ever mounts. Without
-// this, mounting the navigator directly triggers ARCore's native
-// "Installing Google Play Services for AR..." flow, which on unsupported
-// devices hard-navigates the whole app out to the Play Store page. No
-// JS-side timeout can recover from that once it happens — the app has
-// already lost focus to Play Store. Checking first avoids ever starting
-// that native flow on unsupported hardware.
-const { isARSupportedOnDevice } = ViroUtils;
 
 const FALLBACK_SESSION_SECONDS = 55;
 const TOTAL_ROUNDS = 3;
@@ -197,26 +188,14 @@ export default function GameCanvas({
       setArStatus('unavailable');
       return undefined;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = await isARSupportedOnDevice();
-        if (!cancelled) {
-          setArUnavailable(!result?.isARSupported);
-          setArStatus(result?.isARSupported ? 'loading' : 'unavailable');
-        }
-      } catch (err) {
-        // If the check itself throws, treat as unsupported rather than
-        // risk mounting the navigator and triggering the native flow.
-        if (!cancelled) {
-          setArUnavailable(true);
-          setArStatus('unavailable');
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    // Real ARCore check intentionally left out for now — importing
+    // ViroUtils crashed at module load in this project's installed
+    // @reactvision/react-viro version (isARSupportedOnDevice was
+    // undefined). Re-add once confirmed working against the exact
+    // installed version.
+    setArUnavailable(true);
+    setArStatus('unavailable');
+    return undefined;
   }, []);
 
   // Secondary safety net: even once ViroARSceneNavigator is mounted (AR
