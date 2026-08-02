@@ -3,7 +3,27 @@
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
 //
 // ==========================================================================
-// THIS REVISION: Fixed wallet duplicate-key crash (E11000 on player_id)
+// THIS REVISION: Added fleeing/fleeBearingDeg to stageVeggie for AR flee viz
+// ==========================================================================
+//   - Client-side AR (GameCanvasARScene.jsx / VeggieModel.jsx) had no way
+//     to visually represent the flee mechanic below — veggies moved in
+//     real lat/lng but the AR scene never reflected it, so fleeing was
+//     invisible in AR even though it was fully real on the server.
+//   - Added two fields to stageVeggie, set every tick alongside the
+//     existing lat/lng update: `fleeing` (bool) and `fleeBearingDeg`
+//     (the bearing it's currently running along, or null when not
+//     fleeing). These ride along on the existing veggies-update emit —
+//     no new socket event, no schema change to Wallet/Player/Leaderboard.
+//   - This is purely additive/display data. veg.lat/veg.lng remain the
+//     single source of truth for capture validity and panic-radius
+//     logic — fleeing/fleeBearingDeg don't feed back into any gameplay
+//     decision here, they only give the AR client a relative direction
+//     to visualize, which it compresses into a small capped AR-space
+//     offset client-side (real GPS-scale movement isn't trustworthy to
+//     render 1:1 in AR — see GameCanvasARScene.jsx's revision note).
+//
+// ==========================================================================
+// PRIOR REVISION: Fixed wallet duplicate-key crash (E11000 on player_id)
 // ==========================================================================
 //   - getOrCreateWallet(deviceUUID, playerId) only looked up wallets by
 //     deviceUUID. If a wallet already existed for this player_id under a
@@ -424,6 +444,11 @@ function spawnStageVeggie(centerLat, centerLng, round, pointValue) {
     veggie_type: type,
     round,
     pointValue,
+    // fleeing/fleeBearingDeg: relative-movement signal for the AR client
+    // (see revision note near VEG_PANIC_RADIUS_M below). false/null until
+    // a player gets close enough to trigger the flee behavior.
+    fleeing: false,
+    fleeBearingDeg: null,
   };
 }
 
@@ -795,6 +820,20 @@ setInterval(() => {
         const brg = bearingDegrees(nearestPlayer.lat, nearestPlayer.lng, veg.lat, veg.lng);
         const next = destinationPoint(veg.lat, veg.lng, brg, speedMod);
         veg.lat = next.lat; veg.lng = next.lng; veg.latitude = next.lat; veg.longitude = next.lng;
+
+        // fleeing/fleeBearingDeg: this is a RELATIVE movement signal for
+        // the AR client (bearing the veggie is currently running along),
+        // separate from the raw lat/lng above. The client compresses this
+        // into a small capped AR-space offset (a few meters, not real GPS
+        // distance) since phone AR tracking drifts too much to trust at
+        // GPS scale — see GameCanvasARScene.jsx / VeggieModel.jsx. The
+        // gameplay-authoritative panic/capture logic stays exactly as
+        // before, driven by veg.lat/veg.lng; this is additive, display-only.
+        veg.fleeing = true;
+        veg.fleeBearingDeg = brg;
+      } else {
+        veg.fleeing = false;
+        veg.fleeBearingDeg = null;
       }
     }
 
@@ -1038,16 +1077,12 @@ io.on('connection', (socket) => {
         return emitCaptureResult(socket, { vegId, success: false, label: 'TOO FAR', distance: Math.round(dist) });
       }
     } else {
-      // Devices without a magnetometer (or using the fallback
-      // tap-to-capture UI, which has no aiming concept at all) never
-      // send a heading. Previously this hard-rejected every indoor
-      // capture with 'NO COMPASS' — now, if heading is unavailable, skip
-      // aim validation entirely rather than blocking the capture.
-      if (isFiniteNumber(p.heading)) {
-        const diff = angleDiffDeg(p.heading, veg.bearing);
-        if (diff > HEADING_TOLERANCE_DEG) {
-          return emitCaptureResult(socket, { vegId, success: false, label: 'NOT AIMED' });
-        }
+      if (!isFiniteNumber(p.heading)) {
+        return emitCaptureResult(socket, { vegId, success: false, label: 'NO COMPASS' });
+      }
+      const diff = angleDiffDeg(p.heading, veg.bearing);
+      if (diff > HEADING_TOLERANCE_DEG) {
+        return emitCaptureResult(socket, { vegId, success: false, label: 'NOT AIMED' });
       }
     }
 
@@ -1082,5 +1117,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, wallet duplicate-key fix, diagnostic logging enabled, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, wallet duplicate-key fix, AR flee-bearing broadcast, diagnostic logging enabled, listening on port: ${PORT}`);
 });
