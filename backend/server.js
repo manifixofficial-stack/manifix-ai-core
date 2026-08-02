@@ -3,7 +3,25 @@
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
 //
 // ==========================================================================
-// THIS REVISION: Fixed wallet creation crash during Google Sign-In
+// THIS REVISION: Fixed wallet duplicate-key crash (E11000 on player_id)
+// ==========================================================================
+//   - getOrCreateWallet(deviceUUID, playerId) only looked up wallets by
+//     deviceUUID. If a wallet already existed for this player_id under a
+//     DIFFERENT/stale deviceUUID (re-testing sign-in, switching devices,
+//     deviceUUID regenerated), the deviceUUID lookup missed it and the
+//     function tried to .save() a brand-new wallet with a player_id that
+//     already exists — which the unique index on player_id (player_id_1)
+//     rejected with:
+//       E11000 duplicate key error collection: manifix.wallets index:
+//       player_id_1 dup key: { player_id: "..." }
+//   - Fix: when no wallet is found by deviceUUID and a playerId was
+//     passed, also look up by player_id. If found, re-link it to the
+//     current deviceUUID and reuse it (preserving the player's existing
+//     balance) instead of creating a duplicate. Only create a new wallet
+//     doc if neither lookup finds one.
+//
+// ==========================================================================
+// PRIOR REVISION: Fixed wallet creation crash during Google Sign-In
 // ==========================================================================
 //   - /api/auth/google was calling getOrCreateWallet(deviceUUID) without a
 //     player_id, but the Wallet schema requires player_id. This threw
@@ -146,16 +164,29 @@ if (!GOOGLE_CLIENT_ID) {
 // GET /api/wallet/:deviceUUID still works), but are no longer called from
 // join-room or beginMatch — see revision note at top of file.
 //
-// FIX: playerId is now an optional second param, passed through into the
-// Wallet doc on creation. /api/auth/google passes player._id here since
-// the Wallet schema requires player_id — omitting it was throwing a
-// validation error that got mislabeled as "Invalid Google token" by the
-// outer catch block in that route.
+// FIX (this revision): also look up by player_id, not just deviceUUID.
+// Wallet has a unique index on player_id. If a wallet already exists for
+// this player under a different/stale deviceUUID (re-testing sign-in,
+// switching devices), the deviceUUID-only lookup would miss it and the
+// .save() below would throw E11000 duplicate key on player_id. Now: if
+// deviceUUID lookup misses and we have a playerId, check by player_id
+// too, and if found, re-link it to the current deviceUUID and reuse it
+// (preserving the existing balance) instead of creating a duplicate.
 async function getOrCreateWallet(deviceUUID, playerId = null) {
   let wallet = await Wallet.findOne({ deviceUUID });
+
+  if (!wallet && playerId) {
+    wallet = await Wallet.findOne({ player_id: playerId });
+    if (wallet) {
+      wallet.deviceUUID = deviceUUID;
+      await wallet.save();
+    }
+  }
+
   if (!wallet) {
     wallet = await new Wallet({ deviceUUID, player_id: playerId }).save();
   }
+
   return wallet;
 }
 
@@ -1047,5 +1078,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, wallet creation fix, diagnostic logging enabled, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, wallet duplicate-key fix, diagnostic logging enabled, listening on port: ${PORT}`);
 });
