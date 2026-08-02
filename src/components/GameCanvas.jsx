@@ -21,8 +21,17 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Share, ScrollView } from 'react-native';
-import { ViroARSceneNavigator } from '@reactvision/react-viro';
+import { ViroARSceneNavigator, ViroUtils } from '@reactvision/react-viro';
 import GameCanvasARScene from './GameCanvasARScene';
+
+// Real pre-check — runs BEFORE ViroARSceneNavigator ever mounts. Without
+// this, mounting the navigator directly triggers ARCore's native
+// "Installing Google Play Services for AR..." flow, which on unsupported
+// devices hard-navigates the whole app out to the Play Store page. No
+// JS-side timeout can recover from that once it happens — the app has
+// already lost focus to Play Store. Checking first avoids ever starting
+// that native flow on unsupported hardware.
+const { isARSupportedOnDevice } = ViroUtils;
 
 const FALLBACK_SESSION_SECONDS = 55;
 const TOTAL_ROUNDS = 3;
@@ -169,16 +178,58 @@ export default function GameCanvas({
   // show status. Same role arStatus played with UnityARView before.
   const [arStatus, setArStatus] = useState('loading');
 
-  // If AR never reaches 'ready' within this window (ARCore missing/
-  // uninstallable on this device), stop waiting and switch to the
-  // fallback tap-to-capture list instead of freezing on a loading screen.
-  const [arUnavailable, setArUnavailable] = useState(false);
+  // arUnavailable: null = still checking, true/false = known result.
+  // ViroARSceneNavigator only mounts once this is explicitly false —
+  // mounting it at all is what triggers ARCore's native install flow,
+  // so on unsupported devices we must never mount it in the first place.
+  //
+  // TEMP_SKIP_AR_CHECK: isARSupportedOnDevice() itself has been confirmed
+  // to trigger the same native "not compatible" Play Store redirect on
+  // unsupported hardware (known ViroReact issue, not fixable from here).
+  // Until that's resolved, force fallback mode unconditionally so the
+  // core capture loop is testable today. Flip this back to run the real
+  // check once testing on ARCore-supported hardware.
+  const TEMP_SKIP_AR_CHECK = true;
+  const [arUnavailable, setArUnavailable] = useState(TEMP_SKIP_AR_CHECK ? true : null);
+
+  useEffect(() => {
+    if (TEMP_SKIP_AR_CHECK) {
+      setArStatus('unavailable');
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await isARSupportedOnDevice();
+        if (!cancelled) {
+          setArUnavailable(!result?.isARSupported);
+          setArStatus(result?.isARSupported ? 'loading' : 'unavailable');
+        }
+      } catch (err) {
+        // If the check itself throws, treat as unsupported rather than
+        // risk mounting the navigator and triggering the native flow.
+        if (!cancelled) {
+          setArUnavailable(true);
+          setArStatus('unavailable');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Secondary safety net: even once ViroARSceneNavigator is mounted (AR
+  // reported as supported), if onReady never fires within this window
+  // (e.g. TRANSIENT/UNKNOWN result, flaky tracking init), fall back
+  // rather than sit on a frozen screen.
   const arStatusRef = useRef(arStatus);
   useEffect(() => {
     arStatusRef.current = arStatus;
   }, [arStatus]);
 
   useEffect(() => {
+    if (arUnavailable !== false) return undefined; // only run once navigator is actually mounted
     const timeoutId = setTimeout(() => {
       if (arStatusRef.current !== 'ready') {
         setArUnavailable(true);
@@ -186,7 +237,7 @@ export default function GameCanvas({
       }
     }, AR_READY_TIMEOUT_MS);
     return () => clearTimeout(timeoutId);
-  }, []);
+  }, [arUnavailable]);
 
   const [players, setPlayers] = useState([]);
 
@@ -358,7 +409,11 @@ export default function GameCanvas({
 
   return (
     <View style={styles.viewport}>
-      {!arUnavailable ? (
+      {arUnavailable === null ? (
+        <View style={styles.checkingWrap}>
+          <Text style={styles.checkingText}>Checking AR support…</Text>
+        </View>
+      ) : arUnavailable === false ? (
         <ViroARSceneNavigator
           style={StyleSheet.absoluteFill}
           autofocus
@@ -478,6 +533,9 @@ export default function GameCanvas({
 
 const styles = StyleSheet.create({
   viewport: { ...StyleSheet.absoluteFillObject, backgroundColor: '#04060a' },
+
+  checkingWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: '#04060a', alignItems: 'center', justifyContent: 'center' },
+  checkingText: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600' },
 
   fallbackWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: '#04060a', paddingTop: 140 },
   fallbackBanner: {
