@@ -101,12 +101,19 @@ export default function Login({ onLoginSuccess, deviceId }) {
 
     setSigningIn(true);
 
-    try {
+   try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      const userInfo = await GoogleSignin.signIn();
-      // userInfo: { idToken, serverAuthCode, scopes, user: { id, name, email, photo, ... } }
+      const response = await GoogleSignin.signIn();
+      // v13+ response shape: { type: 'success' | 'cancelled', data: { idToken, user, ... } }
 
-      // 🔍 DEBUG — remove once the missing-field cause is confirmed fixed.
+      if (response.type !== 'success') {
+        // user backed out of the picker — no alert needed
+        return;
+      }
+
+      const userInfo = response.data;
+
+      // 🔍 DEBUG — remove once confirmed working.
       console.log(
         '[Login] DEBUG deviceId:',
         deviceId,
@@ -115,18 +122,12 @@ export default function Login({ onLoginSuccess, deviceId }) {
       );
 
       if (!userInfo.idToken) {
-        // Isolates cause #2: Google Sign-In UI succeeded but returned no
-        // idToken. If this still fires after switching offlineAccess to
-        // true, the remaining suspect is the OAuth-client-project mismatch
-        // (Web/Android clients not in the same GCP project) — check
-        // console.cloud.google.com/apis/credentials.
         Alert.alert(
           'Sign-in incomplete',
-          'Google did not return an ID token. Check that the Web, Android debug, and Android release OAuth client IDs are all in the same Google Cloud project, and that GOOGLE_WEB_CLIENT_ID matches server.js\'s GOOGLE_CLIENT_ID.'
+          'Google did not return an ID token. Please try again.'
         );
         return;
       }
-
       const backendResponse = await fetch(AUTH_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
