@@ -1038,12 +1038,16 @@ io.on('connection', (socket) => {
         return emitCaptureResult(socket, { vegId, success: false, label: 'TOO FAR', distance: Math.round(dist) });
       }
     } else {
-      if (!isFiniteNumber(p.heading)) {
-        return emitCaptureResult(socket, { vegId, success: false, label: 'NO COMPASS' });
-      }
-      const diff = angleDiffDeg(p.heading, veg.bearing);
-      if (diff > HEADING_TOLERANCE_DEG) {
-        return emitCaptureResult(socket, { vegId, success: false, label: 'NOT AIMED' });
+      // Devices without a magnetometer (or using the fallback
+      // tap-to-capture UI, which has no aiming concept at all) never
+      // send a heading. Previously this hard-rejected every indoor
+      // capture with 'NO COMPASS' — now, if heading is unavailable, skip
+      // aim validation entirely rather than blocking the capture.
+      if (isFiniteNumber(p.heading)) {
+        const diff = angleDiffDeg(p.heading, veg.bearing);
+        if (diff > HEADING_TOLERANCE_DEG) {
+          return emitCaptureResult(socket, { vegId, success: false, label: 'NOT AIMED' });
+        }
       }
     }
 
