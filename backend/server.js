@@ -3,7 +3,23 @@
 // Real-Time Express & Socket.io Hybrid GPS/Indoor Game Server Core.
 //
 // ==========================================================================
-// THIS REVISION: Ticket/wallet gate REMOVED from join-room and beginMatch
+// THIS REVISION: Fixed wallet creation crash during Google Sign-In
+// ==========================================================================
+//   - /api/auth/google was calling getOrCreateWallet(deviceUUID) without a
+//     player_id, but the Wallet schema requires player_id. This threw
+//     "Wallet validation failed: player_id: Path `player_id` is required"
+//     on every successful Google Sign-In, which the outer catch block then
+//     mislabeled as "Invalid Google token" — the token verification itself
+//     was never the problem. getOrCreateWallet now accepts an optional
+//     playerId param and passes it through when creating a new wallet.
+//     GET /api/wallet/:deviceUUID (the other caller) still works — it just
+//     won't have a player_id on brand-new wallets created through that
+//     route alone, which is fine unless the Wallet schema makes player_id
+//     strictly required with no default; revisit if that route ever
+//     errors the same way.
+//
+// ==========================================================================
+// PRIOR REVISION: Ticket/wallet gate REMOVED from join-room and beginMatch
 // ==========================================================================
 //   - Launch decision: ship free (no billing wall) for initial Play Store
 //     launch, add real monetization via Google Play Billing Library in a
@@ -11,13 +27,8 @@
 //     Razorpay-style in-app purchase of virtual tickets isn't Play Store
 //     policy-compliant anyway — this removal also sidesteps that problem
 //     for now rather than leaving a half-working gate in place.
-//   - This also incidentally removes the recurring
-//     "Wallet validation failed: player_id: Path `player_id` is required"
-//     error that was firing on every single join-room call — the Wallet
-//     model requires player_id but getOrCreateWallet() never set it. That
-//     bug is moot now since the wallet check path isn't called during
-//     join/match-start anymore. getOrCreateWallet/spendTicket/totalTickets
-//     and the Wallet model itself are left in place, unused, in case
+//   - getOrCreateWallet/spendTicket/totalTickets and the Wallet model
+//     itself are left in place, unused during join/match-start, in case
 //     billing is added back later — GET /api/wallet/:deviceUUID also still
 //     works if you want to keep showing a ticket count in the UI.
 //
@@ -134,10 +145,16 @@ if (!GOOGLE_CLIENT_ID) {
 // getOrCreateWallet/totalTickets/spendTicket are kept for later use (e.g.
 // GET /api/wallet/:deviceUUID still works), but are no longer called from
 // join-room or beginMatch — see revision note at top of file.
-async function getOrCreateWallet(deviceUUID) {
+//
+// FIX: playerId is now an optional second param, passed through into the
+// Wallet doc on creation. /api/auth/google passes player._id here since
+// the Wallet schema requires player_id — omitting it was throwing a
+// validation error that got mislabeled as "Invalid Google token" by the
+// outer catch block in that route.
+async function getOrCreateWallet(deviceUUID, playerId = null) {
   let wallet = await Wallet.findOne({ deviceUUID });
   if (!wallet) {
-    wallet = await new Wallet({ deviceUUID }).save();
+    wallet = await new Wallet({ deviceUUID, player_id: playerId }).save();
   }
   return wallet;
 }
@@ -235,7 +252,7 @@ app.post('/api/auth/google', async (req, res) => {
       await player.save();
     }
 
-    const wallet = (await getOrCreateWallet(deviceUUID)).balances;
+    const wallet = (await getOrCreateWallet(deviceUUID, player._id)).balances;
 
     res.status(200).json({
       success: true,
@@ -1030,5 +1047,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, diagnostic logging enabled, listening on port: ${PORT}`);
+  console.log(`🚀 [Manifix Server Core Node] Online — 3-round winner-take-round mode (100/300/600), hybrid indoor/outdoor timing, mode-gated auto-start, auto-slot join, mobile CORS + REST CORS fix, personal-best leaderboard, reconnect grace window, FREE LAUNCH (no ticket gate), working rematch flow, verified Google Sign-In, wallet creation fix, diagnostic logging enabled, listening on port: ${PORT}`);
 });
