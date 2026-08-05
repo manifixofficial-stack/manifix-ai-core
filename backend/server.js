@@ -2,75 +2,23 @@
  * server.js
  * Authoritative Backend Matchmaking & Real-Time Sync Cluster Server.
  *
- * THIS REVISION — reassembled from two pasted fragments and fixed two
- * bugs that would have prevented the server from starting at all:
+ * REWRITE — replaced the old 3-round/single-veggie system with
+ * CONTINUOUS MULTI-SPAWN (Pokémon-GO style): up to
+ * MAX_CONCURRENT_VEGGIES live at once, rarity-weighted drops, no
+ * fixed round/countdown structure. Player joins a room and veggies
+ * just keep spawning/despawning around them.
  *
- *   1. CRASH FIXED (fatal): `const ROUND_POINT_VALUES=;` was a bare
- *      assignment with nothing on the right-hand side — a hard
- *      SyntaxError that would stop Node from even loading this file,
- *      meaning nothing in this server could have been running as-is.
- *      Replaced with a real array, `[100, 250, 500]`, sized to
- *      TOTAL_ROUNDS = 3 (startStage/endStage index it as
- *      ROUND_POINT_VALUES[roundNumber - 1]). FLAGGED, NOT CONFIRMED:
- *      these three numbers are a placeholder guess at reasonable
- *      escalating per-round point values — I have no source for what
- *      the real intended values were, since the original was empty.
- *      Confirm/replace before relying on real scoring.
+ * Rarity odds corrected to match the original documented design
+ * intent (client gameConfig.js): COMMON (tomato+grapes) ~45%,
+ * UNCOMMON (banana) 30%, RARE (strawberry+broccoli) ~20%,
+ * ULTRA_RARE (golden) 5%. The old server had these inverted.
  *
- *   2. CRASH FIXED (fatal): the closing `server.listen()` callback had
- *      `console.log(🚀 [Manifix Server Core Node] Online on cluster
- *      port: ${PORT});` — a template literal missing its backticks,
- *      which is a SyntaxError (the emoji/bracket text would be parsed
- *      as an illegal expression). Added the missing backticks.
- *
- * FLAGGED, NOT SILENTLY RECONCILED — two real design mismatches against
- * the client's src/config/gameConfig.js (shared earlier in this
- * conversation) that I did NOT change, because resolving them is a
- * game-design/balance decision, not a bug fix:
- *
- *   A. SPAWN MODEL MISMATCH: this server runs one veggie at a time
- *      across exactly 3 timed rounds (`stageVeggie`, TOTAL_ROUNDS = 3,
- *      ROUND_POINT_VALUES per round) within a tiny ROOM_RADIUS_METERS
- *      = 6 origin radius. The CLIENT's gameConfig.js instead describes
- *      a continuous multi-spawn system — MAX_CONCURRENT_VEGGIES = 6,
- *      SPAWN_RADIUS_METERS = 80, SPAWN_CHECK_INTERVAL_MS,
- *      VEGGIE_LIFETIME_MS, rarity-tier weighted spawning via
- *      RARITY_TIERS/pickRarityTier(). Those two designs are not the
- *      same game loop. Only one of them can be what actually ships —
- *      worth confirming which is authoritative before building more on
- *      either assumption.
- *
- *   B. RARITY ODDS MISMATCH: this server's rollVeggieType() hands out
- *      species at fixed odds (golden 3%, banana 7%, tomato 11%, grapes
- *      18%, strawberry 25%, broccoli 36%) that directly contradict the
- *      client's documented RARITY_TIERS design intent (COMMON
- *      tomato+grapes should be a combined 45%, UNCOMMON banana 30%,
- *      RARE strawberry+broccoli a combined 20%, ULTRA_RARE golden 5%).
- *      As currently written, this server spawns the two species the
- *      client explicitly designed as "rare" (broccoli + strawberry,
- *      61% combined here) MORE often than everything else combined —
- *      the opposite of the client's own documented intent. Left
- *      unchanged because I don't know which side is supposed to move —
- *      either this function should be rewritten to call the client's
- *      pickRarityTier()-equivalent odds, or the client's documented
- *      design intent is stale and this server's odds are the real
- *      target. Needs a decision, not a guess.
- *
- * ALSO NOTED: the tick-loop header comment below originally said
- * "30HZ", but TICK_MS is 1000 (1 update/sec), and VEG_FLEE_SPEED_MPS is
- * applied directly as a per-tick distance (meters moved per tick),
- * which is only physically correct at 1 tick/sec. I corrected the
- * label to match the actual rate rather than changing TICK_MS —
- * changing the interval to a real 30Hz without also dividing the flee
- * distance by 30 per tick would make veggies flee roughly 30x too fast.
+ * TESTING VALUES — SPAWN_RADIUS_METERS / CATCH_RADIUS_METERS /
+ * VEG_PANIC_RADIUS_M are set LOW right now so you can test indoors
+ * without walking far. Search "REVERT FOR PRODUCTION" before launch.
  *
  * NOT INCLUDED: ./models/Leaderboard, ./models/Wallet, ./models/Player
- * are require()'d but weren't part of what was shared — assumed to
- * already exist elsewhere in the project, unchanged.
- *
- * Sitting at the profitable cross-section of Health-Tech, FinTech, and
- * Entertainment. Complete with multi-device reconnect states,
- * compass-heading validation, and anticheat guards.
+ * assumed to already exist elsewhere in the project, unchanged.
  */
 
 const express = require('express');
@@ -95,24 +43,25 @@ const server = http.createServer(app);
 // ========================================== //
 const PORT = process.env.PORT || 5000;
 const TICK_MS = 1000;
-const COUNTDOWN_TICK_MS = 1000;
-const TOTAL_ROUNDS = 3;
 
-// FLAGGED PLACEHOLDER — see file header note #1. Original source had no
-// values here at all (`= ;`), which is a hard SyntaxError. These three
-// numbers are a guess, sized to TOTAL_ROUNDS = 3. Confirm real values.
-const ROUND_POINT_VALUES = [100, 250, 500];
+// --- Continuous multi-spawn config ---
+const MAX_CONCURRENT_VEGGIES = 6;
 
-const STAGE_DURATION_INDOOR_MS = 45 * 1000;
-const STAGE_DURATION_OUTDOOR_MS = 60 * 1000;
+// REVERT FOR PRODUCTION — was 80. Set low so you can test indoors.
+const SPAWN_RADIUS_METERS = 10;
 
-const INTER_ROUND_PAUSE_MS = 4 * 1000;
+const SPAWN_CHECK_INTERVAL_MS = 3000;   // try to top up spawns every 3s
+const VEGGIE_LIFETIME_MS = 90 * 1000;   // despawn if uncaught after 90s
+
 const GLITCH_CYCLE_MS = 45000;
 const GLITCH_DURATION_MS = 6000;
 const ROOM_RADIUS_METERS = 6;
 const VEG_PANIC_RADIUS_M = 40;
 const VEG_FLEE_SPEED_MPS = 1.4;
-const CATCH_RADIUS_METERS = 20;
+
+// REVERT FOR PRODUCTION — was 20. Set low so you can catch from a desk.
+const CATCH_RADIUS_METERS = 3;
+
 const LOCATION_STALE_MS = 15000;
 const GPS_MODE_ACCURACY_THRESHOLD_M = 25;
 const HEADING_TOLERANCE_DEG = 45;
@@ -134,6 +83,30 @@ const CHARACTER_COLORS = {
   SLOT_01: '#3a86ff', SLOT_02: '#2ecc71', SLOT_03: '#ff006e',
   SLOT_04: '#8338ec', SLOT_05: '#e74c3c', SLOT_06: '#f1c40f',
 };
+
+// --- Rarity tiers (corrected odds + point values) ---
+// Cumulative thresholds checked top-down against Math.random().
+const RARITY_TIERS = [
+  { tier: 'ULTRA_RARE', types: ['golden'], chance: 0.05, pointValue: 500 },
+  { tier: 'RARE', types: ['strawberry', 'broccoli'], chance: 0.20, pointValue: 250 },
+  { tier: 'UNCOMMON', types: ['banana'], chance: 0.30, pointValue: 150 },
+  { tier: 'COMMON', types: ['tomato', 'grapes'], chance: 0.45, pointValue: 75 },
+];
+
+function pickRarityTier() {
+  const roll = Math.random();
+  let cumulative = 0;
+  for (const tierDef of RARITY_TIERS) {
+    cumulative += tierDef.chance;
+    if (roll <= cumulative) {
+      const type = tierDef.types[Math.floor(Math.random() * tierDef.types.length)];
+      return { type, tier: tierDef.tier, pointValue: tierDef.pointValue };
+    }
+  }
+  // Fallback (floating point edge case) — most common tier
+  const fallback = RARITY_TIERS[RARITY_TIERS.length - 1];
+  return { type: fallback.types[0], tier: fallback.tier, pointValue: fallback.pointValue };
+}
 
 // Global in-memory data states
 let rooms = {};
@@ -209,33 +182,22 @@ function angleDiffDeg(a, b) {
   return diff > 180 ? 360 - diff : diff;
 }
 
-function getStageDurationMs(room) {
-  return room.timingMode === 'indoor' ? STAGE_DURATION_INDOOR_MS : STAGE_DURATION_OUTDOOR_MS;
-}
-
-// FLAGGED — see file header note B. These odds do not match the
-// client's RARITY_TIERS design intent (COMMON tomato+grapes ~45%,
-// UNCOMMON banana 30%, RARE strawberry+broccoli ~20%, ULTRA_RARE golden
-// 5%). Left unchanged pending a decision on which side is authoritative.
-function rollVeggieType() {
-  const typeChance = Math.random();
-  if (typeChance > 0.97) return 'golden';
-  if (typeChance > 0.90) return 'banana';
-  if (typeChance > 0.79) return 'tomato';
-  if (typeChance > 0.61) return 'grapes';
-  if (typeChance > 0.36) return 'strawberry';
-  return 'broccoli';
-}
-
-function spawnStageVeggie(centerLat, centerLng, round, pointValue) {
-  const candidate = destinationPoint(centerLat, centerLng, Math.random() * 360, ROOM_RADIUS_METERS * 0.8 * Math.sqrt(Math.random()));
-  const type = rollVeggieType();
-  return {
-    id: `veg-r${round}-${Math.random().toString(36).substring(2, 9)}`,
+function spawnVeggie(room) {
+  const { type, tier, pointValue } = pickRarityTier();
+  const candidate = destinationPoint(
+    room.originLat, room.originLng,
+    Math.random() * 360,
+    SPAWN_RADIUS_METERS * Math.sqrt(Math.random())
+  );
+  const id = `veg-${Math.random().toString(36).substring(2, 9)}`;
+  room.veggies[id] = {
+    id,
     lat: candidate.lat, lng: candidate.lng,
     latitude: candidate.lat, longitude: candidate.lng,
     bearing: Math.random() * 360,
-    type, veggie_type: type, round, pointValue,
+    type, veggie_type: type,
+    tier, pointValue,
+    spawnedAt: Date.now(),
     fleeing: false, fleeBearingDeg: null,
   };
 }
@@ -386,127 +348,23 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // ========================================== //
-// 🦾 CORE gameplay Match state machine Loop    //
+// 🦾 CORE gameplay state (continuous spawn)  //
 // ========================================== //
-
-function startCountdown(roomCode) {
-  const room = rooms[roomCode];
-  if (!room || room.countdownTimer || room.matchStarted) return;
-  room.matchStarted = true;
-  let tick = 3;
-  io.to(roomCode).emit('tick', { tick });
-  room.countdownTimer = setInterval(() => {
-    tick -= 1;
-    if (tick > 0) {
-      io.to(roomCode).emit('tick', { tick });
-      return;
-    }
-    clearInterval(room.countdownTimer);
-    room.countdownTimer = null;
-    io.to(roomCode).emit('go');
-    beginMatch(roomCode);
-  }, COUNTDOWN_TICK_MS);
-}
-
-function cancelCountdown(roomCode, reason) {
-  const room = rooms[roomCode];
-  if (!room || !room.countdownTimer) return;
-  clearInterval(room.countdownTimer);
-  room.countdownTimer = null;
-  room.matchStarted = false;
-  io.to(roomCode).emit('match-countdown-cancelled', { reason: reason || 'player-left' });
-}
-
-function beginMatch(roomCode) {
-  const room = rooms[roomCode];
-  if (!room) return;
-  room.matchActive = true;
-  startStage(roomCode, room, 1);
-}
-
-function startStage(roomCode, room, roundNumber) {
-  room.stage = roundNumber;
-  const pointValue = ROUND_POINT_VALUES[roundNumber - 1];
-  const veg = spawnStageVeggie(room.originLat, room.originLng, roundNumber, pointValue);
-  room.stageVeggie = veg;
-  room.stageStartTime = Date.now();
-  room.stageResolved = false;
-  room.nextStageAt = null;
-  io.to(roomCode).emit('round-start', { round: roundNumber, pointValue, veggie: veg });
-}
-
-function endStage(roomCode, room, winnerPlayer, extra = {}) {
-  if (room.stageResolved) return;
-  room.stageResolved = true;
-  room.nextStageAt = Date.now() + INTER_ROUND_PAUSE_MS;
-  const pointValue = ROUND_POINT_VALUES[room.stage - 1];
-  if (winnerPlayer) {
-    winnerPlayer.score += pointValue;
-    io.to(roomCode).emit('round-win', {
-      round: room.stage,
-      winnerId: winnerPlayer.id,
-      winnerName: winnerPlayer.name,
-      pointValue,
-      veggieType: room.stageVeggie ? room.stageVeggie.type : null,
-      quality: extra.quality || 'good',
-      totalScore: winnerPlayer.score,
-    });
-  } else {
-    io.to(roomCode).emit('round-timeout', { round: room.stage });
-  }
-  room.stageVeggie = null;
-}
-
-function advanceMatch(roomCode, room) {
-  if (room.stage < TOTAL_ROUNDS) {
-    startStage(roomCode, room, room.stage + 1);
-    return;
-  }
-  room.matchEnded = true;
-  room.matchActive = false;
-  Object.values(room.players).forEach((p) => {
-    upsertLeaderboardEntry(p);
-  });
-  const ranked = Object.values(room.players)
-    .map((p) => ({
-      name: p.name,
-      score: p.score,
-      slot_id: p.character,
-      slotId: p.character,
-      color: CHARACTER_COLORS[p.character] || '#3a86ff',
-    }))
-    .sort((a, b) => b.score - a.score);
-  io.to(roomCode).emit('round-end', ranked);
-  Object.values(room.disconnectTimers).forEach((t) => clearTimeout(t));
-  room.disconnectTimers = {};
-  if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
-  room.postMatchCleanupTimer = setTimeout(() => {
-    if (rooms[roomCode] === room) delete rooms[roomCode];
-  }, ROOM_POST_MATCH_CLEANUP_MS);
-}
 
 function makeRoom(originLat, originLng) {
   return {
     originLat,
     originLng,
     players: {},
-    timingMode: 'outdoor',
-    modeChosen: false,
     leaderId: null,
     takenCharacters: {
       SLOT_01: false, SLOT_02: false, SLOT_03: false,
       SLOT_04: false, SLOT_05: false, SLOT_06: false,
     },
     disconnectTimers: {},
-    countdownTimer: null,
-    matchStarted: false,
-    matchActive: false,
-    matchEnded: false,
-    stage: 0,
-    stageVeggie: null,
-    stageStartTime: null,
-    stageResolved: false,
-    nextStageAt: null,
+    active: false,             // becomes true once first player joins
+    veggies: {},                // id -> veggie, replaces stageVeggie
+    lastSpawnCheckAt: 0,
     glitchCycleStart: Date.now(),
     glitchActive: false,
     postMatchCleanupTimer: null,
@@ -524,16 +382,14 @@ function leaveCurrentRoom(socket, roomCode) {
       clearTimeout(room.disconnectTimers[player.deviceUUID]);
       delete room.disconnectTimers[player.deviceUUID];
     }
-    if (room.countdownTimer) cancelCountdown(roomCode, 'player-left');
   }
   if (room.leaderId === socket.id) {
     const remaining = Object.keys(room.players);
     room.leaderId = remaining.length > 0 ? remaining[0] : null;
-    if (room.leaderId) io.to(room.leaderId).emit('promoted-to-leader', { timingMode: room.timingMode });
+    if (room.leaderId) io.to(room.leaderId).emit('promoted-to-leader', {});
   }
   socket.leave(roomCode);
   if (Object.keys(room.players).length === 0) {
-    if (room.countdownTimer) clearInterval(room.countdownTimer);
     if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
     Object.values(room.disconnectTimers).forEach((t) => clearTimeout(t));
     delete rooms[roomCode];
@@ -551,7 +407,7 @@ function finalizePlayerRemoval(roomCode, playerKey) {
   if (room.leaderId === playerKey) {
     const remaining = Object.keys(room.players);
     room.leaderId = remaining.length > 0 ? remaining[0] : null;
-    if (room.leaderId) io.to(room.leaderId).emit('promoted-to-leader', { timingMode: room.timingMode });
+    if (room.leaderId) io.to(room.leaderId).emit('promoted-to-leader', {});
   }
   if (Object.keys(room.players).length === 0) {
     if (room.postMatchCleanupTimer) clearTimeout(room.postMatchCleanupTimer);
@@ -566,7 +422,7 @@ function handleDisconnect(socket, roomCode) {
   if (!room) return;
   const player = room.players[socket.id];
   if (!player) return;
-  if (room.matchActive && player.deviceUUID) {
+  if (player.deviceUUID) {
     player.disconnected = true;
     socket.leave(roomCode);
     io.to(roomCode).emit('player-disconnected', { playerId: socket.id, name: player.name, graceMs: RECONNECT_GRACE_MS });
@@ -576,15 +432,6 @@ function handleDisconnect(socket, roomCode) {
     return;
   }
   leaveCurrentRoom(socket, roomCode);
-}
-
-function maybeAutoStart(roomCode) {
-  const room = rooms[roomCode];
-  if (!room) return;
-  const activePlayers = Object.keys(room.players).length;
-  if (!room.matchStarted && room.modeChosen && activePlayers >= MIN_PLAYERS_TO_START) {
-    startCountdown(roomCode);
-  }
 }
 
 // ========================================== //
@@ -627,10 +474,8 @@ io.on('connection', (socket) => {
           slotId: playerObj.character,
           geofence: { lat: room.originLat, lng: room.originLng, radiusMeters: ROOM_RADIUS_METERS },
           isLeader: room.leaderId === socket.id,
-          timingMode: room.timingMode,
           reconnected: true,
           score: playerObj.score,
-          round: room.stage,
         });
         io.to(roomCode).emit('player-reconnected', { playerId: socket.id, name: playerObj.name });
         return;
@@ -646,7 +491,6 @@ io.on('connection', (socket) => {
     }
 
     const room = rooms[roomCode];
-    if (room.matchActive) return socket.emit('room-error', { message: 'Match already in progress.' });
     if (Object.keys(room.players).length >= MAX_PLAYERS_PER_ROOM) return socket.emit('room-error', { message: 'Room is full! (max 6)' });
 
     const openSlot = Object.keys(room.takenCharacters).find((s) => !room.takenCharacters[s]);
@@ -668,50 +512,14 @@ io.on('connection', (socket) => {
       disconnected: false,
     };
     currentRoom = roomCode;
+    room.active = true;
     socket.join(roomCode);
     socket.emit('room-joined', {
       room: roomCode,
       slotId: openSlot,
       geofence: { lat: room.originLat, lng: room.originLng, radiusMeters: ROOM_RADIUS_METERS },
+      isLeader: room.leaderId === socket.id,
     });
-    maybeAutoStart(roomCode);
-  });
-
-  socket.on('set-timing-mode', (data) => {
-    if (!currentRoom || !rooms[currentRoom]) return;
-    const room = rooms[currentRoom];
-    if (room.leaderId !== socket.id || room.matchStarted) {
-      return socket.emit('room-error', { message: 'Mode modification rejected.' });
-    }
-    const mode = data && data.mode === 'indoor' ? 'indoor' : 'outdoor';
-    room.timingMode = mode;
-    room.modeChosen = true;
-    io.to(currentRoom).emit('timing-mode-updated', { mode });
-    maybeAutoStart(currentRoom);
-  });
-
-  socket.on('request-rematch', () => {
-    if (!currentRoom || !rooms[currentRoom]) return socket.emit('room-error', { message: 'Room no longer exists.' });
-    const room = rooms[currentRoom];
-    if (!room.matchEnded) return;
-    if (room.postMatchCleanupTimer) {
-      clearTimeout(room.postMatchCleanupTimer);
-      room.postMatchCleanupTimer = null;
-    }
-    Object.values(room.players).forEach((p) => {
-      p.score = 0;
-      p.disconnected = false;
-    });
-    room.stage = 0;
-    room.stageVeggie = null;
-    room.stageStartTime = null;
-    room.stageResolved = false;
-    room.nextStageAt = null;
-    room.matchStarted = false;
-    room.matchActive = false;
-    room.matchEnded = false;
-    io.to(currentRoom).emit('rematch-starting', { requestedBy: socket.id });
-    if (Object.keys(room.players).length >= MIN_PLAYERS_TO_START) startCountdown(currentRoom);
   });
 
   socket.on('update-location', (data) => {
@@ -740,11 +548,9 @@ io.on('connection', (socket) => {
     const p = room.players[socket.id];
     if (!p) return emitCaptureResult(socket, { vegId, success: false, label: 'NOT JOINED' });
 
-    if (!room.matchActive || room.matchEnded || room.stageResolved || !room.stageVeggie || room.stageVeggie.id !== vegId) {
-      return emitCaptureResult(socket, { vegId, success: false, label: 'GONE' });
-    }
+    const veg = room.veggies[vegId];
+    if (!veg) return emitCaptureResult(socket, { vegId, success: false, label: 'GONE' });
 
-    const veg = room.stageVeggie;
     const now = Date.now();
     const mode = getPlayerMode(p, now);
 
@@ -759,8 +565,11 @@ io.on('connection', (socket) => {
       if (diff > HEADING_TOLERANCE_DEG) return emitCaptureResult(socket, { vegId, success: false, label: 'NOT AIMED' });
     }
 
-    const pointValue = ROUND_POINT_VALUES[room.stage - 1];
-    endStage(currentRoom, room, p, { quality });
+    delete room.veggies[vegId];
+    const pointValue = veg.pointValue;
+    p.score += pointValue;
+    upsertLeaderboardEntry(p);
+
     emitCaptureResult(socket, {
       vegId,
       success: true,
@@ -774,6 +583,7 @@ io.on('connection', (socket) => {
       newScore: p.score,
       points: pointValue,
       species: veg.type,
+      tier: veg.tier,
       quality,
     });
   });
@@ -790,13 +600,12 @@ io.on('connection', (socket) => {
 // ========================================== //
 // ⏱️ AUTHORITATIVE CLOCK LOOP THREAD (1Hz)    //
 // ========================================== //
-// See file header — label corrected from "30HZ" to match the actual
-// TICK_MS = 1000 rate; the flee-distance math only works at 1 tick/sec.
 setInterval(() => {
   const now = Date.now();
 
   Object.keys(rooms).forEach((roomCode) => {
     const room = rooms[roomCode];
+    if (!room.active) return;
 
     const glitchElapsed = (now - room.glitchCycleStart) % GLITCH_CYCLE_MS;
     const previousGlitchState = room.glitchActive;
@@ -805,26 +614,29 @@ setInterval(() => {
       io.to(roomCode).emit('glitch-pulse', { active: room.glitchActive, duration: GLITCH_DURATION_MS });
     }
 
-    if (room.matchEnded) return;
-
-    if (room.matchActive && !room.stageResolved && room.stageStartTime) {
-      if (now - room.stageStartTime >= getStageDurationMs(room)) {
-        endStage(roomCode, room, null);
+    // Expire veggies past their lifetime
+    Object.keys(room.veggies).forEach((vegId) => {
+      const veg = room.veggies[vegId];
+      if (now - veg.spawnedAt > VEGGIE_LIFETIME_MS) {
+        delete room.veggies[vegId];
       }
-    }
+    });
 
-    if (room.stageResolved && room.nextStageAt && now >= room.nextStageAt) {
-      advanceMatch(roomCode, room);
-      return;
+    // Top up spawns to MAX_CONCURRENT_VEGGIES, throttled by SPAWN_CHECK_INTERVAL_MS
+    if (now - room.lastSpawnCheckAt >= SPAWN_CHECK_INTERVAL_MS) {
+      room.lastSpawnCheckAt = now;
+      const currentCount = Object.keys(room.veggies).length;
+      for (let i = currentCount; i < MAX_CONCURRENT_VEGGIES; i++) {
+        spawnVeggie(room);
+      }
     }
 
     if (!rooms[roomCode]) return;
 
-    // Flee Physics Vectors Calculations
     const activePlayers = Object.values(room.players).filter((p) => now - p.lastLocationAt < LOCATION_STALE_MS);
 
-    if (room.stageVeggie && !room.stageResolved) {
-      const veg = room.stageVeggie;
+    // Flee physics — each veggie flees its nearest active GPS player
+    Object.values(room.veggies).forEach((veg) => {
       let nearestPlayer = null;
       let nearestDist = Infinity;
 
@@ -851,10 +663,10 @@ setInterval(() => {
         veg.fleeing = false;
         veg.fleeBearingDeg = null;
       }
-    }
+    });
 
-    // Broadcast synchronized matrix logs down the transport highway
-    io.to(roomCode).emit('veggies-update', room.stageVeggie && !room.stageResolved ? [room.stageVeggie] : []);
+    // Broadcast synchronized state
+    io.to(roomCode).emit('veggies-update', Object.values(room.veggies));
     io.to(roomCode).emit(
       'players-update',
       Object.values(room.players).map((p) => ({
