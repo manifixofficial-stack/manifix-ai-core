@@ -9,9 +9,20 @@
  * just keep spawning/despawning around them.
  *
  * Rarity odds corrected to match the original documented design
- * intent (client gameConfig.js): COMMON (tomato+grapes) ~45%,
+ * intent (client gameConfig.js): COMMON (tomato+grapes+carrot) ~45%,
  * UNCOMMON (banana) 30%, RARE (strawberry+broccoli) ~20%,
  * ULTRA_RARE (golden) 5%. The old server had these inverted.
+ *
+ * THIS REVISION — added 'carrot' to the COMMON tier. There are 7 real
+ * species/prefabs in the Unity project (banana, broccoli, carrot,
+ * golden, grapes, strawberry, tomato), not 6 — carrot was missing from
+ * the original rarity design entirely. FLAGGED: no rarity/design intent
+ * was ever specified for carrot; COMMON was chosen as a reasonable
+ * default (common, easy vegetable). The COMMON tier's overall 45%
+ * chance is now split three ways (tomato/grapes/carrot) instead of two
+ * — individual odds per species within that tier went down accordingly,
+ * but the tier's total probability is unchanged. Confirm this is the
+ * intended design; adjust chance/tier if carrot should be rarer.
  *
  * TESTING VALUES — SPAWN_RADIUS_METERS / CATCH_RADIUS_METERS /
  * VEG_PANIC_RADIUS_M are set LOW right now so you can test indoors
@@ -90,7 +101,9 @@ const RARITY_TIERS = [
   { tier: 'ULTRA_RARE', types: ['golden'], chance: 0.05, pointValue: 500 },
   { tier: 'RARE', types: ['strawberry', 'broccoli'], chance: 0.20, pointValue: 250 },
   { tier: 'UNCOMMON', types: ['banana'], chance: 0.30, pointValue: 150 },
-  { tier: 'COMMON', types: ['tomato', 'grapes'], chance: 0.45, pointValue: 75 },
+  // 'carrot' added — see file header note. Tier's total chance (0.45)
+  // unchanged; now split three ways instead of two.
+  { tier: 'COMMON', types: ['tomato', 'grapes', 'carrot'], chance: 0.45, pointValue: 75 },
 ];
 
 function pickRarityTier() {
